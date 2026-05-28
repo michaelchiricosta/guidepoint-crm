@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { loadData, saveData } from './supabase.js'
 
 const SK = 'gp-crm-v4'
@@ -8,6 +9,8 @@ const PC = { Critical:{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, High:{c:'#f97316',
 const IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#eab308', Replacing:'#ef4444', Watch:'#f97316', Dropping:'#ef4444' }
 const PSC = { 'Not Started':'#64748b', 'In Discussion':'#3b82f6', 'In Flight':'#22c55e', Stalled:'#f97316', Won:'#a855f7', Lost:'#ef4444' }
+const INTERACTION_COLORS = { Meeting:'#3b82f6', Call:'#22c55e', Email:'#eab308', Demo:'#a855f7', Note:'#64748b' }
+const INTERACTION_TYPES = ['Meeting','Call','Email','Demo','Note']
 const STAGES = ['Awareness','NDA','Intro Call','Demo','Scoping','Pricing','Legal','Procurement','PO Received','Deployed']
 const INFLUENCES = ['Executive Sponsor','Technical Gatekeeper','Financial Gatekeeper','Final Approval','Stakeholder','Risk Factor','Ally']
 const TECH_CATS = ['SIEM / SOC','Endpoint','Identity / IAM','Cloud Security','Network / SASE','Email Security','AppSec','Pen Test / Red Team','Threat Intel','GRC','IT Operations','Other']
@@ -452,7 +455,12 @@ ${text}`}]
     setLoading(false)
   }
 
-  const handleProcess = () => { if (!apiKey) { setError('Add your Anthropic API key in Settings first.'); return } setShowDate(true) }
+  const handleProcess = () => {
+    if (!apiKey) { setError('Add your Anthropic API key in Settings first.'); return }
+    const detected = detectDate(text)
+    setCustomDate(detected || '')
+    setShowDate(true)
+  }
 
   return (
     <div>
@@ -485,7 +493,8 @@ ${text}`}]
         ))}
       </div>
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
-        <p style={{fontSize:13,color:'#94a3b8',marginBottom:14}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
+        <p style={{fontSize:13,color:'#94a3b8',marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
+        {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
         <Field label='Custom date (leave blank for today)' value={customDate} onChange={setCustomDate} type='date'/>
         <div style={{display:'flex',gap:8,marginTop:4}}>
           <Btn variant='primary' onClick={()=>{setShowDate(false);process(new Date().toISOString().split('T')[0])}}>Use Today</Btn>
@@ -532,30 +541,120 @@ function Settings({data,setData,acct,setAcct}) {
   )
 }
 
+const MONTH_MAP = {january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
+const detectDate = text => {
+  const t = text.slice(0,200)
+  const iso = t.match(/\b(\d{4}-\d{2}-\d{2})\b/)
+  if (iso) return iso[1]
+  const mdy = t.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)
+  if (mdy) return `${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`
+  const full = t.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})\b/i)
+  if (full) { const m=MONTH_MAP[full[1].toLowerCase()]; if(m) return `${full[3]}-${m}-${full[2].padStart(2,'0')}` }
+  const partial = t.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
+  if (partial) { const m=MONTH_MAP[partial[1].toLowerCase()]; if(m) return `${new Date().getFullYear()}-${m}-${partial[2].padStart(2,'0')}` }
+  return null
+}
+
+function Dashboard({acct}) {
+  const [filterContact,setFilterContact] = useState('All')
+  const contacts = ['All',...Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean)))]
+  const filtered = filterContact==='All' ? acct.interactions : acct.interactions.filter(i=>i.contact===filterContact)
+  const byDate = {}
+  filtered.forEach(i=>{
+    const d=i.date||'Unknown'
+    if(!byDate[d]){byDate[d]={date:d};INTERACTION_TYPES.forEach(t=>{byDate[d][t]=0});byDate[d]._topics={}}
+    if(INTERACTION_TYPES.includes(i.type))byDate[d][i.type]++
+    if(i.topics){if(!byDate[d]._topics[i.type])byDate[d]._topics[i.type]=[];byDate[d]._topics[i.type].push(i.topics)}
+  })
+  const chartData = Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date))
+  const typeCounts = INTERACTION_TYPES.reduce((acc,t)=>{acc[t]=filtered.filter(i=>i.type===t).length;return acc},{})
+  const renderTooltip = ({active,payload,label}) => {
+    if(!active||!payload?.length)return null
+    const entry=byDate[label]
+    return (
+      <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 14px',maxWidth:280}}>
+        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>{fmtDate(label)}</div>
+        {payload.filter(p=>p.value>0).map(p=>(
+          <div key={p.dataKey} style={{marginBottom:4}}>
+            <div style={{fontSize:12,color:p.fill,fontWeight:600}}>{p.dataKey}: {p.value}</div>
+            {entry?._topics[p.dataKey]?.map((t,i)=><div key={i} style={{fontSize:11,color:S.muted,paddingLeft:8,marginTop:2}}>{t}</div>)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:2}}>Interaction Dashboard</div>
+          <div style={{fontSize:12,color:S.muted}}>{filtered.length} interaction{filtered.length!==1?'s':''}</div>
+        </div>
+        <select value={filterContact} onChange={e=>setFilterContact(e.target.value)} style={{fontSize:12,padding:'5px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
+          {contacts.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+        {INTERACTION_TYPES.filter(t=>typeCounts[t]>0).map(t=>(
+          <div key={t} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6}}>
+            <div style={{width:10,height:10,borderRadius:2,background:INTERACTION_COLORS[t]}}/>
+            <span style={{fontSize:12,color:S.txt,fontWeight:600}}>{typeCounts[t]}</span>
+            <span style={{fontSize:12,color:S.muted}}>{t}</span>
+          </div>
+        ))}
+      </div>
+      {chartData.length===0
+        ? <div style={{textAlign:'center',padding:'60px 20px',color:S.muted,fontSize:13}}>No interactions logged yet. Use Intel Log to add interactions.</div>
+        : <Card style={{padding:'16px 8px 8px'}}>
+            <ResponsiveContainer width='100%' height={320}>
+              <BarChart data={chartData} margin={{top:0,right:16,bottom:0,left:0}}>
+                <CartesianGrid strokeDasharray='3 3' stroke={S.bdr} vertical={false}/>
+                <XAxis dataKey='date' tickFormatter={d=>fmtDate(d)} tick={{fontSize:11,fill:S.muted}} axisLine={{stroke:S.bdr}} tickLine={false}/>
+                <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.muted}} axisLine={false} tickLine={false}/>
+                <RechartsTooltip content={renderTooltip}/>
+                {INTERACTION_TYPES.map((t,i)=><Bar key={t} dataKey={t} stackId='a' fill={INTERACTION_COLORS[t]} radius={i===INTERACTION_TYPES.length-1?[3,3,0,0]:[0,0,0,0]}/>)}
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+      }
+    </div>
+  )
+}
+
 function Sidebar({data,activeId,setActiveId,setData}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
+  const [collapsed,setCollapsed] = useState(false)
   const addAccount=()=>{if(!newName.trim())return;const id=uid();setData(p=>({...p,accounts:[...p.accounts,{...SAMPLE.accounts[0],id,name:newName,short:newName.slice(0,5).toUpperCase(),contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[]}]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   return (
-    <div style={{width:220,background:'#060a12',borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%'}}>
-      <div style={{padding:'14px 14px 8px'}}>
-        <div style={{fontSize:10,fontWeight:800,color:S.blue,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:2}}>GuidePoint Security</div>
-        <div style={{fontSize:13,fontWeight:700,color:S.txt}}>Account Intelligence</div>
+    <div style={{width:collapsed?48:220,background:'#060a12',borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:collapsed?'center':'space-between',padding:collapsed?'12px 0 4px':'12px 10px 4px'}}>
+        {!collapsed&&<div>
+          <div style={{fontSize:10,fontWeight:800,color:S.blue,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:2}}>GuidePoint</div>
+          <div style={{fontSize:12,fontWeight:700,color:S.txt}}>Account Intel</div>
+        </div>}
+        <button onClick={()=>setCollapsed(c=>!c)} title={collapsed?'Expand sidebar':'Collapse sidebar'} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:13,padding:'3px 7px',lineHeight:1,flexShrink:0}}>{collapsed?'»':'«'}</button>
       </div>
-      <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.08em',textTransform:'uppercase',padding:'8px 14px 4px'}}>My Accounts</div>
-      <div style={{flex:1,overflowY:'auto',padding:'0 8px'}}>
+      {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.08em',textTransform:'uppercase',padding:'4px 14px'}}>My Accounts</div>}
+      <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 6px':'0 8px'}}>
         {data.accounts.map(a=>(
-          <button key={a.id} onClick={()=>setActiveId(a.id)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px',borderRadius:7,border:'none',background:activeId===a.id?'rgba(59,130,246,0.12)':'transparent',textAlign:'left',cursor:'pointer',marginBottom:2}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:sc[a.status]||S.muted,flexShrink:0}}/>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:activeId===a.id?S.blue:S.txt,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
-              <div style={{fontSize:10,color:S.muted}}>{a.status}</div>
-            </div>
-          </button>
+          collapsed
+          ? <button key={a.id} onClick={()=>setActiveId(a.id)} title={a.name} style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',marginBottom:3,borderRadius:7}}>
+              <div style={{width:34,height:34,borderRadius:'50%',background:activeId===a.id?'rgba(59,130,246,0.2)':S.surf,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:activeId===a.id?S.blue:S.muted,border:`1px solid ${activeId===a.id?S.blue:S.bdr}`,flexShrink:0}}>
+                {initials(a.short||a.name)}
+              </div>
+            </button>
+          : <button key={a.id} onClick={()=>setActiveId(a.id)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px',borderRadius:7,border:'none',background:activeId===a.id?'rgba(59,130,246,0.12)':'transparent',textAlign:'left',cursor:'pointer',marginBottom:2}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:sc[a.status]||S.muted,flexShrink:0}}/>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,color:activeId===a.id?S.blue:S.txt,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
+                <div style={{fontSize:10,color:S.muted}}>{a.status}</div>
+              </div>
+            </button>
         ))}
       </div>
-      <div style={{padding:'8px 10px',borderTop:`1px solid ${S.bdr}`}}>
+      {!collapsed&&<div style={{padding:'8px 10px',borderTop:`1px solid ${S.bdr}`}}>
         {showAdd?<div>
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder='Account name...' onKeyDown={e=>e.key==='Enter'&&addAccount()} style={{marginBottom:6,fontSize:12}}/>
           <div style={{display:'flex',gap:5}}>
@@ -563,12 +662,12 @@ function Sidebar({data,activeId,setActiveId,setData}) {
             <Btn onClick={()=>{setShowAdd(false);setNewName('')}} style={{fontSize:12,padding:'5px 8px'}}>x</Btn>
           </div>
         </div>:<button onClick={()=>setShowAdd(true)} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'7px 8px',background:'transparent',border:`1px dashed ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:12,cursor:'pointer'}}>+ New Account</button>}
-      </div>
+      </div>}
     </div>
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'settings',label:'Settings'}]
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'settings',label:'Settings'}]
 
 export default function App() {
   const [data,setData] = useState(null)
@@ -603,6 +702,7 @@ export default function App() {
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px'}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct}/>}
+          {tab==='dashboard'&&<Dashboard acct={acct}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
