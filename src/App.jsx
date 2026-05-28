@@ -540,6 +540,7 @@ function FollowUps({acct,setAcct}) {
 }
 
 function IntelLog({acct,setAcct,apiKey}) {
+  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const [text,setText] = useState('')
   const [loading,setLoading] = useState(false)
   const [error,setError] = useState('')
@@ -552,7 +553,7 @@ function IntelLog({acct,setAcct,apiKey}) {
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({
           model:'claude-sonnet-4-6',max_tokens:8000,
           system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per array. No markdown, no explanation.',
@@ -585,7 +586,7 @@ ${text}`}]
   }
 
   const handleProcess = () => {
-    if (!apiKey) { setError('Add your Anthropic API key in Settings first.'); return }
+    if (!effectiveKey) { setError('Add your Anthropic API key in Settings first.'); return }
     const detected = detectDate(text)
     setCustomDate(detected || '')
     setShowDate(true)
@@ -596,7 +597,7 @@ ${text}`}]
       <Card style={{padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:4}}>Add Intelligence</div>
         <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Paste a call transcript, meeting notes, email, or quick note. AI extracts follow-ups, updates contacts, and logs the intel automatically.</div>
-        {!apiKey&&<div style={{fontSize:11,color:S.orange,marginBottom:8,padding:'6px 10px',background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:5}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</div>}
+        {!effectiveKey&&<div style={{fontSize:11,color:S.orange,marginBottom:8,padding:'6px 10px',background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:5}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</div>}
         <textarea value={text} onChange={e=>setText(e.target.value)} rows={8} placeholder={'Paste transcript, meeting notes, email, or a quick note here...\n\nExample: "Talked to Rudy today. NetSpy demo confirmed for Wednesday. Jamie Dennis reached back about Saviynt pricing — wants a decision by June..."'} style={{marginBottom:10}}/>
         {error&&<div style={{fontSize:12,color:S.red,marginBottom:8,lineHeight:1.5}}>{error}</div>}
         {result&&<div style={{fontSize:12,color:S.green,marginBottom:8,padding:'8px 12px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:6}}>Done — logged {result.entry?'1 intel entry':''},  added {result.followUps} follow-up{result.followUps!==1?'s':''}, updated {result.contacts} contact{result.contacts!==1?'s':''}</div>}
