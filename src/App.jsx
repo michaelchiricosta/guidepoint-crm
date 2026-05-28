@@ -206,56 +206,185 @@ function Contacts({acct,setAcct}) {
   )
 }
 
+const HEATMAP_DOMAINS = [
+  {name:'Cloud & App Security',color:'#0ea5e9',caps:['CNAPP/CSPM','CWPP','CIEM','CASB/SSPM','CDN/WAF','SAST','DAST/IAST','SCA','API Security','App Pen Testing']},
+  {name:'Data Protection',color:'#8b5cf6',caps:['Data Governance','DSPM','DLP','GenAI/LLM Security','Data Encryption','Key Management','BC/DR Backup','GRC Platform','3rd Party Risk','DFIR']},
+  {name:'Endpoint & Mail',color:'#f59e0b',caps:['Endpoint EDR','Server EDR','Endpoint Encryption','Insider Threat/DDR','MDM/EMM','Patch Management','Email Gateway','BEC/Phishing','DMARC','Email DLP']},
+  {name:'Security Operations',color:'#ef4444',caps:['SIEM/XDR','SOAR','Threat Intel','MSSP/MDR','Vulnerability Management','Pen Testing','BAS/Continuous Testing','Log Management','Brand/Dark Web','DFIR']},
+  {name:'Network Security',color:'#22c55e',caps:['Firewall','IDS/IPS','URL Filtering','Sandbox','DNS Security','SASE/ZTNA','Zero Trust','NAC','NTA/NDR','FW Segmentation']},
+  {name:'Identity Security',color:'#f97316',caps:['Identity Store/AD','ITDR','IAM','SSO','MFA','IGA','PAM','Certificate Management','ISPM','Non-Human Identity']},
+]
+const CAP_KEYWORDS = {
+  'CNAPP/CSPM':['cspm','cnapp','cloud security posture','wiz'],'CWPP':['cwpp','cloud workload'],'CIEM':['ciem','cloud identity entitlement'],'CASB/SSPM':['casb','sspm'],'CDN/WAF':['cdn','waf','web application firewall','cloudflare'],'SAST':['sast','static analysis'],'DAST/IAST':['dast','iast'],'SCA':['sca','software composition'],'API Security':['api security'],'App Pen Testing':['app pen','application pen'],
+  'Data Governance':['data governance'],'DSPM':['dspm','data security posture'],'DLP':['dlp','data loss','purview'],'GenAI/LLM Security':['genai','llm','ai security'],'Data Encryption':['encryption','bitlocker'],'Key Management':['key management'],'BC/DR Backup':['backup','disaster recovery'],'GRC Platform':['grc','vanta','compliance'],'3rd Party Risk':['third party risk','3rd party'],'DFIR':['dfir','incident response','forensics'],
+  'Endpoint EDR':['edr','defender','crowdstrike','sentinelone'],'Server EDR':['server edr','server endpoint'],'Endpoint Encryption':['endpoint encryption','bitlocker','full disk'],'Insider Threat/DDR':['insider threat','ddr'],'MDM/EMM':['mdm','emm','intune','mobile device'],'Patch Management':['patch management','wsus'],'Email Gateway':['email','abnormal','proofpoint','mimecast','gateway'],'BEC/Phishing':['bec','phishing','abnormal','email protection'],'DMARC':['dmarc','spf','dkim'],'Email DLP':['email dlp','purview'],
+  'SIEM/XDR':['siem','xdr','chronicle','qradar','sentinel','google secops'],'SOAR':['soar','orchestration'],'Threat Intel':['threat intel','cti'],'MSSP/MDR':['mdr','mssp','managed detection','10x'],'Vulnerability Management':['vulnerability management','qualys','wiz','tenable'],'Pen Testing':['pen test','ptaas','netspy','mandiant'],'BAS/Continuous Testing':['bas','breach attack','continuous testing','horizon 3','pentera'],'Log Management':['log management','cribl'],'Brand/Dark Web':['dark web','brand monitoring'],
+  'Firewall':['firewall','palo alto','fortinet'],'IDS/IPS':['ids','ips','intrusion'],'URL Filtering':['url filtering','web filtering','zscaler','cloudflare gateway'],'Sandbox':['sandbox','detonation'],'DNS Security':['dns security','dns filter'],'SASE/ZTNA':['sase','ztna','cloudflare','zscaler','netskope'],'Zero Trust':['zero trust','ztna','cloudflare access'],'NAC':['nac','network access control'],'NTA/NDR':['nta','ndr','network detection'],'FW Segmentation':['segmentation','microsegmentation'],
+  'Identity Store/AD':['active directory','entra id','ldap'],'ITDR':['itdr','identity threat detection'],'IAM':['iam','entra','okta'],'SSO':['sso','single sign','saml'],'MFA':['mfa','multi-factor','authenticator'],'IGA':['iga','saviynt','sailpoint','identity governance'],'PAM':['pam','privileged access','cyberark','pim','delinea'],'Certificate Management':['certificate','pki','digicert'],'ISPM':['ispm','identity security posture'],'Non-Human Identity':['non-human','service account','machine identity'],
+}
+const makeArc = (cx,cy,r1,r2,a1,a2,gap=0.01) => {
+  const s=a1+gap, e=a2-gap
+  if(e<=s) return ''
+  const lg=(e-s)>Math.PI?1:0, co=Math.cos, si=Math.sin
+  return `M ${cx+r2*co(s)} ${cy+r2*si(s)} A ${r2} ${r2} 0 ${lg} 1 ${cx+r2*co(e)} ${cy+r2*si(e)} L ${cx+r1*co(e)} ${cy+r1*si(e)} A ${r1} ${r1} 0 ${lg} 0 ${cx+r1*co(s)} ${cy+r1*si(s)} Z`
+}
+const findVendor = (cap, techStack) => {
+  const kws = (CAP_KEYWORDS[cap]||[cap.toLowerCase()])
+  let best=null, bestScore=0
+  for (const t of techStack) {
+    const s=`${t.vendor} ${t.products} ${t.category} ${t.notes}`.toLowerCase()
+    const score=kws.filter(k=>s.includes(k)).length
+    if(score>bestScore){best=t;bestScore=score}
+  }
+  return bestScore>0?best:null
+}
+const capStatusFill = v => !v?'#1e2d40':({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#eab308',Watch:'#f97316',Replacing:'#ef4444',Dropping:'#ef4444'}[v.status]||'#1e2d40')
+
 function TechStack({acct,setAcct}) {
+  const [view,setView] = useState('list')
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
+  const [hoveredSeg,setHoveredSeg] = useState(null)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',notes:''}
   const save=()=>{if(!form.vendor)return;if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?form:t)}));else setAcct(p=>({...p,techStack:[...p.techStack,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=acct.techStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
+
+  // Heatmap geometry: outer ring = domains (57px, thicker), inner ring = caps (48px)
+  const CX=300,CY=300,OR1=195,OR2=252,IR1=142,IR2=190,LR=267,START=-Math.PI/2
+  const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Email Security','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
+  const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
+  const coveredCaps=allCaps.filter(cap=>findVendor(cap,acct.techStack))
+  const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
+
+  const hmSegments=[]
+  let angle=START
+  const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
+  HEATMAP_DOMAINS.forEach((domain,di)=>{
+    const dS=angle,dE=angle+anglePD,mid=(dS+dE)/2
+    hmSegments.push({type:'domain',di,domain,mid,path:makeArc(CX,CY,OR1,OR2,dS,dE,0.022)})
+    const aPC=anglePD/domain.caps.length
+    domain.caps.forEach((cap,ci)=>{
+      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack)
+      hmSegments.push({type:'cap',di,ci,domain,cap,vendor,fill:capStatusFill(vendor),path:makeArc(CX,CY,IR1,IR2,cS,cE,0.013)})
+    })
+    angle=dE
+  })
+
+  const handleCapHover=(seg,e)=>{if(seg.type!=='cap'){setHoveredSeg(null);return};setHoveredSeg({...seg,x:e.clientX,y:e.clientY})}
+  const handleCapMove=(seg,e)=>{if(seg.type!=='cap')return;setHoveredSeg(p=>p?{...p,x:e.clientX,y:e.clientY}:null)}
+  const handleCapClick=(seg)=>{
+    if(seg.type!=='cap')return
+    if(seg.vendor){setForm(seg.vendor);setShowAdd(true)}
+    else{setForm({...blank,category:domainToCategory[seg.domain.name]||'Other'});setShowAdd(true)}
+  }
+
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <div style={{fontSize:12,color:S.muted,display:'flex',gap:16}}>
-          <span>{acct.techStack.length} vendors</span>
-          {upcoming>0&&<span style={{color:S.orange}}>{upcoming} renewal{upcoming>1?'s':''} within 5 months</span>}
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+            {['list','heatmap'].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:'5px 14px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{v==='list'?'List':'Heatmap'}</button>)}
+          </div>
+          <div style={{fontSize:12,color:S.muted,display:'flex',gap:16}}>
+            <span>{acct.techStack.length} vendors</span>
+            {upcoming>0&&<span style={{color:S.orange}}>{upcoming} renewal{upcoming>1?'s':''} within 5 months</span>}
+          </div>
         </div>
         <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Vendor</Btn>
       </div>
-      {Object.entries(grouped).map(([cat,tools])=>(
-        <div key={cat} style={{marginBottom:18}}>
-          <SH>{cat}</SH>
-          <div style={{display:'flex',flexDirection:'column',gap:4}}>
-            {tools.map(t=>{
-              const d=daysUntil(t.renewalDate);const rc=d!==null&&d<=60?S.red:d!==null&&d<=150?S.orange:null;const sc=SC[t.status]||S.muted
-              return (<div key={t.id} style={{background:S.surf,border:`1px solid ${rc||S.bdr}`,borderRadius:7,padding:'10px 14px'}}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
-                  <div style={{flex:1}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
-                      <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{t.vendor}</span>
-                      <Badge label={t.status} color={sc} bg={sc+'1a'}/>
-                      {t.renewalDate&&d!==null&&<Badge label={'Renews '+fmtDate(t.renewalDate)+' ('+d+'d)'} color={rc||S.green} bg={(rc||S.green)+'1a'}/>}
+
+      {view==='list'&&<>
+        {Object.entries(grouped).map(([cat,tools])=>(
+          <div key={cat} style={{marginBottom:18}}>
+            <SH>{cat}</SH>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {tools.map(t=>{
+                const d=daysUntil(t.renewalDate);const rc=d!==null&&d<=60?S.red:d!==null&&d<=150?S.orange:null;const sc=SC[t.status]||S.muted
+                return (<div key={t.id} style={{background:S.surf,border:`1px solid ${rc||S.bdr}`,borderRadius:7,padding:'10px 14px'}}>
+                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
+                        <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{t.vendor}</span>
+                        <Badge label={t.status} color={sc} bg={sc+'1a'}/>
+                        {t.renewalDate&&d!==null&&<Badge label={'Renews '+fmtDate(t.renewalDate)+' ('+d+'d)'} color={rc||S.green} bg={(rc||S.green)+'1a'}/>}
+                      </div>
+                      {t.products&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>{t.products}</div>}
+                      <div style={{fontSize:11,color:S.dim,display:'flex',gap:12,flexWrap:'wrap'}}>
+                        {t.clientOwner&&<span>Owner: {t.clientOwner}</span>}
+                        {t.vendorRep&&<span>Rep: {t.vendorRep}</span>}
+                        {t.cost&&<span>Cost: {t.cost}</span>}
+                      </div>
+                      {t.notes&&<div style={{fontSize:12,color:'#94a3b8',marginTop:4}}>{t.notes}</div>}
                     </div>
-                    {t.products&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>{t.products}</div>}
-                    <div style={{fontSize:11,color:S.dim,display:'flex',gap:12,flexWrap:'wrap'}}>
-                      {t.clientOwner&&<span>Owner: {t.clientOwner}</span>}
-                      {t.vendorRep&&<span>Rep: {t.vendorRep}</span>}
-                      {t.cost&&<span>Cost: {t.cost}</span>}
+                    <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <button onClick={()=>{setForm(t);setShowAdd(true)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
+                      <button onClick={()=>del(t.id)} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:12}}>Del</button>
                     </div>
-                    {t.notes&&<div style={{fontSize:12,color:'#94a3b8',marginTop:4}}>{t.notes}</div>}
                   </div>
-                  <div style={{display:'flex',gap:6,flexShrink:0}}>
-                    <button onClick={()=>{setForm(t);setShowAdd(true)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
-                    <button onClick={()=>del(t.id)} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:12}}>Del</button>
-                  </div>
-                </div>
-              </div>)
-            })}
+                </div>)
+              })}
+            </div>
           </div>
+        ))}
+      </>}
+
+      {view==='heatmap'&&<div>
+        <div style={{textAlign:'center',marginBottom:10}}>
+          <span style={{fontSize:13,color:S.muted}}>{coveredCaps.length} of {allCaps.length} capabilities covered · </span>
+          <span style={{fontSize:14,fontWeight:700,color:coveragePct>=70?S.green:coveragePct>=40?S.yellow:S.red}}>{coveragePct}%</span>
         </div>
-      ))}
+        <svg viewBox="-55 -55 710 710" style={{width:'100%',maxWidth:580,display:'block',margin:'0 auto',overflow:'visible'}}>
+          {/* Inner capability ring */}
+          {hmSegments.filter(s=>s.type==='cap').map((seg,i)=>(
+            <path key={`c${i}`} d={seg.path} fill={seg.fill} stroke={S.bg} strokeWidth={0.5}
+              style={{cursor:'pointer',transition:'filter 0.1s',filter:hoveredSeg?.cap===seg.cap&&hoveredSeg?.di===seg.di?'brightness(1.5) saturate(1.2)':'brightness(1)'}}
+              onMouseEnter={e=>handleCapHover(seg,e)} onMouseMove={e=>handleCapMove(seg,e)}
+              onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
+          ))}
+          {/* Outer domain ring + labels */}
+          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>{
+            const lx=CX+LR*Math.cos(seg.mid), ly=CY+LR*Math.sin(seg.mid)
+            const anchor=Math.cos(seg.mid)>0.1?'start':Math.cos(seg.mid)<-0.1?'end':'middle'
+            const words=seg.domain.name.split(' '), half=Math.ceil(words.length/2)
+            const l1=words.slice(0,half).join(' '), l2=words.slice(half).join(' ')
+            return (
+              <g key={`d${i}`}>
+                <path d={seg.path} fill={seg.domain.color} stroke={S.bg} strokeWidth={1.5}/>
+                <text textAnchor={anchor} fill={seg.domain.color} fontSize={9.5} fontWeight={700} letterSpacing='0.04em'>
+                  <tspan x={lx} y={l2?ly-6:ly+4}>{l1}</tspan>
+                  {l2&&<tspan x={lx} dy={13}>{l2}</tspan>}
+                </text>
+              </g>
+            )
+          })}
+          {/* Center hole */}
+          <circle cx={CX} cy={CY} r={IR1-10} fill={S.bg}/>
+          <text x={CX} y={CY-5} textAnchor='middle' fontSize={10} fontWeight={800} fill={S.muted} letterSpacing='0.08em'>SECURITY</text>
+          <text x={CX} y={CY+11} textAnchor='middle' fontSize={10} fontWeight={800} fill={S.muted} letterSpacing='0.08em'>HEATMAP</text>
+        </svg>
+        {/* Legend */}
+        <div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,flexWrap:'wrap'}}>
+          {[['Maintain','#22c55e'],['Review','#eab308'],['Invest','#f97316'],['Gap','#ef4444'],['Critical Gap','#1e2d40']].map(([label,color])=>(
+            <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
+              <div style={{width:11,height:11,borderRadius:2,background:color,border:`1px solid ${S.bdr2}`}}/>
+              <span style={{fontSize:11,color:S.muted}}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Floating tooltip */}
+      {hoveredSeg&&view==='heatmap'&&<div style={{position:'fixed',left:Math.min(hoveredSeg.x+14,window.innerWidth-240),top:Math.max(10,hoveredSeg.y-60),background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${hoveredSeg.domain.color}`,borderRadius:8,padding:'8px 12px',pointerEvents:'none',zIndex:9999,maxWidth:220,boxShadow:'0 4px 16px rgba(0,0,0,0.5)'}}>
+        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:4}}>{hoveredSeg.cap}</div>
+        {hoveredSeg.vendor
+          ?<><div style={{fontSize:12,color:S.muted,marginBottom:2}}>{hoveredSeg.vendor.vendor}</div><div style={{fontSize:11,color:capStatusFill(hoveredSeg.vendor),fontWeight:600}}>{hoveredSeg.vendor.status}</div></>
+          :<div style={{fontSize:11,color:S.muted}}>No vendor mapped · click to add</div>
+        }
+      </div>}
+
       {showAdd&&<Modal title='Add / Edit Vendor' onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
           <Field label='Vendor Name' value={form.vendor} onChange={f('vendor')} style={{gridColumn:'span 2'}}/>
