@@ -1,5 +1,6 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { loadData, saveData } from './supabase.js'
 
 const SK = 'gp-crm-v4'
 const S = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7' }
@@ -574,8 +575,8 @@ export default function App() {
   const [activeId,setActiveId] = useState('bhsi')
   const [tab,setTab] = useState('overview')
 
-  useEffect(()=>{ const s=localStorage.getItem(SK); if(s){try{setData(JSON.parse(s))}catch{setData(SAMPLE)}}else setData(SAMPLE) },[])
-  useEffect(()=>{ if(data)localStorage.setItem(SK,JSON.stringify(data)) },[data])
+  useEffect(()=>{ loadData().then(d=>{ if(d) setData(d); else setData(SAMPLE) }) },[])
+  useEffect(()=>{ if(data) saveData(data) },[data])
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:S.muted,fontSize:14}}>Loading...</div>
 
