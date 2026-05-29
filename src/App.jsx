@@ -4,7 +4,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import { loadData, saveData } from './supabase.js'
 
 const SK = 'gp-crm-v4'
-const S = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7' }
+const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017' }
+const LIGHT_THEME = { bg:'#f1f5f9', surf:'#ffffff', surf2:'#f8fafc', bdr:'#e2e8f0', bdr2:'#cbd5e1', txt:'#0f172a', muted:'#64748b', dim:'#94a3b8', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#ca8a04', purple:'#a855f7', secondary:'#475569', sidebarBg:'#e2e8f0', headerBg:'#f1f5f9' }
+let S = DARK_THEME
 const PC = { Critical:{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, High:{c:'#f97316',b:'rgba(249,115,22,0.12)'}, Medium:{c:'#eab308',b:'rgba(234,179,8,0.12)'}, Low:{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#eab308', Replacing:'#ef4444', Watch:'#f97316', Dropping:'#ef4444' }
@@ -130,7 +132,7 @@ function Overview({acct,setAcct,setTab}) {
           </Card>
         ))}
       </div>
-      {alerts.length>0&&<><SH>Alerts</SH><div style={{marginBottom:16}}>{alerts.slice(0,6).map((a,i)=>{const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted;return(<div key={i} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5}}><span style={{color:c,flexShrink:0}}>!</span><span style={{fontSize:13,color:'#cbd5e1'}}>{a.text}</span></div>)})}</div></>}
+      {alerts.length>0&&<><SH>Alerts</SH><div style={{marginBottom:16}}>{alerts.slice(0,6).map((a,i)=>{const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted;return(<div key={i} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5}}><span style={{color:c,flexShrink:0}}>!</span><span style={{fontSize:13,color:S.secondary}}>{a.text}</span></div>)})}</div></>}
       <SH>Account Profile</SH>
       <Card style={{padding:'14px 16px',marginBottom:16}}>
         {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v])=>(
@@ -144,7 +146,7 @@ function Overview({acct,setAcct,setTab}) {
         const p=PC[f.priority]||PC.Low
         return <div key={f.id} style={{display:'flex',gap:8,padding:'9px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:7,marginBottom:5}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{f.task}</div><div style={{fontSize:11,color:S.muted}}>{f.contact&&f.contact+' · '}{fmtDate(f.dueDate)||'No date set'}</div></div><Badge label={f.priority} color={p.c} bg={p.b}/></div>
       })}
-      {(()=>{const qw=getQuickWin(acct);return qw?(<div style={{marginTop:16}}><SH>Quick Win</SH><div style={{padding:'14px 16px',background:'rgba(0,0,0,0.25)',border:`1px solid ${qw.color}44`,borderLeft:`4px solid ${qw.color}`,borderRadius:8}}><div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:4}}>{qw.title}</div><div style={{fontSize:12,color:S.muted,marginBottom:10,lineHeight:1.5}}>{qw.meta}</div>{setTab&&<Btn onClick={()=>setTab(qw.tab)} style={{fontSize:12,padding:'5px 12px',background:qw.color,color:'#fff',border:'none'}}>{qw.cta} →</Btn>}</div></div>):null})()}
+      {(()=>{const qw=getQuickWin(acct);return qw?(<div style={{marginTop:16}}><SH>Quick Win</SH><div style={{padding:'14px 16px',background:S.surf2,border:`1px solid ${qw.color}44`,borderLeft:`4px solid ${qw.color}`,borderRadius:8}}><div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:4}}>{qw.title}</div><div style={{fontSize:12,color:S.muted,marginBottom:10,lineHeight:1.5}}>{qw.meta}</div>{setTab&&<Btn onClick={()=>setTab(qw.tab)} style={{fontSize:12,padding:'5px 12px',background:qw.color,color:'#fff',border:'none'}}>{qw.cta} →</Btn>}</div></div>):null})()}
     </div>
   )
 }
@@ -185,7 +187,7 @@ function Contacts({acct,setAcct}) {
       {(acct.relSuggestions||[]).length>0&&<div style={{marginBottom:12,display:'flex',flexDirection:'column',gap:5}}>
         {(acct.relSuggestions||[]).map(s=>(
           <div key={s.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 12px',background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:7,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,color:'#93c5fd'}}>AI suggests: Mark <strong>{s.contactName}</strong> as <strong>{s.suggestedStatus}</strong> — {s.reason}</span>
+            <span style={{fontSize:12,color:S.blue}}>AI suggests: Mark <strong>{s.contactName}</strong> as <strong>{s.suggestedStatus}</strong> — {s.reason}</span>
             <div style={{display:'flex',gap:5,flexShrink:0}}>
               <Btn variant='primary' onClick={()=>applySuggestion(s)} style={{fontSize:11,padding:'4px 10px'}}>Apply</Btn>
               <Btn onClick={()=>dismissSuggestion(s.id)} style={{fontSize:11,padding:'4px 8px'}}>Dismiss</Btn>
@@ -237,7 +239,7 @@ function Contacts({acct,setAcct}) {
                 <div key='li'><span style={{color:S.muted}}>LinkedIn: </span>{c.linkedin?<a href={c.linkedin} target='_blank' rel='noopener noreferrer' onClick={e=>e.stopPropagation()} style={{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3}}><span style={{fontSize:10,fontWeight:700,color:'#fff',background:'#0a66c2',padding:'1px 6px',borderRadius:3,lineHeight:'16px'}}>in</span></a>:<span style={{color:S.txt}}>—</span>}</div>
               </div>
               {c.lastInteracted&&<div style={{fontSize:11,color:S.muted,marginBottom:8}}>Last interacted: {fmtDate(c.lastInteracted)}</div>}
-              {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Notes',c.notes],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:'#94a3b8',lineHeight:1.6}}>{v}</div></div>:null)}
+              {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Notes',c.notes],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:S.secondary,lineHeight:1.6}}>{v}</div></div>:null)}
               <div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:10}}>
                 <SH>Interaction History</SH>
                 {relHistory.length===0
@@ -247,7 +249,7 @@ function Contacts({acct,setAcct}) {
                       <div key={i} style={{display:'flex',alignItems:'flex-start',gap:7}}>
                         <span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap',flexShrink:0}}>{fmtDate(e.date)}</span>
                         <Badge label={e.type||'Note'} color={INTERACTION_COLORS[e.type]||S.muted} bg={(INTERACTION_COLORS[e.type]||S.muted)+'1a'} size={10}/>
-                        <span style={{fontSize:12,color:'#94a3b8',lineHeight:1.5}}>{(e.summary||'').split('\n')[0].slice(0,120)}{(e.summary||'').length>120?'…':''}</span>
+                        <span style={{fontSize:12,color:S.secondary,lineHeight:1.5}}>{(e.summary||'').split('\n')[0].slice(0,120)}{(e.summary||'').length>120?'…':''}</span>
                       </div>
                     ))}
                   </div>
@@ -315,7 +317,7 @@ const findVendor = (cap, techStack) => {
   }
   return bestScore>0?best:null
 }
-const capStatusFill = v => !v?'#1e2d40':({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#eab308',Watch:'#f97316',Replacing:'#ef4444',Dropping:'#ef4444'}[v.status]||'#1e2d40')
+const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#eab308',Watch:'#f97316',Replacing:'#ef4444',Dropping:'#ef4444'}[v.status]||S.bdr2)
 
 function TechStack({acct,setAcct}) {
   const [view,setView] = useState('list')
@@ -394,7 +396,7 @@ function TechStack({acct,setAcct}) {
                         {t.vendorRep&&<span>Rep: {t.vendorRep}</span>}
                         {t.cost&&<span>Cost: {t.cost}</span>}
                       </div>
-                      {t.notes&&<div style={{fontSize:12,color:'#94a3b8',marginTop:4}}>{t.notes}</div>}
+                      {t.notes&&<div style={{fontSize:12,color:S.secondary,marginTop:4}}>{t.notes}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,flexShrink:0}}>
                       <button onClick={()=>{setForm(t);setShowAdd(true)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
@@ -444,7 +446,7 @@ function TechStack({acct,setAcct}) {
         </svg>
         {/* Legend */}
         <div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,flexWrap:'wrap'}}>
-          {[['Maintain','#22c55e'],['Review','#eab308'],['Invest','#f97316'],['Gap','#ef4444'],['Critical Gap','#1e2d40']].map(([label,color])=>(
+          {[['Maintain','#22c55e'],['Review','#eab308'],['Invest','#f97316'],['Gap','#ef4444'],['Critical Gap',S.bdr2]].map(([label,color])=>(
             <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
               <div style={{width:11,height:11,borderRadius:2,background:color,border:`1px solid ${S.bdr2}`}}/>
               <span style={{fontSize:11,color:S.muted}}>{label}</span>
@@ -484,7 +486,7 @@ function TechStack({acct,setAcct}) {
 const InlineEdit = ({value, onChange, placeholder, multiline=false}) => {
   const [local, setLocal] = useState(value||'')
   useEffect(()=>{setLocal(value||'')},[value])
-  const base={fontSize:12,color:'#94a3b8',background:'rgba(255,255,255,0.04)',border:`1px solid ${S.bdr}`,borderRadius:4,padding:'4px 8px',width:'100%',lineHeight:1.5,resize:'vertical',boxSizing:'border-box'}
+  const base={fontSize:12,color:S.secondary,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'4px 8px',width:'100%',lineHeight:1.5,resize:'vertical',boxSizing:'border-box'}
   if(multiline)return <textarea value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onChange(local)} rows={2} placeholder={placeholder||''} style={base}/>
   return <input value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onChange(local)} placeholder={placeholder||''} style={base}/>
 }
@@ -587,7 +589,7 @@ function Projects({acct,setAcct}) {
                 })}
               </div>
               {open&&<div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:12}}>
-                {p.description&&<p style={{fontSize:13,color:'#94a3b8',marginBottom:10,lineHeight:1.6}}>{p.description}</p>}
+                {p.description&&<p style={{fontSize:13,color:S.secondary,marginBottom:10,lineHeight:1.6}}>{p.description}</p>}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                   <div>
                     <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Goals</div>
@@ -858,15 +860,15 @@ ${text}`}]
               <span style={{fontSize:12,color:S.muted}}>{fmtDate(e.date)}</span>
               {e.participants&&<span style={{fontSize:12,color:S.muted}}>· {e.participants}</span>}
             </div>
-            <p style={{fontSize:13,color:'#cbd5e1',margin:'0 0 10px',lineHeight:1.6}}>{e.summary}</p>
-            {e.insights?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Key Insights</div>{e.insights.map((ins,i)=><div key={i} style={{fontSize:12,color:'#94a3b8',marginBottom:3,paddingLeft:10}}>→ {ins}</div>)}</div>}
-            {e.risks?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.red,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Risks</div>{e.risks.map((r,i)=><div key={i} style={{fontSize:12,color:'#94a3b8',marginBottom:3,paddingLeft:10}}>! {r}</div>)}</div>}
-            {e.opportunities?.length>0&&<div><div style={{fontSize:10,color:S.green,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Opportunities</div>{e.opportunities.map((o,i)=><div key={i} style={{fontSize:12,color:'#94a3b8',marginBottom:3,paddingLeft:10}}>+ {o}</div>)}</div>}
+            <p style={{fontSize:13,color:S.secondary,margin:'0 0 10px',lineHeight:1.6}}>{e.summary}</p>
+            {e.insights?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Key Insights</div>{e.insights.map((ins,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>→ {ins}</div>)}</div>}
+            {e.risks?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.red,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Risks</div>{e.risks.map((r,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>! {r}</div>)}</div>}
+            {e.opportunities?.length>0&&<div><div style={{fontSize:10,color:S.green,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Opportunities</div>{e.opportunities.map((o,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>+ {o}</div>)}</div>}
           </Card>
         ))}
       </div>
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
-        <p style={{fontSize:13,color:'#94a3b8',marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
+        <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
         {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
         <Field label='Custom date (leave blank for today)' value={customDate} onChange={setCustomDate} type='date'/>
         <div style={{display:'flex',gap:8,marginTop:4}}>
@@ -878,13 +880,27 @@ ${text}`}]
   )
 }
 
-function Settings({data,setData,acct,setAcct}) {
+function Settings({data,setData,acct,setAcct,theme,setTheme}) {
   const [key,setKey] = useState(data.apiKey||'')
   const [saved,setSaved] = useState(false)
   const saveKey=()=>{setData(p=>({...p,apiKey:key}));setSaved(true);setTimeout(()=>setSaved(false),2000)}
   const exportData=()=>{const b=new Blob([JSON.stringify(data,null,2)]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='guidepoint-crm-backup.json';a.click()}
   return (
     <div style={{maxWidth:520}}>
+      <SH>Appearance</SH>
+      <Card style={{padding:'14px 16px',marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>Color Theme</div>
+            <div style={{fontSize:12,color:S.muted}}>Choose how the app looks for you</div>
+          </div>
+          <div style={{display:'flex',gap:4,background:S.surf2,borderRadius:8,padding:3}}>
+            {[{v:'light',icon:'☀',label:'Light'},{v:'dark',icon:'☾',label:'Dark'}].map(({v,icon,label})=>(
+              <button key={v} onClick={()=>setTheme(v)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:6,border:'none',background:theme===v?S.blue:'transparent',color:theme===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer',transition:'background 0.15s'}}>{icon} {label}</button>
+            ))}
+          </div>
+        </div>
+      </Card>
       <SH>Anthropic API Key</SH>
       <Card style={{padding:16,marginBottom:20}}>
         <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>Required for AI transcript processing in the Intel Log tab. Get your free key at <strong style={{color:S.blue}}>console.anthropic.com</strong> under API Keys. Each transcript costs roughly $0.01–0.05.</p>
@@ -999,7 +1015,7 @@ function Dashboard({acct}) {
             </div>
             {bucket['_'+t].map((ix,i)=>(
               <div key={i} style={{fontSize:11,paddingLeft:14,marginBottom:1}}>
-                {ix.contact&&<span style={{color:'#94a3b8',fontWeight:500}}>{ix.contact}</span>}
+                {ix.contact&&<span style={{color:S.secondary,fontWeight:500}}>{ix.contact}</span>}
                 {ix.topics&&<span style={{color:S.muted}}> · {ix.topics.slice(0,70)}{ix.topics.length>70?'…':''}</span>}
               </div>
             ))}
@@ -1075,7 +1091,7 @@ function Dashboard({acct}) {
               <CartesianGrid strokeDasharray='3 3' stroke={S.bdr} vertical={false}/>
               <XAxis dataKey='key' tickFormatter={fmtBucket} tick={{fontSize:11,fill:S.muted}} axisLine={{stroke:S.bdr}} tickLine={false}/>
               <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.muted}} axisLine={false} tickLine={false}/>
-              <RechartsTooltip content={renderTooltip} cursor={{fill:'rgba(255,255,255,0.04)'}}/>
+              <RechartsTooltip content={renderTooltip} cursor={{fill:S.surf2}}/>
               {INTERACTION_TYPES.map((t,i)=><Bar key={t} dataKey={t} stackId='a' fill={INTERACTION_COLORS[t]} radius={i===INTERACTION_TYPES.length-1?[3,3,0,0]:[0,0,0,0]}/>)}
             </BarChart>
           </ResponsiveContainer>
@@ -1095,9 +1111,9 @@ function Dashboard({acct}) {
                   <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={10}/>
                   <span style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</span>
                   {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
-                  {ix.topics&&<span style={{fontSize:11,color:'#94a3b8',flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ix.topics}</span>}
+                  {ix.topics&&<span style={{fontSize:11,color:S.secondary,flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ix.topics}</span>}
                 </div>
-                {isExp&&ix.summary&&<div style={{fontSize:12,color:'#94a3b8',marginTop:7,lineHeight:1.6,borderTop:`1px solid ${S.bdr}`,paddingTop:7}}>{ix.summary}</div>}
+                {isExp&&ix.summary&&<div style={{fontSize:12,color:S.secondary,marginTop:7,lineHeight:1.6,borderTop:`1px solid ${S.bdr}`,paddingTop:7}}>{ix.summary}</div>}
               </div>
             )
           })}
@@ -1107,7 +1123,7 @@ function Dashboard({acct}) {
   )
 }
 
-function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,theme,setTheme}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
   const [collapsed,setCollapsed] = useState(false)
@@ -1127,7 +1143,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   searchResults.forEach(r=>{if(!grouped[r.category])grouped[r.category]=[];grouped[r.category].push(r)})
 
   return (
-    <div style={{width:collapsed?48:220,background:'#060a12',borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
+    <div style={{width:collapsed?48:220,background:S.sidebarBg,borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:collapsed?'center':'space-between',padding:collapsed?'12px 0 4px':'12px 10px 4px'}}>
         {!collapsed&&<div>
           <div style={{fontSize:10,fontWeight:800,color:S.blue,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:2}}>GuidePoint</div>
@@ -1195,7 +1211,14 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
             <Btn onClick={()=>{setShowAdd(false);setNewName('')}} style={{fontSize:12,padding:'5px 8px'}}>x</Btn>
           </div>
         </div>:<button onClick={()=>setShowAdd(true)} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'7px 8px',background:'transparent',border:`1px dashed ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:12,cursor:'pointer'}}>+ New Account</button>}
-        {lastSaved&&<div style={{fontSize:10,color:S.dim,textAlign:'center',marginTop:6,paddingTop:6,borderTop:`1px solid ${S.bdr}`}}>Last saved: {lastSaved}</div>}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingTop:6,borderTop:`1px solid ${S.bdr}`}}>
+          <span style={{fontSize:10,color:S.dim}}>Appearance</span>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:5,padding:2}}>
+            <button onClick={()=>setTheme('light')} title='Light mode' style={{padding:'2px 7px',borderRadius:4,border:'none',background:theme==='light'?S.surf:'transparent',color:theme==='light'?S.blue:S.muted,fontSize:13,cursor:'pointer',lineHeight:1.4}}>☀</button>
+            <button onClick={()=>setTheme('dark')} title='Dark mode' style={{padding:'2px 7px',borderRadius:4,border:'none',background:theme==='dark'?S.surf:'transparent',color:theme==='dark'?S.blue:S.muted,fontSize:13,cursor:'pointer',lineHeight:1.4}}>☾</button>
+          </div>
+        </div>
+        {lastSaved&&<div style={{fontSize:10,color:S.dim,textAlign:'center',marginTop:4}}>Last saved: {lastSaved}</div>}
       </div>}
     </div>
   )
@@ -1209,6 +1232,20 @@ export default function App() {
   const [tab,setTab] = useState('overview')
   const searchRef = useRef(null)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
+  const [theme,setTheme] = useState(()=>{
+    const t = localStorage.getItem('gp-theme')||'dark'
+    document.documentElement.setAttribute('data-theme',t)
+    return t
+  })
+
+  // Update module-level S on every render so all child components see the right theme
+  S = theme==='light' ? LIGHT_THEME : DARK_THEME
+
+  const handleSetTheme = t => {
+    setTheme(t)
+    localStorage.setItem('gp-theme',t)
+    document.documentElement.setAttribute('data-theme',t)
+  }
 
   useEffect(()=>{ loadData().then(d=>{ if(d) setData(d); else setData(SAMPLE) }) },[])
 
@@ -1238,7 +1275,7 @@ export default function App() {
     return()=>window.removeEventListener('keydown',handler)
   },[])
 
-  if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:S.muted,fontSize:14}}>Loading...</div>
+  if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
@@ -1254,13 +1291,15 @@ export default function App() {
         onNavigate={(id,t)=>{setActiveId(id);setTab(t)}}
         searchRef={searchRef}
         lastSaved={lastSavedLabel}
+        theme={theme}
+        setTheme={handleSetTheme}
       />
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{background:'#0c1017',borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
+        <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
             <div>
               <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
-              <div style={{fontSize:17,fontWeight:800,color:'#f1f5f9'}}>{acct.name}</div>
+              <div style={{fontSize:17,fontWeight:800,color:S.txt}}>{acct.name}</div>
             </div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}}>
               {[acct.industry,acct.hq,'Last contact: '+fmtDate(acct.lastContact)].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 10px'}}>{t}</span>)}
@@ -1276,7 +1315,7 @@ export default function App() {
             ))}
           </div>
         </div>
-        <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px'}}>
+        <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px',background:S.bg}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab}/>}
           {tab==='dashboard'&&<Dashboard acct={acct}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
@@ -1284,7 +1323,7 @@ export default function App() {
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
-          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct}/>}
+          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme}/>}
         </div>
       </div>
     </div>
