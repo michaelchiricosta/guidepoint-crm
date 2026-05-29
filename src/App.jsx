@@ -9,7 +9,7 @@ const LIGHT_THEME = { bg:'#f1f5f9', surf:'#ffffff', surf2:'#f8fafc', bdr:'#e2e8f
 let S = DARK_THEME
 const PC = { Critical:{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, High:{c:'#f97316',b:'rgba(249,115,22,0.12)'}, Medium:{c:'#eab308',b:'rgba(234,179,8,0.12)'}, Low:{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
-const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#eab308', Replacing:'#ef4444', Watch:'#f97316', Dropping:'#ef4444' }
+const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#3b82f6', Replacing:'#f97316', Watch:'#a855f7', Dropping:'#ef4444' }
 const PSC = { 'Not Started':'#64748b', 'In Discussion':'#3b82f6', 'In Flight':'#22c55e', Stalled:'#f97316', Won:'#a855f7', Lost:'#ef4444' }
 const INTERACTION_COLORS = { Meeting:'#3b82f6', Call:'#22c55e', Email:'#eab308', Demo:'#a855f7', Note:'#64748b' }
 const INTERACTION_TYPES = ['Meeting','Call','Email','Demo','Note']
@@ -87,10 +87,10 @@ const Btn = ({children,onClick,variant='ghost',disabled=false,style={}}) => {
   const v = {ghost:{background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`},primary:{background:S.blue,color:'#fff',border:'none'},danger:{background:'rgba(239,68,68,0.1)',color:S.red,border:'1px solid rgba(239,68,68,0.3)'}}
   return <button onClick={onClick} disabled={disabled} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',borderRadius:6,fontSize:13,fontWeight:500,cursor:disabled?'default':'pointer',opacity:disabled?0.5:1,...v[variant],...style}}>{children}</button>
 }
-const Field = ({label,value,onChange,type='text',options=null,multiline=false,style={}}) => (
+const Field = ({label,value,onChange,type='text',options=null,multiline=false,style={},placeholder=''}) => (
   <div style={{marginBottom:12,...style}}>
     {label&&<div style={{fontSize:11,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{label}</div>}
-    {options?<select value={value||''} onChange={e=>onChange(e.target.value)}><option value=''>Select...</option>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>:multiline?<textarea value={value||''} onChange={e=>onChange(e.target.value)} rows={3}/>:<input type={type} value={value||''} onChange={e=>onChange(e.target.value)}/>}
+    {options?<select value={value||''} onChange={e=>onChange(e.target.value)}><option value=''>Select...</option>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>:multiline?<textarea value={value||''} onChange={e=>onChange(e.target.value)} rows={3} placeholder={placeholder}/>:<input type={type} value={value||''} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/>}
   </div>
 )
 const Modal = ({title,onClose,children,width=520}) => {
@@ -362,7 +362,7 @@ const findVendor = (cap, techStack) => {
   }
   return bestScore>0?best:null
 }
-const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#eab308',Watch:'#f97316',Replacing:'#ef4444',Dropping:'#ef4444'}[v.status]||S.bdr2)
+const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444'}[v.status]||S.bdr2)
 
 function TechStack({acct,setAcct}) {
   const [view,setView] = useState('list')
@@ -370,7 +370,7 @@ function TechStack({acct,setAcct}) {
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',notes:''}
+  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
   const save=()=>{if(!form.vendor)return;if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?form:t)}));else setAcct(p=>({...p,techStack:[...p.techStack,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=acct.techStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
@@ -500,7 +500,7 @@ function TechStack({acct,setAcct}) {
         </svg>
         {/* Legend */}
         <div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,flexWrap:'wrap'}}>
-          {[['Maintain','#22c55e'],['Review','#eab308'],['Invest','#f97316'],['Gap','#ef4444'],['Critical Gap',S.bdr2]].map(([label,color])=>(
+          {[['Current','#22c55e'],['Evaluating','#3b82f6'],['Replacing','#f97316'],['Watching','#a855f7'],['Dropping','#ef4444'],['Unassigned',S.bdr2]].map(([label,color])=>(
             <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
               <div style={{width:11,height:11,borderRadius:2,background:color,border:`1px solid ${S.bdr2}`}}/>
               <span style={{fontSize:11,color:S.muted}}>{label}</span>
@@ -530,6 +530,7 @@ function TechStack({acct,setAcct}) {
           <Field label='Vendor Rep Email' value={form.vendorRepEmail} onChange={f('vendorRepEmail')} type='email'/>
           <Field label='Client Owner / User' value={form.clientOwner} onChange={f('clientOwner')} style={{gridColumn:'span 2'}}/>
         </div>
+        <Field label='Replacement Options' value={form.replacementOptions} onChange={f('replacementOptions')} multiline placeholder='List alternative vendors being considered'/>
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
@@ -1278,6 +1279,209 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
+function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setTheme}) {
+  const [showAdd, setShowAdd] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [hoveredId, setHoveredId] = useState(null)
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'})
+
+  const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
+  const criticalItems = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length, 0)
+  const renewals90 = data.accounts.reduce((s,a)=>s+(a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length, 0)
+  const activeProjects = data.accounts.reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status==='In Flight').length, 0)
+
+  const addAccount = () => {
+    if (!newName.trim()) return
+    const id = uid()
+    setData(p=>({...p,accounts:[...p.accounts,{...SAMPLE.accounts[0],id,name:newName,short:newName.slice(0,5).toUpperCase(),contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[]}]}))
+    onEnterAccount(id)
+    setShowAdd(false)
+    setNewName('')
+  }
+
+  const statusColor = {Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
+  const GP_BLUE = '#0066cc'
+  const GP_NAVY = '#0a1628'
+  const GP_LIGHT = '#0ea5e9'
+
+  const StatIcon = ({type}) => {
+    if (type==='followups') return <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke={GP_LIGHT} strokeWidth="1.5"/><line x1="5" y1="6" x2="13" y2="6" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="9" x2="13" y2="9" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="12" x2="9" y2="12" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/></svg>
+    if (type==='critical') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L16 16 L2 16 Z" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/><line x1="9" y1="7.5" x2="9" y2="11" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="13" r="0.8" fill="#ef4444"/></svg>
+    if (type==='renewals') return <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#f97316" strokeWidth="1.5"/><line x1="9" y1="5" x2="9" y2="9" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="9" x2="12" y2="11" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round"/></svg>
+    if (type==='projects') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L11 7 L16 8 L12 12 L13 17 L9 14.5 L5 17 L6 12 L2 8 L7 7 Z" fill="none" stroke="#22c55e" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+    return null
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:GP_NAVY,color:'#fff',overflowY:'auto'}}>
+      {/* Header */}
+      <div style={{background:'rgba(10,22,40,0.98)',borderBottom:'1px solid rgba(14,165,233,0.15)',padding:'0 28px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,backdropFilter:'blur(8px)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <svg width="28" height="28" viewBox="0 0 28 28" style={{flexShrink:0}}>
+            <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke={GP_LIGHT} strokeWidth="1.5" strokeLinejoin="round"/>
+            <circle cx="14" cy="15" r="4.5" fill="none" stroke={GP_LIGHT} strokeWidth="1.2" opacity="0.75"/>
+            <circle cx="14" cy="15" r="1.8" fill={GP_LIGHT}/>
+          </svg>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:'#fff',letterSpacing:'0.01em',lineHeight:1.2}}>GuidePoint Security</div>
+            <div style={{fontSize:10,color:GP_LIGHT,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase'}}>Account Intelligence</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <span style={{fontSize:12,color:'rgba(255,255,255,0.3)'}}>{dateStr}</span>
+          <div style={{display:'flex',gap:2,background:'rgba(255,255,255,0.05)',borderRadius:6,padding:2}}>
+            {[{v:'light',icon:'☀'},{v:'dark',icon:'☾'}].map(({v,icon})=>(
+              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 9px',borderRadius:4,border:'none',background:theme===v?'rgba(14,165,233,0.2)':'transparent',color:theme===v?GP_LIGHT:'rgba(255,255,255,0.3)',cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{icon}</button>
+            ))}
+          </div>
+          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:'rgba(255,255,255,0.4)',cursor:'pointer',padding:'5px 9px',fontSize:14,lineHeight:1}}>⚙</button>
+        </div>
+      </div>
+
+      <div style={{maxWidth:1160,margin:'0 auto',padding:'44px 28px 80px'}}>
+        {/* Hero */}
+        <div style={{marginBottom:40}}>
+          <div style={{fontSize:30,fontWeight:800,color:'#fff',marginBottom:8,lineHeight:1.2}}>{greeting}</div>
+          <div style={{fontSize:14,color:'rgba(255,255,255,0.45)',lineHeight:1.8}}>
+            You have <span style={{color:'#fff',fontWeight:700}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
+            {totalOpenFUs>0&&<>, <span style={{color:GP_LIGHT,fontWeight:700}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
+            {criticalItems>0&&<> (<span style={{color:'#ef4444',fontWeight:700}}>{criticalItems} critical</span>)</>}
+            {renewals90>0&&<>, <span style={{color:'#f97316',fontWeight:700}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
+          </div>
+        </div>
+
+        {/* Cross-account stats bar */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:48}}>
+          {[
+            {label:'Open Follow-Ups',value:totalOpenFUs,color:GP_LIGHT,type:'followups'},
+            {label:'Critical Items',value:criticalItems,color:'#ef4444',type:'critical'},
+            {label:'Renewals (90d)',value:renewals90,color:'#f97316',type:'renewals'},
+            {label:'Active Projects',value:activeProjects,color:'#22c55e',type:'projects'},
+          ].map(stat=>(
+            <div key={stat.label} style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(14,165,233,0.1)',borderRadius:12,padding:'18px 20px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
+                <StatIcon type={stat.type}/>
+              </div>
+              <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {data.accounts.length === 0 ? (
+          <div style={{textAlign:'center',padding:'70px 20px'}}>
+            <svg width="60" height="60" viewBox="0 0 60 60" style={{margin:'0 auto 20px',display:'block',opacity:0.4}}>
+              <path d="M30 4 L52 13 L52 30 C52 43.5 42 53.5 30 57 C18 53.5 8 43.5 8 30 L8 13 Z" fill="none" stroke={GP_LIGHT} strokeWidth="2.5" strokeLinejoin="round"/>
+              <circle cx="30" cy="32" r="9" fill="none" stroke={GP_LIGHT} strokeWidth="2"/>
+              <circle cx="30" cy="32" r="3.5" fill={GP_LIGHT}/>
+            </svg>
+            <div style={{fontSize:22,fontWeight:700,color:'#fff',marginBottom:10}}>Welcome to Account Intelligence</div>
+            <div style={{fontSize:14,color:'rgba(255,255,255,0.4)',marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
+            <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:GP_BLUE,border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:'0.01em'}}>+ Add Your First Account</button>
+          </div>
+        ) : (
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.3)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:16}}>Your Accounts — {data.accounts.length}</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
+              {data.accounts.map(acct=>{
+                const hs=calcHealthScore(acct)
+                const hc=hs>=70?'#22c55e':hs>=40?'#f97316':'#ef4444'
+                const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
+                const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
+                const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
+                const lastC=acct.lastContact?daysSince(acct.lastContact):null
+                const renewCount=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length
+                const isHov=hoveredId===acct.id
+                const r=22, circ=2*Math.PI*r, progress=(hs/100)*circ
+                return (
+                  <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
+                    onMouseEnter={()=>setHoveredId(acct.id)}
+                    onMouseLeave={()=>setHoveredId(null)}
+                    style={{background:isHov?'rgba(0,102,204,0.1)':'rgba(255,255,255,0.03)',border:`1px solid ${isHov?GP_BLUE:'rgba(14,165,233,0.12)'}`,borderRadius:14,cursor:'pointer',transform:isHov?'translateY(-3px)':'translateY(0)',boxShadow:isHov?'0 10px 36px rgba(0,102,204,0.22)':'0 2px 10px rgba(0,0,0,0.35)',transition:'all 0.15s ease',overflow:'hidden',display:'flex',flexDirection:'column'}}
+                  >
+                    <div style={{padding:'20px 20px 16px',flex:1}}>
+                      {/* Name + gauge row */}
+                      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:14}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:15,fontWeight:800,color:'#fff',marginBottom:4,lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.name}</div>
+                          {(acct.industry||acct.hq)&&<div style={{fontSize:12,color:'rgba(255,255,255,0.38)',marginBottom:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{[acct.industry,acct.hq].filter(Boolean).join(' · ')}</div>}
+                          <span style={{fontSize:11,fontWeight:700,color:statusColor[acct.status]||'#64748b',background:(statusColor[acct.status]||'#64748b')+'25',padding:'3px 10px',borderRadius:999,display:'inline-block'}}>{acct.status||'Active'}</span>
+                        </div>
+                        {/* Health score ring */}
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
+                          <svg width="58" height="58" viewBox="0 0 56 56">
+                            <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="4"/>
+                            <circle cx="28" cy="28" r={r} fill="none" stroke={hc} strokeWidth="4"
+                              strokeDasharray={`${progress} ${circ}`}
+                              strokeLinecap="round"
+                              transform="rotate(-90 28 28)"
+                            />
+                            <text x="28" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={hc}>{hs}</text>
+                          </svg>
+                          <div style={{fontSize:9,color:'rgba(255,255,255,0.28)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>Health</div>
+                        </div>
+                      </div>
+                      {/* Mini stat chips */}
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                        {[
+                          {label:`${openFUs} follow-up${openFUs!==1?'s':''}`,c:'rgba(255,255,255,0.5)'},
+                          {label:`${activePjs} project${activePjs!==1?'s':''}`,c:'rgba(255,255,255,0.5)'},
+                          {label:lastC===null?'No contact yet':`${lastC}d since contact`,c:lastC===null?'rgba(255,255,255,0.28)':lastC>30?'#f97316':lastC>14?'#eab308':'#22c55e'},
+                        ].map(chip=>(
+                          <span key={chip.label} style={{fontSize:11,color:chip.c,background:'rgba(255,255,255,0.06)',borderRadius:6,padding:'4px 9px',fontWeight:600,whiteSpace:'nowrap'}}>{chip.label}</span>
+                        ))}
+                      </div>
+                      {/* Alert row */}
+                      {(renewCount>0||critFUs>0)&&(
+                        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                          {renewCount>0&&<span style={{fontSize:11,color:'#f97316',fontWeight:600}}>▲ {renewCount} renewal{renewCount!==1?'s':''} due</span>}
+                          {critFUs>0&&<span style={{fontSize:11,color:'#ef4444',fontWeight:600}}>● {critFUs} critical</span>}
+                        </div>
+                      )}
+                    </div>
+                    {/* Health bar */}
+                    <div style={{height:4,background:'rgba(255,255,255,0.05)'}}>
+                      <div style={{height:'100%',width:`${hs}%`,background:hc,transition:'width 0.4s'}}/>
+                    </div>
+                  </div>
+                )
+              })}
+              {/* Add account card */}
+              <div onClick={()=>setShowAdd(true)}
+                onMouseEnter={e=>{e.currentTarget.style.background='rgba(14,165,233,0.07)';e.currentTarget.style.borderColor='rgba(14,165,233,0.4)'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='rgba(14,165,233,0.14)'}}
+                style={{background:'transparent',border:'1px dashed rgba(14,165,233,0.14)',borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.15s'}}
+              >
+                <div style={{width:44,height:44,borderRadius:'50%',border:'2px dashed rgba(14,165,233,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:'rgba(14,165,233,0.5)'}}>+</div>
+                <div style={{fontSize:13,fontWeight:700,color:'rgba(14,165,233,0.55)'}}>Add Account</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add account modal */}
+      {showAdd&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
+          <div style={{background:'#0f1729',border:'1px solid rgba(14,165,233,0.2)',borderRadius:12,padding:26,width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
+            <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>Add New Account</div>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addAccount()} placeholder='Account name...' autoFocus
+              style={{width:'100%',fontSize:14,padding:'10px 12px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:'#fff',boxSizing:'border-box',marginBottom:14,outline:'none'}}/>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={addAccount} style={{flex:1,padding:'9px 16px',background:GP_BLUE,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Account</button>
+              <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'9px 14px',background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.45)',fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'settings',label:'Settings'}]
 
 export default function App() {
@@ -1286,6 +1490,7 @@ export default function App() {
   const [tab,setTab] = useState('overview')
   const searchRef = useRef(null)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
+  const [isLandingPage,setIsLandingPage] = useState(true)
   const [theme,setTheme] = useState(()=>{
     const t = localStorage.getItem('gp-theme')||'dark'
     document.documentElement.setAttribute('data-theme',t)
@@ -1331,6 +1536,17 @@ export default function App() {
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
+  if (isLandingPage) return (
+    <LandingPage
+      data={data}
+      setData={setData}
+      onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
+      onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
+      theme={theme}
+      setTheme={handleSetTheme}
+    />
+  )
+
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
   const critHighCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length
@@ -1351,9 +1567,12 @@ export default function App() {
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
-            <div>
-              <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
-              <div style={{fontSize:17,fontWeight:800,color:S.txt}}>{acct.name}</div>
+            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+              <button onClick={()=>setIsLandingPage(true)} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'4px 10px',marginTop:3,flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
+              <div>
+                <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
+                <div style={{fontSize:17,fontWeight:800,color:S.txt}}>{acct.name}</div>
+              </div>
             </div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}}>
               {[acct.industry,acct.hq,'Last contact: '+fmtDate(acct.lastContact)].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 10px'}}>{t}</span>)}
