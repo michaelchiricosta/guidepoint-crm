@@ -711,6 +711,10 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [result,setResult] = useState(null)
   const [showDate,setShowDate] = useState(false)
   const [customDate,setCustomDate] = useState('')
+  const [search,setSearch] = useState('')
+  const [typeFilter,setTypeFilter] = useState('All')
+  const [dateFrom,setDateFrom] = useState('')
+  const [dateTo,setDateTo] = useState('')
 
   const process = async (date) => {
     setLoading(true);setError('');setResult(null)
@@ -739,7 +743,17 @@ ${text}`}]
       const parsed = JSON.parse(raw)
       setAcct(prev=>{
         let next={...prev}
-        if (parsed.intelEntry) { next.intelLog=[{...parsed.intelEntry,id:uid()},...(prev.intelLog||[])]; next.lastContact=date }
+        if (parsed.intelEntry) {
+          next.intelLog=[{...parsed.intelEntry,id:uid()},...(prev.intelLog||[])]
+          next.lastContact=date
+          // Auto-log interaction for Dashboard chart
+          const entry=parsed.intelEntry
+          const names=(entry.participants||'').split(/[+,&]/).map(n=>n.trim()).filter(n=>n&&!n.toLowerCase().startsWith('mike'))
+          const contactName=names[0]||(entry.participants||'').split(/[+,&]/)[0]?.trim()||''
+          const topics=(entry.insights||[]).slice(0,2).join('; ').slice(0,120)
+          const firstSentence=(entry.summary||'').split(/(?<=[.!?])\s/)[0]||''
+          next.interactions=[...(prev.interactions||[]),{id:uid(),contact:contactName,type:entry.type||'Note',date:entry.date,topics,summary:firstSentence}]
+        }
         if (parsed.newFollowUps?.length) next.followUps=[...(prev.followUps||[]),...parsed.newFollowUps.map(fu=>({...fu,id:uid(),status:'Open'}))]
         if (parsed.contactUpdates?.length) {
           next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes||'')+' | ['+date+'] '+u.noteToAppend:c.notes}:c})
@@ -763,6 +777,37 @@ ${text}`}]
     setShowDate(true)
   }
 
+  const exportIntel = () => {
+    const lines=acct.intelLog.map(e=>[
+      `${e.date||''} | ${e.type||'Note'} | ${e.participants||''}`,
+      e.summary||'',
+      (e.insights||[]).length?'Insights: '+(e.insights||[]).join('; '):'',
+      (e.risks||[]).length?'Risks: '+(e.risks||[]).join('; '):'',
+      (e.opportunities||[]).length?'Opportunities: '+(e.opportunities||[]).join('; '):'',
+      '---'
+    ].filter(Boolean).join('\n'))
+    const blob=new Blob([lines.join('\n\n')],{type:'text/plain'})
+    const a=document.createElement('a')
+    a.href=URL.createObjectURL(blob)
+    a.download=`intel-log-${(acct.short||acct.name||'export').replace(/[^a-z0-9]/gi,'-')}.txt`
+    a.click()
+  }
+
+  const filtered=acct.intelLog.filter(e=>{
+    if(typeFilter!=='All'&&e.type!==typeFilter)return false
+    if(dateFrom&&e.date<dateFrom)return false
+    if(dateTo&&e.date>dateTo)return false
+    if(search.trim()){
+      const q=search.toLowerCase()
+      const hay=[e.summary,e.participants,...(e.insights||[]),...(e.risks||[]),...(e.opportunities||[])].filter(Boolean).join(' ').toLowerCase()
+      if(!hay.includes(q))return false
+    }
+    return true
+  })
+
+  const hasFilters=!!(search.trim()||typeFilter!=='All'||dateFrom||dateTo)
+  const clearFilters=()=>{setSearch('');setTypeFilter('All');setDateFrom('');setDateTo('')}
+
   return (
     <div>
       <Card style={{padding:16,marginBottom:16}}>
@@ -776,10 +821,30 @@ ${text}`}]
           {loading?'Processing...':'Process with AI'}
         </button>
       </Card>
-      <SH>Intel Log ({acct.intelLog.length} entries)</SH>
+
+      <div style={{marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search entries...' style={{flex:1,minWidth:160,fontSize:12,padding:'6px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,flexShrink:0}}>
+            {['All','Call','Meeting','Email','Note'].map(t=>(
+              <button key={t} onClick={()=>setTypeFilter(t)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:typeFilter===t?S.blue:'transparent',color:typeFilter===t?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>{t}</button>
+            ))}
+          </div>
+          <button onClick={exportIntel} style={{padding:'6px 12px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:12,cursor:'pointer',flexShrink:0}}>↓ Export</button>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,color:S.muted,flexShrink:0}}>Date range:</span>
+          <input type='date' value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
+          <span style={{fontSize:11,color:S.muted}}>to</span>
+          <input type='date' value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
+          {hasFilters&&<button onClick={clearFilters} style={{fontSize:11,padding:'4px 8px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,color:S.red,cursor:'pointer',flexShrink:0}}>Clear filters</button>}
+          <span style={{fontSize:11,color:S.muted,marginLeft:'auto'}}>Showing {filtered.length} of {acct.intelLog.length} entries</span>
+        </div>
+      </div>
+
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {acct.intelLog.length===0&&<div style={{textAlign:'center',padding:'30px',color:S.muted,fontSize:13}}>No intel logged yet. Paste a transcript above to get started.</div>}
-        {acct.intelLog.map(e=>(
+        {filtered.length===0&&<div style={{textAlign:'center',padding:'30px',color:S.muted,fontSize:13}}>{acct.intelLog.length===0?'No intel logged yet. Paste a transcript above to get started.':'No entries match your filters.'}</div>}
+        {filtered.map(e=>(
           <Card key={e.id} style={{padding:'14px 16px'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
               <Badge label={e.type||'Note'} color={S.blue} bg='rgba(59,130,246,0.12)'/>
@@ -998,7 +1063,12 @@ export default function App() {
             </div>
           </div>
           <div style={{display:'flex',overflowX:'auto'}}>
-            {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap'}}>{t.label}</button>)}
+            {TABS.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}>
+                {t.label}
+                {t.id==='intel'&&acct.intelLog.length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{acct.intelLog.length}</span>}
+              </button>
+            ))}
           </div>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px'}}>
