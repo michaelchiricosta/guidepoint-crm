@@ -474,16 +474,52 @@ function TechStack({acct,setAcct}) {
   )
 }
 
+const InlineEdit = ({value, onChange, placeholder, multiline=false}) => {
+  const [local, setLocal] = useState(value||'')
+  useEffect(()=>{setLocal(value||'')},[value])
+  const base={fontSize:12,color:'#94a3b8',background:'rgba(255,255,255,0.04)',border:`1px solid ${S.bdr}`,borderRadius:4,padding:'4px 8px',width:'100%',lineHeight:1.5,resize:'vertical',boxSizing:'border-box'}
+  if(multiline)return <textarea value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onChange(local)} rows={2} placeholder={placeholder||''} style={base}/>
+  return <input value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onChange(local)} placeholder={placeholder||''} style={base}/>
+}
+
 function Projects({acct,setAcct}) {
   const [view,setView] = useState('pipeline')
   const [exp,setExp] = useState(null)
   const [showAdd,setShowAdd] = useState(false)
-  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
+  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,projects:p.projects.map(j=>j.id===form.id?form:j)}));else setAcct(p=>({...p,projects:[...p.projects,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const toggleStage=(projId,idx)=>{setAcct(p=>({...p,projects:p.projects.map(j=>{if(j.id!==projId)return j;const tl=j.timeline.map((s,i)=>i===idx?{...s,status:s.status==='completed'?'pending':'completed',date:s.status!=='completed'?new Date().toISOString().split('T')[0]:''}:s);return{...j,timeline:tl}})}))}
+  const updateField=(projId,field,val)=>{setAcct(p=>({...p,projects:p.projects.map(j=>j.id===projId?{...j,[field]:val}:j)}))}
   const grouped=PROJ_STATS.reduce((acc,s)=>{acc[s]=acct.projects.filter(p=>p.status===s);return acc},{})
+
+  const getStageDuration = p => {
+    const curr=p.timeline.find(s=>s.status==='current'&&s.date)
+    if(curr)return daysSince(curr.date)
+    const done=p.timeline.filter(s=>s.status==='completed'&&s.date)
+    if(!done.length)return null
+    return daysSince(done[done.length-1].date)
+  }
+
+  const calcHistoricalAverages = () => {
+    const pairs=STAGES.slice(0,-1).map((s,i)=>({from:s,to:STAGES[i+1],diffs:[]}))
+    acct.projects.forEach(p=>{
+      if(p.timeline.filter(s=>s.status==='completed'&&s.date).length<3)return
+      p.timeline.forEach((s,i)=>{
+        if(i===p.timeline.length-1)return
+        const s2=p.timeline[i+1]
+        if(s.status==='completed'&&s2.status==='completed'&&s.date&&s2.date){
+          const d=Math.floor((new Date(s2.date+'T12:00:00')-new Date(s.date+'T12:00:00'))/86400000)
+          if(d>=0)pairs[i].diffs.push(d)
+        }
+      })
+    })
+    return pairs.filter(p=>p.diffs.length>0).map(p=>({...p,avg:Math.round(p.diffs.reduce((a,b)=>a+b,0)/p.diffs.length)}))
+  }
+
+  const avgData=calcHistoricalAverages()
+
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -503,7 +539,8 @@ function Projects({acct,setAcct}) {
               const comp=p.timeline.filter(s=>s.status==='completed').length
               return (<div key={p.id} onClick={()=>setExp(exp===p.id?null:p.id)} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'9px 11px',marginBottom:6,cursor:'pointer'}}>
                 <div style={{fontSize:12,fontWeight:600,color:S.txt,marginBottom:3}}>{p.name}</div>
-                <div style={{fontSize:11,color:S.muted,marginBottom:6}}>{p.vendor} · {p.primaryContact||'—'}</div>
+                <div style={{fontSize:11,color:S.muted,marginBottom:4}}>{p.vendor} · {p.primaryContact||'—'}</div>
+                {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginBottom:4}}>→ Next: {p.nextAction}</div>}
                 <div style={{height:3,background:S.bdr,borderRadius:2,overflow:'hidden'}}><div style={{height:'100%',width:`${(comp/STAGES.length)*100}%`,background:sc}}/></div>
                 <div style={{fontSize:10,color:S.muted,marginTop:3}}>{comp}/{STAGES.length} stages</div>
               </div>)
@@ -514,34 +551,89 @@ function Projects({acct,setAcct}) {
       {view==='timeline'&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
         {acct.projects.map(p=>{
           const sc=PSC[p.status]||S.muted;const open=exp===p.id
+          const stageDays=getStageDuration(p)
           return (<Card key={p.id}>
-            <div onClick={()=>setExp(open?null:p.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
+            <div onClick={()=>setExp(open?null:p.id)} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'11px 14px',cursor:'pointer'}}>
               <div style={{flex:1}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
                   <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{p.name}</span>
                   <Badge label={p.status} color={sc} bg={sc+'1a'}/>
                   {p.vendor&&<Badge label={p.vendor} color={S.muted} bg='rgba(100,116,139,0.1)'/>}
+                  {stageDays!==null&&<Badge label={`In this stage: ${stageDays}d`} color={S.muted} bg='rgba(100,116,139,0.08)'/>}
+                  {p.waitingOn&&<Badge label={`Waiting on: ${p.waitingOn}`} color={S.orange} bg='rgba(249,115,22,0.12)'/>}
                 </div>
                 <div style={{fontSize:11,color:S.muted}}>{p.primaryContact||'—'} · Close: {fmtDate(p.closeDate)||'TBD'}</div>
+                {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginTop:3}}>→ Next: {p.nextAction}</div>}
               </div>
             </div>
             <div style={{padding:'0 14px 14px'}}>
-              <div style={{display:'flex',gap:2,marginBottom:6}}>
+              <div style={{display:'flex',gap:2,marginBottom:8}}>
                 {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?S.green:stage.status==='current'?S.blue:S.bdr;return(<div key={i} onClick={e=>{e.stopPropagation();toggleStage(p.id,i)}} style={{flex:1,height:7,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.2s'}} title={stage.stage+(stage.date?' - '+fmtDate(stage.date):'')+' (click to toggle)'}/>)})}
               </div>
-              <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
-                {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?S.green:stage.status==='current'?S.blue:S.dim;return(<span key={i} style={{fontSize:10,color:c,fontWeight:stage.status!=='pending'?600:400}}>{stage.stage}{stage.status==='completed'?' ✓':''}{i<p.timeline.length-1?' → ':''}</span>)})}
+              <div style={{display:'grid',gridTemplateColumns:`repeat(${p.timeline.length},1fr)`,gap:2}}>
+                {p.timeline.map((stage,i)=>{
+                  const c=stage.status==='completed'?S.green:stage.status==='current'?S.blue:S.dim
+                  return (<div key={i} style={{textAlign:'center'}}>
+                    <div style={{fontSize:9,color:c,fontWeight:stage.status!=='pending'?600:400,lineHeight:1.3,wordBreak:'break-word'}}>{stage.stage}{stage.status==='completed'?' ✓':''}</div>
+                    {stage.status==='completed'&&stage.date&&<div style={{fontSize:8,color:S.muted,marginTop:1,lineHeight:1.2}}>{fmtDate(stage.date)}</div>}
+                  </div>)
+                })}
               </div>
               {open&&<div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:12}}>
-                {p.description&&<p style={{fontSize:13,color:'#94a3b8',marginBottom:8,lineHeight:1.6}}>{p.description}</p>}
-                {p.goals&&<div style={{marginBottom:6}}><span style={{fontSize:11,color:S.muted,fontWeight:700}}>GOALS: </span><span style={{fontSize:12,color:'#94a3b8'}}>{p.goals}</span></div>}
-                {p.pains&&<div style={{marginBottom:6}}><span style={{fontSize:11,color:S.muted,fontWeight:700}}>PAINS: </span><span style={{fontSize:12,color:'#94a3b8'}}>{p.pains}</span></div>}
-                {p.notes&&<div style={{marginBottom:10}}><span style={{fontSize:11,color:S.muted,fontWeight:700}}>NOTES: </span><span style={{fontSize:12,color:'#94a3b8'}}>{p.notes}</span></div>}
+                {p.description&&<p style={{fontSize:13,color:'#94a3b8',marginBottom:10,lineHeight:1.6}}>{p.description}</p>}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Goals</div>
+                    <InlineEdit value={p.goals} onChange={val=>updateField(p.id,'goals',val)} placeholder='Goals...' multiline/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Pains</div>
+                    <InlineEdit value={p.pains} onChange={val=>updateField(p.id,'pains',val)} placeholder='Current pains...' multiline/>
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Notes</div>
+                  <InlineEdit value={p.notes} onChange={val=>updateField(p.id,'notes',val)} placeholder='Project notes...' multiline/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <div>
+                    <div style={{fontSize:10,color:S.blue,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Next Action</div>
+                    <InlineEdit value={p.nextAction} onChange={val=>updateField(p.id,'nextAction',val)} placeholder='Next step...'/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:S.orange,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Waiting On</div>
+                    <InlineEdit value={p.waitingOn} onChange={val=>updateField(p.id,'waitingOn',val)} placeholder='Who/what is blocking...'/>
+                  </div>
+                </div>
                 <div style={{display:'flex',gap:8}}><Btn onClick={()=>{setForm(p);setShowAdd(true)}}>Edit</Btn><Btn variant='danger' onClick={()=>{if(window.confirm('Delete?'))setAcct(prev=>({...prev,projects:prev.projects.filter(j=>j.id!==p.id)}))}}>Delete</Btn></div>
               </div>}
             </div>
           </Card>)
         })}
+        <div style={{padding:'14px 16px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginTop:6}}>
+          <SH>Historical Stage Averages</SH>
+          {avgData.length===0
+            ?<div style={{fontSize:12,color:S.muted}}>Not enough completed projects to calculate averages yet.</div>
+            :<table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:'left',color:S.muted,fontWeight:600,padding:'3px 8px 6px 0',borderBottom:`1px solid ${S.bdr}`}}>Stage</th>
+                  <th style={{textAlign:'left',color:S.muted,fontWeight:600,padding:'3px 8px 6px',borderBottom:`1px solid ${S.bdr}`}}>Next Stage</th>
+                  <th style={{textAlign:'right',color:S.muted,fontWeight:600,padding:'3px 0 6px 8px',borderBottom:`1px solid ${S.bdr}`}}>Avg Days</th>
+                </tr>
+              </thead>
+              <tbody>
+                {avgData.map((row,i)=>(
+                  <tr key={i}>
+                    <td style={{color:S.txt,padding:'4px 8px 4px 0'}}>{row.from}</td>
+                    <td style={{color:S.txt,padding:'4px 8px'}}>{row.to}</td>
+                    <td style={{color:S.blue,fontWeight:700,textAlign:'right',padding:'4px 0 4px 8px'}}>{row.avg}d</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          }
+        </div>
       </div>}
       {showAdd&&<Modal title={form.id?'Edit Project':'Add Project'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
@@ -556,6 +648,8 @@ function Projects({acct,setAcct}) {
         <Field label='Goals' value={form.goals} onChange={f('goals')} multiline/>
         <Field label='Pains Today' value={form.pains} onChange={f('pains')} multiline/>
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
+        <Field label='Next Action' value={form.nextAction} onChange={f('nextAction')}/>
+        <Field label='Waiting On' value={form.waitingOn} onChange={f('waitingOn')}/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
     </div>
