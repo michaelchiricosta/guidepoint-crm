@@ -77,7 +77,8 @@ const SAMPLE = {
       {id:'f6',contact:'Rudy Montoya',task:'Confirm Horizon 3 PTaaS vs ASM scope with Bill',priority:'Medium',dueDate:'2026-05-26',status:'Open',context:'Separation of duties: NetSpy for PTaaS, Horizon 3 for ASM. Verify with Bill what H3 actually covers.'}
     ],
     unknownMentions:[],
-    relSuggestions:[]
+    relSuggestions:[],
+    dismissedAlerts:[]
   }]
 }
 
@@ -110,16 +111,27 @@ const SH = ({children,mt=0}) => <div style={{fontSize:10,fontWeight:700,color:S.
 const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,...style}}>{children}</div>
 
 function Overview({acct,setAcct,setTab}) {
+  const [showDismissed,setShowDismissed] = useState(false)
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []
   acct.techStack.forEach(t=>{
     const d = daysUntil(t.renewalDate)
-    if (d!==null&&d>0&&d<=150) alerts.push({text:`${t.vendor} renewal in ${d} days — ${fmtDate(t.renewalDate)}`,level:d<=60?'critical':'high'})
-    if (t.status==='Replacing') alerts.push({text:`${t.vendor} marked Replacing — ensure migration project is tracked`,level:'high'})
+    if (d!==null&&d>0&&d<=150) alerts.push({id:`renew:${t.vendor}:${t.renewalDate}`,text:`${t.vendor} renewal in ${d} days — ${fmtDate(t.renewalDate)}`,level:d<=60?'critical':'high'})
+    if (t.status==='Replacing') alerts.push({id:`replacing:${t.vendor}`,text:`${t.vendor} marked Replacing — ensure migration project is tracked`,level:'high'})
   })
-  openFU.forEach(f=>{ if (f.dueDate&&daysUntil(f.dueDate)<0) alerts.push({text:`Overdue: ${f.task}`,level:'critical'}) })
-  const needsAttn = acct.contacts.filter(c=>c.relStatus==='Needs Attention').length
-  if (needsAttn>0) alerts.push({text:`${needsAttn} contact${needsAttn>1?'s':''} need relationship attention`,level:'medium'})
+  openFU.forEach(f=>{ if (f.dueDate&&daysUntil(f.dueDate)<0) alerts.push({id:`overdue:${f.task.slice(0,40).replace(/\s+/g,'_')}`,text:`Overdue: ${f.task}`,level:'critical'}) })
+  const attnContacts = acct.contacts.filter(c=>c.relStatus==='Needs Attention')
+  if (attnContacts.length>0) alerts.push({id:`attn:${attnContacts.map(c=>c.id).join(',')}`,text:`${attnContacts.length} contact${attnContacts.length>1?'s':''} need relationship attention`,level:'medium'})
+
+  const dismissed = acct.dismissedAlerts || []
+  const dismiss = id => setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),id]}))
+  const visibleAlerts = alerts.filter(a=>!dismissed.includes(a.id))
+  const hiddenAlerts = alerts.filter(a=>dismissed.includes(a.id))
+  const clearAll = () => {
+    if (!window.confirm(`Dismiss all ${visibleAlerts.length} current alert${visibleAlerts.length!==1?'s':''}?`)) return
+    setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),...visibleAlerts.map(a=>a.id)]}))
+  }
+
   const inFlight = acct.projects.filter(p=>p.status==='In Flight').length
   const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
   return (
@@ -132,7 +144,40 @@ function Overview({acct,setAcct,setTab}) {
           </Card>
         ))}
       </div>
-      {alerts.length>0&&<><SH>Alerts</SH><div style={{marginBottom:16}}>{alerts.slice(0,6).map((a,i)=>{const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted;return(<div key={i} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5}}><span style={{color:c,flexShrink:0}}>!</span><span style={{fontSize:13,color:S.secondary}}>{a.text}</span></div>)})}</div></>}
+      {alerts.length>0&&(
+        <>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase'}}>Alerts</div>
+            {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 8px',cursor:'pointer',lineHeight:'18px'}}>Clear All</button>}
+          </div>
+          <div style={{marginBottom:16}}>
+            {visibleAlerts.map(a=>{
+              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+              return (
+                <div key={a.id} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5,alignItems:'center'}}>
+                  <span style={{color:c,flexShrink:0}}>!</span>
+                  <span style={{fontSize:13,color:S.secondary,flex:1}}>{a.text}</span>
+                  <button onClick={()=>dismiss(a.id)} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
+                </div>
+              )
+            })}
+            {showDismissed&&hiddenAlerts.map(a=>{
+              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+              return (
+                <div key={a.id} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}55`,borderRadius:7,marginBottom:5,alignItems:'center',opacity:0.55}}>
+                  <span style={{color:c,flexShrink:0}}>!</span>
+                  <span style={{fontSize:13,color:S.muted,flex:1,textDecoration:'line-through'}}>{a.text}</span>
+                </div>
+              )
+            })}
+            {hiddenAlerts.length>0&&(
+              <button onClick={()=>setShowDismissed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',textDecoration:'underline',marginTop:4,display:'block'}}>
+                {showDismissed?'Hide dismissed alerts':`${hiddenAlerts.length} alert${hiddenAlerts.length!==1?'s':''} hidden — show all`}
+              </button>
+            )}
+          </div>
+        </>
+      )}
       <SH>Account Profile</SH>
       <Card style={{padding:'14px 16px',marginBottom:16}}>
         {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v])=>(
