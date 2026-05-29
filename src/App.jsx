@@ -22,6 +22,9 @@ const fmtDate = d => { if (!d) return ''; try { return new Date(d+'T12:00:00').t
 const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000) }
 const daysSince = d => { if (!d) return null; return Math.floor((new Date() - new Date(d+'T12:00:00')) / 86400000) }
 const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()
+const calcHealthScore = acct => { let s=50; const strong=(acct.contacts||[]).filter(c=>c.relStatus==='Strong').length; s+=Math.min(strong*8,20); const last=acct.lastContact?daysSince(acct.lastContact):60; if(last>30)s-=20;else if(last>14)s-=8; const crit=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length; s-=Math.min(crit*12,24); const flying=(acct.projects||[]).filter(p=>p.status==='In Flight').length; s+=Math.min(flying*6,15); const renewals=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=60}).length; s-=Math.min(renewals*8,15); return Math.max(1,Math.min(100,s)) }
+const getQuickWin = acct => { const overdue=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)<0).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate)); if(overdue.length>0){const fu=overdue[0];const days=Math.abs(daysUntil(fu.dueDate));return{title:fu.task,meta:`Overdue by ${days} day${days!==1?'s':''}`,cta:'Go to Follow-Ups',tab:'followups',color:S.red}} const renew=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).sort((a,b)=>daysUntil(a.renewalDate)-daysUntil(b.renewalDate)); if(renew.length>0){const t=renew[0];const d=daysUntil(t.renewalDate);return{title:`${t.vendor} renewal in ${d} day${d!==1?'s':''}`,meta:fmtDate(t.renewalDate)+(t.notes?' — '+t.notes.slice(0,70):''),cta:'Go to Tech Stack',tab:'stack',color:S.orange}} const stalled=(acct.projects||[]).filter(p=>p.status==='Stalled'); if(stalled.length>0){const p=stalled[0];return{title:p.name,meta:`Stalled project${p.waitingOn?' — Waiting on: '+p.waitingOn:' — no next action defined'}`,cta:'Go to Projects',tab:'projects',color:S.yellow}} return null }
+const globalSearch = (data, query) => { if(!query||!query.trim()||query.length<2)return []; const q=query.toLowerCase(); const results=[]; (data.accounts||[]).forEach(acct=>{const an=acct.short||acct.name; (acct.contacts||[]).filter(c=>`${c.name} ${c.title}`.toLowerCase().includes(q)).slice(0,3).forEach(c=>results.push({accountId:acct.id,accountName:an,category:'Contacts',label:c.name,sublabel:c.title,tab:'contacts'})); (acct.projects||[]).filter(p=>`${p.name} ${p.vendor||''}`.toLowerCase().includes(q)).slice(0,3).forEach(p=>results.push({accountId:acct.id,accountName:an,category:'Projects',label:p.name,sublabel:p.vendor,tab:'projects'})); (acct.techStack||[]).filter(t=>t.vendor.toLowerCase().includes(q)).slice(0,3).forEach(t=>results.push({accountId:acct.id,accountName:an,category:'Tech Stack',label:t.vendor,sublabel:t.products,tab:'stack'})); (acct.intelLog||[]).filter(e=>(e.summary||'').toLowerCase().includes(q)||(e.participants||'').toLowerCase().includes(q)).slice(0,2).forEach(e=>results.push({accountId:acct.id,accountName:an,category:'Intel',label:(e.summary||'').slice(0,55)+((e.summary||'').length>55?'…':''),sublabel:fmtDate(e.date),tab:'intel'})) }); return results }
 
 const SAMPLE = {
   apiKey: '',
@@ -87,9 +90,11 @@ const Field = ({label,value,onChange,type='text',options=null,multiline=false,st
     {options?<select value={value||''} onChange={e=>onChange(e.target.value)}><option value=''>Select...</option>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>:multiline?<textarea value={value||''} onChange={e=>onChange(e.target.value)} rows={3}/>:<input type={type} value={value||''} onChange={e=>onChange(e.target.value)}/>}
   </div>
 )
-const Modal = ({title,onClose,children,width=520}) => (
-  <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
-    <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'100%',maxWidth:width,maxHeight:'90vh',overflow:'auto'}}>
+const Modal = ({title,onClose,children,width=520}) => {
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
+  return (
+  <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:mob?'flex-end':'center',justifyContent:'center',zIndex:1000,padding:mob?0:16}}>
+    <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:mob?'12px 12px 0 0':12,width:'100%',maxWidth:mob?'100%':width,maxHeight:mob?'92vh':'90vh',overflow:'auto'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`}}>
         <div style={{fontSize:15,fontWeight:700,color:S.txt}}>{title}</div>
         <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1}}>x</button>
@@ -97,11 +102,12 @@ const Modal = ({title,onClose,children,width=520}) => (
       <div style={{padding:20}}>{children}</div>
     </div>
   </div>
-)
+  )
+}
 const SH = ({children,mt=0}) => <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8,marginTop:mt}}>{children}</div>
 const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,...style}}>{children}</div>
 
-function Overview({acct,setAcct}) {
+function Overview({acct,setAcct,setTab}) {
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []
   acct.techStack.forEach(t=>{
@@ -138,6 +144,7 @@ function Overview({acct,setAcct}) {
         const p=PC[f.priority]||PC.Low
         return <div key={f.id} style={{display:'flex',gap:8,padding:'9px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:7,marginBottom:5}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{f.task}</div><div style={{fontSize:11,color:S.muted}}>{f.contact&&f.contact+' · '}{fmtDate(f.dueDate)||'No date set'}</div></div><Badge label={f.priority} color={p.c} bg={p.b}/></div>
       })}
+      {(()=>{const qw=getQuickWin(acct);return qw?(<div style={{marginTop:16}}><SH>Quick Win</SH><div style={{padding:'14px 16px',background:'rgba(0,0,0,0.25)',border:`1px solid ${qw.color}44`,borderLeft:`4px solid ${qw.color}`,borderRadius:8}}><div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:4}}>{qw.title}</div><div style={{fontSize:12,color:S.muted,marginBottom:10,lineHeight:1.5}}>{qw.meta}</div>{setTab&&<Btn onClick={()=>setTab(qw.tab)} style={{fontSize:12,padding:'5px 12px',background:qw.color,color:'#fff',border:'none'}}>{qw.cta} →</Btn>}</div></div>):null})()}
     </div>
   )
 }
@@ -1100,12 +1107,25 @@ function Dashboard({acct}) {
   )
 }
 
-function Sidebar({data,activeId,setActiveId,setData}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
   const [collapsed,setCollapsed] = useState(false)
+  const [searchQ,setSearchQ] = useState('')
+
+  useEffect(()=>{
+    const check=()=>{if(window.innerWidth<768)setCollapsed(true)}
+    check()
+    window.addEventListener('resize',check)
+    return()=>window.removeEventListener('resize',check)
+  },[])
+
   const addAccount=()=>{if(!newName.trim())return;const id=uid();setData(p=>({...p,accounts:[...p.accounts,{...SAMPLE.accounts[0],id,name:newName,short:newName.slice(0,5).toUpperCase(),contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],unknownMentions:[],relSuggestions:[]}]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
+  const searchResults = globalSearch(data, searchQ)
+  const grouped = {}
+  searchResults.forEach(r=>{if(!grouped[r.category])grouped[r.category]=[];grouped[r.category].push(r)})
+
   return (
     <div style={{width:collapsed?48:220,background:'#060a12',borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:collapsed?'center':'space-between',padding:collapsed?'12px 0 4px':'12px 10px 4px'}}>
@@ -1115,23 +1135,57 @@ function Sidebar({data,activeId,setActiveId,setData}) {
         </div>}
         <button onClick={()=>setCollapsed(c=>!c)} title={collapsed?'Expand sidebar':'Collapse sidebar'} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:13,padding:'3px 7px',lineHeight:1,flexShrink:0}}>{collapsed?'»':'«'}</button>
       </div>
+      {!collapsed&&(
+        <div style={{padding:'0 8px 6px'}}>
+          <input
+            ref={searchRef}
+            value={searchQ}
+            onChange={e=>setSearchQ(e.target.value)}
+            placeholder='Search... (press /)'
+            style={{width:'100%',fontSize:11,padding:'6px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box'}}
+          />
+        </div>
+      )}
+      {!collapsed&&searchResults.length>0&&(
+        <div style={{maxHeight:260,overflowY:'auto',borderTop:`1px solid ${S.bdr}`,borderBottom:`1px solid ${S.bdr}`,background:S.surf2,flexShrink:0}}>
+          {Object.entries(grouped).map(([cat,items])=>(
+            <div key={cat}>
+              <div style={{fontSize:9,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',padding:'6px 10px 2px'}}>{cat}</div>
+              {items.map((r,i)=>(
+                <button key={i} onClick={()=>{onNavigate(r.accountId,r.tab);setSearchQ('')}} style={{display:'block',width:'100%',textAlign:'left',padding:'5px 10px 5px',background:'transparent',border:'none',cursor:'pointer',borderRadius:0}} onMouseEnter={e=>e.currentTarget.style.background='rgba(59,130,246,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div style={{fontSize:12,fontWeight:600,color:S.txt,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.label}</div>
+                  <div style={{fontSize:10,color:S.muted,display:'flex',gap:4}}>
+                    <span style={{flexShrink:0}}>{r.accountName}</span>
+                    {r.sublabel&&<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>· {r.sublabel}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.08em',textTransform:'uppercase',padding:'4px 14px'}}>My Accounts</div>}
       <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 6px':'0 8px'}}>
-        {data.accounts.map(a=>(
+        {data.accounts.map(a=>{
+          const hs=calcHealthScore(a)
+          const hc=hs>=70?S.green:hs>=40?S.orange:S.red
+          return (
           collapsed
-          ? <button key={a.id} onClick={()=>setActiveId(a.id)} title={a.name} style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',marginBottom:3,borderRadius:7}}>
+          ? <button key={a.id} onClick={()=>setActiveId(a.id)} title={`${a.name} (Health: ${hs})`} style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',marginBottom:3,borderRadius:7}}>
               <div style={{width:34,height:34,borderRadius:'50%',background:activeId===a.id?'rgba(59,130,246,0.2)':S.surf,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:activeId===a.id?S.blue:S.muted,border:`1px solid ${activeId===a.id?S.blue:S.bdr}`,flexShrink:0}}>
                 {initials(a.short||a.name)}
               </div>
             </button>
           : <button key={a.id} onClick={()=>setActiveId(a.id)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px',borderRadius:7,border:'none',background:activeId===a.id?'rgba(59,130,246,0.12)':'transparent',textAlign:'left',cursor:'pointer',marginBottom:2}}>
               <div style={{width:8,height:8,borderRadius:'50%',background:sc[a.status]||S.muted,flexShrink:0}}/>
-              <div style={{minWidth:0}}>
+              <div style={{minWidth:0,flex:1}}>
                 <div style={{fontSize:12,fontWeight:600,color:activeId===a.id?S.blue:S.txt,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
                 <div style={{fontSize:10,color:S.muted}}>{a.status}</div>
               </div>
+              <span style={{fontSize:11,fontWeight:700,color:hc,flexShrink:0}}>{hs}</span>
             </button>
-        ))}
+          )
+        })}
       </div>
       {!collapsed&&<div style={{padding:'8px 10px',borderTop:`1px solid ${S.bdr}`}}>
         {showAdd?<div>
@@ -1141,6 +1195,7 @@ function Sidebar({data,activeId,setActiveId,setData}) {
             <Btn onClick={()=>{setShowAdd(false);setNewName('')}} style={{fontSize:12,padding:'5px 8px'}}>x</Btn>
           </div>
         </div>:<button onClick={()=>setShowAdd(true)} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'7px 8px',background:'transparent',border:`1px dashed ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:12,cursor:'pointer'}}>+ New Account</button>}
+        {lastSaved&&<div style={{fontSize:10,color:S.dim,textAlign:'center',marginTop:6,paddingTop:6,borderTop:`1px solid ${S.bdr}`}}>Last saved: {lastSaved}</div>}
       </div>}
     </div>
   )
@@ -1152,18 +1207,54 @@ export default function App() {
   const [data,setData] = useState(null)
   const [activeId,setActiveId] = useState('bhsi')
   const [tab,setTab] = useState('overview')
+  const searchRef = useRef(null)
+  const [lastSavedLabel,setLastSavedLabel] = useState('')
 
   useEffect(()=>{ loadData().then(d=>{ if(d) setData(d); else setData(SAMPLE) }) },[])
-  useEffect(()=>{ if(data) saveData(data) },[data])
+
+  useEffect(()=>{
+    if(!data) return
+    saveData(data)
+    const saved = new Date()
+    setLastSavedLabel('just now')
+    const iv = setInterval(()=>{
+      const mins=Math.floor((new Date()-saved)/60000)
+      if(mins<1)setLastSavedLabel('just now')
+      else if(mins===1)setLastSavedLabel('1 min ago')
+      else setLastSavedLabel(`${mins} mins ago`)
+    },30000)
+    return()=>clearInterval(iv)
+  },[data])
+
+  useEffect(()=>{
+    const handler=e=>{
+      if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown',handler)
+    return()=>window.removeEventListener('keydown',handler)
+  },[])
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:S.muted,fontSize:14}}>Loading...</div>
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
+  const critHighCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length
 
   return (
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:S.bg}}>
-      <Sidebar data={data} activeId={activeId} setActiveId={id=>{setActiveId(id);setTab('overview')}} setData={setData}/>
+      <Sidebar
+        data={data}
+        activeId={activeId}
+        setActiveId={id=>{setActiveId(id);setTab('overview')}}
+        setData={setData}
+        onNavigate={(id,t)=>{setActiveId(id);setTab(t)}}
+        searchRef={searchRef}
+        lastSaved={lastSavedLabel}
+      />
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{background:'#0c1017',borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
@@ -1175,17 +1266,18 @@ export default function App() {
               {[acct.industry,acct.hq,'Last contact: '+fmtDate(acct.lastContact)].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 10px'}}>{t}</span>)}
             </div>
           </div>
-          <div style={{display:'flex',overflowX:'auto'}}>
+          <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0}}>
                 {t.label}
                 {t.id==='intel'&&acct.intelLog.length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{acct.intelLog.length}</span>}
+                {t.id==='followups'&&critHighCount>0&&<span style={{fontSize:10,fontWeight:700,background:S.red,color:'#fff',borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{critHighCount}</span>}
               </button>
             ))}
           </div>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px'}}>
-          {tab==='overview'&&<Overview acct={acct} setAcct={setAcct}/>}
+          {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab}/>}
           {tab==='dashboard'&&<Dashboard acct={acct}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
