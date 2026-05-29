@@ -112,6 +112,10 @@ const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px
 
 function Overview({acct,setAcct,setTab}) {
   const [showDismissed,setShowDismissed] = useState(false)
+  const [alertModal,setAlertModal] = useState(null)
+  const [hoveredAlert,setHoveredAlert] = useState(null)
+  const [showAddFU,setShowAddFU] = useState(false)
+  const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []
@@ -123,6 +127,9 @@ function Overview({acct,setAcct,setTab}) {
   openFU.forEach(f=>{ if (f.dueDate&&daysUntil(f.dueDate)<0) alerts.push({id:`overdue:${f.task.slice(0,40).replace(/\s+/g,'_')}`,text:`Overdue: ${f.task}`,level:'critical'}) })
   const attnContacts = acct.contacts.filter(c=>c.relStatus==='Needs Attention')
   if (attnContacts.length>0) alerts.push({id:`attn:${attnContacts.map(c=>c.id).join(',')}`,text:`${attnContacts.length} contact${attnContacts.length>1?'s':''} need relationship attention`,level:'medium'})
+  acct.projects.filter(p=>p.status==='Stalled').forEach(p=>{
+    alerts.push({id:`stalled:${p.id}`,text:`${p.name} is stalled`,level:'high'})
+  })
 
   const dismissed = acct.dismissedAlerts || []
   const dismiss = id => setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),id]}))
@@ -133,8 +140,48 @@ function Overview({acct,setAcct,setTab}) {
     setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),...visibleAlerts.map(a=>a.id)]}))
   }
 
+  const openAddFU = (task='',contact='') => { setFuForm({task,contact,priority:'High',dueDate:'',context:''}); setShowAddFU(true) }
+  const saveQuickFU = () => {
+    if (!fuForm.task.trim()) return
+    setAcct(prev=>({...prev,followUps:[...prev.followUps,{...fuForm,id:uid(),status:'Open'}]}))
+    setShowAddFU(false); setFuForm({task:'',contact:'',priority:'High',dueDate:'',context:''}); setAlertModal(null)
+  }
+
+  const openAlertDetail = a => {
+    if (a.id.startsWith('renew:')) {
+      const t = acct.techStack.find(t=>a.id===`renew:${t.vendor}:${t.renewalDate}`)
+      if (t) setAlertModal({type:'renewal',t,level:a.level}); return
+    }
+    if (a.id.startsWith('replacing:')) {
+      const vendorName = a.id.slice('replacing:'.length)
+      const t = acct.techStack.find(t=>t.vendor===vendorName)
+      if (!t) return
+      const relProjs = acct.projects.filter(p=>(p.vendor||'').toLowerCase().includes(vendorName.toLowerCase())||(p.name||'').toLowerCase().includes(vendorName.toLowerCase()))
+      setAlertModal({type:'replacing',t,relProjs,level:a.level}); return
+    }
+    if (a.id.startsWith('overdue:')) {
+      const taskKey = a.id.slice('overdue:'.length)
+      const fu = openFU.find(f=>f.dueDate&&daysUntil(f.dueDate)<0&&f.task.slice(0,40).replace(/\s+/g,'_')===taskKey)
+      if (fu) setAlertModal({type:'overdue',fu,level:a.level}); return
+    }
+    if (a.id.startsWith('attn:')) { setAlertModal({type:'attention',contacts:attnContacts,level:a.level}); return }
+    if (a.id.startsWith('stalled:')) {
+      const projId = a.id.slice('stalled:'.length)
+      const p = acct.projects.find(proj=>proj.id===projId)
+      if (p) setAlertModal({type:'stalled',p,level:a.level}); return
+    }
+    setAlertModal({type:'generic',text:a.text,level:a.level})
+  }
+
   const inFlight = acct.projects.filter(p=>p.status==='In Flight').length
   const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
+
+  const InfoRow = ({label,val}) => (
+    <div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13,gap:12}}>
+      <span style={{color:S.muted,flexShrink:0}}>{label}</span><span style={{color:S.txt,textAlign:'right'}}>{val||'—'}</span>
+    </div>
+  )
+
   return (
     <div>
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:8,marginBottom:16}}>
@@ -154,11 +201,17 @@ function Overview({acct,setAcct,setTab}) {
           <div style={{marginBottom:16}}>
             {visibleAlerts.map(a=>{
               const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+              const isHov = hoveredAlert===a.id
               return (
-                <div key={a.id} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5,alignItems:'center'}}>
+                <div key={a.id}
+                  onClick={()=>openAlertDetail(a)}
+                  onMouseEnter={()=>setHoveredAlert(a.id)}
+                  onMouseLeave={()=>setHoveredAlert(null)}
+                  style={{display:'flex',gap:10,padding:'8px 12px',background:isHov?S.surf2:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
                   <span style={{color:c,flexShrink:0}}>!</span>
                   <span style={{fontSize:13,color:S.secondary,flex:1}}>{a.text}</span>
-                  <button onClick={()=>dismiss(a.id)} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
+                  <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
+                  <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
                 </div>
               )
             })}
@@ -193,6 +246,160 @@ function Overview({acct,setAcct,setTab}) {
         return <div key={f.id} style={{display:'flex',gap:8,padding:'9px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:7,marginBottom:5}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{f.task}</div><div style={{fontSize:11,color:S.muted}}>{f.contact&&f.contact+' · '}{fmtDate(f.dueDate)||'No date set'}</div></div><Badge label={f.priority} color={p.c} bg={p.b}/></div>
       })}
       {(()=>{const qw=getQuickWin(acct);return qw?(<div style={{marginTop:16}}><SH>Quick Win</SH><div style={{padding:'14px 16px',background:S.surf2,border:`1px solid ${qw.color}44`,borderLeft:`4px solid ${qw.color}`,borderRadius:8}}><div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:4}}>{qw.title}</div><div style={{fontSize:12,color:S.muted,marginBottom:10,lineHeight:1.5}}>{qw.meta}</div>{setTab&&<Btn onClick={()=>setTab(qw.tab)} style={{fontSize:12,padding:'5px 12px',background:qw.color,color:'#fff',border:'none'}}>{qw.cta} →</Btn>}</div></div>):null})()}
+
+      {/* Alert detail modal */}
+      {alertModal&&(()=>{
+        const hc = {critical:S.red,high:S.orange,medium:S.yellow}[alertModal.level]||S.muted
+        const levelLabel = alertModal.level==='critical'?'● Critical':alertModal.level==='high'?'▲ High Priority':'◆ Medium Priority'
+        const title = alertModal.type==='renewal'?`${alertModal.t.vendor} — Renewal Upcoming`
+          :alertModal.type==='replacing'?`${alertModal.t.vendor} — Marked for Replacement`
+          :alertModal.type==='overdue'?'Overdue Follow-Up'
+          :alertModal.type==='attention'?'Relationship Needs Attention'
+          :alertModal.type==='stalled'?`${alertModal.p.name} — Stalled`
+          :'Alert Detail'
+        return (
+          <Modal title={title} onClose={()=>setAlertModal(null)} width={560}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11,fontWeight:700,color:hc,background:hc+'18',border:`1px solid ${hc}44`,borderRadius:999,padding:'3px 10px',marginBottom:16}}>{levelLabel}</div>
+
+            {/* Renewal */}
+            {alertModal.type==='renewal'&&(()=>{
+              const {t}=alertModal; const d=daysUntil(t.renewalDate); const dc=d<=60?S.red:S.orange
+              return <>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',background:S.surf2,borderRadius:8,marginBottom:16}}>
+                  <div><div style={{fontSize:15,fontWeight:700,color:S.txt}}>{t.vendor}</div>{t.products&&<div style={{fontSize:12,color:S.muted,marginTop:2}}>{t.products}</div>}</div>
+                  <div style={{textAlign:'right'}}><div style={{fontSize:32,fontWeight:800,color:dc,lineHeight:1}}>{d}</div><div style={{fontSize:11,color:S.muted}}>days left</div></div>
+                </div>
+                <InfoRow label='Category' val={t.category}/>
+                <InfoRow label='Renewal Date' val={fmtDate(t.renewalDate)}/>
+                <InfoRow label='Annual Cost' val={t.cost}/>
+                <InfoRow label='Vendor Rep' val={t.vendorRep}/>
+                <InfoRow label='Rep Email' val={t.vendorRepEmail}/>
+                <InfoRow label='Client Owner' val={t.clientOwner}/>
+                {t.notes&&<div style={{marginTop:12,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{t.notes}</div>}
+                <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
+                  <Btn variant='primary' onClick={()=>{setTab('stack');setAlertModal(null)}}>View in Tech Stack</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Renew ${t.vendor} contract`,t.clientOwner||'')}}>+ Add Follow-Up</Btn>
+                </div>
+              </>
+            })()}
+
+            {/* Replacing */}
+            {alertModal.type==='replacing'&&(()=>{
+              const {t,relProjs}=alertModal; const sc=SC[t.status]||S.muted
+              return <>
+                <div style={{padding:'12px 16px',background:S.surf2,borderRadius:8,marginBottom:16}}>
+                  <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:4}}>{t.vendor}</div>
+                  {t.products&&<div style={{fontSize:12,color:S.muted,marginBottom:6}}>{t.products}</div>}
+                  <Badge label={t.status} color={sc} bg={sc+'1a'}/>
+                </div>
+                <InfoRow label='Category' val={t.category}/>
+                <InfoRow label='Client Owner' val={t.clientOwner}/>
+                {t.notes&&<div style={{marginTop:10,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{t.notes}</div>}
+                {relProjs.length>0&&<div style={{marginTop:14}}>
+                  <SH>Related Projects</SH>
+                  {relProjs.map(p=>{const pc=PSC[p.status]||S.muted;return<div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,marginBottom:4}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:S.txt}}>{p.name}</div><div style={{fontSize:11,color:S.muted}}>{p.primaryContact||''}</div></div><Badge label={p.status} color={pc} bg={pc+'1a'}/></div>})}
+                </div>}
+                <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
+                  <Btn variant='primary' onClick={()=>{setTab('stack');setAlertModal(null)}}>View in Tech Stack</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Plan ${t.vendor} replacement`,t.clientOwner||'')}}>+ Add Follow-Up</Btn>
+                </div>
+              </>
+            })()}
+
+            {/* Overdue follow-up */}
+            {alertModal.type==='overdue'&&(()=>{
+              const {fu}=alertModal; const daysOver=Math.abs(daysUntil(fu.dueDate)||0)
+              return <>
+                <div style={{padding:'12px 14px',background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,marginBottom:16}}>
+                  <div style={{fontSize:14,fontWeight:700,color:S.txt,lineHeight:1.4}}>{fu.task}</div>
+                </div>
+                <InfoRow label='Contact' val={fu.contact}/>
+                <InfoRow label='Due Date' val={fmtDate(fu.dueDate)}/>
+                <InfoRow label='Days Overdue' val={`${daysOver} day${daysOver!==1?'s':''}`}/>
+                <InfoRow label='Priority' val={fu.priority}/>
+                {fu.context&&<div style={{marginTop:10,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{fu.context}</div>}
+                <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
+                  <Btn variant='primary' onClick={()=>{setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,status:'Done'}:f)}));setAlertModal(null)}}>✓ Mark Complete</Btn>
+                  <Btn onClick={()=>{const nd=new Date();nd.setDate(nd.getDate()+3);const ds=nd.toISOString().split('T')[0];setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,dueDate:ds}:f)}));setAlertModal(null)}}>Snooze 3 Days</Btn>
+                  <Btn onClick={()=>{setTab('followups');setAlertModal(null)}}>Go to Follow-Ups</Btn>
+                </div>
+              </>
+            })()}
+
+            {/* Needs attention contacts */}
+            {alertModal.type==='attention'&&(()=>{
+              const {contacts}=alertModal
+              return <>
+                <div style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>These contacts need relationship-building attention. Click a row to go to the Contacts tab.</div>
+                <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:16}}>
+                  {contacts.map(c=>{
+                    const ds=daysSince(c.lastInteracted)
+                    return <div key={c.id}
+                      onClick={()=>{setAlertModal(null);setTab('contacts')}}
+                      style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,cursor:'pointer',transition:'background 0.1s'}}
+                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                      onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
+                      <div style={{width:34,height:34,borderRadius:'50%',background:'rgba(249,115,22,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.orange,flexShrink:0}}>{initials(c.name)}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</div>
+                        <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.title}</div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontSize:11,color:ds===null?S.muted:ds>60?S.red:S.orange,fontWeight:600,marginBottom:3}}>{ds===null?'Never contacted':`${ds}d ago`}</div>
+                        <Badge label='Needs Attention' color={S.orange} bg='rgba(249,115,22,0.12)' size={10}/>
+                      </div>
+                    </div>
+                  })}
+                </div>
+                <Btn onClick={()=>{setTab('contacts');setAlertModal(null)}}>Go to Contacts</Btn>
+              </>
+            })()}
+
+            {/* Stalled project */}
+            {alertModal.type==='stalled'&&(()=>{
+              const {p}=alertModal
+              const currStage=p.timeline?.find(s=>s.status==='current')||p.timeline?.filter(s=>s.status==='completed').slice(-1)[0]
+              const daysInStage=currStage?.date?daysSince(currStage.date):null
+              return <>
+                <div style={{padding:'12px 14px',background:'rgba(249,115,22,0.07)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:8,marginBottom:16}}>
+                  <div style={{fontSize:14,fontWeight:700,color:S.txt,marginBottom:2}}>{p.name}</div>
+                  {p.vendor&&<div style={{fontSize:12,color:S.muted}}>{p.vendor}</div>}
+                </div>
+                <InfoRow label='Current Stage' val={currStage?.stage}/>
+                <InfoRow label='Time in Stage' val={daysInStage!==null?`${daysInStage} days`:undefined}/>
+                <InfoRow label='Waiting On' val={p.waitingOn}/>
+                <InfoRow label='Primary Contact' val={p.primaryContact}/>
+                <InfoRow label='Est. Close' val={fmtDate(p.closeDate)}/>
+                {p.notes&&<div style={{marginTop:10,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{p.notes}</div>}
+                <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
+                  <Btn variant='primary' onClick={()=>{setTab('projects');setAlertModal(null)}}>Go to Projects</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Unstall: ${p.name}`,p.primaryContact||'')}}>+ Add Follow-Up</Btn>
+                </div>
+              </>
+            })()}
+
+            {/* Generic */}
+            {alertModal.type==='generic'&&<div style={{fontSize:13,color:S.secondary,lineHeight:1.6}}>{alertModal.text}</div>}
+          </Modal>
+        )
+      })()}
+
+      {/* Quick add follow-up modal */}
+      {showAddFU&&(
+        <Modal title='Add Follow-Up' onClose={()=>setShowAddFU(false)} width={480}>
+          <Field label='Task' value={fuForm.task} onChange={v=>setFuForm(p=>({...p,task:v}))}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
+            <Field label='Priority' value={fuForm.priority} onChange={v=>setFuForm(p=>({...p,priority:v}))} options={['Critical','High','Medium','Low']}/>
+            <Field label='Due Date' value={fuForm.dueDate} onChange={v=>setFuForm(p=>({...p,dueDate:v}))} type='date'/>
+            <Field label='Contact Name' value={fuForm.contact} onChange={v=>setFuForm(p=>({...p,contact:v}))} style={{gridColumn:'span 2'}}/>
+          </div>
+          <Field label='Context / Notes' value={fuForm.context} onChange={v=>setFuForm(p=>({...p,context:v}))} multiline/>
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <Btn variant='primary' onClick={saveQuickFU}>Save Follow-Up</Btn>
+            <Btn onClick={()=>setShowAddFU(false)}>Cancel</Btn>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
