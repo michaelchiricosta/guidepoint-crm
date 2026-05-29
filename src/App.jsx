@@ -1368,11 +1368,12 @@ function Dashboard({acct}) {
   )
 }
 
-function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,theme,setTheme}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,theme,setTheme,onGoHome}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
   const [collapsed,setCollapsed] = useState(false)
   const [searchQ,setSearchQ] = useState('')
+  const [logoHovered, setLogoHovered] = useState(false)
 
   useEffect(()=>{
     const check=()=>{if(window.innerWidth<768)setCollapsed(true)}
@@ -1390,10 +1391,11 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   return (
     <div style={{width:collapsed?48:220,background:S.sidebarBg,borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:collapsed?'center':'space-between',padding:collapsed?'12px 0 4px':'12px 10px 4px'}}>
-        {!collapsed&&<div>
+        {!collapsed&&<button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
           <div style={{fontSize:10,fontWeight:800,color:S.blue,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:2}}>GuidePoint</div>
-          <div style={{fontSize:12,fontWeight:700,color:S.txt}}>Account Intel</div>
-        </div>}
+          <div style={{fontSize:12,fontWeight:700,color:logoHovered?S.blue:S.txt,transition:'color 0.15s'}}>Account Intel</div>
+          {logoHovered&&<div style={{fontSize:9,color:S.muted,marginTop:1,fontWeight:600}}>← Home</div>}
+        </button>}
         <button onClick={()=>setCollapsed(c=>!c)} title={collapsed?'Expand sidebar':'Collapse sidebar'} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:13,padding:'3px 7px',lineHeight:1,flexShrink:0}}>{collapsed?'»':'«'}</button>
       </div>
       {!collapsed&&(
@@ -1469,10 +1471,12 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setTheme}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, theme, setTheme}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
+  const [hoveredStat, setHoveredStat] = useState(null)
+  const [statModal, setStatModal] = useState(null)
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -1494,21 +1498,38 @@ function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setT
 
   const statusColor = {Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const GP_BLUE = '#0066cc'
-  const GP_NAVY = '#0a1628'
   const GP_LIGHT = '#0ea5e9'
+
+  const priOrd = {'Critical':0,'High':1,'Medium':2,'Low':3}
+  const buildFUData = (critOnly=false) => data.accounts.flatMap(a=>
+    (a.followUps||[]).filter(f=>f.status==='Open'&&(!critOnly||f.priority==='Critical')).map(f=>({...f,accountName:a.short||a.name,accountId:a.id}))
+  ).sort((a,b)=>{const pd=(priOrd[a.priority]||3)-(priOrd[b.priority]||3);return pd!==0?pd:(a.dueDate||'9999').localeCompare(b.dueDate||'9999')})
+  const buildRenewalData = () => data.accounts.flatMap(a=>
+    (a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).map(t=>({...t,accountName:a.short||a.name,accountId:a.id,daysLeft:daysUntil(t.renewalDate)}))
+  ).sort((a,b)=>a.daysLeft-b.daysLeft)
+  const buildProjectData = () => data.accounts.flatMap(a=>
+    (a.projects||[]).filter(p=>p.status==='In Flight').map(p=>({...p,accountName:a.short||a.name,accountId:a.id}))
+  ).sort((a,b)=>(a.closeDate||'9999').localeCompare(b.closeDate||'9999'))
+
+  const STAT_DEFS = [
+    {label:'Open Follow-Ups',value:totalOpenFUs,color:GP_LIGHT,type:'followups',tab:'followups',buildData:()=>buildFUData(false)},
+    {label:'Critical Items',value:criticalItems,color:S.red,type:'critical',tab:'followups',buildData:()=>buildFUData(true)},
+    {label:'Renewals (90d)',value:renewals90,color:S.orange,type:'renewals',tab:'stack',buildData:buildRenewalData},
+    {label:'Active Projects',value:activeProjects,color:S.green,type:'projects',tab:'projects',buildData:buildProjectData},
+  ]
 
   const StatIcon = ({type}) => {
     if (type==='followups') return <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke={GP_LIGHT} strokeWidth="1.5"/><line x1="5" y1="6" x2="13" y2="6" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="9" x2="13" y2="9" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="12" x2="9" y2="12" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/></svg>
-    if (type==='critical') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L16 16 L2 16 Z" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinejoin="round"/><line x1="9" y1="7.5" x2="9" y2="11" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="13" r="0.8" fill="#ef4444"/></svg>
-    if (type==='renewals') return <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#f97316" strokeWidth="1.5"/><line x1="9" y1="5" x2="9" y2="9" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="9" x2="12" y2="11" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round"/></svg>
-    if (type==='projects') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L11 7 L16 8 L12 12 L13 17 L9 14.5 L5 17 L6 12 L2 8 L7 7 Z" fill="none" stroke="#22c55e" strokeWidth="1.4" strokeLinejoin="round"/></svg>
+    if (type==='critical') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L16 16 L2 16 Z" fill="none" stroke={S.red} strokeWidth="1.5" strokeLinejoin="round"/><line x1="9" y1="7.5" x2="9" y2="11" stroke={S.red} strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="13" r="0.8" fill={S.red}/></svg>
+    if (type==='renewals') return <svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke={S.orange} strokeWidth="1.5"/><line x1="9" y1="5" x2="9" y2="9" stroke={S.orange} strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="9" x2="12" y2="11" stroke={S.orange} strokeWidth="1.5" strokeLinecap="round"/></svg>
+    if (type==='projects') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L11 7 L16 8 L12 12 L13 17 L9 14.5 L5 17 L6 12 L2 8 L7 7 Z" fill="none" stroke={S.green} strokeWidth="1.4" strokeLinejoin="round"/></svg>
     return null
   }
 
   return (
-    <div style={{minHeight:'100vh',background:GP_NAVY,color:'#fff',overflowY:'auto'}}>
+    <div style={{minHeight:'100vh',background:S.bg,color:S.txt,overflowY:'auto'}}>
       {/* Header */}
-      <div style={{background:'rgba(10,22,40,0.98)',borderBottom:'1px solid rgba(14,165,233,0.15)',padding:'0 28px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,backdropFilter:'blur(8px)'}}>
+      <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'0 28px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,backdropFilter:'blur(8px)'}}>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           <svg width="28" height="28" viewBox="0 0 28 28" style={{flexShrink:0}}>
             <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke={GP_LIGHT} strokeWidth="1.5" strokeLinejoin="round"/>
@@ -1516,48 +1537,47 @@ function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setT
             <circle cx="14" cy="15" r="1.8" fill={GP_LIGHT}/>
           </svg>
           <div>
-            <div style={{fontSize:15,fontWeight:800,color:'#fff',letterSpacing:'0.01em',lineHeight:1.2}}>GuidePoint Security</div>
+            <div style={{fontSize:15,fontWeight:800,color:S.txt,letterSpacing:'0.01em',lineHeight:1.2}}>GuidePoint Security</div>
             <div style={{fontSize:10,color:GP_LIGHT,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase'}}>Account Intelligence</div>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
-          <span style={{fontSize:12,color:'rgba(255,255,255,0.3)'}}>{dateStr}</span>
-          <div style={{display:'flex',gap:2,background:'rgba(255,255,255,0.05)',borderRadius:6,padding:2}}>
+          <span style={{fontSize:12,color:S.muted}}>{dateStr}</span>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:6,padding:2}}>
             {[{v:'light',icon:'☀'},{v:'dark',icon:'☾'}].map(({v,icon})=>(
-              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 9px',borderRadius:4,border:'none',background:theme===v?'rgba(14,165,233,0.2)':'transparent',color:theme===v?GP_LIGHT:'rgba(255,255,255,0.3)',cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{icon}</button>
+              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 9px',borderRadius:4,border:'none',background:theme===v?S.blue+'33':'transparent',color:theme===v?S.blue:S.muted,cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{icon}</button>
             ))}
           </div>
-          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:'rgba(255,255,255,0.4)',cursor:'pointer',padding:'5px 9px',fontSize:14,lineHeight:1}}>⚙</button>
+          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',padding:'5px 9px',fontSize:14,lineHeight:1}}>⚙</button>
         </div>
       </div>
 
       <div style={{maxWidth:1160,margin:'0 auto',padding:'44px 28px 80px'}}>
         {/* Hero */}
         <div style={{marginBottom:40}}>
-          <div style={{fontSize:30,fontWeight:800,color:'#fff',marginBottom:8,lineHeight:1.2}}>{greeting}</div>
-          <div style={{fontSize:14,color:'rgba(255,255,255,0.45)',lineHeight:1.8}}>
-            You have <span style={{color:'#fff',fontWeight:700}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
+          <div style={{fontSize:30,fontWeight:800,color:S.txt,marginBottom:8,lineHeight:1.2}}>{greeting}</div>
+          <div style={{fontSize:14,color:S.muted,lineHeight:1.8}}>
+            You have <span style={{color:S.txt,fontWeight:700}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
             {totalOpenFUs>0&&<>, <span style={{color:GP_LIGHT,fontWeight:700}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
-            {criticalItems>0&&<> (<span style={{color:'#ef4444',fontWeight:700}}>{criticalItems} critical</span>)</>}
-            {renewals90>0&&<>, <span style={{color:'#f97316',fontWeight:700}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
+            {criticalItems>0&&<> (<span style={{color:S.red,fontWeight:700}}>{criticalItems} critical</span>)</>}
+            {renewals90>0&&<>, <span style={{color:S.orange,fontWeight:700}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
           </div>
         </div>
 
-        {/* Cross-account stats bar */}
+        {/* Cross-account stats — clickable cards */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:48}}>
-          {[
-            {label:'Open Follow-Ups',value:totalOpenFUs,color:GP_LIGHT,type:'followups'},
-            {label:'Critical Items',value:criticalItems,color:'#ef4444',type:'critical'},
-            {label:'Renewals (90d)',value:renewals90,color:'#f97316',type:'renewals'},
-            {label:'Active Projects',value:activeProjects,color:'#22c55e',type:'projects'},
-          ].map(stat=>(
-            <div key={stat.label} style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(14,165,233,0.1)',borderRadius:12,padding:'18px 20px'}}>
+          {STAT_DEFS.map(stat=>(
+            <button key={stat.label}
+              onClick={()=>setStatModal({...stat,items:stat.buildData()})}
+              onMouseEnter={()=>setHoveredStat(stat.label)}
+              onMouseLeave={()=>setHoveredStat(null)}
+              style={{background:S.surf,border:`1px solid ${hoveredStat===stat.label?stat.color:S.bdr}`,boxShadow:hoveredStat===stat.label?`0 4px 16px ${stat.color}22`:'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
+                <span style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                 <StatIcon type={stat.type}/>
               </div>
               <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -1569,17 +1589,17 @@ function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setT
               <circle cx="30" cy="32" r="9" fill="none" stroke={GP_LIGHT} strokeWidth="2"/>
               <circle cx="30" cy="32" r="3.5" fill={GP_LIGHT}/>
             </svg>
-            <div style={{fontSize:22,fontWeight:700,color:'#fff',marginBottom:10}}>Welcome to Account Intelligence</div>
-            <div style={{fontSize:14,color:'rgba(255,255,255,0.4)',marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
+            <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>Welcome to Account Intelligence</div>
+            <div style={{fontSize:14,color:S.muted,marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
             <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:GP_BLUE,border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:'0.01em'}}>+ Add Your First Account</button>
           </div>
         ) : (
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.3)',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:16}}>Your Accounts — {data.accounts.length}</div>
+            <div style={{fontSize:11,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:16}}>Your Accounts — {data.accounts.length}</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
-                const hc=hs>=70?'#22c55e':hs>=40?'#f97316':'#ef4444'
+                const hc=hs>=70?S.green:hs>=40?S.orange:S.red
                 const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
                 const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
                 const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
@@ -1591,63 +1611,54 @@ function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setT
                   <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
                     onMouseEnter={()=>setHoveredId(acct.id)}
                     onMouseLeave={()=>setHoveredId(null)}
-                    style={{background:isHov?'rgba(0,102,204,0.1)':'rgba(255,255,255,0.03)',border:`1px solid ${isHov?GP_BLUE:'rgba(14,165,233,0.12)'}`,borderRadius:14,cursor:'pointer',transform:isHov?'translateY(-3px)':'translateY(0)',boxShadow:isHov?'0 10px 36px rgba(0,102,204,0.22)':'0 2px 10px rgba(0,0,0,0.35)',transition:'all 0.15s ease',overflow:'hidden',display:'flex',flexDirection:'column'}}
+                    style={{background:isHov?S.surf2:S.surf,border:`1px solid ${isHov?GP_BLUE:S.bdr}`,borderRadius:14,cursor:'pointer',transform:isHov?'translateY(-3px)':'translateY(0)',boxShadow:isHov?`0 10px 36px rgba(0,102,204,0.18)`:`0 2px 8px rgba(0,0,0,0.08)`,transition:'all 0.15s ease',overflow:'hidden',display:'flex',flexDirection:'column'}}
                   >
                     <div style={{padding:'20px 20px 16px',flex:1}}>
-                      {/* Name + gauge row */}
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:14}}>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:15,fontWeight:800,color:'#fff',marginBottom:4,lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.name}</div>
-                          {(acct.industry||acct.hq)&&<div style={{fontSize:12,color:'rgba(255,255,255,0.38)',marginBottom:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{[acct.industry,acct.hq].filter(Boolean).join(' · ')}</div>}
-                          <span style={{fontSize:11,fontWeight:700,color:statusColor[acct.status]||'#64748b',background:(statusColor[acct.status]||'#64748b')+'25',padding:'3px 10px',borderRadius:999,display:'inline-block'}}>{acct.status||'Active'}</span>
+                          <div style={{fontSize:15,fontWeight:800,color:S.txt,marginBottom:4,lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.name}</div>
+                          {(acct.industry||acct.hq)&&<div style={{fontSize:12,color:S.muted,marginBottom:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{[acct.industry,acct.hq].filter(Boolean).join(' · ')}</div>}
+                          <span style={{fontSize:11,fontWeight:700,color:statusColor[acct.status]||S.muted,background:(statusColor[acct.status]||S.muted)+'25',padding:'3px 10px',borderRadius:999,display:'inline-block'}}>{acct.status||'Active'}</span>
                         </div>
-                        {/* Health score ring */}
                         <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
                           <svg width="58" height="58" viewBox="0 0 56 56">
-                            <circle cx="28" cy="28" r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="4"/>
+                            <circle cx="28" cy="28" r={r} fill="none" stroke={S.bdr} strokeWidth="4"/>
                             <circle cx="28" cy="28" r={r} fill="none" stroke={hc} strokeWidth="4"
-                              strokeDasharray={`${progress} ${circ}`}
-                              strokeLinecap="round"
-                              transform="rotate(-90 28 28)"
-                            />
+                              strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 28 28)"/>
                             <text x="28" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={hc}>{hs}</text>
                           </svg>
-                          <div style={{fontSize:9,color:'rgba(255,255,255,0.28)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>Health</div>
+                          <div style={{fontSize:9,color:S.dim,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>Health</div>
                         </div>
                       </div>
-                      {/* Mini stat chips */}
                       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
                         {[
-                          {label:`${openFUs} follow-up${openFUs!==1?'s':''}`,c:'rgba(255,255,255,0.5)'},
-                          {label:`${activePjs} project${activePjs!==1?'s':''}`,c:'rgba(255,255,255,0.5)'},
-                          {label:lastC===null?'No contact yet':`${lastC}d since contact`,c:lastC===null?'rgba(255,255,255,0.28)':lastC>30?'#f97316':lastC>14?'#eab308':'#22c55e'},
+                          {label:`${openFUs} follow-up${openFUs!==1?'s':''}`,c:S.secondary},
+                          {label:`${activePjs} project${activePjs!==1?'s':''}`,c:S.secondary},
+                          {label:lastC===null?'No contact yet':`${lastC}d since contact`,c:lastC===null?S.dim:lastC>30?S.orange:lastC>14?S.yellow:S.green},
                         ].map(chip=>(
-                          <span key={chip.label} style={{fontSize:11,color:chip.c,background:'rgba(255,255,255,0.06)',borderRadius:6,padding:'4px 9px',fontWeight:600,whiteSpace:'nowrap'}}>{chip.label}</span>
+                          <span key={chip.label} style={{fontSize:11,color:chip.c,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'4px 9px',fontWeight:600,whiteSpace:'nowrap'}}>{chip.label}</span>
                         ))}
                       </div>
-                      {/* Alert row */}
                       {(renewCount>0||critFUs>0)&&(
                         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                          {renewCount>0&&<span style={{fontSize:11,color:'#f97316',fontWeight:600}}>▲ {renewCount} renewal{renewCount!==1?'s':''} due</span>}
-                          {critFUs>0&&<span style={{fontSize:11,color:'#ef4444',fontWeight:600}}>● {critFUs} critical</span>}
+                          {renewCount>0&&<span style={{fontSize:11,color:S.orange,fontWeight:600}}>▲ {renewCount} renewal{renewCount!==1?'s':''} due</span>}
+                          {critFUs>0&&<span style={{fontSize:11,color:S.red,fontWeight:600}}>● {critFUs} critical</span>}
                         </div>
                       )}
                     </div>
-                    {/* Health bar */}
-                    <div style={{height:4,background:'rgba(255,255,255,0.05)'}}>
+                    <div style={{height:4,background:S.bdr}}>
                       <div style={{height:'100%',width:`${hs}%`,background:hc,transition:'width 0.4s'}}/>
                     </div>
                   </div>
                 )
               })}
-              {/* Add account card */}
               <div onClick={()=>setShowAdd(true)}
-                onMouseEnter={e=>{e.currentTarget.style.background='rgba(14,165,233,0.07)';e.currentTarget.style.borderColor='rgba(14,165,233,0.4)'}}
-                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='rgba(14,165,233,0.14)'}}
-                style={{background:'transparent',border:'1px dashed rgba(14,165,233,0.14)',borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background=S.surf2;e.currentTarget.style.borderColor=GP_LIGHT+'66'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.bdr}}
+                style={{background:'transparent',border:`1px dashed ${S.bdr}`,borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.15s'}}
               >
-                <div style={{width:44,height:44,borderRadius:'50%',border:'2px dashed rgba(14,165,233,0.35)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:'rgba(14,165,233,0.5)'}}>+</div>
-                <div style={{fontSize:13,fontWeight:700,color:'rgba(14,165,233,0.55)'}}>Add Account</div>
+                <div style={{width:44,height:44,borderRadius:'50%',border:`2px dashed ${GP_LIGHT}55`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:`${GP_LIGHT}77`}}>+</div>
+                <div style={{fontSize:13,fontWeight:700,color:S.muted}}>Add Account</div>
               </div>
             </div>
           </div>
@@ -1656,14 +1667,91 @@ function LandingPage({data, setData, onEnterAccount, onOpenSettings, theme, setT
 
       {/* Add account modal */}
       {showAdd&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.82)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
-          <div style={{background:'#0f1729',border:'1px solid rgba(14,165,233,0.2)',borderRadius:12,padding:26,width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.6)'}}>
-            <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:14}}>Add New Account</div>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:26,width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
+            <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:14}}>Add New Account</div>
             <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addAccount()} placeholder='Account name...' autoFocus
-              style={{width:'100%',fontSize:14,padding:'10px 12px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:'#fff',boxSizing:'border-box',marginBottom:14,outline:'none'}}/>
+              style={{width:'100%',fontSize:14,padding:'10px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,boxSizing:'border-box',marginBottom:14,outline:'none'}}/>
             <div style={{display:'flex',gap:8}}>
               <button onClick={addAccount} style={{flex:1,padding:'9px 16px',background:GP_BLUE,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Account</button>
-              <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'9px 14px',background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:'rgba(255,255,255,0.45)',fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'9px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stat detail modal */}
+      {statModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}
+          onClick={()=>setStatModal(null)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${statModal.color}`,borderRadius:12,width:'70%',maxWidth:860,maxHeight:'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+              <div>
+                <span style={{fontSize:16,fontWeight:700,color:statModal.color}}>{statModal.label}</span>
+                <span style={{fontSize:13,color:S.muted,marginLeft:10}}>{statModal.items.length} item{statModal.items.length!==1?'s':''}</span>
+              </div>
+              <button onClick={()=>setStatModal(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+            </div>
+            <div style={{overflow:'auto',flex:1,padding:'4px 0'}}>
+              {statModal.items.length===0&&<div style={{padding:'32px 20px',textAlign:'center',color:S.muted,fontSize:13}}>No items in this category.</div>}
+              {(statModal.type==='followups'||statModal.type==='critical')&&statModal.items.map((item,i)=>{
+                const p=PC[item.priority]||PC.Low
+                const d=item.dueDate?daysUntil(item.dueDate):null
+                return (
+                  <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
+                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',borderLeft:`3px solid ${p.c}44`,transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.task}</div>
+                      <div style={{fontSize:11,color:S.muted}}>{item.contact&&<span>{item.contact} · </span>}{d!==null&&<span style={{color:d<0?S.red:S.muted}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
+                    </div>
+                    <Badge label={item.priority} color={p.c} bg={p.b}/>
+                  </div>
+                )
+              })}
+              {statModal.type==='renewals'&&statModal.items.map((item,i)=>{
+                const dc=item.daysLeft<30?S.red:item.daysLeft<60?S.orange:S.yellow
+                return (
+                  <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.vendor}</div>
+                      {item.products&&<div style={{fontSize:11,color:S.muted}}>{item.products}</div>}
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:dc}}>{item.daysLeft}d</div>
+                      <div style={{fontSize:11,color:S.muted}}>{fmtDate(item.renewalDate)}</div>
+                      {item.cost&&<div style={{fontSize:11,color:S.muted}}>{item.cost}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+              {statModal.type==='projects'&&statModal.items.map((item,i)=>{
+                const comp=item.timeline?item.timeline.filter(s=>s.status==='completed').length:0
+                return (
+                  <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
+                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.name}</div>
+                      <div style={{fontSize:11,color:S.muted}}>
+                        {item.vendor&&<span>{item.vendor} · </span>}
+                        {item.primaryContact&&<span>{item.primaryContact} · </span>}
+                        {item.closeDate&&<span>Close: {fmtDate(item.closeDate)}</span>}
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:700,color:S.green,flexShrink:0}}>{comp}/{STAGES.length} stages</div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -1731,6 +1819,7 @@ export default function App() {
       data={data}
       setData={setData}
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
+      onNavigateTo={(id,t)=>{setActiveId(id);setTab(t);setIsLandingPage(false)}}
       onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
       theme={theme}
       setTheme={handleSetTheme}
@@ -1753,6 +1842,7 @@ export default function App() {
         lastSaved={lastSavedLabel}
         theme={theme}
         setTheme={handleSetTheme}
+        onGoHome={()=>setIsLandingPage(true)}
       />
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
         <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
