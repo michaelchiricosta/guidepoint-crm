@@ -378,7 +378,7 @@ function TechStack({acct,setAcct}) {
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
 
   // Heatmap geometry — 680px wheel diameter, viewBox 820×820
-  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=188,HM_LR=356,HM_START=-Math.PI/2
+  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=188,HM_START=-Math.PI/2
   const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
   const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
@@ -398,7 +398,7 @@ function TechStack({acct,setAcct}) {
     const dS=angle,dE=angle+anglePD,mid=(dS+dE)/2
     hmSegments.push({type:'domain',di,domain,mid,
       path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018),
-      textArcPath:makeTextArcPath(HM_CX,HM_CY,HM_LR,dS,dE)})
+      textArcPath:makeTextArcPath(HM_CX,HM_CY,302,dS,dE)})
     const aPC=anglePD/domain.caps.length
     domain.caps.forEach((cap,ci)=>{
       const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack)
@@ -571,15 +571,15 @@ function TechStack({acct,setAcct}) {
               fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>
           ))}
 
-          {/* Curved domain labels */}
-          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
-            <text key={`dl${i}`} fontSize={9.5} fontWeight={700} letterSpacing="0.09em">
-              <textPath href={`#hm-ta-${i}`} startOffset="50%" textAnchor="middle">
-                <tspan fill={HEATMAP_DOMAINS[i].color}>{'● '}</tspan>
-                <tspan fill="rgba(255,255,255,0.9)">{HEATMAP_DOMAINS[i].name.toUpperCase()}</tspan>
-              </textPath>
-            </text>
-          ))}
+          {/* Domain labels curved inside the outer ring */}
+          {(()=>{
+            const abbrev=['CLOUD & APP SEC','DATA PROTECTION','ENDPOINT & MAIL','SEC OPERATIONS','NETWORK SEC','IDENTITY SEC']
+            return hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+              <text key={`dl${i}`} fontSize={11} fontWeight={700} letterSpacing="0.05em" fill="rgba(255,255,255,0.95)">
+                <textPath href={`#hm-ta-${i}`} startOffset="50%" textAnchor="middle">{abbrev[i]}</textPath>
+              </text>
+            ))
+          })()}
 
           {/* Center circle */}
           <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-10} fill="url(#hm-ctr)"/>
