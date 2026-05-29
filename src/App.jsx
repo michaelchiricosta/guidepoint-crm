@@ -369,6 +369,7 @@ function TechStack({acct,setAcct}) {
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
+  const [legendModal,setLegendModal] = useState(null)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
   const save=()=>{if(!form.vendor)return;if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?form:t)}));else setAcct(p=>({...p,techStack:[...p.techStack,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -490,7 +491,7 @@ function TechStack({acct,setAcct}) {
             <radialGradient id="hm-ge" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fde047"/><stop offset="55%" stopColor="#eab308"/><stop offset="100%" stopColor="#ca8a04"/></radialGradient>
             <radialGradient id="hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
             <radialGradient id="hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
-            <radialGradient id="hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#2d3d50"/><stop offset="55%" stopColor="#1e2d40"/><stop offset="100%" stopColor="#0f172a"/></radialGradient>
+            <radialGradient id="hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#555555"/><stop offset="55%" stopColor="#4a4a4a"/><stop offset="100%" stopColor="#3d3d3d"/></radialGradient>
             {/* Domain ring linear gradients */}
             <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#0ea5e9"/><stop offset="100%" stopColor="#0369a1"/></linearGradient>
             <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#a855f7"/><stop offset="100%" stopColor="#7c3aed"/></linearGradient>
@@ -502,7 +503,7 @@ function TechStack({acct,setAcct}) {
             <radialGradient id="hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
             {/* Crosshatch pattern for empty segments */}
             <pattern id="hm-xhatch" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.11)" strokeWidth="1.2"/>
+              <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2"/>
             </pattern>
             {/* Text arc paths for curved domain labels */}
             {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
@@ -525,7 +526,7 @@ function TechStack({acct,setAcct}) {
             const gid=!seg.vendor?'hm-gn':({Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr'}[seg.vendor.status]||'hm-gn')
             return (
               <g key={`c${i}`}>
-                <path d={seg.path} fill={`url(#${gid})`} stroke={S.bg} strokeWidth={1.5}
+                <path d={seg.path} fill={`url(#${gid})`} stroke="none"
                   style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
                     transform:isHov?'scale(1.1)':'scale(1)',
                     opacity:hoveredSeg&&!isHov?0.82:1,
@@ -541,7 +542,7 @@ function TechStack({acct,setAcct}) {
 
           {/* Domain ring */}
           {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
-            <path key={`d${i}`} d={seg.path} fill={`url(#hm-dg${i})`} stroke={S.bg} strokeWidth={2}/>
+            <path key={`d${i}`} d={seg.path} fill={`url(#hm-dg${i})`} stroke="none"/>
           ))}
 
           {/* Curved domain labels */}
@@ -567,30 +568,34 @@ function TechStack({acct,setAcct}) {
           <path d={`M ${HM_CX} ${HM_CY-80} L ${HM_CX-13} ${HM_CY-74} L ${HM_CX-13} ${HM_CY-60} Q ${HM_CX} ${HM_CY-52} ${HM_CX} ${HM_CY-52} Q ${HM_CX+13} ${HM_CY-60} ${HM_CX+13} ${HM_CY-60} L ${HM_CX+13} ${HM_CY-74} Z`}
             fill="url(#hm-gc)" opacity={0.85}/>
           {/* Coverage % */}
-          <text x={HM_CX} y={HM_CY-14} textAnchor="middle" fontSize={54} fontWeight={800} fill={S.txt} letterSpacing="-2">{coveragePct}%</text>
-          <text x={HM_CX} y={HM_CY+12} textAnchor="middle" fontSize={11} fontWeight={600} fill={S.muted} letterSpacing="0.14em">COVERAGE</text>
+          <text x={HM_CX} y={HM_CY-14} textAnchor="middle" fontSize={54} fontWeight={800} fill="#ffffff" letterSpacing="-2">{coveragePct}%</text>
+          <text x={HM_CX} y={HM_CY+12} textAnchor="middle" fontSize={11} fontWeight={600} fill="#94a3b8" letterSpacing="0.14em">COVERAGE</text>
         </svg>
         </div>
 
-        {/* Legend — gradient pills with capability counts */}
+        {/* Legend — clickable gradient pills with capability counts */}
         {(()=>{
           const cs=hmSegments.filter(s=>s.type==='cap')
           const ld=[
-            {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',cnt:cs.filter(s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)).length},
-            {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',cnt:cs.filter(s=>s.vendor&&s.vendor.status==='Watch').length},
-            {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',cnt:cs.filter(s=>s.vendor&&s.vendor.status==='Evaluating').length},
-            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',cnt:cs.filter(s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)).length},
-            {label:'Critical Gap',g:'linear-gradient(135deg,#2d3d50,#0f172a)',cnt:cs.filter(s=>!s.vendor).length},
+            {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',color:'#22c55e',filter:s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)},
+            {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',color:'#f97316',filter:s=>s.vendor&&s.vendor.status==='Watch'},
+            {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',color:'#eab308',filter:s=>s.vendor&&s.vendor.status==='Evaluating'},
+            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)},
+            {label:'Critical Gap',g:'linear-gradient(135deg,#555555,#3d3d3d)',color:'#94a3b8',filter:s=>!s.vendor},
           ]
           return (
             <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:18,flexWrap:'wrap'}}>
-              {ld.map(l=>(
-                <div key={l.label} style={{display:'flex',alignItems:'center',gap:7,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'6px 14px'}}>
-                  <div style={{width:26,height:11,borderRadius:4,background:l.g,flexShrink:0}}/>
-                  <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{l.label}</span>
-                  <span style={{fontSize:11,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px',fontWeight:700}}>{l.cnt}</span>
-                </div>
-              ))}
+              {ld.map(l=>{
+                const segs=cs.filter(l.filter)
+                return (
+                  <button key={l.label} onClick={()=>setLegendModal({...l,segments:segs})}
+                    style={{display:'flex',alignItems:'center',gap:7,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'6px 14px',cursor:'pointer'}}>
+                    <div style={{width:26,height:11,borderRadius:4,background:l.g,flexShrink:0}}/>
+                    <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{l.label}</span>
+                    <span style={{fontSize:11,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px',fontWeight:700}}>{segs.length}</span>
+                  </button>
+                )
+              })}
             </div>
           )
         })()}
@@ -625,6 +630,57 @@ function TechStack({acct,setAcct}) {
           </div>
         )
       })()}
+
+      {/* Legend category modal */}
+      {legendModal&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}
+        onClick={()=>setLegendModal(null)}>
+        <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${legendModal.color}`,borderRadius:12,width:'70%',maxWidth:840,maxHeight:'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
+          onClick={e=>e.stopPropagation()}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <div style={{width:22,height:14,borderRadius:4,background:legendModal.g,flexShrink:0}}/>
+              <span style={{fontSize:16,fontWeight:700,color:legendModal.color}}>{legendModal.label}</span>
+              <span style={{fontSize:13,color:S.muted}}>— {legendModal.segments.length} capabilit{legendModal.segments.length===1?'y':'ies'}</span>
+            </div>
+            <button onClick={()=>setLegendModal(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+          </div>
+          <div style={{overflow:'auto',flex:1,padding:'8px 20px 16px'}}>
+            {legendModal.segments.length===0&&<div style={{fontSize:13,color:S.muted,padding:'20px 0',textAlign:'center'}}>No capabilities in this category.</div>}
+            {legendModal.segments.map((seg,i)=>{
+              const existingNotes=seg.vendor?(seg.vendor.replacementNotes||''):((acct.hmCapNotes||{})[seg.cap]||'')
+              return (
+                <div key={i} style={{borderLeft:`3px solid ${legendModal.color}44`,paddingLeft:12,marginTop:12,paddingBottom:12,borderBottom:`1px solid ${S.bdr}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6,gap:12}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:2}}>{seg.cap}</div>
+                      <div style={{fontSize:11,color:S.muted}}>{seg.domain.name}</div>
+                    </div>
+                    <div style={{flexShrink:0}}>
+                      {seg.vendor
+                        ?<span style={{fontSize:12,fontWeight:600,color:S.secondary,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 8px'}}>{seg.vendor.vendor}</span>
+                        :<span style={{fontSize:11,color:S.dim,fontStyle:'italic'}}>No vendor mapped</span>}
+                    </div>
+                  </div>
+                  <textarea
+                    defaultValue={existingNotes}
+                    placeholder="Replacement options / notes..."
+                    rows={2}
+                    style={{width:'100%',fontSize:12,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'6px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.5}}
+                    onBlur={e=>{
+                      const val=e.target.value
+                      if(seg.vendor){
+                        setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===seg.vendor.id?{...t,replacementNotes:val}:t)}))
+                      } else {
+                        setAcct(p=>({...p,hmCapNotes:{...(p.hmCapNotes||{}),[seg.cap]:val}}))
+                      }
+                    }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>}
 
       {showAdd&&<Modal title={form.id?'Edit Vendor':'Add Vendor'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
