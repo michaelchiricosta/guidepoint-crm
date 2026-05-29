@@ -505,6 +505,12 @@ function TechStack({acct,setAcct}) {
             <pattern id="hm-xhatch" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.22)" strokeWidth="1.2"/>
             </pattern>
+            {/* Rounded-edge gooey filter — applied per group so empty segments stay outside */}
+            <filter id="hm-round" x="-5%" y="-5%" width="110%" height="110%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+              <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo"/>
+              <feComposite in="SourceGraphic" in2="goo" operator="in"/>
+            </filter>
             {/* Text arc paths for curved domain labels */}
             {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
               <path key={`ta${i}`} id={`hm-ta-${i}`} d={seg.textArcPath} fill="none"/>
@@ -520,29 +526,49 @@ function TechStack({acct,setAcct}) {
             return <line key={i} x1={HM_CX} y1={HM_CY} x2={HM_CX+(HM_OR2+8)*Math.cos(a)} y2={HM_CY+(HM_OR2+8)*Math.sin(a)} stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
           })}
 
-          {/* Capability segments */}
-          {hmSegments.filter(s=>s.type==='cap').map((seg,i)=>{
-            const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
-            const gid=!seg.vendor?'hm-gn':({Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr'}[seg.vendor.status]||'hm-gn')
-            return (
-              <g key={`c${i}`}>
-                <path d={seg.path} fill={`url(#${gid})`} stroke="none"
+          {/* Rounded group: domain ring + vendor-filled caps (goo filter works on fully-opaque fills) */}
+          <g filter="url(#hm-round)">
+            {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+              <path key={`d${i}`} d={seg.path} fill={`url(#hm-dg${i})`} stroke="none"/>
+            ))}
+            {hmSegments.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>{
+              const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
+              const gid={Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr'}[seg.vendor.status]||'hm-gc'
+              const idx=seg.di*10+seg.ci
+              return (
+                <path key={`cv-${seg.di}-${seg.ci}`} d={seg.path} fill={`url(#${gid})`} stroke="none"
                   style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
                     transform:isHov?'scale(1.1)':'scale(1)',
                     opacity:hoveredSeg&&!isHov?0.82:1,
                     transition:'transform 0.15s ease,opacity 0.15s ease',
-                    animation:`hmFadeIn 0.55s ease-out both`,animationDelay:`${i*11}ms`}}
+                    animation:'hmFadeIn 0.55s ease-out both',animationDelay:`${idx*11}ms`}}
                   onMouseEnter={e=>handleCapHover(seg,e)} onMouseMove={e=>handleCapMove(seg,e)}
                   onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
-                {!seg.vendor&&<path d={seg.path} fill="url(#hm-xhatch)" style={{pointerEvents:'none'}}/>}
-                {seg.vendor&&<circle cx={seg.centX} cy={seg.centY} r={2.8} fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>}
-              </g>
+              )
+            })}
+          </g>
+
+          {/* Empty/no-vendor caps — transparent white outside filter so alpha isn't killed */}
+          {hmSegments.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>{
+            const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
+            const idx=seg.di*10+seg.ci
+            return (
+              <path key={`ce-${seg.di}-${seg.ci}`} d={seg.path}
+                fill={isHov?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.20)'} stroke="none"
+                style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
+                  transform:isHov?'scale(1.1)':'scale(1)',
+                  opacity:hoveredSeg&&!isHov?0.82:1,
+                  transition:'transform 0.15s ease,opacity 0.15s ease',
+                  animation:'hmFadeIn 0.55s ease-out both',animationDelay:`${idx*11}ms`}}
+                onMouseEnter={e=>handleCapHover(seg,e)} onMouseMove={e=>handleCapMove(seg,e)}
+                onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
             )
           })}
 
-          {/* Domain ring */}
-          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
-            <path key={`d${i}`} d={seg.path} fill={`url(#hm-dg${i})`} stroke="none"/>
+          {/* Vendor dots — rendered above the filter group */}
+          {hmSegments.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(
+            <circle key={`vd-${seg.di}-${seg.ci}`} cx={seg.centX} cy={seg.centY} r={2.8}
+              fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>
           ))}
 
           {/* Curved domain labels */}
