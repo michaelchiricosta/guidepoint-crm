@@ -376,24 +376,35 @@ function TechStack({acct,setAcct}) {
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=acct.techStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
 
-  // Heatmap geometry: outer ring = domains (57px, thicker), inner ring = caps (48px)
-  const CX=300,CY=300,OR1=195,OR2=252,IR1=142,IR2=190,LR=267,START=-Math.PI/2
+  // Heatmap geometry — 680px wheel diameter, viewBox 820×820
+  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=188,HM_LR=356,HM_START=-Math.PI/2
   const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
   const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
   const coveredCaps=allCaps.filter(cap=>findVendor(cap,acct.techStack))
   const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
 
+  const makeTextArcPath=(cx,cy,r,a1,a2)=>{
+    const mid=(a1+a2)/2, lg=(a2-a1)>Math.PI?1:0
+    if(Math.sin(mid)>0.1) return `M ${cx+r*Math.cos(a2)} ${cy+r*Math.sin(a2)} A ${r} ${r} 0 ${lg} 0 ${cx+r*Math.cos(a1)} ${cy+r*Math.sin(a1)}`
+    return `M ${cx+r*Math.cos(a1)} ${cy+r*Math.sin(a1)} A ${r} ${r} 0 ${lg} 1 ${cx+r*Math.cos(a2)} ${cy+r*Math.sin(a2)}`
+  }
+
   const hmSegments=[]
-  let angle=START
+  let angle=HM_START
   const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
   HEATMAP_DOMAINS.forEach((domain,di)=>{
     const dS=angle,dE=angle+anglePD,mid=(dS+dE)/2
-    hmSegments.push({type:'domain',di,domain,mid,path:makeArc(CX,CY,OR1,OR2,dS,dE,0.022)})
+    hmSegments.push({type:'domain',di,domain,mid,
+      path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018),
+      textArcPath:makeTextArcPath(HM_CX,HM_CY,HM_LR,dS,dE)})
     const aPC=anglePD/domain.caps.length
     domain.caps.forEach((cap,ci)=>{
       const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack)
-      hmSegments.push({type:'cap',di,ci,domain,cap,vendor,fill:capStatusFill(vendor),path:makeArc(CX,CY,IR1,IR2,cS,cE,0.013)})
+      const midA=(cS+cE)/2,midR=(HM_IR1+HM_IR2)/2
+      const centX=HM_CX+midR*Math.cos(midA),centY=HM_CY+midR*Math.sin(midA)
+      hmSegments.push({type:'cap',di,ci,domain,cap,vendor,centX,centY,
+        fill:capStatusFill(vendor),path:makeArc(HM_CX,HM_CY,HM_IR1,HM_IR2,cS,cE,0.01)})
     })
     angle=dE
   })
@@ -465,58 +476,155 @@ function TechStack({acct,setAcct}) {
       </>}
 
       {view==='heatmap'&&<div>
-        <div style={{textAlign:'center',marginBottom:10}}>
-          <span style={{fontSize:13,color:S.muted}}>{coveredCaps.length} of {allCaps.length} capabilities covered · </span>
-          <span style={{fontSize:14,fontWeight:700,color:coveragePct>=70?S.green:coveragePct>=40?S.yellow:S.red}}>{coveragePct}%</span>
-        </div>
-        <svg viewBox="-55 -55 710 710" style={{width:'100%',maxWidth:580,display:'block',margin:'0 auto',overflow:'visible'}}>
-          {/* Inner capability ring */}
-          {hmSegments.filter(s=>s.type==='cap').map((seg,i)=>(
-            <path key={`c${i}`} d={seg.path} fill={seg.fill} stroke={S.bg} strokeWidth={0.5}
-              style={{cursor:'pointer',transition:'filter 0.1s',filter:hoveredSeg?.cap===seg.cap&&hoveredSeg?.di===seg.di?'brightness(1.5) saturate(1.2)':'brightness(1)'}}
-              onMouseEnter={e=>handleCapHover(seg,e)} onMouseMove={e=>handleCapMove(seg,e)}
-              onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
+        <style>{`
+          @keyframes hmFadeIn{from{opacity:0}to{opacity:1}}
+          @keyframes hmSpin{to{transform:rotate(360deg)}}
+          .hm-spin-cw{transform-box:fill-box;transform-origin:center;animation:hmSpin 8s linear infinite}
+          .hm-spin-ccw{transform-box:fill-box;transform-origin:center;animation:hmSpin 14s linear infinite reverse}
+        `}</style>
+        <div style={{display:'flex',justifyContent:'center'}}>
+        <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:680,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))'}}>
+          <defs>
+            {/* Cap status radial gradients */}
+            <radialGradient id="hm-gc" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#4ade80"/><stop offset="55%" stopColor="#22c55e"/><stop offset="100%" stopColor="#16a34a"/></radialGradient>
+            <radialGradient id="hm-ge" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fde047"/><stop offset="55%" stopColor="#eab308"/><stop offset="100%" stopColor="#ca8a04"/></radialGradient>
+            <radialGradient id="hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
+            <radialGradient id="hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
+            <radialGradient id="hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#2d3d50"/><stop offset="55%" stopColor="#1e2d40"/><stop offset="100%" stopColor="#0f172a"/></radialGradient>
+            {/* Domain ring linear gradients */}
+            <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#0ea5e9"/><stop offset="100%" stopColor="#0369a1"/></linearGradient>
+            <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#a855f7"/><stop offset="100%" stopColor="#7c3aed"/></linearGradient>
+            <linearGradient id="hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#f59e0b"/><stop offset="100%" stopColor="#b45309"/></linearGradient>
+            <linearGradient id="hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ef4444"/><stop offset="100%" stopColor="#b91c1c"/></linearGradient>
+            <linearGradient id="hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#22c55e"/><stop offset="100%" stopColor="#15803d"/></linearGradient>
+            <linearGradient id="hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#f97316"/><stop offset="100%" stopColor="#c2410c"/></linearGradient>
+            {/* Center circle gradient */}
+            <radialGradient id="hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
+            {/* Crosshatch pattern for empty segments */}
+            <pattern id="hm-xhatch" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.11)" strokeWidth="1.2"/>
+            </pattern>
+            {/* Text arc paths for curved domain labels */}
+            {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+              <path key={`ta${i}`} id={`hm-ta-${i}`} d={seg.textArcPath} fill="none"/>
+            ))}
+          </defs>
+
+          {/* Faint radial grid */}
+          {[HM_IR1,HM_IR2,HM_OR1,HM_OR2].map(r=>(
+            <circle key={r} cx={HM_CX} cy={HM_CY} r={r} fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
           ))}
-          {/* Outer domain ring + labels */}
-          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>{
-            const lx=CX+LR*Math.cos(seg.mid), ly=CY+LR*Math.sin(seg.mid)
-            const anchor=Math.cos(seg.mid)>0.1?'start':Math.cos(seg.mid)<-0.1?'end':'middle'
-            const words=seg.domain.name.split(' '), half=Math.ceil(words.length/2)
-            const l1=words.slice(0,half).join(' '), l2=words.slice(half).join(' ')
+          {Array.from({length:6},(_,i)=>{
+            const a=HM_START+i*anglePD
+            return <line key={i} x1={HM_CX} y1={HM_CY} x2={HM_CX+(HM_OR2+8)*Math.cos(a)} y2={HM_CY+(HM_OR2+8)*Math.sin(a)} stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
+          })}
+
+          {/* Capability segments */}
+          {hmSegments.filter(s=>s.type==='cap').map((seg,i)=>{
+            const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
+            const gid=!seg.vendor?'hm-gn':({Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr'}[seg.vendor.status]||'hm-gn')
             return (
-              <g key={`d${i}`}>
-                <path d={seg.path} fill={seg.domain.color} stroke={S.bg} strokeWidth={1.5}/>
-                <text textAnchor={anchor} fill={seg.domain.color} fontSize={9.5} fontWeight={700} letterSpacing='0.04em'>
-                  <tspan x={lx} y={l2?ly-6:ly+4}>{l1}</tspan>
-                  {l2&&<tspan x={lx} dy={13}>{l2}</tspan>}
-                </text>
+              <g key={`c${i}`}>
+                <path d={seg.path} fill={`url(#${gid})`} stroke={S.bg} strokeWidth={1.5}
+                  style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
+                    transform:isHov?'scale(1.1)':'scale(1)',
+                    opacity:hoveredSeg&&!isHov?0.82:1,
+                    transition:'transform 0.15s ease,opacity 0.15s ease',
+                    animation:`hmFadeIn 0.55s ease-out both`,animationDelay:`${i*11}ms`}}
+                  onMouseEnter={e=>handleCapHover(seg,e)} onMouseMove={e=>handleCapMove(seg,e)}
+                  onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
+                {!seg.vendor&&<path d={seg.path} fill="url(#hm-xhatch)" style={{pointerEvents:'none'}}/>}
+                {seg.vendor&&<circle cx={seg.centX} cy={seg.centY} r={2.8} fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>}
               </g>
             )
           })}
-          {/* Center hole */}
-          <circle cx={CX} cy={CY} r={IR1-10} fill={S.bg}/>
-          <text x={CX} y={CY-5} textAnchor='middle' fontSize={10} fontWeight={800} fill={S.muted} letterSpacing='0.08em'>SECURITY</text>
-          <text x={CX} y={CY+11} textAnchor='middle' fontSize={10} fontWeight={800} fill={S.muted} letterSpacing='0.08em'>HEATMAP</text>
-        </svg>
-        {/* Legend */}
-        <div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,flexWrap:'wrap'}}>
-          {[['Current','#22c55e'],['Evaluating','#3b82f6'],['Replacing','#f97316'],['Watching','#a855f7'],['Dropping','#ef4444'],['Unassigned',S.bdr2]].map(([label,color])=>(
-            <div key={label} style={{display:'flex',alignItems:'center',gap:5}}>
-              <div style={{width:11,height:11,borderRadius:2,background:color,border:`1px solid ${S.bdr2}`}}/>
-              <span style={{fontSize:11,color:S.muted}}>{label}</span>
-            </div>
+
+          {/* Domain ring */}
+          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+            <path key={`d${i}`} d={seg.path} fill={`url(#hm-dg${i})`} stroke={S.bg} strokeWidth={2}/>
           ))}
+
+          {/* Curved domain labels */}
+          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+            <text key={`dl${i}`} fontSize={9.5} fontWeight={700} letterSpacing="0.09em">
+              <textPath href={`#hm-ta-${i}`} startOffset="50%" textAnchor="middle">
+                <tspan fill={HEATMAP_DOMAINS[i].color}>{'● '}</tspan>
+                <tspan fill="rgba(255,255,255,0.9)">{HEATMAP_DOMAINS[i].name.toUpperCase()}</tspan>
+              </textPath>
+            </text>
+          ))}
+
+          {/* Center circle */}
+          <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-10} fill="url(#hm-ctr)"/>
+          {/* Rotating rings */}
+          <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-16} fill="none"
+            stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} strokeDasharray="95 970"
+            className="hm-spin-cw"/>
+          <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-22} fill="none"
+            stroke="rgba(255,255,255,0.09)" strokeWidth={1} strokeDasharray="200 970"
+            className="hm-spin-ccw"/>
+          {/* Shield icon */}
+          <path d={`M ${HM_CX} ${HM_CY-80} L ${HM_CX-13} ${HM_CY-74} L ${HM_CX-13} ${HM_CY-60} Q ${HM_CX} ${HM_CY-52} ${HM_CX} ${HM_CY-52} Q ${HM_CX+13} ${HM_CY-60} ${HM_CX+13} ${HM_CY-60} L ${HM_CX+13} ${HM_CY-74} Z`}
+            fill="url(#hm-gc)" opacity={0.85}/>
+          {/* Coverage % */}
+          <text x={HM_CX} y={HM_CY-14} textAnchor="middle" fontSize={54} fontWeight={800} fill={S.txt} letterSpacing="-2">{coveragePct}%</text>
+          <text x={HM_CX} y={HM_CY+12} textAnchor="middle" fontSize={11} fontWeight={600} fill={S.muted} letterSpacing="0.14em">COVERAGE</text>
+        </svg>
         </div>
+
+        {/* Legend — gradient pills with capability counts */}
+        {(()=>{
+          const cs=hmSegments.filter(s=>s.type==='cap')
+          const ld=[
+            {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',cnt:cs.filter(s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)).length},
+            {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',cnt:cs.filter(s=>s.vendor&&s.vendor.status==='Watch').length},
+            {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',cnt:cs.filter(s=>s.vendor&&s.vendor.status==='Evaluating').length},
+            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',cnt:cs.filter(s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)).length},
+            {label:'Critical Gap',g:'linear-gradient(135deg,#2d3d50,#0f172a)',cnt:cs.filter(s=>!s.vendor).length},
+          ]
+          return (
+            <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:18,flexWrap:'wrap'}}>
+              {ld.map(l=>(
+                <div key={l.label} style={{display:'flex',alignItems:'center',gap:7,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'6px 14px'}}>
+                  <div style={{width:26,height:11,borderRadius:4,background:l.g,flexShrink:0}}/>
+                  <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{l.label}</span>
+                  <span style={{fontSize:11,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px',fontWeight:700}}>{l.cnt}</span>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>}
 
-      {/* Floating tooltip */}
-      {hoveredSeg&&view==='heatmap'&&<div style={{position:'fixed',left:Math.min(hoveredSeg.x+14,window.innerWidth-240),top:Math.max(10,hoveredSeg.y-60),background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${hoveredSeg.domain.color}`,borderRadius:8,padding:'8px 12px',pointerEvents:'none',zIndex:9999,maxWidth:220,boxShadow:'0 4px 16px rgba(0,0,0,0.5)'}}>
-        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:4}}>{hoveredSeg.cap}</div>
-        {hoveredSeg.vendor
-          ?<><div style={{fontSize:12,color:S.muted,marginBottom:2}}>{hoveredSeg.vendor.vendor}</div><div style={{fontSize:11,color:capStatusFill(hoveredSeg.vendor),fontWeight:600}}>{hoveredSeg.vendor.status}</div></>
-          :<div style={{fontSize:11,color:S.muted}}>No vendor mapped · click to add</div>
-        }
-      </div>}
+      {/* Rich tooltip */}
+      {hoveredSeg&&view==='heatmap'&&(()=>{
+        const sc=hoveredSeg.vendor?capStatusFill(hoveredSeg.vendor):S.bdr2
+        const tx=Math.min(hoveredSeg.x+16,window.innerWidth-270)
+        const ty=Math.max(10,hoveredSeg.y-70)
+        return (
+          <div style={{position:'fixed',left:tx,top:ty,background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`4px solid ${sc}`,borderRadius:10,padding:'12px 16px',pointerEvents:'none',zIndex:9999,maxWidth:260,boxShadow:'0 8px 32px rgba(0,0,0,0.65)'}}>
+            <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:6,lineHeight:1.3}}>{hoveredSeg.cap}</div>
+            <div style={{fontSize:11,color:S.muted,marginBottom:6,letterSpacing:'0.04em',textTransform:'uppercase'}}>{hoveredSeg.domain.name}</div>
+            {hoveredSeg.vendor
+              ?<>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                  <span style={{fontSize:12,fontWeight:600,color:S.secondary}}>{hoveredSeg.vendor.vendor}</span>
+                </div>
+                {hoveredSeg.vendor.products&&<div style={{fontSize:11,color:S.muted,marginBottom:6}}>{hoveredSeg.vendor.products}</div>}
+                <div style={{display:'inline-flex',alignItems:'center',gap:5,background:sc+'20',border:`1px solid ${sc}44`,borderRadius:999,padding:'2px 10px',marginBottom:8}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:sc,display:'inline-block',flexShrink:0}}/>
+                  <span style={{fontSize:11,fontWeight:700,color:sc}}>{hoveredSeg.vendor.status}</span>
+                </div>
+                <div style={{fontSize:10,color:S.dim,borderTop:`1px solid ${S.bdr}`,paddingTop:6,marginTop:2}}>Click to edit vendor</div>
+              </>
+              :<>
+                <div style={{fontSize:11,color:S.muted,marginBottom:8}}>No vendor mapped</div>
+                <div style={{fontSize:11,color:S.blue,fontWeight:600}}>Click to add vendor →</div>
+              </>
+            }
+          </div>
+        )
+      })()}
 
       {showAdd&&<Modal title={form.id?'Edit Vendor':'Add Vendor'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
