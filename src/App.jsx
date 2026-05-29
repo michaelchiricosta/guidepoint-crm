@@ -922,67 +922,180 @@ const detectDate = text => {
 }
 
 function Dashboard({acct}) {
-  const [filterContact,setFilterContact] = useState('All')
-  const contacts = ['All',...Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean)))]
-  const filtered = filterContact==='All' ? acct.interactions : acct.interactions.filter(i=>i.contact===filterContact)
-  const byDate = {}
-  filtered.forEach(i=>{
-    const d=i.date||'Unknown'
-    if(!byDate[d]){byDate[d]={date:d};INTERACTION_TYPES.forEach(t=>{byDate[d][t]=0});byDate[d]._topics={}}
-    if(INTERACTION_TYPES.includes(i.type))byDate[d][i.type]++
-    if(i.topics){if(!byDate[d]._topics[i.type])byDate[d]._topics[i.type]=[];byDate[d]._topics[i.type].push(i.topics)}
+  const [groupBy,setGroupBy] = useState('monthly')
+  const [selectedContacts,setSelectedContacts] = useState([])
+  const [expandedId,setExpandedId] = useState(null)
+
+  const allContacts = Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean))).sort()
+
+  // Contact multi-filter — empty = all
+  const filtered = selectedContacts.length===0
+    ? acct.interactions
+    : acct.interactions.filter(i=>selectedContacts.includes(i.contact))
+
+  // Stats (from all interactions, independent of filter)
+  const now = new Date()
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+  const thisMonthCount = acct.interactions.filter(i=>(i.date||'').startsWith(thisMonth)).length
+  const cntMap={}; acct.interactions.forEach(i=>{if(i.contact)cntMap[i.contact]=(cntMap[i.contact]||0)+1})
+  const topContact = Object.entries(cntMap).sort((a,b)=>b[1]-a[1])[0]
+  const typeMap={}; acct.interactions.forEach(i=>{if(i.type)typeMap[i.type]=(typeMap[i.type]||0)+1})
+  const topType = Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]
+
+  // Week key = ISO date string of that Monday
+  const getMonday = d => { const m=new Date(d); m.setDate(d.getDate()-((d.getDay()+6)%7)); m.setHours(0,0,0,0); return m }
+  const getWeekKey = dateStr => { if(!dateStr)return null; return getMonday(new Date(dateStr+'T12:00:00')).toISOString().split('T')[0] }
+  const getMonthKey = dateStr => dateStr?dateStr.slice(0,7):null
+
+  // Generate last 12 week/month bucket keys
+  const currentMonday = getMonday(new Date(now))
+  const buckets = []
+  if (groupBy==='weekly') {
+    for (let i=11;i>=0;i--) { const m=new Date(currentMonday); m.setDate(currentMonday.getDate()-i*7); buckets.push(m.toISOString().split('T')[0]) }
+  } else {
+    for (let i=11;i>=0;i--) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); buckets.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }
+  }
+
+  // Build chart data — each bucket has counts + stored interactions per type
+  const bucketMap = {}
+  buckets.forEach(b => {
+    bucketMap[b] = {key:b}
+    INTERACTION_TYPES.forEach(t => { bucketMap[b][t]=0; bucketMap[b]['_'+t]=[] })
   })
-  const chartData = Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date))
-  const typeCounts = INTERACTION_TYPES.reduce((acc,t)=>{acc[t]=filtered.filter(i=>i.type===t).length;return acc},{})
+  filtered.forEach(ix => {
+    const bk = groupBy==='weekly' ? getWeekKey(ix.date) : getMonthKey(ix.date)
+    if (!bk||!bucketMap[bk]) return
+    if (INTERACTION_TYPES.includes(ix.type)) { bucketMap[bk][ix.type]++; bucketMap[bk]['_'+ix.type].push(ix) }
+  })
+  const chartData = buckets.map(b=>bucketMap[b])
+
+  const fmtBucket = key => {
+    if (!key) return ''
+    if (groupBy==='weekly') return new Date(key+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+    const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'})
+  }
+
   const renderTooltip = ({active,payload,label}) => {
-    if(!active||!payload?.length)return null
-    const entry=byDate[label]
+    if (!active||!payload?.length||!bucketMap[label]) return null
+    const bucket = bucketMap[label]
+    if (!INTERACTION_TYPES.some(t=>bucket[t]>0)) return null
+    const dateLabel = groupBy==='weekly' ? `Week of ${fmtDate(label)}`
+      : (()=>{ const [y,m]=label.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}) })()
     return (
-      <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 14px',maxWidth:280}}>
-        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>{fmtDate(label)}</div>
-        {payload.filter(p=>p.value>0).map(p=>(
-          <div key={p.dataKey} style={{marginBottom:4}}>
-            <div style={{fontSize:12,color:p.fill,fontWeight:600}}>{p.dataKey}: {p.value}</div>
-            {entry?._topics[p.dataKey]?.map((t,i)=><div key={i} style={{fontSize:11,color:S.muted,paddingLeft:8,marginTop:2}}>{t}</div>)}
+      <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 14px',maxWidth:300,boxShadow:'0 4px 16px rgba(0,0,0,0.5)'}}>
+        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>{dateLabel}</div>
+        {INTERACTION_TYPES.filter(t=>bucket[t]>0).map(t=>(
+          <div key={t} style={{marginBottom:6}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+              <div style={{width:8,height:8,borderRadius:2,background:INTERACTION_COLORS[t],flexShrink:0}}/>
+              <span style={{fontSize:12,color:INTERACTION_COLORS[t],fontWeight:600}}>{t} · {bucket[t]}</span>
+            </div>
+            {bucket['_'+t].map((ix,i)=>(
+              <div key={i} style={{fontSize:11,paddingLeft:14,marginBottom:1}}>
+                {ix.contact&&<span style={{color:'#94a3b8',fontWeight:500}}>{ix.contact}</span>}
+                {ix.topics&&<span style={{color:S.muted}}> · {ix.topics.slice(0,70)}{ix.topics.length>70?'…':''}</span>}
+              </div>
+            ))}
           </div>
         ))}
       </div>
     )
   }
+
+  const feedItems = [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-        <div>
-          <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:2}}>Interaction Dashboard</div>
-          <div style={{fontSize:12,color:S.muted}}>{filtered.length} interaction{filtered.length!==1?'s':''}</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Interaction Dashboard</div>
+        <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+          {['weekly','monthly'].map(v=>(
+            <button key={v} onClick={()=>setGroupBy(v)} style={{padding:'5px 14px',borderRadius:5,border:'none',background:groupBy===v?S.blue:'transparent',color:groupBy===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{v==='weekly'?'Weekly':'Monthly'}</button>
+          ))}
         </div>
-        <select value={filterContact} onChange={e=>setFilterContact(e.target.value)} style={{fontSize:12,padding:'5px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
-          {contacts.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
       </div>
-      <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-        {INTERACTION_TYPES.filter(t=>typeCounts[t]>0).map(t=>(
-          <div key={t} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6}}>
-            <div style={{width:10,height:10,borderRadius:2,background:INTERACTION_COLORS[t]}}/>
-            <span style={{fontSize:12,color:S.txt,fontWeight:600}}>{typeCounts[t]}</span>
-            <span style={{fontSize:12,color:S.muted}}>{t}</span>
+
+      {/* Stats row */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+        <Card style={{padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>This Month</div>
+          <div style={{fontSize:22,fontWeight:700,color:S.txt}}>{thisMonthCount}</div>
+          <div style={{fontSize:11,color:S.muted}}>interaction{thisMonthCount!==1?'s':''}</div>
+        </Card>
+        <Card style={{padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>Most Contacted</div>
+          {topContact
+            ?<><div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:1,lineHeight:1.3}}>{topContact[0]}</div><div style={{fontSize:11,color:S.muted}}>{topContact[1]} interaction{topContact[1]!==1?'s':''}</div></>
+            :<div style={{fontSize:13,color:S.dim}}>—</div>}
+        </Card>
+        <Card style={{padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>Top Activity Type</div>
+          {topType
+            ?<><div style={{fontSize:15,fontWeight:700,color:INTERACTION_COLORS[topType[0]]||S.txt,marginBottom:1}}>{topType[0]}</div><div style={{fontSize:11,color:S.muted}}>{topType[1]} total</div></>
+            :<div style={{fontSize:13,color:S.dim}}>—</div>}
+        </Card>
+      </div>
+
+      {/* Contact filter chips */}
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+        <span style={{fontSize:11,color:S.muted,flexShrink:0}}>Filter:</span>
+        <button onClick={()=>setSelectedContacts([])} style={{padding:'3px 10px',borderRadius:999,border:`1px solid ${selectedContacts.length===0?S.blue:S.bdr}`,background:selectedContacts.length===0?'rgba(59,130,246,0.15)':'transparent',color:selectedContacts.length===0?S.blue:S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>All Contacts</button>
+        {allContacts.map(c=>(
+          <button key={c} onClick={()=>setSelectedContacts(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} style={{padding:'3px 10px',borderRadius:999,border:`1px solid ${selectedContacts.includes(c)?S.blue:S.bdr}`,background:selectedContacts.includes(c)?'rgba(59,130,246,0.15)':'transparent',color:selectedContacts.includes(c)?S.blue:S.muted,fontSize:11,fontWeight:500,cursor:'pointer'}}>{c}</button>
+        ))}
+      </div>
+
+      {/* Type legend */}
+      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+        {INTERACTION_TYPES.filter(t=>filtered.some(i=>i.type===t)).map(t=>(
+          <div key={t} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6}}>
+            <div style={{width:9,height:9,borderRadius:2,background:INTERACTION_COLORS[t]}}/>
+            <span style={{fontSize:11,color:S.txt,fontWeight:600}}>{filtered.filter(i=>i.type===t).length}</span>
+            <span style={{fontSize:11,color:S.muted}}>{t}</span>
           </div>
         ))}
       </div>
-      {chartData.length===0
-        ? <div style={{textAlign:'center',padding:'60px 20px',color:S.muted,fontSize:13}}>No interactions logged yet. Use Intel Log to add interactions.</div>
-        : <Card style={{padding:'16px 8px 8px'}}>
-            <ResponsiveContainer width='100%' height={320}>
-              <BarChart data={chartData} margin={{top:0,right:16,bottom:0,left:0}}>
-                <CartesianGrid strokeDasharray='3 3' stroke={S.bdr} vertical={false}/>
-                <XAxis dataKey='date' tickFormatter={d=>fmtDate(d)} tick={{fontSize:11,fill:S.muted}} axisLine={{stroke:S.bdr}} tickLine={false}/>
-                <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.muted}} axisLine={false} tickLine={false}/>
-                <RechartsTooltip content={renderTooltip}/>
-                {INTERACTION_TYPES.map((t,i)=><Bar key={t} dataKey={t} stackId='a' fill={INTERACTION_COLORS[t]} radius={i===INTERACTION_TYPES.length-1?[3,3,0,0]:[0,0,0,0]}/>)}
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
+
+      {/* Chart or empty state */}
+      {acct.interactions.length===0
+        ?<div style={{textAlign:'center',padding:'50px 20px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:16}}>
+          <div style={{fontSize:14,fontWeight:600,color:S.muted,marginBottom:6}}>No interactions logged yet</div>
+          <div style={{fontSize:12,color:S.dim,lineHeight:1.6,maxWidth:380,margin:'0 auto'}}>Process a call transcript in Intel Log to automatically populate this dashboard.</div>
+        </div>
+        :<Card style={{padding:'16px 8px 8px',marginBottom:16}}>
+          <ResponsiveContainer width='100%' height={280}>
+            <BarChart data={chartData} margin={{top:0,right:16,bottom:0,left:0}}>
+              <CartesianGrid strokeDasharray='3 3' stroke={S.bdr} vertical={false}/>
+              <XAxis dataKey='key' tickFormatter={fmtBucket} tick={{fontSize:11,fill:S.muted}} axisLine={{stroke:S.bdr}} tickLine={false}/>
+              <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.muted}} axisLine={false} tickLine={false}/>
+              <RechartsTooltip content={renderTooltip} cursor={{fill:'rgba(255,255,255,0.04)'}}/>
+              {INTERACTION_TYPES.map((t,i)=><Bar key={t} dataKey={t} stackId='a' fill={INTERACTION_COLORS[t]} radius={i===INTERACTION_TYPES.length-1?[3,3,0,0]:[0,0,0,0]}/>)}
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
       }
+
+      {/* Activity feed */}
+      {filtered.length>0&&<>
+        <SH mt={4}>Activity Feed</SH>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          {feedItems.map(ix=>{
+            const isExp=expandedId===ix.id
+            const tc=INTERACTION_COLORS[ix.type]||S.muted
+            return (
+              <div key={ix.id} onClick={()=>setExpandedId(isExp?null:ix.id)} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:7,padding:'8px 12px',cursor:'pointer'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={10}/>
+                  <span style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</span>
+                  {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
+                  {ix.topics&&<span style={{fontSize:11,color:'#94a3b8',flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ix.topics}</span>}
+                </div>
+                {isExp&&ix.summary&&<div style={{fontSize:12,color:'#94a3b8',marginTop:7,lineHeight:1.6,borderTop:`1px solid ${S.bdr}`,paddingTop:7}}>{ix.summary}</div>}
+              </div>
+            )
+          })}
+        </div>
+      </>}
     </div>
   )
 }
