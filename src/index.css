@@ -24,3 +24,12 @@ input, textarea, select { font-family: inherit; font-size: 14px; color: var(--tx
 input:focus, textarea:focus, select:focus { outline: none; border-color: #3b82f6; }
 select option { background: var(--surf); }
 textarea { resize: vertical; }
+
+/* Utility: hide scrollbar on horizontal scroll containers */
+.scroll-no-bar { scrollbar-width: none; -ms-overflow-style: none; }
+.scroll-no-bar::-webkit-scrollbar { display: none; }
+
+@media (max-width: 768px) {
+  html, body, #root { height: auto; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
+  body { overflow: visible; }
+}

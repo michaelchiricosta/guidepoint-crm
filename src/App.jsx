@@ -85,7 +85,7 @@ const SAMPLE = {
 const Badge = ({label,color,bg,size=11}) => <span style={{fontSize:size,fontWeight:600,color,background:bg,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap',display:'inline-block',lineHeight:'18px'}}>{label}</span>
 const Btn = ({children,onClick,variant='ghost',disabled=false,style={}}) => {
   const v = {ghost:{background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`},primary:{background:S.blue,color:'#fff',border:'none'},danger:{background:'rgba(239,68,68,0.1)',color:S.red,border:'1px solid rgba(239,68,68,0.3)'}}
-  return <button onClick={onClick} disabled={disabled} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',borderRadius:6,fontSize:13,fontWeight:500,cursor:disabled?'default':'pointer',opacity:disabled?0.5:1,...v[variant],...style}}>{children}</button>
+  return <button onClick={onClick} disabled={disabled} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',minHeight:44,borderRadius:6,fontSize:13,fontWeight:500,cursor:disabled?'default':'pointer',opacity:disabled?0.5:1,...v[variant],...style}}>{children}</button>
 }
 const Field = ({label,value,onChange,type='text',options=null,multiline=false,style={},placeholder=''}) => (
   <div style={{marginBottom:12,...style}}>
@@ -96,13 +96,13 @@ const Field = ({label,value,onChange,type='text',options=null,multiline=false,st
 const Modal = ({title,onClose,children,width=520}) => {
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   return (
-  <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:mob?'flex-end':'center',justifyContent:'center',zIndex:1000,padding:mob?0:16}}>
-    <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:mob?'12px 12px 0 0':12,width:'100%',maxWidth:mob?'100%':width,maxHeight:mob?'92vh':'90vh',overflow:'auto'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`}}>
-        <div style={{fontSize:15,fontWeight:700,color:S.txt}}>{title}</div>
-        <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1}}>x</button>
+  <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:16}}>
+    <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderRadius:mob?0:12,width:'100%',maxWidth:mob?'100%':width,height:mob?'100%':'auto',maxHeight:mob?'100%':'90vh',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+        <div style={{fontSize:15,fontWeight:700,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:8}}>{title}</div>
+        <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,minHeight:44,minWidth:44,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>×</button>
       </div>
-      <div style={{padding:20}}>{children}</div>
+      <div style={{padding:20,overflowY:'auto',flex:1}}>{children}</div>
     </div>
   </div>
   )
@@ -112,6 +112,7 @@ const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px
 
 function Overview({acct,setAcct,setTab}) {
   const [showDismissed,setShowDismissed] = useState(false)
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []
   acct.techStack.forEach(t=>{
@@ -136,7 +137,7 @@ function Overview({acct,setAcct,setTab}) {
   const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
   return (
     <div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:8,marginBottom:16}}>
         {[{label:'Open Follow-Ups',val:openFU.length,c:openFU.length>3?S.orange:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
           <Card key={m.label} style={{padding:'14px 16px'}}>
             <div style={{fontSize:10,color:S.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{m.label}</div>
@@ -370,6 +371,7 @@ function TechStack({acct,setAcct}) {
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
   const [legendModal,setLegendModal] = useState(null)
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
   const save=()=>{if(!form.vendor)return;if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?form:t)}));else setAcct(p=>({...p,techStack:[...p.techStack,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -658,9 +660,9 @@ function TechStack({acct,setAcct}) {
       })()}
 
       {/* Legend category modal */}
-      {legendModal&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}
+      {legendModal&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:mob?'stretch':'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}}
         onClick={()=>setLegendModal(null)}>
-        <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${legendModal.color}`,borderRadius:12,width:'70%',maxWidth:840,maxHeight:'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
+        <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:`3px solid ${legendModal.color}`,borderRadius:mob?0:12,width:'100%',maxWidth:mob?'100%':840,height:mob?'100%':'auto',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
           onClick={e=>e.stopPropagation()}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -1462,9 +1464,10 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   const [collapsed,setCollapsed] = useState(false)
   const [searchQ,setSearchQ] = useState('')
   const [logoHovered, setLogoHovered] = useState(false)
+  const [isMobile,setIsMobile] = useState(typeof window!=='undefined'&&window.innerWidth<768)
 
   useEffect(()=>{
-    const check=()=>{if(window.innerWidth<768)setCollapsed(true)}
+    const check=()=>{const mob=window.innerWidth<768;setIsMobile(mob);if(mob)setCollapsed(true)}
     check()
     window.addEventListener('resize',check)
     return()=>window.removeEventListener('resize',check)
@@ -1475,6 +1478,8 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
   searchResults.forEach(r=>{if(!grouped[r.category])grouped[r.category]=[];grouped[r.category].push(r)})
+
+  if(isMobile) return null
 
   return (
     <div style={{width:collapsed?48:220,background:S.sidebarBg,borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
@@ -1565,6 +1570,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [hoveredId, setHoveredId] = useState(null)
   const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -1606,6 +1612,11 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     {label:'Active Projects',value:activeProjects,color:S.green,type:'projects',tab:'projects',buildData:buildProjectData},
   ]
 
+  const todaysReminders = data.accounts.flatMap(a=>
+    (a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)!==null&&daysUntil(f.dueDate)<=3)
+    .map(f=>({...f,accountName:a.short||a.name,accountId:a.id}))
+  ).sort((a,b)=>(daysUntil(a.dueDate)||0)-(daysUntil(b.dueDate)||0))
+
   const StatIcon = ({type}) => {
     if (type==='followups') return <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke={GP_LIGHT} strokeWidth="1.5"/><line x1="5" y1="6" x2="13" y2="6" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="9" x2="13" y2="9" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="12" x2="9" y2="12" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/></svg>
     if (type==='critical') return <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 L16 16 L2 16 Z" fill="none" stroke={S.red} strokeWidth="1.5" strokeLinejoin="round"/><line x1="9" y1="7.5" x2="9" y2="11" stroke={S.red} strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="13" r="0.8" fill={S.red}/></svg>
@@ -1617,7 +1628,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{minHeight:'100vh',background:S.bg,color:S.txt,overflowY:'auto'}}>
       {/* Header */}
-      <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'0 28px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,backdropFilter:'blur(8px)'}}>
+      <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:mob?'0 16px':'0 28px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,backdropFilter:'blur(8px)'}}>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
           <svg width="28" height="28" viewBox="0 0 28 28" style={{flexShrink:0}}>
             <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke={GP_LIGHT} strokeWidth="1.5" strokeLinejoin="round"/>
@@ -1630,20 +1641,20 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:14}}>
-          <span style={{fontSize:12,color:S.muted}}>{dateStr}</span>
+          {!mob&&<span style={{fontSize:12,color:S.muted}}>{dateStr}</span>}
           <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:6,padding:2}}>
             {[{v:'light',icon:'☀'},{v:'dark',icon:'☾'}].map(({v,icon})=>(
-              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 9px',borderRadius:4,border:'none',background:theme===v?S.blue+'33':'transparent',color:theme===v?S.blue:S.muted,cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{icon}</button>
+              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 9px',minHeight:44,borderRadius:4,border:'none',background:theme===v?S.blue+'33':'transparent',color:theme===v?S.blue:S.muted,cursor:'pointer',fontSize:13,transition:'all 0.15s'}}>{icon}</button>
             ))}
           </div>
-          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',padding:'5px 9px',fontSize:14,lineHeight:1}}>⚙</button>
+          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',padding:'5px 9px',minHeight:44,fontSize:14,lineHeight:1}}>⚙</button>
         </div>
       </div>
 
-      <div style={{maxWidth:1160,margin:'0 auto',padding:'44px 28px 80px'}}>
+      <div style={{maxWidth:1160,margin:'0 auto',padding:mob?'24px 16px 60px':'44px 28px 80px'}}>
         {/* Hero */}
-        <div style={{marginBottom:40}}>
-          <div style={{fontSize:30,fontWeight:800,color:S.txt,marginBottom:8,lineHeight:1.2}}>{greeting}</div>
+        <div style={{marginBottom:mob?24:40}}>
+          <div style={{fontSize:mob?20:30,fontWeight:800,color:S.txt,marginBottom:8,lineHeight:1.2}}>{greeting}</div>
           <div style={{fontSize:14,color:S.muted,lineHeight:1.8}}>
             You have <span style={{color:S.txt,fontWeight:700}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
             {totalOpenFUs>0&&<>, <span style={{color:GP_LIGHT,fontWeight:700}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
@@ -1653,13 +1664,13 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         </div>
 
         {/* Cross-account stats — clickable cards */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:48}}>
+        <div className={mob?'scroll-no-bar':undefined} style={{display:mob?'flex':'grid',gridTemplateColumns:mob?undefined:'repeat(4,1fr)',flexDirection:mob?'row':undefined,gap:12,marginBottom:mob?32:48,overflowX:mob?'auto':'visible',paddingBottom:mob?8:0,WebkitOverflowScrolling:mob?'touch':undefined}}>
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
               onClick={()=>setStatModal({...stat,items:stat.buildData()})}
               onMouseEnter={()=>setHoveredStat(stat.label)}
               onMouseLeave={()=>setHoveredStat(null)}
-              style={{background:S.surf,border:`1px solid ${hoveredStat===stat.label?stat.color:S.bdr}`,boxShadow:hoveredStat===stat.label?`0 4px 16px ${stat.color}22`:'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s'}}>
+              style={{background:S.surf,border:`1px solid ${hoveredStat===stat.label?stat.color:S.bdr}`,boxShadow:hoveredStat===stat.label?`0 4px 16px ${stat.color}22`:'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                 <span style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                 <StatIcon type={stat.type}/>
@@ -1668,6 +1679,36 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             </button>
           ))}
         </div>
+
+        {/* Today's Reminders */}
+        {todaysReminders.length>0&&(
+          <div style={{marginBottom:mob?28:40}}>
+            <div style={{fontSize:11,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:14}}>Today's Reminders — {todaysReminders.length}</div>
+            <div className='scroll-no-bar' style={{display:'flex',flexDirection:'row',gap:10,overflowX:'auto',paddingBottom:8,WebkitOverflowScrolling:'touch'}}>
+              {todaysReminders.map(r=>{
+                const p=PC[r.priority]||PC.Low
+                const d=daysUntil(r.dueDate)
+                return (
+                  <div key={r.id} onClick={()=>onNavigateTo(r.accountId,'followups')}
+                    style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:10,padding:'12px 14px',cursor:'pointer',flexShrink:0,width:mob?240:undefined,minWidth:mob?240:260,maxWidth:320}}
+                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,flexWrap:'wrap'}}>
+                      <span style={{fontSize:10,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap'}}>{r.accountName}</span>
+                      <Badge label={r.priority} color={p.c} bg={p.b} size={10}/>
+                      {d<0&&<Badge label='OVERDUE' color={S.red} bg='rgba(239,68,68,0.1)' size={10}/>}
+                    </div>
+                    <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task}</div>
+                    <div style={{fontSize:11,color:S.muted}}>
+                      {r.contact&&<span>{r.contact} · </span>}
+                      <span style={{color:d<0?S.red:d===0?S.orange:S.muted}}>{d<0?`${Math.abs(d)}d overdue`:d===0?'Due today':`Due in ${d}d`}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Empty state */}
         {data.accounts.length === 0 ? (
@@ -1684,7 +1725,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         ) : (
           <div>
             <div style={{fontSize:11,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:16}}>Your Accounts — {data.accounts.length}</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
+            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
                 const hc=hs>=70?S.green:hs>=40?S.orange:S.red
@@ -1755,14 +1796,14 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       {/* Add account modal */}
       {showAdd&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
-          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:26,width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:mob?'stretch':'center',justifyContent:'center',zIndex:1000,padding:mob?0:16}}>
+          <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderRadius:mob?0:12,padding:mob?20:26,width:'100%',maxWidth:mob?'100%':400,boxShadow:mob?'none':'0 20px 60px rgba(0,0,0,0.4)'}}>
             <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:14}}>Add New Account</div>
             <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addAccount()} placeholder='Account name...' autoFocus
               style={{width:'100%',fontSize:14,padding:'10px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,boxSizing:'border-box',marginBottom:14,outline:'none'}}/>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={addAccount} style={{flex:1,padding:'9px 16px',background:GP_BLUE,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Account</button>
-              <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'9px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button onClick={addAccount} style={{flex:1,padding:'12px 16px',background:GP_BLUE,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',minHeight:44}}>Add Account</button>
+              <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'12px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:13,cursor:'pointer',minHeight:44}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -1770,9 +1811,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       {/* Stat detail modal */}
       {statModal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:mob?'stretch':'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}}
           onClick={()=>setStatModal(null)}>
-          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${statModal.color}`,borderRadius:12,width:'70%',maxWidth:860,maxHeight:'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
+          <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:`3px solid ${statModal.color}`,borderRadius:mob?0:12,width:'100%',maxWidth:mob?'100%':860,height:mob?'100%':'auto',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
             onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
               <div>
@@ -1917,9 +1958,10 @@ export default function App() {
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
   const critHighCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:S.bg}}>
+    <div style={{display:mob?'block':'flex',height:mob?'auto':'100vh',minHeight:mob?'100vh':'auto',overflow:mob?'visible':'hidden',background:S.bg}}>
       <Sidebar
         data={data}
         activeId={activeId}
@@ -1932,8 +1974,8 @@ export default function App() {
         setTheme={handleSetTheme}
         onGoHome={()=>setIsLandingPage(true)}
       />
-      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:'10px 20px 0',flexShrink:0}}>
+      <div style={{flex:mob?'none':1,display:'flex',flexDirection:'column',overflow:mob?'visible':'hidden'}}>
+        <div style={{background:S.headerBg,borderBottom:`1px solid ${S.bdr}`,padding:mob?'10px 14px 0':'10px 20px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
             <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
               <button onClick={()=>setIsLandingPage(true)} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'4px 10px',marginTop:3,flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
@@ -1942,9 +1984,9 @@ export default function App() {
                 <div style={{fontSize:17,fontWeight:800,color:S.txt}}>{acct.name}</div>
               </div>
             </div>
-            <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            {!mob&&<div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'flex-end'}}>
               {[acct.industry,acct.hq,'Last contact: '+fmtDate(acct.lastContact)].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 10px'}}>{t}</span>)}
-            </div>
+            </div>}
           </div>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
             {TABS.map(t=>(
@@ -1956,7 +1998,7 @@ export default function App() {
             ))}
           </div>
         </div>
-        <div style={{flex:1,overflowY:'auto',padding:'18px 20px 60px',background:S.bg}}>
+        <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab}/>}
           {tab==='dashboard'&&<Dashboard acct={acct}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
