@@ -378,7 +378,8 @@ function TechStack({acct,setAcct}) {
 
   // Heatmap geometry: outer ring = domains (57px, thicker), inner ring = caps (48px)
   const CX=300,CY=300,OR1=195,OR2=252,IR1=142,IR2=190,LR=267,START=-Math.PI/2
-  const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Email Security','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
+  const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
+  const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
   const coveredCaps=allCaps.filter(cap=>findVendor(cap,acct.techStack))
   const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
@@ -401,8 +402,16 @@ function TechStack({acct,setAcct}) {
   const handleCapMove=(seg,e)=>{if(seg.type!=='cap')return;setHoveredSeg(p=>p?{...p,x:e.clientX,y:e.clientY}:null)}
   const handleCapClick=(seg)=>{
     if(seg.type!=='cap')return
-    if(seg.vendor){setForm(seg.vendor);setShowAdd(true)}
-    else{setForm({...blank,category:domainToCategory[seg.domain.name]||'Other'});setShowAdd(true)}
+    if(seg.vendor){
+      // Editing existing vendor: merge with blank so all fields are defined
+      setForm({...blank,...seg.vendor})
+      setShowAdd(true)
+    } else {
+      // New vendor: pre-fill category (per-cap first, then domain fallback) and products
+      const category = capToCategory[seg.cap] || domainToCategory[seg.domain.name] || 'Other'
+      setForm({...blank, category, products: seg.cap})
+      setShowAdd(true)
+    }
   }
 
   return (
@@ -509,7 +518,7 @@ function TechStack({acct,setAcct}) {
         }
       </div>}
 
-      {showAdd&&<Modal title='Add / Edit Vendor' onClose={()=>{setShowAdd(false);setForm(blank)}}>
+      {showAdd&&<Modal title={form.id?'Edit Vendor':'Add Vendor'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
           <Field label='Vendor Name' value={form.vendor} onChange={f('vendor')} style={{gridColumn:'span 2'}}/>
           <Field label='Products / Features' value={form.products} onChange={f('products')} style={{gridColumn:'span 2'}}/>
