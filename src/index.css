@@ -1,6 +1,6 @@
 
 :root {
-  --bg: #f8fafc;
+  --bg: #f1f5f9;
   --surf: #ffffff;
   --bdr: #e2e8f0;
   --txt: #0f172a;
@@ -15,9 +15,15 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body, #root { height: 100%; }
-body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
 
-/* Light mode scrollbars */
+/* Scrollbars */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #f1f5f9; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -25,27 +31,36 @@ body { background: var(--bg); color: var(--txt); font-family: -apple-system, Bli
 [data-theme="dark"] ::-webkit-scrollbar-thumb { background: #1e2d40; }
 
 button { cursor: pointer; font-family: inherit; font-size: 14px; }
+
 input, textarea, select {
   font-family: inherit;
   font-size: 14px;
   color: var(--txt);
-  background: var(--surf);
-  border: 1px solid var(--bdr);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 7px 10px;
   width: 100%;
+}
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: var(--surf);
+  border-color: var(--bdr);
 }
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
-input::placeholder, textarea::placeholder { color: #94a3b8; }
-[data-theme="dark"] input:focus, [data-theme="dark"] textarea:focus, [data-theme="dark"] select:focus {
-  border-color: #3b82f6;
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
   box-shadow: none;
 }
-select option { background: var(--surf); }
+input::placeholder, textarea::placeholder { color: #94a3b8; }
+select option { background: #ffffff; color: #0f172a; }
+[data-theme="dark"] select option { background: var(--surf); color: var(--txt); }
 textarea { resize: vertical; }
 
 /* Utility: hide scrollbar on horizontal scroll containers */
