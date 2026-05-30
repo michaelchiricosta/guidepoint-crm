@@ -3290,6 +3290,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'})
 
   const [todayModal, setTodayModal] = useState(false)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [taskForm, setTaskForm] = useState(null)
+  const [taskSnoozeOpen, setTaskSnoozeOpen] = useState(false)
   const lpTodayStr = new Date().toISOString().split('T')[0]
   const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
   const criticalItems = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length, 0)
@@ -3302,6 +3305,23 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     .sort((a,b)=>{const ac=a.tasks.some(t=>t.priority==='Critical'),bc=b.tasks.some(t=>t.priority==='Critical');if(ac&&!bc)return -1;if(!ac&&bc)return 1;return b.tasks.length-a.tasks.length})
   const markTaskDone = (accountId,taskId) => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,followUps:a.followUps.map(fu=>fu.id===taskId?{...fu,status:'Done'}:fu)}:a)}))
   const markAllTodayDone = () => {if(!window.confirm(`Mark all ${todayTasksCount} task${todayTasksCount!==1?'s':''} complete?`))return;setData(prev=>({...prev,accounts:prev.accounts.map(a=>({...a,followUps:(a.followUps||[]).map(fu=>fu.status==='Open'&&fu.dueDate&&fu.dueDate<=lpTodayStr?{...fu,status:'Done'}:fu)}))}));setTodayModal(false)}
+  const openTaskDetail = (accountId,fu) => { setSelectedTask({accountId}); setTaskForm({...fu}); setTaskSnoozeOpen(false) }
+  const closeDetail = () => { setSelectedTask(null); setTaskForm(null); setTaskSnoozeOpen(false) }
+  const updateTaskField = (k,v) => {
+    if(!taskForm||!selectedTask) return
+    const updated={...taskForm,[k]:v}
+    setTaskForm(updated)
+    setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===selectedTask.accountId?{...a,followUps:a.followUps.map(fu=>fu.id===updated.id?updated:fu)}:a)}))
+  }
+  const snoozeTaskDetail = option => {
+    const now=new Date(); const until=new Date()
+    if(option==='later'){until.setHours(17,0,0,0);if(until<=now){until.setDate(until.getDate()+1);until.setHours(17,0,0,0)}}
+    else if(option==='tomorrow'){until.setDate(until.getDate()+1);until.setHours(8,0,0,0)}
+    else if(option==='3days'){until.setDate(until.getDate()+3);until.setHours(8,0,0,0)}
+    else if(option==='nextweek'){const day=now.getDay();const d=day===1?7:((1+7-day)%7)||7;until.setDate(until.getDate()+d);until.setHours(7,0,0,0)}
+    updateTaskField('dueDate',until.toISOString().split('T')[0])
+    setTaskSnoozeOpen(false); closeDetail()
+  }
 
   const addAccount = () => {
     if (!newName.trim()) return
@@ -3387,6 +3407,18 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
         {/* Cross-account stats — clickable cards */}
         <div className={mob?'scroll-no-bar':undefined} style={{display:mob?'flex':'grid',gridTemplateColumns:mob?undefined:'repeat(5,1fr)',flexDirection:mob?'row':undefined,gap:12,marginBottom:mob?32:48,overflowX:mob?'auto':'visible',paddingBottom:mob?8:0,WebkitOverflowScrolling:mob?'touch':undefined}}>
+          {/* Today's Tasks tile — first */}
+          <button
+            onClick={()=>setTodayModal(true)}
+            onMouseEnter={()=>setHoveredStat('today')}
+            onMouseLeave={()=>setHoveredStat(null)}
+            style={{background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',border:`1px solid ${hoveredStat==='today'?'#6366f1':S.bdr}`,boxShadow:hoveredStat==='today'?'0 4px 16px rgba(99,102,241,0.35)':'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <span style={{fontSize:10,color:'rgba(255,255,255,0.7)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
+              <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/></svg>
+            </div>
+            <div style={{fontSize:36,fontWeight:800,color:'#fff',lineHeight:1}}>{todayTasksCount}</div>
+          </button>
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
               onClick={()=>setStatModal({...stat,items:stat.buildData()})}
@@ -3400,18 +3432,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
             </button>
           ))}
-          {/* Today's Tasks tile */}
-          <button
-            onClick={()=>setTodayModal(true)}
-            onMouseEnter={()=>setHoveredStat('today')}
-            onMouseLeave={()=>setHoveredStat(null)}
-            style={{background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',border:`1px solid ${hoveredStat==='today'?'#6366f1':S.bdr}`,boxShadow:hoveredStat==='today'?'0 4px 16px rgba(99,102,241,0.35)':'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <span style={{fontSize:10,color:'rgba(255,255,255,0.7)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
-              <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/></svg>
-            </div>
-            <div style={{fontSize:36,fontWeight:800,color:'#fff',lineHeight:1}}>{todayTasksCount}</div>
-          </button>
         </div>
 
         {/* Today's Reminders */}
@@ -3530,23 +3550,82 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       {/* Today's Tasks modal */}
       {todayModal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}} onClick={()=>setTodayModal(false)}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}} onClick={()=>{setTodayModal(false);closeDetail()}}>
           <div style={{width:mob?'100%':'70vw',height:mob?'100%':'75vh',background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:'3px solid #6366f1',borderRadius:mob?0:12,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
               <div>
                 <div style={{fontSize:16,fontWeight:700,color:S.txt}}>Today's Tasks</div>
                 <div style={{fontSize:12,color:S.muted,marginTop:2}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</div>
               </div>
-              <button onClick={()=>setTodayModal(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
+              <button onClick={()=>{setTodayModal(false);closeDetail()}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
             </div>
-            <div style={{flex:1,overflowY:'auto'}}>
-              {todayGrouped.length===0
-                ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14,padding:40}}>
+            <div style={{flex:1,overflowY:'auto'}} onClick={()=>taskSnoozeOpen&&setTaskSnoozeOpen(false)}>
+              {selectedTask&&taskForm ? (
+                /* ── Detail panel ── */
+                <div style={{padding:'16px 20px'}}>
+                  <button onClick={closeDetail} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:12,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'0 0 14px',fontWeight:600}}>← Back to list</button>
+                  {/* Task */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Task</div>
+                    <textarea value={taskForm.task||''} onChange={e=>updateTaskField('task',e.target.value)} rows={2} style={{width:'100%',fontSize:13,padding:'7px 9px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.5}}/>
+                  </div>
+                  {/* Priority + Due Date */}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Priority</div>
+                      <select value={taskForm.priority||'High'} onChange={e=>updateTaskField('priority',e.target.value)} style={{width:'100%',fontSize:12,padding:'6px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
+                        {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Due Date</div>
+                      <input type='date' value={taskForm.dueDate||''} onChange={e=>updateTaskField('dueDate',e.target.value)} style={{width:'100%',fontSize:12,padding:'6px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box'}}/>
+                    </div>
+                  </div>
+                  {/* Contact */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Contact</div>
+                    <input value={taskForm.contact||''} onChange={e=>updateTaskField('contact',e.target.value)} placeholder='Contact name...' style={{width:'100%',fontSize:12,padding:'6px 9px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box'}}/>
+                  </div>
+                  {/* Context/Notes */}
+                  <div style={{marginBottom:18}}>
+                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Context / Notes</div>
+                    <textarea value={taskForm.context||''} onChange={e=>updateTaskField('context',e.target.value)} rows={3} placeholder='Context or notes...' style={{width:'100%',fontSize:12,padding:'6px 9px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.5}}/>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:20,flexWrap:'wrap'}}>
+                    <button onClick={()=>{markTaskDone(selectedTask.accountId,taskForm.id);closeDetail()}} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 18px',background:S.green,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>✓ Mark Complete</button>
+                    <div style={{position:'relative'}}>
+                      <button onClick={e=>{e.stopPropagation();setTaskSnoozeOpen(v=>!v)}} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.muted,fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                        <Clock size={14}/> Snooze
+                      </button>
+                      {taskSnoozeOpen&&(
+                        <div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:210,overflow:'hidden'}}>
+                          {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM',opt:'tomorrow'},{label:'In 3 Days',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                            <button key={o.opt} onClick={()=>snoozeTaskDetail(o.opt)}
+                              style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
+                              onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                              <Clock size={13} color={S.muted}/>
+                              <div><div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div><div style={{fontSize:10,color:S.muted}}>{o.sub}</div></div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={()=>{setTodayModal(false);onNavigateTo(selectedTask.accountId,'followups')}} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>View in account →</button>
+                </div>
+              ) : todayGrouped.length===0 ? (
+                /* ── Empty state ── */
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14,padding:40}}>
                   <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,color:S.green}}>✓</div>
                   <div style={{fontSize:18,fontWeight:700,color:S.txt}}>All clear today!</div>
                   <div style={{fontSize:13,color:S.muted,textAlign:'center'}}>No tasks due today across any of your accounts.</div>
                 </div>
-                :todayGrouped.map(g=>{
+              ) : (
+                /* ── Task list ── */
+                todayGrouped.map(g=>{
                   const sc=({Strategic:'#a855f7',Active:S.green,Prospect:S.blue,'At Risk':S.red})[g.account.status]||S.muted
                   return (
                     <div key={g.account.id} style={{borderBottom:`1px solid ${S.bdr}`}}>
@@ -3571,16 +3650,16 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                               </div>
                               {fu.contact&&<div style={{fontSize:11,color:S.muted}}>{fu.contact}</div>}
                             </div>
-                            <button onClick={()=>{setTodayModal(false);onNavigateTo(g.account.id,'followups')}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>Go →</button>
+                            <button onClick={()=>openTaskDetail(g.account.id,fu)} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>View →</button>
                           </div>
                         )
                       })}
                     </div>
                   )
                 })
-              }
+              )}
             </div>
-            {todayGrouped.length>0&&(
+            {!selectedTask&&todayGrouped.length>0&&(
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderTop:`1px solid ${S.bdr}`,flexShrink:0,background:S.surf2}}>
                 <span style={{fontSize:12,color:S.muted}}>{todayTasksCount} task{todayTasksCount!==1?'s':''} across {todayGrouped.length} account{todayGrouped.length!==1?'s':''}</span>
                 <button onClick={markAllTodayDone} style={{fontSize:12,color:S.green,background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.25)',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontWeight:600}}>Mark All Complete</button>
