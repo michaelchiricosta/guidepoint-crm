@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Clock } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData } from './supabase.js'
 
 const SK = 'gp-crm-v4'
@@ -2618,15 +2618,16 @@ function Dashboard({acct}) {
   const [groupBy,setGroupBy] = useState('monthly')
   const [selectedContacts,setSelectedContacts] = useState([])
   const [expandedId,setExpandedId] = useState(null)
+  const [calendarOpen,setCalendarOpen] = useState(false)
+  const [contactFreqOpen,setContactFreqOpen] = useState(false)
+  const [activityBreakOpen,setActivityBreakOpen] = useState(false)
+  const [hoveredStat,setHoveredStat] = useState(null)
+  const [calHovered,setCalHovered] = useState(null)
+  const [breakMonth,setBreakMonth] = useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}})
 
   const allContacts = Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean))).sort()
+  const filtered = selectedContacts.length===0 ? acct.interactions : acct.interactions.filter(i=>selectedContacts.includes(i.contact))
 
-  // Contact multi-filter — empty = all
-  const filtered = selectedContacts.length===0
-    ? acct.interactions
-    : acct.interactions.filter(i=>selectedContacts.includes(i.contact))
-
-  // Stats (from all interactions, independent of filter)
   const now = new Date()
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
   const thisMonthCount = acct.interactions.filter(i=>(i.date||'').startsWith(thisMonth)).length
@@ -2635,12 +2636,9 @@ function Dashboard({acct}) {
   const typeMap={}; acct.interactions.forEach(i=>{if(i.type)typeMap[i.type]=(typeMap[i.type]||0)+1})
   const topType = Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]
 
-  // Week key = ISO date string of that Monday
   const getMonday = d => { const m=new Date(d); m.setDate(d.getDate()-((d.getDay()+6)%7)); m.setHours(0,0,0,0); return m }
   const getWeekKey = dateStr => { if(!dateStr)return null; return getMonday(new Date(dateStr+'T12:00:00')).toISOString().split('T')[0] }
   const getMonthKey = dateStr => dateStr?dateStr.slice(0,7):null
-
-  // Generate last 12 week/month bucket keys
   const currentMonday = getMonday(new Date(now))
   const buckets = []
   if (groupBy==='weekly') {
@@ -2648,32 +2646,24 @@ function Dashboard({acct}) {
   } else {
     for (let i=11;i>=0;i--) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); buckets.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }
   }
-
-  // Build chart data — each bucket has counts + stored interactions per type
   const bucketMap = {}
-  buckets.forEach(b => {
-    bucketMap[b] = {key:b}
-    INTERACTION_TYPES.forEach(t => { bucketMap[b][t]=0; bucketMap[b]['_'+t]=[] })
-  })
+  buckets.forEach(b => { bucketMap[b]={key:b}; INTERACTION_TYPES.forEach(t=>{bucketMap[b][t]=0;bucketMap[b]['_'+t]=[]}) })
   filtered.forEach(ix => {
     const bk = groupBy==='weekly' ? getWeekKey(ix.date) : getMonthKey(ix.date)
     if (!bk||!bucketMap[bk]) return
     if (INTERACTION_TYPES.includes(ix.type)) { bucketMap[bk][ix.type]++; bucketMap[bk]['_'+ix.type].push(ix) }
   })
   const chartData = buckets.map(b=>bucketMap[b])
-
   const fmtBucket = key => {
     if (!key) return ''
     if (groupBy==='weekly') return new Date(key+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
     const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'})
   }
-
   const renderTooltip = ({active,payload,label}) => {
     if (!active||!payload?.length||!bucketMap[label]) return null
-    const bucket = bucketMap[label]
+    const bucket=bucketMap[label]
     if (!INTERACTION_TYPES.some(t=>bucket[t]>0)) return null
-    const dateLabel = groupBy==='weekly' ? `Week of ${fmtDate(label)}`
-      : (()=>{ const [y,m]=label.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}) })()
+    const dateLabel=groupBy==='weekly'?`Week of ${fmtDate(label)}`:(()=>{const [y,m]=label.split('-');return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})})()
     return (
       <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 14px',maxWidth:300,boxShadow:'0 4px 16px rgba(0,0,0,0.5)'}}>
         <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>{dateLabel}</div>
@@ -2694,8 +2684,44 @@ function Dashboard({acct}) {
       </div>
     )
   }
-
   const feedItems = [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+
+  // Calendar data
+  const calMonthIxs = acct.interactions.filter(i=>(i.date||'').startsWith(thisMonth))
+  const calDayMap = {}
+  calMonthIxs.forEach(ix=>{const day=parseInt((ix.date||'').split('-')[2]||'0');if(!calDayMap[day])calDayMap[day]=[];calDayMap[day].push(ix)})
+  const calFirst=new Date(now.getFullYear(),now.getMonth(),1), calLast=new Date(now.getFullYear(),now.getMonth()+1,0)
+  const calCells=[];for(let i=0;i<calFirst.getDay();i++)calCells.push(null);for(let d=1;d<=calLast.getDate();d++)calCells.push({day:d,ixs:calDayMap[d]||[]});while(calCells.length%7!==0)calCells.push(null)
+  const typePriority=['Meeting','Call','Email','Demo','Note']
+  const dominantType=ixs=>{for(const t of typePriority)if(ixs.some(x=>x.type===t))return t;return ixs[0]?.type||'Note'}
+
+  // Contact frequency
+  const contactFreqData=Object.entries(cntMap).map(([name,count])=>{
+    const c=(acct.contacts||[]).find(ct=>ct.name===name);const inf=c?.influence||'Stakeholder'
+    return{name,count,inf,color:IC[inf]?.c||S.muted}
+  }).sort((a,b)=>b.count-a.count)
+  const contactLastIx=name=>{const ixs=acct.interactions.filter(i=>i.contact===name).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return ixs[0]?.date||null}
+  const contactTypes=name=>[...new Set(acct.interactions.filter(i=>i.contact===name).map(i=>i.type).filter(Boolean))]
+
+  // Activity breakdown (month selector)
+  const breakMonthStr=`${breakMonth.y}-${String(breakMonth.m+1).padStart(2,'0')}`
+  const breakIxs=acct.interactions.filter(i=>(i.date||'').startsWith(breakMonthStr))
+  const breakTypeMap={};breakIxs.forEach(i=>{if(i.type)breakTypeMap[i.type]=(breakTypeMap[i.type]||0)+1})
+  const pieData=INTERACTION_TYPES.filter(t=>breakTypeMap[t]>0).map(t=>({name:t,value:breakTypeMap[t],color:INTERACTION_COLORS[t]}))
+  const pieTotal=pieData.reduce((s,d)=>s+d.value,0)
+  const breakLabel=new Date(breakMonth.y,breakMonth.m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})
+  const prevBreak=()=>{let m=breakMonth.m-1,y=breakMonth.y;if(m<0){m=11;y--};setBreakMonth({y,m})}
+  const nextBreak=()=>{let m=breakMonth.m+1,y=breakMonth.y;if(m>11){m=0;y++};setBreakMonth({y,m})}
+
+  const modalBack={position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}
+  const modalBox=(w,h)=>({width:w,height:h,background:S.surf,borderRadius:12,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${S.bdr}`,boxShadow:'0 24px 80px rgba(0,0,0,0.7)'})
+  const modalHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}
+  const xBtn=cb=><button onClick={cb} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+
+  const statCardStyle=(key)=>{
+    const h=hoveredStat===key
+    return{padding:'12px 14px',cursor:'pointer',border:`1px solid ${h?'rgba(59,130,246,0.45)':S.bdr}`,background:h?S.surf2:S.surf,borderRadius:8,transition:'all 0.15s',position:'relative',overflow:'hidden'}
+  }
 
   return (
     <div>
@@ -2708,25 +2734,19 @@ function Dashboard({acct}) {
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Clickable stats row */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
-        <Card style={{padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>This Month</div>
-          <div style={{fontSize:22,fontWeight:700,color:S.txt}}>{thisMonthCount}</div>
-          <div style={{fontSize:11,color:S.muted}}>interaction{thisMonthCount!==1?'s':''}</div>
-        </Card>
-        <Card style={{padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>Most Contacted</div>
-          {topContact
-            ?<><div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:1,lineHeight:1.3}}>{topContact[0]}</div><div style={{fontSize:11,color:S.muted}}>{topContact[1]} interaction{topContact[1]!==1?'s':''}</div></>
-            :<div style={{fontSize:13,color:S.dim}}>—</div>}
-        </Card>
-        <Card style={{padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>Top Activity Type</div>
-          {topType
-            ?<><div style={{fontSize:15,fontWeight:700,color:INTERACTION_COLORS[topType[0]]||S.txt,marginBottom:1}}>{topType[0]}</div><div style={{fontSize:11,color:S.muted}}>{topType[1]} total</div></>
-            :<div style={{fontSize:13,color:S.dim}}>—</div>}
-        </Card>
+        {[
+          {key:'thisMonth',onClick:()=>setCalendarOpen(true),label:'This Month\'s Interactions',main:thisMonthCount,sub:`interaction${thisMonthCount!==1?'s':''} · click for calendar`,mainColor:S.txt},
+          {key:'topContact',onClick:()=>setContactFreqOpen(true),label:'Most Contacted',main:topContact?topContact[0]:null,sub:topContact?`${topContact[1]} interaction${topContact[1]!==1?'s':''}`:null,mainColor:S.txt},
+          {key:'topType',onClick:()=>setActivityBreakOpen(true),label:'Top Activity Type',main:topType?topType[0]:null,sub:topType?`${topType[1]} total`:null,mainColor:topType?INTERACTION_COLORS[topType[0]]||S.txt:S.txt},
+        ].map(({key,onClick,label,main,sub,mainColor})=>(
+          <div key={key} style={statCardStyle(key)} onClick={onClick} onMouseEnter={()=>setHoveredStat(key)} onMouseLeave={()=>setHoveredStat(null)}>
+            <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>{label}</div>
+            {main!=null?<><div style={{fontSize:key==='thisMonth'?22:15,fontWeight:700,color:mainColor,marginBottom:1,lineHeight:1.3}}>{main}</div><div style={{fontSize:11,color:S.muted}}>{sub}</div></>:<div style={{fontSize:13,color:S.dim}}>—</div>}
+            <div style={{position:'absolute',bottom:8,right:12,fontSize:11,color:S.blue,fontWeight:600,opacity:hoveredStat===key?1:0,transition:'opacity 0.15s'}}>→</div>
+          </div>
+        ))}
       </div>
 
       {/* Contact filter chips */}
@@ -2749,7 +2769,7 @@ function Dashboard({acct}) {
         ))}
       </div>
 
-      {/* Chart or empty state */}
+      {/* Chart */}
       {acct.interactions.length===0
         ?<div style={{textAlign:'center',padding:'50px 20px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:16}}>
           <div style={{fontSize:14,fontWeight:600,color:S.muted,marginBottom:6}}>No interactions logged yet</div>
@@ -2768,27 +2788,197 @@ function Dashboard({acct}) {
         </Card>
       }
 
-      {/* Activity feed */}
+      {/* Activity feed — one-at-a-time expand */}
       {filtered.length>0&&<>
         <SH mt={4}>Activity Feed</SH>
         <div style={{display:'flex',flexDirection:'column',gap:4}}>
           {feedItems.map(ix=>{
             const isExp=expandedId===ix.id
             const tc=INTERACTION_COLORS[ix.type]||S.muted
+            const topics=(ix.topics||'').split(',').map(t=>t.trim()).filter(Boolean)
             return (
-              <div key={ix.id} onClick={()=>setExpandedId(isExp?null:ix.id)} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:7,padding:'8px 12px',cursor:'pointer'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <div key={ix.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:7,overflow:'hidden'}}>
+                <div onClick={()=>setExpandedId(isExp?null:ix.id)} style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'8px 12px',cursor:'pointer'}}>
                   <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={10}/>
                   <span style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</span>
                   {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
                   {ix.topics&&<span style={{fontSize:11,color:S.secondary,flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ix.topics}</span>}
+                  <span style={{fontSize:11,color:S.dim,flexShrink:0,marginLeft:'auto'}}>{isExp?'▲':'▼'}</span>
                 </div>
-                {isExp&&ix.summary&&<div style={{fontSize:12,color:S.secondary,marginTop:7,lineHeight:1.6,borderTop:`1px solid ${S.bdr}`,paddingTop:7}}>{ix.summary}</div>}
+                <div style={{maxHeight:isExp?'320px':'0',overflow:'hidden',transition:'max-height 0.25s ease'}}>
+                  <div style={{padding:'10px 12px 12px',borderTop:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,marginLeft:-3}}>
+                    {topics.length>1&&(
+                      <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
+                        {topics.map((t,j)=><Badge key={j} label={t} color={tc} bg={tc+'1a'} size={10}/>)}
+                      </div>
+                    )}
+                    {ix.summary&&<div style={{fontSize:12,color:S.secondary,lineHeight:1.65,marginBottom:8}}>{ix.summary.length>500?ix.summary.slice(0,500)+'…':ix.summary}</div>}
+                    <div style={{fontSize:10,color:S.muted,display:'flex',gap:10}}>
+                      <span>{fmtDate(ix.date)}</span>
+                      {ix.duration&&<span>{ix.duration} min</span>}
+                    </div>
+                  </div>
+                </div>
               </div>
             )
           })}
         </div>
       </>}
+
+      {/* ── Calendar modal ── */}
+      {calendarOpen&&(
+        <div style={modalBack} onClick={e=>{if(e.target===e.currentTarget)setCalendarOpen(false)}}>
+          <div style={modalBox('65vw','70vh')}>
+            <div style={modalHdr}>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>{now.toLocaleDateString('en-US',{month:'long',year:'numeric'})} — Interactions</div>
+              {xBtn(()=>setCalendarOpen(false))}
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:16}}>
+                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
+                  <div key={d} style={{textAlign:'center',fontSize:9,fontWeight:700,color:S.muted,padding:'3px 0',textTransform:'uppercase',letterSpacing:'0.08em'}}>{d}</div>
+                ))}
+                {calCells.map((cell,i)=>{
+                  if(!cell)return<div key={i}/>
+                  const{day,ixs}=cell
+                  const isToday=day===now.getDate()
+                  const dom=ixs.length>0?dominantType(ixs):null
+                  const dc=dom?INTERACTION_COLORS[dom]:null
+                  const extra=ixs.length>1?ixs.length-1:0
+                  return(
+                    <div key={i} style={{position:'relative',padding:'6px 2px',textAlign:'center',borderRadius:6,background:isToday?'rgba(59,130,246,0.08)':'transparent',border:isToday?'1px solid rgba(59,130,246,0.35)':'1px solid transparent',cursor:ixs.length>0?'pointer':'default'}}
+                      onMouseEnter={()=>ixs.length>0&&setCalHovered(day)}
+                      onMouseLeave={()=>setCalHovered(null)}>
+                      {dc&&<div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:28,height:28,borderRadius:'50%',background:dc+'28',border:`1px solid ${dc}55`,pointerEvents:'none'}}/>}
+                      <div style={{position:'relative',fontSize:12,fontWeight:ixs.length>0?700:400,color:ixs.length>0?(dc||S.txt):S.muted,lineHeight:1.6}}>{day}</div>
+                      {extra>0&&<div style={{position:'absolute',top:1,right:3,fontSize:8,fontWeight:700,color:dc,background:dc+'28',borderRadius:999,padding:'0 3px',lineHeight:'13px'}}>+{extra}</div>}
+                      {calHovered===day&&ixs.length>0&&(
+                        <div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:'50%',transform:'translateX(-50%)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'8px 10px',boxShadow:'0 4px 20px rgba(0,0,0,0.6)',minWidth:210,textAlign:'left',maxWidth:280}}>
+                          {ixs.map((ix,j)=>(
+                            <div key={j} style={{marginBottom:j<ixs.length-1?6:0,paddingBottom:j<ixs.length-1?6:0,borderBottom:j<ixs.length-1?`1px solid ${S.bdr}`:'none'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:1}}>
+                                <div style={{width:7,height:7,borderRadius:'50%',background:INTERACTION_COLORS[ix.type]||S.muted,flexShrink:0}}/>
+                                <span style={{fontSize:11,fontWeight:700,color:INTERACTION_COLORS[ix.type]||S.txt}}>{ix.type||'Note'}</span>
+                                {ix.contact&&<span style={{fontSize:11,color:S.secondary}}>· {ix.contact}</span>}
+                              </div>
+                              {ix.topics&&<div style={{fontSize:10,color:S.muted,paddingLeft:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics.slice(0,60)}{ix.topics.length>60?'…':''}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:10}}>
+                {INTERACTION_TYPES.filter(t=>calMonthIxs.some(i=>i.type===t)).map(t=>(
+                  <div key={t} style={{display:'flex',alignItems:'center',gap:5}}><div style={{width:10,height:10,borderRadius:'50%',background:INTERACTION_COLORS[t]}}/><span style={{fontSize:11,color:S.secondary}}>{t}</span></div>
+                ))}
+              </div>
+              <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:12}}>{calMonthIxs.length} interaction{calMonthIxs.length!==1?'s':''} this month</div>
+              <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                {[...calMonthIxs].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map((ix,i)=>{
+                  const tc=INTERACTION_COLORS[ix.type]||S.muted
+                  return(
+                    <div key={i} style={{display:'flex',gap:10,padding:'7px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:6,alignItems:'center'}}>
+                      <span style={{fontSize:10,color:S.muted,flexShrink:0,minWidth:72}}>{fmtDate(ix.date)}</span>
+                      <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={9}/>
+                      {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
+                      {ix.topics&&<span style={{fontSize:11,color:S.secondary,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Contact frequency modal ── */}
+      {contactFreqOpen&&(
+        <div style={modalBack} onClick={e=>{if(e.target===e.currentTarget)setContactFreqOpen(false)}}>
+          <div style={modalBox('60vw','65vh')}>
+            <div style={modalHdr}>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Contact Frequency — {now.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</div>
+              {xBtn(()=>setContactFreqOpen(false))}
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+              {contactFreqData.length===0
+                ?<div style={{textAlign:'center',padding:'40px 20px',color:S.muted,fontSize:13}}>No interactions logged. Process a transcript in Intel Log to populate.</div>
+                :<>
+                  <ResponsiveContainer width='100%' height={Math.max(100,contactFreqData.length*38)}>
+                    <BarChart data={contactFreqData} layout='vertical' margin={{top:0,right:50,bottom:0,left:90}}>
+                      <XAxis type='number' allowDecimals={false} tick={{fontSize:10,fill:S.muted}} axisLine={false} tickLine={false}/>
+                      <YAxis type='category' dataKey='name' tick={{fontSize:11,fill:S.txt}} axisLine={false} tickLine={false} width={86}/>
+                      <RechartsTooltip formatter={(v,n,p)=>[`${v} interactions`,p.payload?.inf||'']} contentStyle={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:11,color:S.txt}}/>
+                      <Bar dataKey='count' radius={[0,4,4,0]} label={{position:'right',fontSize:11,fontWeight:700,fill:S.txt}}>
+                        {contactFreqData.map((e,i)=><Cell key={i} fill={e.color}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div style={{marginTop:16}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 60px 110px 1fr',gap:'4px 12px',padding:'5px 8px',fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',borderBottom:`1px solid ${S.bdr}`,marginBottom:4}}>
+                      <span>Contact</span><span style={{textAlign:'center'}}>Count</span><span>Last Interaction</span><span>Types</span>
+                    </div>
+                    {contactFreqData.map((row,i)=>(
+                      <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 60px 110px 1fr',gap:'4px 12px',padding:'7px 8px',borderBottom:`1px solid ${S.bdr}`,alignItems:'center'}}>
+                        <div><div style={{fontSize:12,fontWeight:600,color:S.txt,marginBottom:2}}>{row.name}</div><Badge label={row.inf} color={row.color} bg={row.color+'1a'} size={9}/></div>
+                        <div style={{fontSize:15,fontWeight:800,color:row.color,textAlign:'center'}}>{row.count}</div>
+                        <div style={{fontSize:11,color:S.muted}}>{contactLastIx(row.name)?fmtDate(contactLastIx(row.name)):'—'}</div>
+                        <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>{contactTypes(row.name).map(t=><Badge key={t} label={t} color={INTERACTION_COLORS[t]||S.muted} bg={(INTERACTION_COLORS[t]||S.muted)+'1a'} size={9}/>)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity breakdown modal ── */}
+      {activityBreakOpen&&(
+        <div style={modalBack} onClick={e=>{if(e.target===e.currentTarget)setActivityBreakOpen(false)}}>
+          <div style={modalBox('55vw','60vh')}>
+            <div style={modalHdr}>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Activity Breakdown</div>
+              {xBtn(()=>setActivityBreakOpen(false))}
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,marginBottom:16}}>
+                <button onClick={prevBreak} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',padding:'4px 12px',fontSize:15,lineHeight:1}}>←</button>
+                <span style={{fontSize:13,fontWeight:700,color:S.txt,minWidth:160,textAlign:'center'}}>{breakLabel}</span>
+                <button onClick={nextBreak} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',padding:'4px 12px',fontSize:15,lineHeight:1}}>→</button>
+              </div>
+              {pieData.length===0
+                ?<div style={{textAlign:'center',padding:'30px',color:S.muted,fontSize:13}}>No interactions in {breakLabel}.</div>
+                :<>
+                  <ResponsiveContainer width='100%' height={220}>
+                    <PieChart>
+                      <Pie data={pieData} cx='50%' cy='50%' innerRadius={50} outerRadius={85} paddingAngle={3} dataKey='value' label={({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine fontSize={11}>
+                        {pieData.map((e,i)=><Cell key={i} fill={e.color}/>)}
+                      </Pie>
+                      <RechartsTooltip formatter={(v,n)=>[`${v} interaction${v!==1?'s':''}`,n]} contentStyle={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:11,color:S.txt}}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{marginTop:12}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 60px 60px',gap:'4px 16px',padding:'4px 8px',fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',borderBottom:`1px solid ${S.bdr}`,marginBottom:4}}>
+                      <span>Type</span><span style={{textAlign:'center'}}>Count</span><span style={{textAlign:'right'}}>%</span>
+                    </div>
+                    {pieData.map((row,i)=>(
+                      <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 60px 60px',gap:'4px 16px',padding:'6px 8px',borderBottom:`1px solid ${S.bdr}`,alignItems:'center'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:10,height:10,borderRadius:3,background:row.color,flexShrink:0}}/><span style={{fontSize:12,color:S.txt,fontWeight:600}}>{row.name}</span></div>
+                        <div style={{fontSize:13,fontWeight:700,color:row.color,textAlign:'center'}}>{row.value}</div>
+                        <div style={{fontSize:12,color:S.muted,textAlign:'right'}}>{((row.value/pieTotal)*100).toFixed(0)}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              }
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
