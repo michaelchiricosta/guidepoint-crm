@@ -3539,7 +3539,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   }
 
   return (
-    <div style={{minHeight:'100vh',background:S.bg,color:S.txt,overflowY:'auto'}}>
+    <div style={{height:'100vh',background:S.bg,color:S.txt,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* TOP NAV BAR */}
       <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:mob?'0 16px':'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -3551,7 +3551,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           <div>
             <div style={{display:'flex',alignItems:'baseline',gap:8}}>
               <span style={{fontSize:15,fontWeight:800,color:'#0f172a',letterSpacing:'-0.01em'}}>GuidePoint Account Intelligence</span>
-              {!mob&&<span style={{fontSize:12,color:'#94a3b8',fontWeight:400}}>by Mike Chiricosta</span>}
+              {!mob&&<span style={{fontSize:12,color:'#94a3b8',fontWeight:400}}>GuidePoint Security</span>}
             </div>
           </div>
         </div>
@@ -3566,8 +3566,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         </div>
       </div>
 
-      {/* HERO SECTION — dark gradient */}
-      <div style={{background:S.isLight?'linear-gradient(135deg,#0f1729 0%,#1e3a5f 40%,#1d4ed8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden'}}>
+      {/* HERO SECTION — dark gradient fading into page bg */}
+      <div style={{background:S.isLight?'linear-gradient(180deg,#0f1729 0%,#1e3a5f 40%,#1d4ed8 70%,#f1f5f9 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 48px':'36px 48px 56px',position:'relative',overflow:'hidden',minHeight:S.isLight?180:undefined}}>
         {/* Decorative rings */}
         <div style={{position:'absolute',right:-60,top:-60,width:280,height:280,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
         <div style={{position:'absolute',right:-20,top:-20,width:180,height:180,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.04)',pointerEvents:'none'}}/>
@@ -3605,24 +3605,28 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 60%,#3b82f6 100%)',
               border:'none',
               boxShadow:hoveredStat==='today'?'0 8px 24px rgba(37,99,235,0.4)':'0 2px 8px rgba(37,99,235,0.25)',
-              borderRadius:12,padding:'20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
+              borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
               transform:hoveredStat==='today'?'translateY(-2px)':'translateY(0)',
+              minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
             }:{
               background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',
               border:`1px solid ${hoveredStat==='today'?'#6366f1':S.bdr}`,
               boxShadow:hoveredStat==='today'?'0 4px 16px rgba(99,102,241,0.35)':'none',
-              borderRadius:12,padding:'20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
+              borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
+              minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
             }}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <span style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
               <div style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                 <svg width="16" height="16" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(255,255,255,0.9)" strokeWidth="1.2"/></svg>
               </div>
             </div>
-            <div style={{fontSize:40,fontWeight:900,color:'#ffffff',lineHeight:1,marginBottom:4}}>{todayTasksCount}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.6)'}}>tasks due or overdue</div>
+            <div>
+              <div style={{fontSize:40,fontWeight:900,color:'#ffffff',lineHeight:1,marginBottom:3}}>{todayTasksCount}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.6)'}}>tasks due or overdue</div>
+            </div>
           </button>
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
@@ -3634,30 +3638,34 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 border:'1px solid #e2e8f0',
                 borderTop:`3px solid ${stat.color}`,
                 boxShadow:hoveredStat===stat.label?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
-                borderRadius:12,padding:'16px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
+                borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
                 transform:hoveredStat===stat.label?'translateY(-2px)':'translateY(0)',
+                minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
                 flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
               }:{
                 background:S.surf,
                 border:`1px solid ${hoveredStat===stat.label?stat.color:S.bdr}`,
                 boxShadow:hoveredStat===stat.label?`0 4px 16px ${stat.color}22`:'none',
                 borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
+                minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
                 flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
               }}>
               {S.isLight?(
                 <>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                     <div style={{width:36,height:36,borderRadius:10,background:stat.color+'15',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                       <StatIconLg type={stat.type} color={stat.color}/>
                     </div>
                   </div>
-                  <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1,marginBottom:4}}>{stat.value}</div>
-                  <div style={{fontSize:11,color:'#94a3b8'}}>{stat.ctx}</div>
+                  <div>
+                    <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1,marginBottom:3}}>{stat.value}</div>
+                    <div style={{fontSize:11,color:'#94a3b8'}}>{stat.ctx}</div>
+                  </div>
                 </>
               ):(
                 <>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                   </div>
                   <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
@@ -3710,7 +3718,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     onMouseLeave={()=>setHoveredId(null)}
                     style={S.isLight?{
                       background:'#ffffff',
-                      border:`1px solid ${isHov?hc:'#e2e8f0'}`,
+                      border:'1px solid #e2e8f0',
                       borderRadius:14,cursor:'pointer',
                       transform:isHov?'translateY(-3px)':'translateY(0)',
                       boxShadow:isHov?'0 12px 32px rgba(0,0,0,0.12)':'0 2px 8px rgba(0,0,0,0.06)',
@@ -3724,9 +3732,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
                     }}
                   >
-                    {/* TOP ACCENT BAR */}
-                    {S.isLight&&<div style={{height:4,background:hc,flexShrink:0}}/>}
-                    <div style={{padding:S.isLight?'14px 16px 12px':'20px',flex:1}}>
+                    <div style={{padding:S.isLight?'16px 16px 12px':'20px',flex:1}}>
                       {/* Status pill (light mode) or dot (dark mode) */}
                       {S.isLight?(
                         <div style={{marginBottom:8}}>
@@ -3783,11 +3789,31 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 )
               })}
               <div onClick={()=>setShowAdd(true)}
-                onMouseEnter={e=>{e.currentTarget.style.background=S.surf2;e.currentTarget.style.borderColor=S.bdr2}}
-                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':S.bdr}}
-                style={{background:'transparent',border:`1px dashed ${S.isLight?'#cbd5e1':S.bdr}`,borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.15s'}}>
-                <div style={{width:44,height:44,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:S.muted}}>+</div>
-                <div style={{fontSize:13,fontWeight:600,color:S.muted}}>Add Account</div>
+                onMouseEnter={e=>{
+                  e.currentTarget.style.background=S.isLight?'#f0f9ff':S.surf2
+                  e.currentTarget.style.borderColor=S.isLight?'#93c5fd':S.bdr2
+                  const icon=e.currentTarget.querySelector('.add-icon-circle')
+                  const txt=e.currentTarget.querySelector('.add-icon-text')
+                  const label=e.currentTarget.querySelector('.add-label')
+                  if(icon){icon.style.background='#dbeafe';icon.style.borderColor='#93c5fd'}
+                  if(txt){txt.style.color='#2563eb'}
+                  if(label){label.style.color='#2563eb'}
+                }}
+                onMouseLeave={e=>{
+                  e.currentTarget.style.background=S.isLight?'#ffffff':'transparent'
+                  e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':S.bdr
+                  const icon=e.currentTarget.querySelector('.add-icon-circle')
+                  const txt=e.currentTarget.querySelector('.add-icon-text')
+                  const label=e.currentTarget.querySelector('.add-label')
+                  if(icon){icon.style.background=S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)';icon.style.borderColor=S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}
+                  if(txt){txt.style.color='#94a3b8'}
+                  if(label){label.style.color='#64748b'}
+                }}
+                style={{background:S.isLight?'#ffffff':'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':S.bdr}`,borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,minHeight:190,transition:'all 0.2s'}}>
+                <div className="add-icon-circle" style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}>
+                  <span className="add-icon-text" style={{fontSize:22,color:'#94a3b8',lineHeight:1,transition:'color 0.2s'}}>+</span>
+                </div>
+                <div className="add-label" style={{fontSize:13,fontWeight:600,color:'#64748b',transition:'color 0.2s'}}>Add Account</div>
               </div>
             </div>
           </div>
