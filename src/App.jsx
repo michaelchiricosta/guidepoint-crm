@@ -110,12 +110,14 @@ const Modal = ({title,onClose,children,width=520}) => {
 const SH = ({children,mt=0}) => <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8,marginTop:mt}}>{children}</div>
 const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,...style}}>{children}</div>
 
-function Overview({acct,setAcct,setTab}) {
+function Overview({acct,setAcct,setTab,apiKey}) {
   const [showDismissed,setShowDismissed] = useState(false)
   const [alertModal,setAlertModal] = useState(null)
   const [hoveredAlert,setHoveredAlert] = useState(null)
   const [showAddFU,setShowAddFU] = useState(false)
+  const [showAIChat,setShowAIChat] = useState(false)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
+  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []
@@ -184,14 +186,23 @@ function Overview({acct,setAcct,setTab}) {
 
   return (
     <div>
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:8,marginBottom:16}}>
+      <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}}`}</style>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16}}>
         {[{label:'Open Follow-Ups',val:openFU.length,c:openFU.length>3?S.orange:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
           <Card key={m.label} style={{padding:'14px 16px'}}>
             <div style={{fontSize:10,color:S.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{m.label}</div>
             <div style={{fontSize:24,fontWeight:700,color:m.c}}>{m.val}</div>
           </Card>
         ))}
+        <div onClick={()=>setShowAIChat(true)} style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s'}}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 0 20px rgba(14,165,233,0.4)'}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+          <div style={{fontSize:18,animation:'aiPulse 3s infinite',marginBottom:6}}>✦</div>
+          <div style={{fontSize:13,fontWeight:700,color:'#fff',marginBottom:2}}>AI Intelligence</div>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Account Intel</div>
+        </div>
       </div>
+      {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {alerts.length>0&&(
         <>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
@@ -1254,8 +1265,8 @@ function FollowUps({acct,setAcct}) {
   )
 }
 
-function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
-  const [messages, setMessages] = useState([])
+function AIChatModal({acct, setAcct, effectiveKey, onClose, initialMessages=[], initialPinned=[], initialSessionId=null}) {
+  const [messages, setMessages] = useState(initialMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -1265,6 +1276,10 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
   const [projForm, setProjForm] = useState({name:'',category:'',status:'Not Started',notes:''})
   const [fuSaved, setFuSaved] = useState(new Set())
   const [projSaved, setProjSaved] = useState(new Set())
+  const [showHistory, setShowHistory] = useState(false)
+  const [pinnedMsgs, setPinnedMsgs] = useState(new Set(initialPinned))
+  const [viewingSession, setViewingSession] = useState(null)
+  const [currentSessionId] = useState(()=>initialSessionId||uid())
   const messagesEndRef = useRef(null)
 
   useEffect(()=>{messagesEndRef.current?.scrollIntoView({behavior:'smooth'})},[messages,loading])
@@ -1355,6 +1370,45 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
     return ctx
   }
 
+  const saveSession = (msgs, pinned) => {
+    if (!msgs.some(m=>m.role==='user')) return
+    const session = {
+      id: currentSessionId,
+      date: new Date().toISOString(),
+      title: (msgs.find(m=>m.role==='user')?.content||'Chat Session').slice(0,60),
+      messages: msgs.map(m=>({...m, timestamp:m.timestamp instanceof Date?m.timestamp.toISOString():m.timestamp})),
+      pinned: false,
+      pinnedMessages: [...pinned]
+    }
+    setAcct(prev=>{
+      const existing=(prev.aiHistory||[]).filter(s=>s.id!==currentSessionId)
+      return {...prev, aiHistory:[session,...existing]}
+    })
+  }
+
+  const handleClose = () => { saveSession(messages, pinnedMsgs); onClose() }
+
+  const handleNewChat = () => {
+    saveSession(messages, pinnedMsgs)
+    setMessages([]); setPinnedMsgs(new Set()); setViewingSession(null)
+    setFuFormFor(null); setProjFormFor(null); setError(null)
+  }
+
+  const togglePin = (msgId) => {
+    setPinnedMsgs(prev=>{ const n=new Set(prev); n.has(msgId)?n.delete(msgId):n.add(msgId); return n })
+  }
+
+  const togglePinInSession = (session, msgId) => {
+    const cur = session.pinnedMessages||[]
+    const next = cur.includes(msgId)?cur.filter(id=>id!==msgId):[...cur,msgId]
+    setAcct(prev=>({...prev,aiHistory:(prev.aiHistory||[]).map(s=>s.id===session.id?{...s,pinnedMessages:next}:s)}))
+    setViewingSession(s=>({...s,pinnedMessages:next}))
+  }
+
+  const toggleSessionPin = (sessionId) => {
+    setAcct(prev=>({...prev,aiHistory:(prev.aiHistory||[]).map(s=>s.id===sessionId?{...s,pinned:!s.pinned}:s)}))
+  }
+
   const callAPI = async (msgs) => {
     setLoading(true)
     setError(null)
@@ -1388,7 +1442,7 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
     await callAPI(newMsgs)
   }
 
-  const fmtTime = d => d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'})
+  const fmtTime = d => { try { const dt=d instanceof Date?d:new Date(d); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) } catch { return '' } }
 
   const saveFU = (msgId) => {
     if(!fuForm.task.trim()) return
@@ -1411,172 +1465,222 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
 
   const iBtn = (color) => ({fontSize:11,color,background:color+'1a',border:`1px solid ${color}44`,borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'})
 
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
-      <style>{`@keyframes dot-pulse{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-5px);opacity:1}}`}</style>
-      <div style={{width:'75vw',height:'75vh',background:S.surf,borderRadius:12,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${S.bdr}`,boxShadow:'0 24px 80px rgba(0,0,0,0.7)'}}>
+  const sessions = (acct.aiHistory||[]).slice().sort((a,b)=>{if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;return b.date.localeCompare(a.date)})
+  const displayMessages = viewingSession ? viewingSession.messages : messages
+  const displayPinned = viewingSession ? new Set(viewingSession.pinnedMessages||[]) : pinnedMsgs
 
-        {/* Header */}
-        <div style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
-          <span style={{fontSize:16,color:S.blue}}>✦</span>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:14,fontWeight:700,color:S.txt,lineHeight:1.2}}>Account Intelligence Assistant</div>
-            <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</div>
+  const renderMsgBubbles = (msgs, pinned, isViewing) => msgs.map(msg=>{
+    const isUser = msg.role==='user'
+    const isPinned = pinned.has(msg.id)
+    return (
+      <div key={msg.id}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,flexDirection:isUser?'row-reverse':'row'}}>
+          <div style={{width:30,height:30,borderRadius:'50%',background:isUser?S.blue:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:isUser?'#fff':S.purple,flexShrink:0}}>{isUser?'MC':'AI'}</div>
+          <div style={{maxWidth:'72%',background:isUser?S.blue:S.surf2,border:isUser?'none':`1px solid ${isPinned?'#eab308':S.bdr}`,borderLeft:!isUser&&isPinned?'3px solid #eab308':undefined,borderRadius:isUser?'12px 12px 2px 12px':'12px 12px 12px 2px',padding:'10px 14px'}}>
+            <div style={{fontSize:13,color:isUser?'#fff':S.txt,lineHeight:1.65,whiteSpace:'pre-wrap'}}>{msg.content}</div>
+            <div style={{fontSize:10,color:isUser?'rgba(255,255,255,0.55)':S.muted,marginTop:4,textAlign:isUser?'right':'left'}}>{fmtTime(msg.timestamp)}</div>
           </div>
-          <button onClick={()=>{setMessages([]);setFuFormFor(null);setProjFormFor(null)}} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',whiteSpace:'nowrap',flexShrink:0}}>Clear Chat</button>
-          <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,flexShrink:0,padding:'0 4px',display:'flex',alignItems:'center'}}>×</button>
         </div>
-
-        {/* Messages area */}
-        <div style={{flex:1,overflowY:'auto',padding:'16px 18px',display:'flex',flexDirection:'column',gap:14}}>
-          {messages.length===0&&(
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:20,textAlign:'center'}}>
-              <div>
-                <div style={{fontSize:26,color:S.blue,marginBottom:8}}>✦</div>
-                <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>Ask me anything about {acct.short||acct.name}</div>
-                <div style={{fontSize:12,color:S.muted}}>I have full context: contacts, projects, tech stack, intel, and follow-ups.</div>
-              </div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',maxWidth:560}}>
-                {SUGGESTED.map((q,i)=>(
-                  <button key={i} onClick={()=>sendMessage(q)}
-                    style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:20,padding:'8px 14px',fontSize:12,color:S.secondary,cursor:'pointer',textAlign:'left',lineHeight:1.4,transition:'border-color 0.15s'}}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor=S.blue}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor=S.bdr}
-                  >{q}</button>
-                ))}
-              </div>
+        {!isUser&&(
+          <div style={{paddingLeft:40,marginTop:8,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {isViewing
+                ?<button onClick={()=>togglePinInSession(viewingSession,msg.id)} style={iBtn(isPinned?'#eab308':S.muted)}>{isPinned?'★ Pinned':'☆ Pin'}</button>
+                :<>
+                  <button onClick={()=>togglePin(msg.id)} style={iBtn(isPinned?'#eab308':S.muted)}>{isPinned?'★ Pinned':'☆ Pin'}</button>
+                  <button onClick={()=>{const open=fuFormFor===msg.id;setFuFormFor(open?null:msg.id);setProjFormFor(null);if(!open)setFuForm({task:msg.content.slice(0,80),priority:'High',dueDate:'',contact:''})}} style={iBtn(S.blue)}>{fuSaved.has(msg.id)?'✓ Follow-Up Saved':'＋ Add as Follow-Up'}</button>
+                  <button onClick={()=>{const open=projFormFor===msg.id;setProjFormFor(open?null:msg.id);setFuFormFor(null);if(!open)setProjForm({name:msg.content.slice(0,60),category:'',status:'Not Started',notes:msg.content.slice(0,200)})}} style={iBtn(S.purple)}>{projSaved.has(msg.id)?'✓ Project Saved':'＋ Add as Project'}</button>
+                </>
+              }
             </div>
-          )}
-          {messages.map(msg=>{
-            const isUser = msg.role==='user'
-            return (
-              <div key={msg.id}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:10,flexDirection:isUser?'row-reverse':'row'}}>
-                  <div style={{width:30,height:30,borderRadius:'50%',background:isUser?S.blue:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:isUser?'#fff':S.purple,flexShrink:0}}>
-                    {isUser?'MC':'AI'}
+            {!isViewing&&fuFormFor===msg.id&&(
+              <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Follow-Up</div>
+                  <button onClick={()=>setFuFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+                <div style={{marginBottom:7}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Task</div>
+                  <textarea value={fuForm.task} onChange={e=>setFuForm(p=>({...p,task:e.target.value}))} rows={2} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Priority</div>
+                    <select value={fuForm.priority} onChange={e=>setFuForm(p=>({...p,priority:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
+                      {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                    </select>
                   </div>
-                  <div style={{maxWidth:'72%',background:isUser?S.blue:S.surf2,border:isUser?'none':`1px solid ${S.bdr}`,borderRadius:isUser?'12px 12px 2px 12px':'12px 12px 12px 2px',padding:'10px 14px'}}>
-                    <div style={{fontSize:13,color:isUser?'#fff':S.txt,lineHeight:1.65,whiteSpace:'pre-wrap'}}>{msg.content}</div>
-                    <div style={{fontSize:10,color:isUser?'rgba(255,255,255,0.55)':S.muted,marginTop:4,textAlign:isUser?'right':'left'}}>{fmtTime(msg.timestamp)}</div>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Due Date</div>
+                    <input type='date' value={fuForm.dueDate} onChange={e=>setFuForm(p=>({...p,dueDate:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
                   </div>
                 </div>
-                {!isUser&&(
-                  <div style={{paddingLeft:40,marginTop:8,display:'flex',flexDirection:'column',gap:8}}>
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                      <button
-                        onClick={()=>{const open=fuFormFor===msg.id;setFuFormFor(open?null:msg.id);setProjFormFor(null);if(!open)setFuForm({task:msg.content.slice(0,80),priority:'High',dueDate:'',contact:''})}}
-                        style={iBtn(S.blue)}
-                      >{fuSaved.has(msg.id)?'✓ Follow-Up Saved':'＋ Add as Follow-Up'}</button>
-                      <button
-                        onClick={()=>{const open=projFormFor===msg.id;setProjFormFor(open?null:msg.id);setFuFormFor(null);if(!open)setProjForm({name:msg.content.slice(0,60),category:'',status:'Not Started',notes:msg.content.slice(0,200)})}}
-                        style={iBtn(S.purple)}
-                      >{projSaved.has(msg.id)?'✓ Project Saved':'＋ Add as Project'}</button>
-                    </div>
-                    {fuFormFor===msg.id&&(
-                      <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                          <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Follow-Up</div>
-                          <button onClick={()=>setFuFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
-                        </div>
-                        <div style={{marginBottom:7}}>
-                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Task</div>
-                          <textarea value={fuForm.task} onChange={e=>setFuForm(p=>({...p,task:e.target.value}))} rows={2} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
-                          <div>
-                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Priority</div>
-                            <select value={fuForm.priority} onChange={e=>setFuForm(p=>({...p,priority:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
-                              {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Due Date</div>
-                            <input type='date' value={fuForm.dueDate} onChange={e=>setFuForm(p=>({...p,dueDate:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
-                          </div>
-                        </div>
-                        <div style={{marginBottom:8}}>
-                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Contact</div>
-                          <input value={fuForm.contact} onChange={e=>setFuForm(p=>({...p,contact:e.target.value}))} placeholder='Contact name...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
-                        </div>
-                        <div style={{display:'flex',gap:6}}>
-                          <button onClick={()=>saveFU(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Follow-Up</button>
-                          <button onClick={()=>setFuFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                    {projFormFor===msg.id&&(
-                      <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                          <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Project</div>
-                          <button onClick={()=>setProjFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
-                        </div>
-                        <div style={{marginBottom:7}}>
-                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Project Name</div>
-                          <input value={projForm.name} onChange={e=>setProjForm(p=>({...p,name:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
-                        </div>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
-                          <div>
-                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Category</div>
-                            <input value={projForm.category} onChange={e=>setProjForm(p=>({...p,category:e.target.value}))} placeholder='e.g. MDR, CSPM...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
-                          </div>
-                          <div>
-                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Status</div>
-                            <select value={projForm.status} onChange={e=>setProjForm(p=>({...p,status:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
-                              {PROJ_STATS.map(o=><option key={o}>{o}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{marginBottom:8}}>
-                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Notes</div>
-                          <textarea value={projForm.notes} onChange={e=>setProjForm(p=>({...p,notes:e.target.value}))} rows={3} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
-                        </div>
-                        <div style={{display:'flex',gap:6}}>
-                          <button onClick={()=>saveProj(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Project</button>
-                          <button onClick={()=>setProjFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                    {fuSaved.has(msg.id)&&fuFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Follow-up saved to Follow-Ups tab</div>}
-                    {projSaved.has(msg.id)&&projFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Project saved to Projects tab</div>}
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Contact</div>
+                  <input value={fuForm.contact} onChange={e=>setFuForm(p=>({...p,contact:e.target.value}))} placeholder='Contact name...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>saveFU(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Follow-Up</button>
+                  <button onClick={()=>setFuFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {!isViewing&&projFormFor===msg.id&&(
+              <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Project</div>
+                  <button onClick={()=>setProjFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+                <div style={{marginBottom:7}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Project Name</div>
+                  <input value={projForm.name} onChange={e=>setProjForm(p=>({...p,name:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Category</div>
+                    <input value={projForm.category} onChange={e=>setProjForm(p=>({...p,category:e.target.value}))} placeholder='e.g. MDR, CSPM...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
                   </div>
-                )}
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Status</div>
+                    <select value={projForm.status} onChange={e=>setProjForm(p=>({...p,status:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
+                      {PROJ_STATS.map(o=><option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Notes</div>
+                  <textarea value={projForm.notes} onChange={e=>setProjForm(p=>({...p,notes:e.target.value}))} rows={3} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={()=>saveProj(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Project</button>
+                  <button onClick={()=>setProjFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                </div>
               </div>
-            )
-          })}
-          {loading&&(
-            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-              <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:S.purple,flexShrink:0}}>AI</div>
-              <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:'12px 12px 12px 2px',padding:'13px 16px',display:'flex',gap:5,alignItems:'center'}}>
-                {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:'50%',background:S.muted,animation:`dot-pulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
-              </div>
-            </div>
-          )}
-          {error&&(
-            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-              <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(239,68,68,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.red,flexShrink:0}}>!</div>
-              <div style={{background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:'12px 12px 12px 2px',padding:'10px 14px',maxWidth:'70%'}}>
-                <div style={{fontSize:12,color:S.red,marginBottom:8,lineHeight:1.5}}>{error}</div>
-                <button onClick={()=>{setError(null);callAPI(messages)}} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Retry</button>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef}/>
-        </div>
+            )}
+            {!isViewing&&fuSaved.has(msg.id)&&fuFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Follow-up saved to Follow-Ups tab</div>}
+            {!isViewing&&projSaved.has(msg.id)&&projFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Project saved to Projects tab</div>}
+          </div>
+        )}
+      </div>
+    )
+  })
 
-        {/* Input bar */}
-        <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0,display:'flex',gap:10,alignItems:'flex-end'}}>
-          <textarea
-            value={input}
-            onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage(input)}}}
-            placeholder='Ask anything about this account... (Enter to send, Shift+Enter for new line)'
-            rows={1}
-            style={{flex:1,fontSize:13,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 12px',color:S.txt,resize:'none',lineHeight:1.5,fontFamily:'inherit',maxHeight:120,overflowY:'auto'}}
-          />
-          <button onClick={()=>sendMessage(input)} disabled={!input.trim()||loading}
-            style={{padding:'10px 18px',background:!input.trim()||loading?S.dim:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!input.trim()||loading?'default':'pointer',flexShrink:0,opacity:!input.trim()||loading?0.5:1,minHeight:42}}>
-            Send
-          </button>
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}} onClick={e=>{if(e.target===e.currentTarget)handleClose()}}>
+      <style>{`@keyframes dot-pulse{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-5px);opacity:1}}`}</style>
+      <div style={{width:'70vw',height:'70vh',background:S.surf,borderRadius:12,display:'flex',flexDirection:'row',overflow:'hidden',border:`1px solid ${S.bdr}`,boxShadow:'0 24px 80px rgba(0,0,0,0.7)'}}>
+
+        {/* History side panel */}
+        {showHistory&&(
+          <div style={{width:280,flexShrink:0,borderRight:`1px solid ${S.bdr}`,display:'flex',flexDirection:'column',background:S.surf2}}>
+            <div style={{padding:'13px 14px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+              <span style={{fontSize:12,fontWeight:700,color:S.txt}}>Chat History</span>
+              <button onClick={()=>{setShowHistory(false);setViewingSession(null)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {sessions.length===0&&<div style={{padding:'24px 14px',fontSize:12,color:S.muted,textAlign:'center'}}>No chat history yet.<br/>Start a conversation to build history.</div>}
+              {sessions.map(s=>{
+                const isVw=viewingSession?.id===s.id
+                return (
+                  <div key={s.id} onClick={()=>setViewingSession(s)}
+                    style={{padding:'10px 14px',borderBottom:`1px solid ${S.bdr}`,borderLeft:s.pinned?'3px solid #eab308':'3px solid transparent',background:isVw?S.surf:'transparent',cursor:'pointer',transition:'background 0.1s'}}
+                    onMouseEnter={e=>{if(!isVw)e.currentTarget.style.background=S.surf+'aa'}}
+                    onMouseLeave={e=>{if(!isVw)e.currentTarget.style.background='transparent'}}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:6,marginBottom:3}}>
+                      <button onClick={e=>{e.stopPropagation();toggleSessionPin(s.id)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:13,padding:0,flexShrink:0,marginTop:1,color:s.pinned?'#eab308':S.dim}}>{s.pinned?'★':'☆'}</button>
+                      <span style={{fontSize:12,fontWeight:600,color:S.txt,lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{s.title}</span>
+                    </div>
+                    <div style={{fontSize:10,color:S.muted,paddingLeft:19}}>{fmtDate(s.date.split('T')[0])} · {s.messages.length} msg{s.messages.length!==1?'s':''}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Main chat area */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'13px 18px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+            <span style={{fontSize:16,color:S.blue,animation:'aiPulse 3s infinite'}}>✦</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt,lineHeight:1.2}}>AI Intelligence</div>
+              <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{viewingSession?'Viewing: '+viewingSession.title:acct.name}</div>
+            </div>
+            <button onClick={handleNewChat} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',whiteSpace:'nowrap',flexShrink:0}}>＋ New Chat</button>
+            <button onClick={()=>{setShowHistory(v=>!v);if(showHistory)setViewingSession(null)}} style={{background:showHistory?S.blue+'22':'transparent',border:`1px solid ${showHistory?S.blue:S.bdr}`,borderRadius:6,color:showHistory?S.blue:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',whiteSpace:'nowrap',flexShrink:0}}>☰ History{sessions.length>0?` (${sessions.length})`:''}</button>
+            <button onClick={handleClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,flexShrink:0,padding:'0 4px',display:'flex',alignItems:'center'}}>×</button>
+          </div>
+
+          {/* Messages area */}
+          <div style={{flex:1,overflowY:'auto',padding:'16px 18px',display:'flex',flexDirection:'column',gap:14}}>
+            {viewingSession&&(
+              <div style={{background:'rgba(234,179,8,0.08)',border:'1px solid rgba(234,179,8,0.25)',borderRadius:8,padding:'8px 14px',fontSize:12,color:S.yellow,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+                <span>Viewing past session — {fmtDate(viewingSession.date.split('T')[0])}</span>
+                <button onClick={()=>setViewingSession(null)} style={{background:'none',border:'none',color:S.yellow,cursor:'pointer',fontSize:11,fontWeight:600}}>← Back</button>
+              </div>
+            )}
+            {displayMessages.length===0&&!viewingSession&&(
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:20,textAlign:'center'}}>
+                <div>
+                  <div style={{fontSize:26,color:S.blue,marginBottom:8}}>✦</div>
+                  <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>Ask me anything about {acct.short||acct.name}</div>
+                  <div style={{fontSize:12,color:S.muted}}>Full context: contacts, projects, tech stack, intel, and follow-ups.</div>
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',maxWidth:520}}>
+                  {SUGGESTED.map((q,i)=>(
+                    <button key={i} onClick={()=>sendMessage(q)}
+                      style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:20,padding:'8px 14px',fontSize:12,color:S.secondary,cursor:'pointer',textAlign:'left',lineHeight:1.4,transition:'border-color 0.15s'}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor=S.blue}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor=S.bdr}
+                    >{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {renderMsgBubbles(displayMessages, displayPinned, !!viewingSession)}
+            {loading&&(
+              <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:S.purple,flexShrink:0}}>AI</div>
+                <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:'12px 12px 12px 2px',padding:'13px 16px',display:'flex',gap:5,alignItems:'center'}}>
+                  {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:'50%',background:S.muted,animation:`dot-pulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+                </div>
+              </div>
+            )}
+            {error&&(
+              <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(239,68,68,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.red,flexShrink:0}}>!</div>
+                <div style={{background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:'12px 12px 12px 2px',padding:'10px 14px',maxWidth:'70%'}}>
+                  <div style={{fontSize:12,color:S.red,marginBottom:8,lineHeight:1.5}}>{error}</div>
+                  <button onClick={()=>{setError(null);callAPI(messages)}} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Retry</button>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef}/>
+          </div>
+
+          {/* Input or Continue Chat */}
+          {viewingSession?(
+            <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0,display:'flex',justifyContent:'center',gap:10}}>
+              <button onClick={()=>{setMessages(viewingSession.messages.map(m=>({...m,timestamp:new Date(m.timestamp)})));setPinnedMsgs(new Set(viewingSession.pinnedMessages||[]));setViewingSession(null);setShowHistory(false)}} style={{padding:'10px 20px',background:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Continue this chat →</button>
+              <button onClick={()=>setViewingSession(null)} style={{padding:'10px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          ):(
+            <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0,display:'flex',gap:10,alignItems:'flex-end'}}>
+              <textarea
+                value={input}
+                onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage(input)}}}
+                placeholder='Ask anything about this account... (Enter to send, Shift+Enter for new line)'
+                rows={1}
+                style={{flex:1,fontSize:13,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 12px',color:S.txt,resize:'none',lineHeight:1.5,fontFamily:'inherit',maxHeight:120,overflowY:'auto'}}
+              />
+              <button onClick={()=>sendMessage(input)} disabled={!input.trim()||loading}
+                style={{padding:'10px 18px',background:!input.trim()||loading?S.dim:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!input.trim()||loading?'default':'pointer',flexShrink:0,opacity:!input.trim()||loading?0.5:1,minHeight:42}}>
+                Send
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1595,7 +1699,6 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [typeFilter,setTypeFilter] = useState('All')
   const [dateFrom,setDateFrom] = useState('')
   const [dateTo,setDateTo] = useState('')
-  const [showChat,setShowChat] = useState(false)
 
   const process = async (date) => {
     setLoading(true);setError('');setResult(null)
@@ -1711,7 +1814,6 @@ ${text}`}]
               <button key={t} onClick={()=>setTypeFilter(t)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:typeFilter===t?S.blue:'transparent',color:typeFilter===t?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>{t}</button>
             ))}
           </div>
-          <button onClick={()=>setShowChat(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',background:S.blue,border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>✦ Ask AI</button>
           <button onClick={exportIntel} style={{padding:'6px 12px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:12,cursor:'pointer',flexShrink:0}}>↓ Export</button>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
@@ -1740,7 +1842,6 @@ ${text}`}]
           </Card>
         ))}
       </div>
-      {showChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowChat(false)}/>}
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
         {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
@@ -1750,6 +1851,144 @@ ${text}`}]
           <Btn onClick={()=>{if(customDate){setShowDate(false);process(customDate)}}} style={{opacity:customDate?1:0.4}}>Use {customDate?fmtDate(customDate):'Custom Date'}</Btn>
         </div>
       </Modal>}
+    </div>
+  )
+}
+
+function AIHistory({acct, setAcct, apiKey}) {
+  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState(null)
+  const [showChat, setShowChat] = useState(false)
+  const [chatSession, setChatSession] = useState(null)
+
+  const sessions = (acct.aiHistory||[]).slice().sort((a,b)=>{if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;return b.date.localeCompare(a.date)})
+
+  const fmtTime = d => { try { const dt=d instanceof Date?d:new Date(d); return dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) } catch { return '' } }
+
+  const allPinned = sessions.flatMap(s=>(s.pinnedMessages||[]).map(msgId=>{
+    const msg = s.messages.find(m=>m.id===msgId)
+    return msg ? {msg, session:s} : null
+  })).filter(Boolean)
+
+  const q = search.toLowerCase().trim()
+  const filteredSessions = q ? sessions.filter(s=>s.title.toLowerCase().includes(q)||s.messages.some(m=>m.content.toLowerCase().includes(q))) : sessions
+
+  const unpinMsg = (sessionId, msgId) => {
+    setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).map(s=>s.id===sessionId?{...s,pinnedMessages:(s.pinnedMessages||[]).filter(id=>id!==msgId)}:s)}))
+  }
+
+  const toggleSessionPin = (sessionId) => {
+    setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).map(s=>s.id===sessionId?{...s,pinned:!s.pinned}:s)}))
+  }
+
+  const deleteSession = (sessionId) => {
+    if(!window.confirm('Delete this chat session?')) return
+    setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).filter(s=>s.id!==sessionId)}))
+    if(expanded===sessionId) setExpanded(null)
+  }
+
+  const pinMsgInHistory = (sessionId, msgId) => {
+    setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).map(s=>{
+      if(s.id!==sessionId) return s
+      const pins = s.pinnedMessages||[]
+      return {...s, pinnedMessages:pins.includes(msgId)?pins.filter(id=>id!==msgId):[...pins,msgId]}
+    })}))
+  }
+
+  const openContinue = (session) => {
+    setChatSession(session)
+    setShowChat(true)
+  }
+
+  return (
+    <div>
+      {showChat&&<AIChatModal
+        acct={acct} setAcct={setAcct} effectiveKey={effectiveKey}
+        onClose={()=>{setShowChat(false);setChatSession(null)}}
+        initialMessages={chatSession?chatSession.messages.map(m=>({...m,timestamp:new Date(m.timestamp)})):[]}
+        initialPinned={chatSession?.pinnedMessages||[]}
+        initialSessionId={chatSession?.id||null}
+      />}
+
+      {/* Search */}
+      <div style={{marginBottom:16}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search chat history...' style={{width:'100%',fontSize:13,padding:'8px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,boxSizing:'border-box'}}/>
+      </div>
+
+      {/* Pinned Answers */}
+      <div style={{marginBottom:24}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+          <span style={{fontSize:14,color:'#eab308'}}>★</span>
+          <div style={{fontSize:11,fontWeight:700,color:'#eab308',textTransform:'uppercase',letterSpacing:'0.1em'}}>Pinned Answers</div>
+        </div>
+        {allPinned.length===0
+          ?<div style={{fontSize:13,color:S.muted,padding:'16px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,lineHeight:1.6}}>No pinned answers yet. Star important AI responses to pin them here.</div>
+          :<div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {allPinned.map(({msg,session},i)=>(
+              <div key={i} style={{background:S.surf,border:'1px solid rgba(234,179,8,0.3)',borderLeft:'3px solid #eab308',borderRadius:8,padding:'12px 14px'}}>
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:8}}>
+                  <div style={{fontSize:10,color:'#eab308',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',flexShrink:0}}>★ Pinned</div>
+                  <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+                    <span style={{fontSize:10,color:S.muted}}>{fmtDate(session.date.split('T')[0])} — {session.title.slice(0,40)}{session.title.length>40?'…':''}</span>
+                    <button onClick={()=>unpinMsg(session.id,msg.id)} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:4,padding:'2px 8px',cursor:'pointer'}}>Unpin</button>
+                  </div>
+                </div>
+                <div style={{fontSize:13,color:S.txt,lineHeight:1.65,whiteSpace:'pre-wrap'}}>{msg.content}</div>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
+      {/* Chat History */}
+      <div>
+        <div style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Chat History{filteredSessions.length>0&&` — ${filteredSessions.length} session${filteredSessions.length!==1?'s':''}`}</div>
+        {filteredSessions.length===0&&<div style={{fontSize:13,color:S.muted,textAlign:'center',padding:'30px'}}>{sessions.length===0?'No chat history yet. Start a conversation in AI Intelligence.':'No sessions match your search.'}</div>}
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {filteredSessions.map(s=>{
+            const isExp = expanded===s.id
+            return (
+              <div key={s.id} style={{background:S.surf,border:`1px solid ${s.pinned?'rgba(234,179,8,0.35)':S.bdr}`,borderLeft:s.pinned?'3px solid #eab308':'3px solid transparent',borderRadius:8,overflow:'hidden'}}>
+                {/* Session header */}
+                <div style={{display:'flex',alignItems:'center',gap:8,padding:'11px 14px',cursor:'pointer'}} onClick={()=>setExpanded(isExp?null:s.id)}>
+                  <button onClick={e=>{e.stopPropagation();toggleSessionPin(s.id)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:15,padding:0,flexShrink:0,color:s.pinned?'#eab308':S.dim}}>{s.pinned?'★':'☆'}</button>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
+                    <div style={{fontSize:10,color:S.muted,marginTop:2}}>{fmtDate(s.date.split('T')[0])} · {s.messages.length} message{s.messages.length!==1?'s':''}{s.pinnedMessages?.length?` · ${s.pinnedMessages.length} pinned`:''}</div>
+                  </div>
+                  <div style={{display:'flex',gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>openContinue(s)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Continue Chat</button>
+                    <button onClick={()=>deleteSession(s.id)} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,padding:'4px 8px',cursor:'pointer'}}>Delete</button>
+                  </div>
+                  <span style={{color:S.dim,fontSize:12,flexShrink:0}}>{isExp?'▲':'▼'}</span>
+                </div>
+                {/* Expanded conversation */}
+                {isExp&&(
+                  <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 14px',display:'flex',flexDirection:'column',gap:10}}>
+                    {s.messages.map((msg,i)=>{
+                      const isUser=msg.role==='user'
+                      const isPinned=(s.pinnedMessages||[]).includes(msg.id)
+                      return (
+                        <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,flexDirection:isUser?'row-reverse':'row'}}>
+                          <div style={{width:24,height:24,borderRadius:'50%',background:isUser?S.blue:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:isUser?'#fff':S.purple,flexShrink:0}}>{isUser?'MC':'AI'}</div>
+                          <div style={{maxWidth:'80%',background:isUser?S.blue:S.surf2,border:isUser?'none':`1px solid ${isPinned?'#eab308':S.bdr}`,borderLeft:!isUser&&isPinned?'2px solid #eab308':undefined,borderRadius:isUser?'10px 10px 2px 10px':'10px 10px 10px 2px',padding:'7px 11px'}}>
+                            <div style={{fontSize:12,color:isUser?'#fff':S.txt,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{msg.content}</div>
+                            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:3,gap:8}}>
+                              <div style={{fontSize:9,color:isUser?'rgba(255,255,255,0.5)':S.muted}}>{fmtTime(msg.timestamp)}</div>
+                              {!isUser&&<button onClick={()=>pinMsgInHistory(s.id,msg.id)} style={{fontSize:10,color:isPinned?'#eab308':S.dim,background:'none',border:'none',cursor:'pointer',padding:0,flexShrink:0}}>{isPinned?'★':' ☆'}</button>}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2428,7 +2667,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'settings',label:'Settings'}]
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'settings',label:'Settings'}]
 
 export default function App() {
   const [data,setData] = useState(null)
@@ -2533,18 +2772,20 @@ export default function App() {
                 {t.label}
                 {t.id==='intel'&&acct.intelLog.length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{acct.intelLog.length}</span>}
                 {t.id==='followups'&&critHighCount>0&&<span style={{fontSize:10,fontWeight:700,background:S.red,color:'#fff',borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{critHighCount}</span>}
+                {t.id==='aihistory'&&(acct.aiHistory||[]).length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{(acct.aiHistory||[]).length}</span>}
               </button>
             ))}
           </div>
         </div>
         <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
-          {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab}/>}
+          {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
           {tab==='dashboard'&&<Dashboard acct={acct}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
+          {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
           {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme}/>}
         </div>
       </div>
