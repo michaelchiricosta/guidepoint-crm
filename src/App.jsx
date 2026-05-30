@@ -342,6 +342,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [showAddFU,setShowAddFU] = useState(false)
   const [showAIChat,setShowAIChat] = useState(false)
   const [showHealthModal,setShowHealthModal] = useState(false)
+  const [completingFU,setCompletingFU] = useState(null)
   const [hoveredCard,setHoveredCard] = useState(null)
   const [showAddDate,setShowAddDate] = useState(false)
   const [dateForm,setDateForm] = useState({title:'',date:'',type:'Meeting',notes:''})
@@ -564,117 +565,130 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
       {alerts.length>0&&(
-        <div style={{marginBottom:16}}>
-          {/* Header */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{display:'inline-flex',alignItems:'center',gap:8}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:'#ef4444',display:'inline-block',animation:'alertPulse 2s infinite',flexShrink:0}}/>
-              <span style={{fontSize:11,fontWeight:800,color:'#ef4444',letterSpacing:'0.12em',textTransform:'uppercase'}}>Alerts</span>
-              {visibleAlerts.length>0&&<span style={{background:'rgba(239,68,68,0.2)',color:'#ef4444',fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:999}}>{visibleAlerts.length}</span>}
-            </div>
-            {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 8px',cursor:'pointer',lineHeight:'18px'}}>Clear All</button>}
-          </div>
-          {/* Container */}
-          <div style={{background:visibleAlerts.length===0?(S.isLight?'#f0fdf4':'rgba(34,197,94,0.04)'):(S.isLight?'#fff5f5':'rgba(239,68,68,0.04)'),border:`1px solid ${visibleAlerts.length===0?(S.isLight?'#bbf7d0':'rgba(34,197,94,0.15)'):(S.isLight?'#fecaca':'rgba(239,68,68,0.15)')}`,borderLeft:`4px solid ${visibleAlerts.length===0?S.green:S.red}`,borderRadius:8,padding:'14px 14px 10px 14px'}}>
-            {visibleAlerts.length===0
-              ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'6px 0 4px'}}>
-                <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:6,fontSize:16,color:'#22c55e'}}>✓</div>
-                <div style={{fontSize:13,fontWeight:600,color:'#22c55e',marginBottom:3}}>No active alerts</div>
-                <div style={{fontSize:11,color:S.muted}}>All clear — no critical items need attention</div>
+        <div style={{marginBottom:20}}>
+          <div style={S.isLight?{background:'#ffffff',borderRadius:12,border:`1px solid ${visibleAlerts.length===0?'#bbf7d0':'#fecaca'}`,boxShadow:visibleAlerts.length===0?'0 2px 8px rgba(22,163,74,0.08)':'0 2px 8px rgba(220,38,38,0.08)',overflow:'hidden'}:{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
+            {/* Header inside container */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${visibleAlerts.length===0?(S.isLight?'#dcfce7':S.bdr):(S.isLight?'#fef2f2':S.bdr)}`}}>
+              <div style={{display:'inline-flex',alignItems:'center',gap:8}}>
+                <span style={{width:7,height:7,borderRadius:'50%',background:visibleAlerts.length===0?'#16a34a':'#dc2626',display:'inline-block',animation:'alertPulse 2s infinite',flexShrink:0}}/>
+                <span style={{fontSize:11,fontWeight:800,color:visibleAlerts.length===0?(S.isLight?'#16a34a':S.green):(S.isLight?'#dc2626':S.red),letterSpacing:'0.1em',textTransform:'uppercase'}}>Alerts</span>
+                {visibleAlerts.length>0&&<span style={{background:S.isLight?'#fee2e2':'rgba(239,68,68,0.2)',color:S.isLight?'#dc2626':'#ef4444',fontSize:11,fontWeight:700,padding:'1px 8px',borderRadius:999}}>{visibleAlerts.length}</span>}
               </div>
-              :<>{visibleAlerts.map(a=>{
-                const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
-                const isHov=hoveredAlert===a.id
-                const isSnoozeOpen=snoozeOpenFor===a.id
-                return (
-                  <div key={a.id} style={{position:'relative',marginBottom:5}}>
-                    <div
-                      onClick={()=>openAlertDetail(a)}
-                      onMouseEnter={()=>setHoveredAlert(a.id)}
-                      onMouseLeave={()=>setHoveredAlert(null)}
-                      style={{display:'flex',gap:10,padding:'10px 12px',background:isHov?(S.isLight?'#fef2f2':'rgba(255,255,255,0.03)'):(S.isLight?'#ffffff':'rgba(0,0,0,0.15)'),border:`1px solid ${S.isLight?'#fecaca':S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
-                      <span style={{color:c,flexShrink:0}}>!</span>
-                      <span style={{fontSize:14,color:S.secondary,flex:1}}>{a.text}</span>
-                      <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
-                      <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
-                        style={{background:'transparent',border:'none',color:isSnoozeOpen?S.blue:S.dim,cursor:'pointer',padding:'0 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center'}}>
-                        <Clock size={14}/>
-                      </button>
-                      <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
-                    </div>
-                    {isSnoozeOpen&&(
-                      <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:210,overflow:'hidden'}}>
-                        {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'3 Days from Now',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
-                          <button key={o.opt} onClick={()=>snooze(a.id,o.opt)}
-                            style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
-                            onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                            <Clock size={13} color={S.muted}/>
-                            <div>
-                              <div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div>
-                              <div style={{fontSize:10,color:S.muted}}>{o.sub}</div>
-                            </div>
-                          </button>
-                        ))}
+              {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:S.isLight?'#64748b':S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Clear All</button>}
+            </div>
+            {/* Alert rows / empty state */}
+            {visibleAlerts.length===0
+              ?<div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px'}}>
+                <div style={{width:28,height:28,borderRadius:'50%',background:S.isLight?'#dcfce7':'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:S.isLight?'#16a34a':'#22c55e',flexShrink:0}}>✓</div>
+                <div><div style={{fontSize:13,fontWeight:600,color:S.isLight?'#16a34a':S.green}}>No active alerts</div><div style={{fontSize:11,color:S.muted,marginTop:1}}>All clear — no critical items need attention</div></div>
+              </div>
+              :<div>
+                {visibleAlerts.map((a,i)=>{
+                  const c={critical:S.isLight?'#dc2626':S.red,high:S.isLight?'#ea580c':S.orange,medium:S.isLight?'#ca8a04':S.yellow}[a.level]||S.muted
+                  const isHov=hoveredAlert===a.id
+                  const isSnoozeOpen=snoozeOpenFor===a.id
+                  const isLast=i===visibleAlerts.length-1
+                  return (
+                    <div key={a.id} style={{position:'relative'}}>
+                      <div
+                        onClick={()=>openAlertDetail(a)}
+                        onMouseEnter={()=>setHoveredAlert(a.id)}
+                        onMouseLeave={()=>setHoveredAlert(null)}
+                        style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderBottom:isLast?'none':`1px solid ${S.isLight?'#fef2f2':S.bdr}`,background:isHov?(S.isLight?'#fef9f9':'rgba(255,255,255,0.03)'):'transparent',cursor:'pointer',transition:'background 0.1s'}}>
+                        {/* Colored severity bar */}
+                        <div style={{width:4,borderRadius:2,background:c,alignSelf:'stretch',flexShrink:0,minHeight:24}}/>
+                        <span style={{fontSize:13,color:S.isLight?'#374151':S.secondary,flex:1,lineHeight:1.5}}>{a.text}</span>
+                        <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:2}}>→ details</span>
+                        <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
+                          style={{background:'transparent',border:'none',color:isSnoozeOpen?c:S.dim,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center',borderRadius:4,transition:'color 0.15s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color=c}
+                          onMouseLeave={e=>e.currentTarget.style.color=isSnoozeOpen?c:S.dim}>
+                          <Clock size={13}/>
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert'
+                          style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'2px 4px',lineHeight:1,flexShrink:0,borderRadius:4,transition:'color 0.15s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color=c}
+                          onMouseLeave={e=>e.currentTarget.style.color=S.dim}>×</button>
                       </div>
-                    )}
-                  </div>
-                )
-              })}</>
+                      {isSnoozeOpen&&(
+                        <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:220,overflow:'hidden'}}>
+                          {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'3 Days from Now',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                            <button key={o.opt} onClick={()=>snooze(a.id,o.opt)}
+                              style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
+                              onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                              <Clock size={13} color={S.muted}/>
+                              <div><div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div><div style={{fontSize:10,color:S.muted}}>{o.sub}</div></div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             }
-            {showDismissed&&hiddenAlerts.map(a=>{
-              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
-              return (
-                <div key={a.id} style={{display:'flex',gap:10,padding:'8px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}55`,borderRadius:7,marginBottom:5,alignItems:'center',opacity:0.55}}>
-                  <span style={{color:c,flexShrink:0}}>!</span>
-                  <span style={{fontSize:13,color:S.muted,flex:1,textDecoration:'line-through'}}>{a.text}</span>
+            {/* Dismissed / snoozed rows */}
+            {showDismissed&&hiddenAlerts.length>0&&<div style={{borderTop:`1px solid ${S.bdr}`,padding:'8px 14px'}}>
+              {hiddenAlerts.map(a=>{
+                const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+                return <div key={a.id} style={{display:'flex',gap:8,padding:'6px 0',alignItems:'center',opacity:0.5}}>
+                  <div style={{width:3,borderRadius:2,background:c,alignSelf:'stretch',flexShrink:0,minHeight:16}}/>
+                  <span style={{fontSize:12,color:S.muted,flex:1,textDecoration:'line-through'}}>{a.text}</span>
                 </div>
-              )
-            })}
-            {showSnoozed&&snoozedAlertsList.map(a=>{
-              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
-              const entry=(acct.snoozedAlerts||[]).find(s=>s.id===a.id)
-              const untilStr=entry?new Date(entry.snoozedUntil).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''
-              return (
-                <div key={a.id} style={{display:'flex',gap:8,padding:'7px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}55`,borderRadius:7,marginBottom:4,alignItems:'center',opacity:0.65}}>
+              })}
+            </div>}
+            {showSnoozed&&snoozedAlertsList.length>0&&<div style={{borderTop:`1px solid ${S.bdr}`,padding:'8px 14px'}}>
+              {snoozedAlertsList.map(a=>{
+                const entry=(acct.snoozedAlerts||[]).find(s=>s.id===a.id)
+                const untilStr=entry?new Date(entry.snoozedUntil).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''
+                return <div key={a.id} style={{display:'flex',gap:8,padding:'6px 0',alignItems:'center',opacity:0.65}}>
                   <Clock size={12} color={S.muted}/>
                   <span style={{fontSize:12,color:S.muted,flex:1}}>{a.text}</span>
-                  <span style={{fontSize:10,color:S.muted,whiteSpace:'nowrap',flexShrink:0}}>Until {untilStr}</span>
+                  <span style={{fontSize:10,color:S.muted,flexShrink:0}}>Until {untilStr}</span>
                 </div>
-              )
-            })}
-            {hiddenAlerts.length>0&&(
-              <button onClick={()=>setShowDismissed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',textDecoration:'underline',marginTop:4,display:'block'}}>
-                {showDismissed?'Hide dismissed alerts':`${hiddenAlerts.length} alert${hiddenAlerts.length!==1?'s':''} hidden — show all`}
-              </button>
-            )}
-            {snoozedAlertsList.length>0&&(
-              <button onClick={()=>setShowSnoozed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',textDecoration:'underline',marginTop:4,display:'block'}}>
-                {showSnoozed?'Hide snoozed alerts':`${snoozedAlertsList.length} alert${snoozedAlertsList.length!==1?'s':''} snoozed — show all`}
-              </button>
-            )}
+              })}
+            </div>}
+            {/* Footer toggles */}
+            {(hiddenAlerts.length>0||snoozedAlertsList.length>0)&&<div style={{padding:'8px 16px',borderTop:`1px solid ${S.isLight?'#fef2f2':S.bdr}`,display:'flex',gap:12}}>
+              {hiddenAlerts.length>0&&<button onClick={()=>setShowDismissed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',textDecoration:'underline'}}>{showDismissed?'Hide dismissed':`${hiddenAlerts.length} dismissed`}</button>}
+              {snoozedAlertsList.length>0&&<button onClick={()=>setShowSnoozed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',textDecoration:'underline'}}>{showSnoozed?'Hide snoozed':`${snoozedAlertsList.length} snoozed`}</button>}
+            </div>}
           </div>
         </div>
       )}
-      <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:16,alignItems:'stretch'}}>
+      <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:20,alignItems:'stretch'}}>
         {/* Left: Account Profile */}
         <div style={{flex:1,display:'flex',flexDirection:'column'}}>
-          <SH>Account Profile</SH>
-          <Card style={{padding:'14px 16px',flex:1}}>
-            {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v])=>(
-              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13}}>
-                <span style={{color:S.muted}}>{k}</span><span style={{color:S.txt}}>{v||'—'}</span>
-              </div>
-            ))}
-          </Card>
+          <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flex:1,overflow:'hidden'}}>
+            {/* Card header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+              <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Account Profile</span>
+              <button title='Edit in Settings' onClick={()=>setTab&&setTab('settings')} style={{background:'none',border:'none',color:S.dim,cursor:'pointer',fontSize:13,padding:'2px 4px',borderRadius:4,lineHeight:1}}
+                onMouseEnter={e=>e.currentTarget.style.color=S.muted}
+                onMouseLeave={e=>e.currentTarget.style.color=S.dim}>✏</button>
+            </div>
+            <div style={{padding:'4px 16px 8px'}}>
+              {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v],i,arr)=>(
+                <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<arr.length-1?`1px solid ${S.isLight?'#f8fafc':S.bdr}`:'none',cursor:'default',transition:'background 0.1s',borderRadius:4,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
+                  onMouseEnter={e=>{if(S.isLight)e.currentTarget.style.background='#f8fafc'}}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{fontSize:12,fontWeight:500,color:'#94a3b8',flexShrink:0}}>{k}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:'#0f172a',textAlign:'right',marginLeft:12,wordBreak:'break-word',maxWidth:'60%'}}>{v||'—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         {/* Right: Upcoming Dates */}
         <div style={{flex:1,display:'flex',flexDirection:'column'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase'}}>📅 Upcoming Dates</div>
-            <button onClick={()=>setShowAddDate(v=>!v)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'3px 9px',cursor:'pointer',fontWeight:600}}>+ Add Date</button>
-          </div>
-          <Card style={{padding:'12px 14px',flex:1}}>
+          <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+            {/* Card header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`,flexShrink:0}}>
+              <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Upcoming Dates</span>
+              <button onClick={()=>setShowAddDate(v=>!v)} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:0,display:'flex',alignItems:'center',gap:2}}>+ Add Date</button>
+            </div>
+          <div style={{padding:'4px 16px 8px',flex:1}}>
             {showAddDate&&(
               <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'10px 12px',marginBottom:10}}>
                 <div style={{marginBottom:6}}>
@@ -696,26 +710,37 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               </div>
             )}
             {upcomingItems.length===0
-              ?<div style={{fontSize:12,color:S.dim,lineHeight:1.7,padding:'6px 0'}}>No upcoming dates within 120 days. Add a meeting, renewal, or important note using the + Add Date button.</div>
+              ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px',gap:8}}>
+                <div style={{fontSize:24,opacity:0.3}}>📅</div>
+                <div style={{fontSize:12,color:S.muted,textAlign:'center',lineHeight:1.6}}>No upcoming dates within 120 days.<br/>Click + Add Date to add one.</div>
+              </div>
               :<>
-                {(showMoreDates?upcomingItems:upcomingItems.slice(0,8)).map(item=>{
-                  const relLabel=item.days===0?'Today':item.days===1?'Tomorrow':item.days<0?`${Math.abs(item.days)}d ago`:item.days<=30?`In ${item.days}d`:fmtDate(item.date)
-                  const relColor=item.days<0?S.red:item.days<=1?S.orange:S.muted
+                {(showMoreDates?upcomingItems:upcomingItems.slice(0,8)).map((item,idx,arr)=>{
+                  const relLabel=item.days===0?'Today':item.days===1?'Tomorrow':item.days<0?`${Math.abs(item.days)}d ago`:item.days<=30?`in ${item.days}d`:fmtDate(item.date)
+                  const relColor=item.days<0?(S.isLight?'#dc2626':S.red):item.days<=1?(S.isLight?'#ea580c':S.orange):S.muted
+                  const urgColor=item.days<0?(S.isLight?'#dc2626':S.red):item.days<=30?(S.isLight?'#ea580c':S.orange):item.days<=90?(S.isLight?'#ca8a04':S.yellow):(S.isLight?'#16a34a':S.green)
                   const isExp=expandedDateId===item.id
+                  const isLast=idx===arr.length-1
                   const fld={width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box',fontFamily:'inherit'}
                   return (
                     <div key={item.id}>
-                      <div style={{position:'relative',display:'flex',alignItems:'center',gap:8,padding:'6px 2px',borderBottom:isExp?'none':`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s',borderRadius:4,background:isExp?S.surf2:'transparent'}}
+                      <div style={{position:'relative',display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:isExp?'none':(isLast?'none':`1px solid ${S.isLight?'#f8fafc':S.bdr}`),cursor:'pointer',transition:'background 0.1s',borderRadius:6,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
                         onClick={()=>toggleDateExpand(item)}
-                        onMouseEnter={e=>{setHoveredDateId(item.id);e.currentTarget.style.background=S.surf2}}
-                        onMouseLeave={e=>{setHoveredDateId(null);if(!isExp)e.currentTarget.style.background='transparent'}}>
-                        <div style={{width:8,height:8,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
+                        onMouseEnter={e=>{setHoveredDateId(item.id);if(S.isLight)e.currentTarget.style.background='#f8fafc'}}
+                        onMouseLeave={e=>{setHoveredDateId(null);e.currentTarget.style.background='transparent'}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:urgColor,flexShrink:0}}/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}><span style={{marginRight:4,fontSize:11}}>{typeIcon(item.source)}</span>{item.label}</div>
-                          <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
+                          <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:2}}>{item.label}</div>
+                          <div style={{display:'flex',alignItems:'center',gap:6}}>
+                            <Badge label={item.source} color={S.muted} bg={S.isLight?'#f1f5f9':S.surf2} size={9}/>
+                            {item.notes&&<span style={{fontSize:10,color:S.dim,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>{item.notes}</span>}
+                          </div>
                         </div>
-                        <div style={{fontSize:11,fontWeight:600,color:relColor,flexShrink:0,minWidth:56,textAlign:'right'}}>{relLabel}</div>
-                        <span style={{fontSize:10,color:S.dim,flexShrink:0}}>{isExp?'▲':'▼'}</span>
+                        <div style={{textAlign:'right',flexShrink:0}}>
+                          <div style={{fontSize:12,fontWeight:500,color:S.isLight?'#64748b':S.muted}}>{new Date(item.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+                          <div style={{fontSize:10,fontWeight:600,color:relColor,marginTop:1}}>{relLabel}</div>
+                        </div>
+                        <span style={{fontSize:11,color:hoveredDateId===item.id?S.muted:S.isLight?'#f1f5f9':S.bdr,transition:'color 0.15s',flexShrink:0}}>›</span>
                       </div>
                       {isExp&&(
                         <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderBottom:`1px solid ${S.bdr}`,borderTop:`1px solid ${S.bdr}`,padding:'10px 10px 8px',marginBottom:2}} onClick={e=>e.stopPropagation()}>
@@ -761,21 +786,76 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                   )
                 })}
                 {upcomingItems.length>8&&(
-                  <button onClick={()=>setShowMoreDates(v=>!v)} style={{fontSize:11,color:S.blue,background:'transparent',border:'none',cursor:'pointer',padding:'6px 0 2px',fontWeight:600,display:'block'}}>
+                  <button onClick={()=>setShowMoreDates(v=>!v)} style={{fontSize:11,color:S.blue,background:'transparent',border:'none',cursor:'pointer',padding:'8px 0 2px',fontWeight:600,display:'block'}}>
                     {showMoreDates?'Show less':`Show ${upcomingItems.length-8} more`}
                   </button>
                 )}
               </>
             }
-          </Card>
+          </div>
+          </div>
         </div>
       </div>
-      <SH>Priority Follow-Ups</SH>
-      {openFU.sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)).slice(0,5).map(f=>{
-        const p=PC[f.priority]||PC.Low
-        return <div key={f.id} style={{display:'flex',gap:8,padding:'9px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:7,marginBottom:5}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{f.task}</div><div style={{fontSize:11,color:S.muted}}>{f.contact&&f.contact+' · '}{fmtDate(f.dueDate)||'No date set'}</div></div><Badge label={f.priority} color={p.c} bg={p.b}/></div>
-      })}
-      {(()=>{const qw=getQuickWin(acct);return qw?(<div style={{marginTop:16}}><SH>Quick Win</SH><div style={{padding:'14px 16px',background:S.surf2,border:`1px solid ${qw.color}44`,borderLeft:`4px solid ${qw.color}`,borderRadius:8}}><div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:4}}>{qw.title}</div><div style={{fontSize:12,color:S.muted,marginBottom:10,lineHeight:1.5}}>{qw.meta}</div>{setTab&&<Btn onClick={()=>setTab(qw.tab)} style={{fontSize:12,padding:'5px 12px',background:qw.color,color:'#fff',border:'none'}}>{qw.cta} →</Btn>}</div></div>):null})()}
+
+      {/* ── PRIORITY FOLLOW-UPS ── */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Priority Follow-Ups</span>
+          {setTab&&<button onClick={()=>setTab('followups')} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:0}}>View All →</button>}
+        </div>
+        {openFU.length===0&&<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',background:S.isLight?'#f0fdf4':S.surf,borderRadius:10,border:`1px solid ${S.isLight?'#bbf7d0':S.bdr}`}}><span style={{color:S.isLight?'#16a34a':S.green,fontSize:16}}>✓</span><span style={{fontSize:13,color:S.isLight?'#16a34a':S.green,fontWeight:600}}>All follow-ups complete — great work!</span></div>}
+        {[...openFU].sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)).slice(0,5).map(f=>{
+          const p=PC[f.priority]||PC.Low
+          const d=f.dueDate?daysUntil(f.dueDate):null
+          const isOverdue=d!==null&&d<0
+          const dateColor=d===null?(S.isLight?'#94a3b8':S.muted):d<0?(S.isLight?'#dc2626':S.red):d<=3?(S.isLight?'#ea580c':S.orange):(S.isLight?'#94a3b8':S.muted)
+          const dateLabel=d===null?'No date set':d<0?`${Math.abs(d)}d overdue`:d===0?'Due today':`Due ${fmtDate(f.dueDate)}`
+          const isCompleting=completingFU===f.id
+          return (
+            <div key={f.id}
+              style={{background:isCompleting?S.isLight?'#f0fdf4':S.surf2:(isOverdue&&S.isLight?'#fff5f5':'#ffffff'),borderRadius:10,border:`1px solid ${isOverdue&&S.isLight?'#fecaca':S.bdr}`,padding:'12px 14px 12px 18px',marginBottom:6,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',display:'flex',alignItems:'center',gap:10,transition:'all 0.25s',position:'relative',overflow:'hidden',opacity:isCompleting?0.4:1,transform:isCompleting?'translateX(16px)':'translateX(0)'}}
+              onMouseEnter={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 4px 12px rgba(0,0,0,0.08)':'0 2px 8px rgba(0,0,0,0.2)';e.currentTarget.style.transform='translateY(-1px)'}}}
+              onMouseLeave={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none';e.currentTarget.style.transform='translateY(0)'}}}>
+              {/* Left accent bar */}
+              <div style={{position:'absolute',left:0,top:0,bottom:0,width:4,background:p.c,borderRadius:'10px 0 0 10px'}}/>
+              {/* Checkbox */}
+              <button
+                onClick={()=>{setCompletingFU(f.id);setTimeout(()=>{setAcct(prev=>({...prev,followUps:prev.followUps.map(fu=>fu.id===f.id?{...fu,status:'Done'}:fu)}));setCompletingFU(null)},280)}}
+                style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background=p.c+'22'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}
+                title='Mark complete'/>
+              {/* Content */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.task}</div>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  {f.contact&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted}}>👤 {f.contact}</span>}
+                  <span style={{fontSize:11,color:dateColor,fontWeight:isOverdue?600:400}}>📅 {dateLabel}</span>
+                </div>
+              </div>
+              <Badge label={f.priority} color={p.c} bg={p.b}/>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── QUICK WIN ── */}
+      {(()=>{
+        const qw=getQuickWin(acct)
+        return qw?(
+          <div style={{marginBottom:20,background:S.isLight?'linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)':'linear-gradient(135deg,rgba(59,130,246,0.08) 0%,rgba(59,130,246,0.03) 100%)',border:`1px solid ${S.isLight?'#bfdbfe':S.bdr}`,borderRadius:12,padding:'16px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+              <span style={{fontSize:14,color:S.isLight?'#2563eb':S.blue}}>⚡</span>
+              <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#1d4ed8':S.blue,letterSpacing:'0.1em',textTransform:'uppercase'}}>Quick Win</span>
+            </div>
+            <div style={{fontSize:14,fontWeight:600,color:S.isLight?'#1e3a5f':S.txt,marginBottom:4,lineHeight:1.4}}>{qw.title}</div>
+            <div style={{fontSize:12,color:S.isLight?'#3b82f6':S.muted,marginBottom:12,lineHeight:1.5}}>{qw.meta}</div>
+            {setTab&&<button onClick={()=>setTab(qw.tab)} style={{padding:'6px 14px',background:S.isLight?'#2563eb':S.blue,border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',transition:'background 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#1d4ed8'}
+              onMouseLeave={e=>e.currentTarget.style.background=S.isLight?'#2563eb':S.blue}>Take Action →</button>}
+          </div>
+        ):null
+      })()}
 
       {/* Alert detail modal */}
       {alertModal&&(()=>{
