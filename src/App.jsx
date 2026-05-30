@@ -1036,6 +1036,21 @@ function Contacts({acct,setAcct}) {
   const [contextMenu,setContextMenu] = useState(null)
   const [canvasSize,setCanvasSize] = useState({w:800,h:480})
   const canvasRef = useRef(null)
+  const chartContentRef = useRef(null)
+  // Zoom / pan
+  const [zoom,setZoom] = useState(1)
+  const [pan,setPan] = useState({x:0,y:0})
+  const [isPanning,setIsPanning] = useState(false)
+  const [panStart,setPanStart] = useState(null)
+  const [pinchStartDist,setPinchStartDist] = useState(null)
+  const [pinchStartZoom,setPinchStartZoom] = useState(1)
+  // Node detail popover & export
+  const [openDetailNode,setOpenDetailNode] = useState(null)
+  const [exportDropdown,setExportDropdown] = useState(false)
+  const [exportToast,setExportToast] = useState(null)
+  // Ref bundle so touch/wheel handlers always see latest state
+  const orgStateRef = useRef({})
+  useEffect(()=>{ orgStateRef.current = {zoom,pan,panStart,pinchStartDist,pinchStartZoom} })
 
   useEffect(()=>{
     if(!canvasRef.current||contactView!=='orgchart')return
@@ -1050,6 +1065,43 @@ function Contacts({acct,setAcct}) {
     document.addEventListener('click',h)
     return()=>document.removeEventListener('click',h)
   },[contextMenu])
+
+  // Mouse-wheel zoom (needs passive:false)
+  useEffect(()=>{
+    if(contactView!=='orgchart'||!canvasRef.current)return
+    const canvas=canvasRef.current
+    const onWheel=e=>{
+      e.preventDefault()
+      const delta=e.ctrlKey?-e.deltaY*0.01:-e.deltaY*0.001
+      const rect=canvas.getBoundingClientRect()
+      const mx=e.clientX-rect.left, my=e.clientY-rect.top
+      setZoom(z=>{
+        const nz=Math.max(0.25,Math.min(3,z+delta))
+        setPan(p=>({x:mx-(mx-p.x)/z*nz, y:my-(my-p.y)/z*nz}))
+        return nz
+      })
+    }
+    canvas.addEventListener('wheel',onWheel,{passive:false})
+    return()=>canvas.removeEventListener('wheel',onWheel)
+  },[contactView])
+
+  // Keyboard shortcuts
+  useEffect(()=>{
+    if(contactView!=='orgchart')return
+    const h=e=>{
+      if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return
+      if(e.key==='+'||e.key==='=')setZoom(z=>Math.min(3,z+0.1))
+      if(e.key==='-')setZoom(z=>Math.max(0.25,z-0.1))
+      if(e.key==='0'){setZoom(1);setPan({x:0,y:0})}
+      if(e.key==='ArrowLeft')setPan(p=>({...p,x:p.x+30}))
+      if(e.key==='ArrowRight')setPan(p=>({...p,x:p.x-30}))
+      if(e.key==='ArrowUp')setPan(p=>({...p,y:p.y+30}))
+      if(e.key==='ArrowDown')setPan(p=>({...p,y:p.y-30}))
+      if(e.key==='Escape'){setOpenDetailNode(null);setExportDropdown(false)}
+    }
+    window.addEventListener('keydown',h)
+    return()=>window.removeEventListener('keydown',h)
+  },[contactView])
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',internalMeetings:[]}
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -1270,12 +1322,14 @@ function Contacts({acct,setAcct}) {
     e.preventDefault()
     if(!dragState||!canvasRef.current)return
     const rect=canvasRef.current.getBoundingClientRect()
-    const dropX=e.clientX-rect.left
-    const dropY=e.clientY-rect.top
-    const pctX=Math.max(1,Math.min(88,(dropX-dragState.offX)/rect.width*100))
-    const pctY=Math.max(1,Math.min(85,(dropY-dragState.offY)/rect.height*100))
+    const dropX=e.clientX-rect.left, dropY=e.clientY-rect.top
+    // Convert screen drop position to content-div pixel coordinates
+    const contentX=(dropX-dragState.offX-pan.x)/zoom
+    const contentY=(dropY-dragState.offY-pan.y)/zoom
+    const pctX=Math.max(1,Math.min(88,contentX/canvasSize.w*100))
+    const pctY=Math.max(1,Math.min(85,contentY/canvasSize.h*100))
     if(dragState.type==='tray-chip'){
-      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null}])
+      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null,gradientId:'blue'}])
     } else if(dragState.type==='chart-node'){
       saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,x:pctX,y:pctY}:n))
     }
@@ -1301,7 +1355,65 @@ function Contacts({acct,setAcct}) {
     return <path key={`${n.contactId}-l`} d={`M ${cx} ${cy} C ${cx} ${midY} ${px} ${midY} ${px} ${py}`} fill="none" stroke="#bbc2ff" strokeWidth="2"/>
   }
 
-  const NODE_GRAD = 'linear-gradient(135deg,#a9a8ff 0%,#3c90ff 100%)'
+  const ORG_GRADIENTS = [
+    {id:'blue',  label:'Blue / Purple', gradient:'linear-gradient(135deg,#a9a8ff 0%,#3c90ff 100%)', shadow:'rgba(60,144,255,0.35)'},
+    {id:'pink',  label:'Pink / Red',    gradient:'linear-gradient(135deg,#ff63a0 0%,#fc413d 100%)', shadow:'rgba(252,65,61,0.35)'},
+    {id:'orange',label:'Orange / Yellow',gradient:'linear-gradient(135deg,#fc5c30 0%,#ffdb0f 100%)',shadow:'rgba(252,92,48,0.35)'},
+    {id:'green', label:'Green',          gradient:'linear-gradient(135deg,#60d673 0%,#0ebc5f 100%)', shadow:'rgba(14,188,95,0.35)'},
+  ]
+  const getGrad = n => ORG_GRADIENTS.find(g=>g.id===(n.gradientId||'blue'))||ORG_GRADIENTS[0]
+
+  const fitToScreen = () => {
+    if(orgNodes.length===0){setZoom(1);setPan({x:0,y:0});return}
+    const nW=NODE_W,nH=NODE_H,pad=40
+    const xs=orgNodes.map(n=>n.x/100*canvasSize.w),ys=orgNodes.map(n=>n.y/100*canvasSize.h)
+    const minX=Math.min(...xs),maxX=Math.max(...xs)+nW,minY=Math.min(...ys),maxY=Math.max(...ys)+nH
+    const cw=maxX-minX,ch=maxY-minY
+    if(cw===0||ch===0)return
+    const nz=Math.min((canvasSize.w-pad*2)/cw,(canvasSize.h-pad*2)/ch,2)
+    setZoom(nz)
+    setPan({x:(canvasSize.w-cw*nz)/2-minX*nz, y:(canvasSize.h-ch*nz)/2-minY*nz})
+  }
+
+  const doExport = async type => {
+    setExportDropdown(false)
+    setExportToast('Generating export…')
+    const prevZoom=zoom,prevPan={...pan}
+    try {
+      setZoom(1);setPan({x:0,y:0})
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))
+      const h2c=(await import('html2canvas')).default
+      const canvas=await h2c(chartContentRef.current,{backgroundColor:'#f8fafc',scale:2,useCORS:true,logging:false})
+      if(type==='jpeg'){
+        canvas.toBlob(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${acct.name}-org-chart.jpg`;a.click();URL.revokeObjectURL(url)},'image/jpeg',0.95)
+      } else {
+        const jsPDF=(await import('jspdf')).default
+        const imgData=canvas.toDataURL('image/jpeg',0.95)
+        const pdf=new jsPDF({orientation:'landscape',unit:'px',format:[canvas.width,canvas.height]})
+        pdf.addImage(imgData,'JPEG',0,0,canvas.width,canvas.height)
+        pdf.save(`${acct.name}-org-chart.pdf`)
+      }
+      setZoom(prevZoom);setPan(prevPan)
+      setExportToast(null)
+    } catch(err){
+      console.error(err)
+      setZoom(prevZoom);setPan(prevPan)
+      setExportToast('Export failed — try again')
+      setTimeout(()=>setExportToast(null),3000)
+    }
+  }
+
+  // Touch handlers using ref bundle to avoid stale closures
+  const handleTouchStart = e => {
+    if(e.touches.length===1){const t=e.touches[0];setPanStart({x:t.clientX-orgStateRef.current.pan.x,y:t.clientY-orgStateRef.current.pan.y})}
+    else if(e.touches.length===2){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;setPinchStartDist(Math.hypot(dx,dy));setPinchStartZoom(orgStateRef.current.zoom);setPanStart(null)}
+  }
+  const handleTouchMove = e => {
+    const {panStart:ps,pinchStartDist:psd,pinchStartZoom:psz}=orgStateRef.current
+    if(e.touches.length===1&&ps){const t=e.touches[0];setPan({x:t.clientX-ps.x,y:t.clientY-ps.y})}
+    else if(e.touches.length===2&&psd){const dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;setZoom(Math.max(0.25,Math.min(3,psz*(Math.hypot(dx,dy)/psd))))}
+  }
+  const handleTouchEnd = () => {setPanStart(null);setPinchStartDist(null)}
 
   return (
     <div>
@@ -1395,84 +1507,173 @@ function Contacts({acct,setAcct}) {
       {/* ── ORG CHART VIEW ── */}
       {contactView==='orgchart'&&(
         <div>
-          {/* Controls */}
-          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12}}>
+          {/* Export toast */}
+          {exportToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(15,23,42,0.9)',color:'#fff',padding:'9px 20px',borderRadius:8,fontSize:13,fontWeight:600,zIndex:9999,pointerEvents:'none'}}>{exportToast}</div>}
+
+          {/* Controls bar */}
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
             <button onClick={autoLayout} style={{padding:'6px 14px',background:S.isLight?'#eff6ff':'rgba(59,130,246,0.15)',border:`1px solid ${S.isLight?'#bfdbfe':'rgba(59,130,246,0.3)'}`,borderRadius:7,color:S.blue,fontSize:12,fontWeight:600,cursor:'pointer'}}>⚡ Auto Layout</button>
-            <button onClick={()=>{if(window.confirm('Move all nodes back to unassigned?'))saveOrgNodes([])}} style={{padding:'6px 14px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:7,color:S.red,fontSize:12,fontWeight:600,cursor:'pointer'}}>✕ Clear Chart</button>
+            <button onClick={()=>{if(window.confirm('Move all nodes back to unassigned?'))saveOrgNodes([])}} style={{padding:'6px 14px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:7,color:S.red,fontSize:12,fontWeight:600,cursor:'pointer'}}>✕ Clear</button>
             <span style={{fontSize:11,color:S.muted,marginLeft:'auto'}}>{orgNodes.length} placed · {unassigned.length} unassigned</span>
           </div>
 
-          {/* Canvas */}
+          {/* Canvas outer — handles pan and drop */}
           <div ref={canvasRef}
             style={{position:'relative',height:480,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
               backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',
               backgroundSize:'24px 24px',
-              backgroundColor:S.isLight?'#f8fafc':S.surf2}}
+              backgroundColor:S.isLight?'#f8fafc':S.surf2,
+              cursor:isPanning?'grabbing':'default',
+              touchAction:'none',userSelect:'none'}}
             onDragOver={e=>e.preventDefault()}
-            onDrop={handleCanvasDrop}>
+            onDrop={handleCanvasDrop}
+            onMouseDown={e=>{
+              if(e.target===canvasRef.current||e.target===chartContentRef.current){
+                e.preventDefault()
+                setIsPanning(true)
+                setPanStart({x:e.clientX-pan.x,y:e.clientY-pan.y})
+                setOpenDetailNode(null)
+                setExportDropdown(false)
+              }
+            }}
+            onMouseMove={e=>{if(!isPanning||!panStart)return;setPan({x:e.clientX-panStart.x,y:e.clientY-panStart.y})}}
+            onMouseUp={()=>{setIsPanning(false)}}
+            onMouseLeave={()=>setIsPanning(false)}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}>
 
-            {/* SVG connection lines */}
-            <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
-              width={canvasSize.w} height={canvasSize.h}>
-              {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
-            </svg>
+            {/* Zoom controls — fixed to canvas, outside transform */}
+            <div style={{position:'absolute',top:10,right:10,zIndex:20,display:'flex',alignItems:'center',gap:1,background:S.surf,borderRadius:10,boxShadow:'0 2px 8px rgba(0,0,0,0.12)',border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
+              {[
+                {label:'−',onClick:()=>setZoom(z=>Math.max(0.25,z-0.1))},
+                {label:`${Math.round(zoom*100)}%`,onClick:null,style:{minWidth:44,textAlign:'center',fontSize:11,fontWeight:700,color:S.txt,padding:'6px 4px',cursor:'default',background:'transparent',border:'none'}},
+                {label:'+',onClick:()=>setZoom(z=>Math.min(3,z+0.1))},
+              ].map((b,i)=>(
+                <button key={i} onClick={b.onClick||undefined} style={{...(b.style||{}),padding:b.style?undefined:'6px 10px',background:'transparent',border:'none',borderRight:i<2?`1px solid ${S.bdr}`:'none',color:S.secondary,fontSize:13,fontWeight:600,cursor:b.onClick?'pointer':'default',minHeight:32,lineHeight:1}}>{b.label}</button>
+              ))}
+              <button onClick={fitToScreen} title='Fit to screen' style={{padding:'6px 10px',background:'transparent',border:`none`,borderLeft:`1px solid ${S.bdr}`,color:S.secondary,fontSize:13,cursor:'pointer',minHeight:32}}>⊡</button>
+              <div style={{position:'relative',borderLeft:`1px solid ${S.bdr}`}}>
+                <button onClick={()=>setExportDropdown(v=>!v)} style={{padding:'6px 10px',background:'transparent',border:'none',color:S.blue,fontSize:11,fontWeight:600,cursor:'pointer',minHeight:32,display:'flex',alignItems:'center',gap:4}}>⬇ Export</button>
+                {exportDropdown&&(
+                  <div style={{position:'absolute',right:0,top:'calc(100% + 4px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:160,zIndex:100}}>
+                    {[{label:'Download as JPEG',type:'jpeg'},{label:'Download as PDF',type:'pdf'}].map(({label,type})=>(
+                      <button key={type} onClick={()=>doExport(type)} style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:type==='jpeg'?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:12,cursor:'pointer',textAlign:'left'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{label}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* Nodes */}
-            {orgNodes.map(n=>{
-              const c=allContacts.find(x=>x.id===n.contactId)
-              if(!c)return null
-              const isRoot=orgNodes[0]?.contactId===n.contactId&&!n.parentId
-              const isOver=dragOverNode===n.contactId
+            {/* Transformed content div — all chart content lives here */}
+            <div ref={chartContentRef}
+              style={{position:'absolute',width:canvasSize.w,height:canvasSize.h,
+                transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'0 0'}}>
+
+              {/* SVG connection lines */}
+              <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+                width={canvasSize.w} height={canvasSize.h}>
+                {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
+              </svg>
+
+              {/* Chart nodes */}
+              {orgNodes.map(n=>{
+                const c=allContacts.find(x=>x.id===n.contactId)
+                if(!c)return null
+                const isRoot=orgNodes[0]?.contactId===n.contactId&&!n.parentId
+                const isOver=dragOverNode===n.contactId
+                const grad=getGrad(n)
+                return (
+                  <div key={n.contactId}
+                    draggable
+                    onDragStart={e=>{
+                      const rect=e.currentTarget.getBoundingClientRect()
+                      setDragState({type:'chart-node',contactId:n.contactId,offX:e.clientX-rect.left,offY:e.clientY-rect.top})
+                      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',n.contactId)
+                      setTimeout(()=>setDragOverNode(null),0)
+                    }}
+                    onDragEnd={()=>{setDragState(null);setDragOverNode(null)}}
+                    onDragOver={e=>{e.preventDefault();e.stopPropagation();setDragOverNode(n.contactId)}}
+                    onDragLeave={()=>setDragOverNode(null)}
+                    onDrop={e=>handleNodeDrop(e,n.contactId)}
+                    onClick={e=>{e.stopPropagation();setOpenDetailNode(openDetailNode===n.contactId?null:n.contactId);setExportDropdown(false)}}
+                    onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
+                    style={{position:'absolute',left:`${n.x}%`,top:`${n.y}%`,width:NODE_W,
+                      background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',
+                      cursor:'grab',border:isRoot?'2px solid #fbbf24':'none',
+                      boxShadow:isOver?`0 0 0 3px #2563eb, 0 8px 24px ${grad.shadow}`:`0 4px 16px ${grad.shadow}`,
+                      transition:'box-shadow 0.15s, transform 0.15s',
+                      transform:isOver?'scale(1.05)':'scale(1)',
+                      userSelect:'none',zIndex:openDetailNode===n.contactId?15:isOver?10:1}}>
+                    <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px'}}>{initials(c.name)}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                    <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
+                    {isRoot&&<div style={{fontSize:8,color:'#fde68a',textAlign:'center',marginTop:3,fontWeight:600}}>★ Primary</div>}
+                  </div>
+                )
+              })}
+
+              {/* Empty state */}
+              {orgNodes.length===0&&(
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,pointerEvents:'none'}}>
+                  <div style={{fontSize:32,opacity:0.2}}>🗂️</div>
+                  <div style={{fontSize:14,fontWeight:600,color:S.muted}}>Drag contacts from below to build the chart</div>
+                  <div style={{fontSize:12,color:S.dim}}>or click Auto Layout to arrange automatically</div>
+                </div>
+              )}
+            </div>
+
+            {/* Node detail popover — lives outside transform, positioned in screen space */}
+            {openDetailNode&&(()=>{
+              const n=orgNodes.find(x=>x.contactId===openDetailNode)
+              const c=allContacts.find(x=>x.id===openDetailNode)
+              if(!n||!c)return null
+              const grad=getGrad(n)
+              const nx=n.x/100*canvasSize.w*zoom+pan.x
+              const ny=n.y/100*canvasSize.h*zoom+pan.y
+              const popW=228
+              const flipsLeft=nx+NODE_W*zoom+popW+16>canvasSize.w
+              const popLeft=flipsLeft?nx-popW-8:nx+NODE_W*zoom+8
+              const popTop=Math.max(8,Math.min(ny,canvasSize.h-320))
               const inf=IC[c.influence]||{c:S.muted,b:S.surf2}
+              const relColor=(relC[c.relStatus]||S.muted)
               return (
-                <div key={n.contactId}
-                  draggable
-                  onDragStart={e=>{
-                    const rect=e.currentTarget.getBoundingClientRect()
-                    const cRect=canvasRef.current.getBoundingClientRect()
-                    setDragState({type:'chart-node',contactId:n.contactId,offX:e.clientX-rect.left,offY:e.clientY-rect.top})
-                    e.dataTransfer.effectAllowed='move'
-                    e.dataTransfer.setData('text/plain',n.contactId)
-                    // prevent canvas drop from taking over when releasing on a node
-                    setTimeout(()=>setDragOverNode(null),0)
-                  }}
-                  onDragEnd={()=>{setDragState(null);setDragOverNode(null)}}
-                  onDragOver={e=>{e.preventDefault();e.stopPropagation();setDragOverNode(n.contactId)}}
-                  onDragLeave={()=>setDragOverNode(null)}
-                  onDrop={e=>handleNodeDrop(e,n.contactId)}
-                  onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
-                  style={{
-                    position:'absolute',
-                    left:`${n.x}%`,top:`${n.y}%`,
-                    width:NODE_W,
-                    background:NODE_GRAD,
-                    borderRadius:14,
-                    padding:'8px 10px 10px',
-                    cursor:'grab',
-                    border:isRoot?'2px solid #fbbf24':'none',
-                    boxShadow:isOver?'0 0 0 3px #2563eb, 0 8px 24px rgba(60,144,255,0.5)':'0 4px 16px rgba(60,144,255,0.35)',
-                    transition:'box-shadow 0.15s, transform 0.15s',
-                    transform:isOver?'scale(1.05)':'scale(1)',
-                    userSelect:'none',
-                    zIndex:isOver?10:1,
-                  }}>
-                  {/* Avatar */}
-                  <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',flexShrink:0}}>{initials(c.name)}</div>
-                  <div style={{fontSize:11,fontWeight:700,color:'#ffffff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
-                  <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
-                  {isRoot&&<div style={{fontSize:8,color:'#fde68a',textAlign:'center',marginTop:3,fontWeight:600}}>★ Primary</div>}
+                <div onClick={e=>e.stopPropagation()}
+                  style={{position:'absolute',left:popLeft,top:popTop,width:popW,zIndex:30,
+                    background:S.surf,borderRadius:12,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',
+                    border:`1px solid ${S.bdr}`,padding:14}}>
+                  {/* Close */}
+                  <button onClick={()=>setOpenDetailNode(null)} style={{position:'absolute',top:8,right:8,background:'none',border:'none',color:S.dim,cursor:'pointer',fontSize:16,lineHeight:1}}>×</button>
+                  {/* Name / title */}
+                  <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:2,paddingRight:20}}>{c.name}</div>
+                  <div style={{fontSize:11,color:S.muted,marginBottom:6}}>{c.title}</div>
+                  {/* LinkedIn */}
+                  {c.linkedin&&<a href={c.linkedin} target='_blank' rel='noopener noreferrer' style={{fontSize:11,color:S.blue,display:'block',marginBottom:6,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>🔗 LinkedIn</a>}
+                  {/* Badges */}
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:4}}>
+                    {c.influence&&<Badge label={c.influence} color={inf.c} bg={inf.b} size={9}/>}
+                    {c.relStatus&&<Badge label={c.relStatus} color={relColor} bg={relColor+'22'} size={9}/>}
+                  </div>
+                  {c.lastInteracted&&<div style={{fontSize:10,color:S.muted,marginBottom:8}}>Last: {fmtDate(c.lastInteracted)}</div>}
+                  {/* Divider */}
+                  <div style={{height:1,background:S.isLight?'#f1f5f9':S.bdr,marginBottom:10}}/>
+                  {/* Color picker */}
+                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Node Color</div>
+                  <div style={{display:'flex',gap:6}}>
+                    {ORG_GRADIENTS.map(g=>{
+                      const sel=g.id===(n.gradientId||'blue')
+                      return (
+                        <button key={g.id} title={g.label}
+                          onClick={()=>saveOrgNodes(orgNodes.map(x=>x.contactId===n.contactId?{...x,gradientId:g.id}:x))}
+                          style={{width:36,height:22,borderRadius:5,background:g.gradient,border:sel?'2px solid #ffffff':'2px solid transparent',boxShadow:sel?`0 0 0 2px #1e293b,0 0 0 4px ${g.shadow.replace('0.35','0.8')}`:undefined,cursor:'pointer',padding:0,transition:'all 0.15s'}}/>
+                      )
+                    })}
+                  </div>
                 </div>
               )
-            })}
-
-            {/* Empty state */}
-            {orgNodes.length===0&&(
-              <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
-                <div style={{fontSize:32,opacity:0.25}}>🗂️</div>
-                <div style={{fontSize:14,fontWeight:600,color:S.muted}}>Drag contacts from below to build the chart</div>
-                <div style={{fontSize:12,color:S.dim}}>or click Auto Layout to arrange automatically</div>
-              </div>
-            )}
+            })()}
           </div>
 
           {/* Unassigned tray */}
@@ -1483,18 +1684,20 @@ function Contacts({acct,setAcct}) {
             {unassigned.length===0
               ?<div style={{fontSize:12,color:S.dim,padding:'8px 0'}}>All contacts are on the chart</div>
               :<div className='scroll-no-bar' style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:4}}>
-                {unassigned.map((c,i)=>(
-                  <div key={c.id}
-                    draggable
-                    onDragStart={e=>{setDragState({type:'tray-chip',contactId:c.id,offX:40,offY:25});e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.id)}}
-                    onDragEnd={()=>setDragState(null)}
-                    style={{flexShrink:0,width:80,borderRadius:10,background:NODE_GRAD,padding:'8px 6px',cursor:'grab',boxShadow:'0 2px 8px rgba(60,144,255,0.25)',userSelect:'none',transition:'transform 0.15s'}}
-                    onMouseEnter={e=>e.currentTarget.style.transform='scale(1.06)'}
-                    onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
-                    <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#3c90ff',margin:'0 auto 4px'}}>{initials(c.name)}</div>
-                    <div style={{fontSize:9,fontWeight:700,color:'#fff',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name.split(' ')[0]}</div>
-                  </div>
-                ))}
+                {unassigned.map((c)=>{
+                  const grad=ORG_GRADIENTS[0]
+                  return (
+                    <div key={c.id} draggable
+                      onDragStart={e=>{setDragState({type:'tray-chip',contactId:c.id,offX:40,offY:25});e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.id)}}
+                      onDragEnd={()=>setDragState(null)}
+                      style={{flexShrink:0,width:80,borderRadius:10,background:grad.gradient,padding:'8px 6px',cursor:'grab',boxShadow:`0 2px 8px ${grad.shadow}`,userSelect:'none',transition:'transform 0.15s'}}
+                      onMouseEnter={e=>e.currentTarget.style.transform='scale(1.06)'}
+                      onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
+                      <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#3c90ff',margin:'0 auto 4px'}}>{initials(c.name)}</div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#fff',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name.split(' ')[0]}</div>
+                    </div>
+                  )
+                })}
               </div>
             }
           </div>
