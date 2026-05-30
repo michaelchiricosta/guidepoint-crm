@@ -334,6 +334,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [dateForm,setDateForm] = useState({title:'',date:'',type:'Meeting',notes:''})
   const [showMoreDates,setShowMoreDates] = useState(false)
   const [hoveredDateId,setHoveredDateId] = useState(null)
+  const [expandedDateId,setExpandedDateId] = useState(null)
+  const [editDateForm,setEditDateForm] = useState(null)
   const [snoozeOpenFor,setSnoozeOpenFor] = useState(null)
   const [showSnoozed,setShowSnoozed] = useState(false)
   const [snoozeToast,setSnoozeToast] = useState(false)
@@ -408,7 +410,14 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     setAcct(prev=>({...prev,upcomingDates:[...(prev.upcomingDates||[]),{...dateForm,id:uid()}]}))
     setShowAddDate(false); setDateForm({title:'',date:'',type:'Meeting',notes:''})
   }
-  const deleteCustomDate = id => setAcct(prev=>({...prev,upcomingDates:(prev.upcomingDates||[]).filter(d=>d.id!==id)}))
+  const deleteCustomDate = id => { setAcct(prev=>({...prev,upcomingDates:(prev.upcomingDates||[]).filter(d=>d.id!==id)})); setExpandedDateId(null); setEditDateForm(null) }
+  const saveEditDate = () => { if(!editDateForm)return; setAcct(prev=>({...prev,upcomingDates:(prev.upcomingDates||[]).map(d=>d.id===editDateForm.id?editDateForm:d)})); setExpandedDateId(null); setEditDateForm(null) }
+  const toggleDateExpand = item => {
+    if(expandedDateId===item.id){setExpandedDateId(null);setEditDateForm(null);return}
+    setExpandedDateId(item.id)
+    if(item.isCustom){const cd=(acct.upcomingDates||[]).find(d=>d.id===item.customId);setEditDateForm(cd?{...cd}:null)}
+    else setEditDateForm(null)
+  }
   const openAddFU = (task='',contact='') => { setFuForm({task,contact,priority:'High',dueDate:'',context:''}); setShowAddFU(true) }
   const saveQuickFU = () => {
     if (!fuForm.task.trim()) return
@@ -659,21 +668,60 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                 {(showMoreDates?upcomingItems:upcomingItems.slice(0,8)).map(item=>{
                   const relLabel=item.days===0?'Today':item.days===1?'Tomorrow':item.days<0?`${Math.abs(item.days)}d ago`:item.days<=30?`In ${item.days}d`:fmtDate(item.date)
                   const relColor=item.days<0?S.red:item.days<=1?S.orange:S.muted
+                  const isExp=expandedDateId===item.id
+                  const fld={width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box',fontFamily:'inherit'}
                   return (
-                    <div key={item.id} style={{position:'relative',display:'flex',alignItems:'center',gap:8,padding:'6px 2px',borderBottom:`1px solid ${S.bdr}`,cursor:item.tab?'pointer':'default',transition:'background 0.1s',borderRadius:4}}
-                      onClick={()=>item.tab&&setTab(item.tab)}
-                      onMouseEnter={e=>{setHoveredDateId(item.id);if(item.tab)e.currentTarget.style.background=S.surf2}}
-                      onMouseLeave={e=>{setHoveredDateId(null);e.currentTarget.style.background='transparent'}}>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}><span style={{marginRight:4,fontSize:11}}>{typeIcon(item.source)}</span>{item.label}</div>
-                        <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
+                    <div key={item.id}>
+                      <div style={{position:'relative',display:'flex',alignItems:'center',gap:8,padding:'6px 2px',borderBottom:isExp?'none':`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s',borderRadius:4,background:isExp?S.surf2:'transparent'}}
+                        onClick={()=>toggleDateExpand(item)}
+                        onMouseEnter={e=>{setHoveredDateId(item.id);e.currentTarget.style.background=S.surf2}}
+                        onMouseLeave={e=>{setHoveredDateId(null);if(!isExp)e.currentTarget.style.background='transparent'}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}><span style={{marginRight:4,fontSize:11}}>{typeIcon(item.source)}</span>{item.label}</div>
+                          <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
+                        </div>
+                        <div style={{fontSize:11,fontWeight:600,color:relColor,flexShrink:0,minWidth:56,textAlign:'right'}}>{relLabel}</div>
+                        <span style={{fontSize:10,color:S.dim,flexShrink:0}}>{isExp?'▲':'▼'}</span>
                       </div>
-                      <div style={{fontSize:11,fontWeight:600,color:relColor,flexShrink:0,minWidth:56,textAlign:'right'}}>{relLabel}</div>
-                      {item.isCustom&&<button onClick={e=>{e.stopPropagation();deleteCustomDate(item.customId)}} style={{background:'none',border:'none',color:S.dim,cursor:'pointer',fontSize:15,lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>}
-                      {hoveredDateId===item.id&&item.fullLabel&&item.fullLabel!==item.label&&(
-                        <div style={{position:'absolute',right:0,top:'calc(100% + 2px)',zIndex:50,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'6px 10px',fontSize:11,color:S.txt,maxWidth:220,boxShadow:'0 4px 14px rgba(0,0,0,0.45)',whiteSpace:'normal',lineHeight:1.5}}>
-                          {item.fullLabel}
+                      {isExp&&(
+                        <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderBottom:`1px solid ${S.bdr}`,borderTop:`1px solid ${S.bdr}`,padding:'10px 10px 8px',marginBottom:2}} onClick={e=>e.stopPropagation()}>
+                          {item.isCustom&&editDateForm?(
+                            <>
+                              <div style={{marginBottom:6}}>
+                                <div style={{fontSize:9,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Title</div>
+                                <input value={editDateForm.title||''} onChange={e=>setEditDateForm(p=>({...p,title:e.target.value}))} style={fld}/>
+                              </div>
+                              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:6}}>
+                                <div>
+                                  <div style={{fontSize:9,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Date</div>
+                                  <input type='date' value={editDateForm.date||''} onChange={e=>setEditDateForm(p=>({...p,date:e.target.value}))} style={fld}/>
+                                </div>
+                                <div>
+                                  <div style={{fontSize:9,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Type</div>
+                                  <select value={editDateForm.type||'Other'} onChange={e=>setEditDateForm(p=>({...p,type:e.target.value}))} style={{...fld,padding:'5px 7px'}}>
+                                    {['Meeting','Out of Office','Personal Note','Contract Deadline','Renewal','Milestone','Other'].map(t=><option key={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{marginBottom:8}}>
+                                <div style={{fontSize:9,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Notes</div>
+                                <textarea value={editDateForm.notes||''} onChange={e=>setEditDateForm(p=>({...p,notes:e.target.value}))} rows={2} placeholder='Notes...' style={{...fld,resize:'vertical',lineHeight:1.4}}/>
+                              </div>
+                              <div style={{display:'flex',gap:5}}>
+                                <button onClick={saveEditDate} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+                                <button onClick={()=>{if(window.confirm('Delete this date?'))deleteCustomDate(item.customId)}} style={{padding:'4px 8px',background:'transparent',border:'1px solid rgba(239,68,68,0.3)',borderRadius:5,color:S.red,fontSize:11,cursor:'pointer'}}>Delete</button>
+                                <button onClick={()=>{setExpandedDateId(null);setEditDateForm(null)}} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
+                              </div>
+                            </>
+                          ):(
+                            /* Read-only for auto-generated items */
+                            <div>
+                              <div style={{fontSize:12,fontWeight:600,color:S.txt,marginBottom:3}}>{item.fullLabel||item.label}</div>
+                              <div style={{fontSize:11,color:S.muted,marginBottom:8}}>{fmtDate(item.date)}</div>
+                              {item.tab&&<button onClick={()=>setTab(item.tab)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Go to {item.source==='Renewal'?'Tech Stack':'Projects'} →</button>}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1795,6 +1843,11 @@ function FollowUps({acct,setAcct}) {
   const [showCompleted,setShowCompleted] = useState(false)
   const [showOpenTasks,setShowOpenTasks] = useState(true)
   const [openSort,setOpenSort] = useState('priority')
+  const [selMode,setSelMode] = useState(false)
+  const [selFUs,setSelFUs] = useState(new Set())
+  const [batchDateOpen,setBatchDateOpen] = useState(false)
+  const [batchDate,setBatchDate] = useState('')
+  const [batchPriOpen,setBatchPriOpen] = useState(false)
   const [snoozeDropOpen,setSnoozeDropOpen] = useState(false)
   const [snoozeShowCustom,setSnoozeShowCustom] = useState(false)
   const [snoozeCustomDate,setSnoozeCustomDate] = useState('')
@@ -1856,11 +1909,20 @@ function FollowUps({acct,setAcct}) {
     if(openSort==='contact') return(a.contact||'').localeCompare(b.contact||'')
     return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)
   })
+  const exitSel = () => { setSelMode(false); setSelFUs(new Set()); setBatchDateOpen(false); setBatchPriOpen(false) }
+  const toggleSel = id => setSelFUs(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n})
+  const applyBatchDate = () => { if(!batchDate||!selFUs.size)return; setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,dueDate:batchDate}:fu)})); setBatchDate(''); setBatchDateOpen(false) }
+  const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
+  const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
+
   const renderFU = (fu, extraBadge=null) => {
     const p=PC[fu.priority]||PC.Low
     return (
-      <div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8}}>
-        <button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
+      <div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:selMode&&selFUs.has(fu.id)?'rgba(59,130,246,0.08)':S.surf,border:`1px solid ${selMode&&selFUs.has(fu.id)?S.blue:S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8,transition:'background 0.1s'}}>
+        {selMode
+          ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:2,cursor:'pointer',flexShrink:0,accentColor:S.blue}}/>
+          :<button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
+        }
         <div style={{flex:1}}>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
             <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
@@ -1910,16 +1972,48 @@ function FollowUps({acct,setAcct}) {
             <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            {showOpenTasks&&(
+            {showOpenTasks&&!selMode&&(
               <select value={openSort} onChange={e=>setOpenSort(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}>
                 <option value='priority'>Priority</option>
                 <option value='duedate'>Due Date</option>
                 <option value='contact'>Contact</option>
               </select>
             )}
-            <button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>
+            {showOpenTasks&&!selMode&&<button onClick={()=>setSelMode(true)} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Select</button>}
+            {!selMode&&<button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>}
           </div>
         </div>
+        {/* Batch toolbar */}
+        {selMode&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:10,flexWrap:'wrap'}}>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:S.muted,cursor:'pointer'}}>
+              <input type='checkbox' checked={selFUs.size===futureFUs.length&&futureFUs.length>0} onChange={e=>{if(e.target.checked)setSelFUs(new Set(futureFUs.map(f=>f.id)));else setSelFUs(new Set())}} style={{accentColor:S.blue,cursor:'pointer'}}/>
+              Select All
+            </label>
+            {selFUs.size>0&&<span style={{fontSize:12,fontWeight:600,color:S.txt,background:S.surf2,borderRadius:999,padding:'2px 9px'}}>{selFUs.size} selected</span>}
+            {selFUs.size>0&&<>
+              <div style={{position:'relative'}}>
+                <button onClick={()=>{setBatchDateOpen(v=>!v);setBatchPriOpen(false)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Due Date</button>
+                {batchDateOpen&&<div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'8px',boxShadow:'0 4px 16px rgba(0,0,0,0.4)',display:'flex',gap:6,alignItems:'center'}}>
+                  <input type='date' value={batchDate} onChange={e=>setBatchDate(e.target.value)} style={{fontSize:12,padding:'4px 7px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}/>
+                  <button onClick={applyBatchDate} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply</button>
+                </div>}
+              </div>
+              <div style={{position:'relative'}}>
+                <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
+                {batchPriOpen&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.4)'}}>
+                  {['Critical','High','Medium','Low'].map(p=>(
+                    <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:PC[p]?.c||S.txt,cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:`1px solid ${S.bdr}`}}
+                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{p}</button>
+                  ))}
+                </div>}
+              </div>
+              <button onClick={applyBatchComplete} style={{fontSize:11,color:S.green,background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.25)',borderRadius:5,padding:'4px 9px',cursor:'pointer',fontWeight:600}}>Mark Complete</button>
+            </>}
+            <button onClick={exitSel} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer',marginLeft:'auto'}}>Cancel</button>
+          </div>
+        )}
         {showOpenTasks&&(
           futureFUs.length===0
           ?<div style={{fontSize:12,color:S.dim,padding:'10px 0'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
@@ -3354,10 +3448,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     {label:'Active Projects',value:activeProjects,color:S.green,type:'projects',tab:'projects',buildData:buildProjectData},
   ]
 
-  const todaysReminders = data.accounts.flatMap(a=>
-    (a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)!==null&&daysUntil(f.dueDate)<=3)
-    .map(f=>({...f,accountName:a.short||a.name,accountId:a.id}))
-  ).sort((a,b)=>(daysUntil(a.dueDate)||0)-(daysUntil(b.dueDate)||0))
 
   const StatIcon = ({type}) => {
     if (type==='followups') return <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke={GP_LIGHT} strokeWidth="1.5"/><line x1="5" y1="6" x2="13" y2="6" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="9" x2="13" y2="9" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/><line x1="5" y1="12" x2="9" y2="12" stroke={GP_LIGHT} strokeWidth="1.4" strokeLinecap="round"/></svg>
@@ -3434,35 +3524,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           ))}
         </div>
 
-        {/* Today's Reminders */}
-        {todaysReminders.length>0&&(
-          <div style={{marginBottom:mob?28:40}}>
-            <div style={{fontSize:11,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:14}}>Today's Reminders — {todaysReminders.length}</div>
-            <div className='scroll-no-bar' style={{display:'flex',flexDirection:'row',gap:10,overflowX:'auto',paddingBottom:8,WebkitOverflowScrolling:'touch'}}>
-              {todaysReminders.map(r=>{
-                const p=PC[r.priority]||PC.Low
-                const d=daysUntil(r.dueDate)
-                return (
-                  <div key={r.id} onClick={()=>onNavigateTo(r.accountId,'followups')}
-                    style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:10,padding:'12px 14px',cursor:'pointer',flexShrink:0,width:mob?240:undefined,minWidth:mob?240:260,maxWidth:320}}
-                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                    onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
-                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:5,flexWrap:'wrap'}}>
-                      <span style={{fontSize:10,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap'}}>{r.accountName}</span>
-                      <Badge label={r.priority} color={p.c} bg={p.b} size={10}/>
-                      {d<0&&<Badge label='OVERDUE' color={S.red} bg='rgba(239,68,68,0.1)' size={10}/>}
-                    </div>
-                    <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.task}</div>
-                    <div style={{fontSize:11,color:S.muted}}>
-                      {r.contact&&<span>{r.contact} · </span>}
-                      <span style={{color:d<0?S.red:d===0?S.orange:S.muted}}>{d<0?`${Math.abs(d)}d overdue`:d===0?'Due today':`Due in ${d}d`}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Empty state */}
         {data.accounts.length === 0 ? (
@@ -3479,59 +3540,67 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         ) : (
           <div>
             <div style={{fontSize:11,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:16}}>Your Accounts — {data.accounts.length}</div>
-            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
+            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(3,1fr)',gap:16}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
                 const hc=hs>=70?S.green:hs>=40?S.orange:S.red
+                const tier=hs>=70?'Healthy':hs>=40?'At Risk':'Critical'
                 const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
                 const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
+                const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
                 const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
                 const lastC=acct.lastContact?daysSince(acct.lastContact):null
-                const renewCount=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length
+                const renewals30=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=30}).length
                 const isHov=hoveredId===acct.id
-                const r=22, circ=2*Math.PI*r, progress=(hs/100)*circ
+                const r=20, circ=2*Math.PI*r, progress=(hs/100)*circ
+                const stripBg=critFUs>0||renewals30>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)'
+                const sc=statusColor[acct.status]||S.muted
                 return (
                   <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
                     onMouseEnter={()=>setHoveredId(acct.id)}
                     onMouseLeave={()=>setHoveredId(null)}
-                    style={{background:isHov?S.surf2:S.surf,border:`1px solid ${isHov?GP_BLUE:S.bdr}`,borderRadius:14,cursor:'pointer',transform:isHov?'translateY(-3px)':'translateY(0)',boxShadow:isHov?`0 10px 36px rgba(0,102,204,0.18)`:`0 2px 8px rgba(0,0,0,0.08)`,transition:'all 0.15s ease',overflow:'hidden',display:'flex',flexDirection:'column'}}
+                    style={{background:'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',border:`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,borderRadius:14,cursor:'pointer',transform:isHov?'translateY(-2px)':'translateY(0)',boxShadow:isHov?'0 8px 32px rgba(59,130,246,0.15),0 4px 24px rgba(0,0,0,0.4)':'0 4px 24px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.05)',transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'}}
                   >
-                    <div style={{padding:'20px 20px 16px',flex:1}}>
+                    <div style={{padding:'20px',flex:1}}>
+                      {/* Status indicator */}
+                      <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:8}}>
+                        <div style={{width:6,height:6,borderRadius:'50%',background:sc,flexShrink:0}}/>
+                        <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>{acct.status||'Active'}</span>
+                      </div>
+                      {/* Name + health gauge */}
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:14}}>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:15,fontWeight:800,color:S.txt,marginBottom:4,lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.name}</div>
-                          {(acct.industry||acct.hq)&&<div style={{fontSize:12,color:S.muted,marginBottom:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{[acct.industry,acct.hq].filter(Boolean).join(' · ')}</div>}
-                          <span style={{fontSize:11,fontWeight:700,color:statusColor[acct.status]||S.muted,background:(statusColor[acct.status]||S.muted)+'25',padding:'3px 10px',borderRadius:999,display:'inline-block'}}>{acct.status||'Active'}</span>
+                          <div style={{fontSize:18,fontWeight:800,color:'#fff',marginBottom:3,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
+                          {acct.industry&&<div style={{fontSize:11,color:'rgba(255,255,255,0.38)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.industry}</div>}
                         </div>
                         <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
-                          <svg width="58" height="58" viewBox="0 0 56 56">
-                            <circle cx="28" cy="28" r={r} fill="none" stroke={S.bdr} strokeWidth="4"/>
-                            <circle cx="28" cy="28" r={r} fill="none" stroke={hc} strokeWidth="4"
-                              strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 28 28)"/>
-                            <text x="28" y="33" textAnchor="middle" fontSize="13" fontWeight="800" fill={hc}>{hs}</text>
+                          <svg width="52" height="52" viewBox="0 0 52 52">
+                            <circle cx="26" cy="26" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4"/>
+                            <circle cx="26" cy="26" r={r} fill="none" stroke={hc} strokeWidth="4"
+                              strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
+                            <text x="26" y="31" textAnchor="middle" fontSize="12" fontWeight="800" fill={hc}>{hs}</text>
                           </svg>
-                          <div style={{fontSize:9,color:S.dim,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginTop:2}}>Health</div>
+                          <div style={{fontSize:9,fontWeight:700,color:hc,marginTop:2,letterSpacing:'0.04em'}}>{tier}</div>
                         </div>
                       </div>
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                      {/* Divider */}
+                      <div style={{height:1,background:'rgba(255,255,255,0.06)',marginBottom:12}}/>
+                      {/* Stat chips */}
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                         {[
-                          {label:`${openFUs} follow-up${openFUs!==1?'s':''}`,c:S.secondary},
-                          {label:`${activePjs} project${activePjs!==1?'s':''}`,c:S.secondary},
-                          {label:lastC===null?'No contact yet':`${lastC}d since contact`,c:lastC===null?S.dim:lastC>30?S.orange:lastC>14?S.yellow:S.green},
+                          {icon:'📅',label:lastC===null?'No contact':`${lastC}d ago`,c:lastC===null?'rgba(255,255,255,0.3)':lastC>30?S.red:lastC>14?S.orange:S.green},
+                          {icon:'🎯',label:`${activePjs} project${activePjs!==1?'s':''}`,c:'rgba(255,255,255,0.55)'},
+                          {icon:'☐',label:`${openFUs} open`,c:critFUs>0?S.orange:'rgba(255,255,255,0.55)'},
                         ].map(chip=>(
-                          <span key={chip.label} style={{fontSize:11,color:chip.c,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'4px 9px',fontWeight:600,whiteSpace:'nowrap'}}>{chip.label}</span>
+                          <div key={chip.label} style={{display:'flex',alignItems:'center',gap:4,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:8,padding:'5px 8px'}}>
+                            <span style={{fontSize:10}}>{chip.icon}</span>
+                            <span style={{fontSize:11,fontWeight:600,color:chip.c}}>{chip.label}</span>
+                          </div>
                         ))}
                       </div>
-                      {(renewCount>0||critFUs>0)&&(
-                        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                          {renewCount>0&&<span style={{fontSize:11,color:S.orange,fontWeight:600}}>▲ {renewCount} renewal{renewCount!==1?'s':''} due</span>}
-                          {critFUs>0&&<span style={{fontSize:11,color:S.red,fontWeight:600}}>● {critFUs} critical</span>}
-                        </div>
-                      )}
                     </div>
-                    <div style={{height:4,background:S.bdr}}>
-                      <div style={{height:'100%',width:`${hs}%`,background:hc,transition:'width 0.4s'}}/>
-                    </div>
+                    {/* Alert strip */}
+                    <div style={{height:3,background:stripBg,borderRadius:'0 0 14px 14px'}}/>
                   </div>
                 )
               })}
