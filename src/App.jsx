@@ -2587,23 +2587,32 @@ function FollowUps({acct,setAcct}) {
   const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
+  const priBorder={Critical:'#dc2626',High:'#ea580c',Medium:'#eab308',Low:'#16a34a'}
   const renderFU = (fu, extraBadge=null) => {
-    const p=PC[fu.priority]||PC.Low
+    const bc=priBorder[fu.priority]||'#16a34a'
     return (
-      <div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:selMode&&selFUs.has(fu.id)?'rgba(59,130,246,0.08)':S.surf,border:`1px solid ${selMode&&selFUs.has(fu.id)?S.blue:S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8,transition:'background 0.1s'}}>
+      <div key={fu.id} style={{display:'flex',gap:12,padding:'12px 16px',background:selMode&&selFUs.has(fu.id)?'#eff6ff':'#ffffff',borderBottom:'1px solid #f8fafc',alignItems:'flex-start',transition:'background 0.1s'}}
+        onMouseEnter={e=>{if(!selMode||!selFUs.has(fu.id))e.currentTarget.style.background='#f9fafb'}}
+        onMouseLeave={e=>e.currentTarget.style.background=selMode&&selFUs.has(fu.id)?'#eff6ff':'#ffffff'}>
         {selMode
-          ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:2,cursor:'pointer',flexShrink:0,accentColor:S.blue}}/>
-          :<button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
+          ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:2,cursor:'pointer',flexShrink:0,accentColor:'#2563eb'}}/>
+          :<button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${bc}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} aria-label='Complete'/>
         }
-        <div style={{flex:1}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
-            <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
-            <Badge label={fu.priority} color={p.c} bg={p.b}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:4}}>
+            <span style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{fu.task}</span>
             {extraBadge}
           </div>
-          <div style={{fontSize:11,color:S.muted}}>{fu.contact&&fu.contact+' · '}{fu.dueDate&&fmtDate(fu.dueDate)+' · '}{fu.context}</div>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+            {fu.contact&&<span style={{fontSize:11,color:'#64748b',display:'inline-flex',alignItems:'center',gap:3}}>👤 {fu.contact}</span>}
+            {fu.dueDate&&<span style={{fontSize:11,color:'#64748b',display:'inline-flex',alignItems:'center',gap:3}}>📅 {fmtDate(fu.dueDate)}</span>}
+            {fu.context&&<span style={{fontSize:11,color:'#94a3b8'}}>{fu.context}</span>}
+          </div>
         </div>
-        <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:11,flexShrink:0}}>Edit</button>
+        <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}
+          style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:11,flexShrink:0,padding:'2px 6px',borderRadius:4}}
+          onMouseEnter={e=>e.currentTarget.style.color='#64748b'}
+          onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>Edit</button>
       </div>
     )
   }
@@ -2611,111 +2620,114 @@ function FollowUps({acct,setAcct}) {
   return (
     <div>
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
+
       {/* ─── TODAY SECTION ─── */}
-      <div style={{marginBottom:20,background:S.isLight?'#fffbeb':'transparent',borderRadius:S.isLight?10:0,padding:S.isLight?'14px 16px':'0',border:S.isLight?'1px solid #fef3c7':'none'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Today</div>
-          <div style={{fontSize:12,color:S.muted}}>{todayFull}</div>
+      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
+        <div style={{background:'linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)',borderBottom:'1px solid #fde68a',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:15,color:'#d97706'}}>📅</span>
+            <span style={{fontSize:13,fontWeight:800,color:'#92400e'}}>Today</span>
+          </div>
+          <span style={{fontSize:12,color:'#b45309'}}>{todayFull}</span>
         </div>
         {(overdueFUs.length===0&&dueTodayFUs.length===0)
-          ?<div style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',background:S.isLight?'#f0fdf4':'rgba(34,197,94,0.06)',border:`1px solid ${S.isLight?'#bbf7d0':'rgba(34,197,94,0.2)'}`,borderRadius:8}}>
-            <div style={{width:26,height:26,borderRadius:'50%',background:S.isLight?'#dcfce7':'rgba(34,197,94,0.2)',display:'flex',alignItems:'center',justifyContent:'center',color:S.green,fontSize:14,flexShrink:0}}>✓</div>
-            <div style={{fontSize:13,fontWeight:600,color:S.green}}>Nothing due today — you're all caught up</div>
+          ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'20px 16px',gap:4}}>
+            <span style={{fontSize:20,color:'#16a34a'}}>✓</span>
+            <div style={{fontWeight:600,color:'#15803d',fontSize:13}}>All clear today</div>
+            <div style={{fontSize:12,color:'#94a3b8'}}>No tasks due today</div>
           </div>
-          :<div style={{display:'flex',flexDirection:'column',gap:5}}>
+          :<div>
             {overdueFUs.map(fu=>{
               const d=Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000)
-              return renderFU(fu,<Badge label={`${d}d overdue`} color={S.red} bg={S.isLight?'#fee2e2':'rgba(239,68,68,0.12)'}/>)
+              return renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#dc2626',background:'#fee2e2',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>{d}d overdue</span>)
             })}
-            {dueTodayFUs.map(fu=>renderFU(fu,<Badge label='Due Today' color={S.orange} bg={S.isLight?'#ffedd5':'rgba(249,115,22,0.12)'}/>))}
+            {dueTodayFUs.map(fu=>renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#ea580c',background:'#ffedd5',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>Due Today</span>))}
           </div>
         }
       </div>
 
-      <div style={{height:1,background:S.bdr,marginBottom:20}}/>
-
       {/* ─── OPEN TASKS SECTION ─── */}
-      <div style={{marginBottom:20}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showOpenTasks?10:0}}>
-          <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}
-            onMouseEnter={e=>e.currentTarget.style.opacity='0.7'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-            <span style={{fontSize:11,color:S.muted}}>{showOpenTasks?'▼':'▶'}</span>
-            <span style={{fontSize:13,fontWeight:700,color:S.txt}}>Open Tasks</span>
-            <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
+      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+          <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
+            <span style={{fontSize:11,color:'#94a3b8'}}>{showOpenTasks?'▼':'▶'}</span>
+            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Open Tasks</span>
+            <span style={{fontSize:11,fontWeight:600,color:'#475569',background:'#f1f5f9',borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
           </div>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             {showOpenTasks&&!selMode&&(
-              <select value={openSort} onChange={e=>setOpenSort(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}>
+              <select value={openSort} onChange={e=>setOpenSort(e.target.value)} style={{fontSize:12,padding:'4px 8px',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:6,color:'#374151',cursor:'pointer'}}>
                 <option value='priority'>Priority</option>
                 <option value='duedate'>Due Date</option>
                 <option value='contact'>Contact</option>
               </select>
             )}
-            {showOpenTasks&&!selMode&&<button onClick={()=>setSelMode(true)} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Select</button>}
-            {!selMode&&<button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>}
+            {showOpenTasks&&!selMode&&<button onClick={()=>setSelMode(true)} style={{fontSize:12,color:'#475569',background:'transparent',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Select</button>}
+            {!selMode&&<button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:12,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>}
           </div>
         </div>
+
         {/* Batch toolbar */}
         {selMode&&(
-          <div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:10,flexWrap:'wrap'}}>
-            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:S.muted,cursor:'pointer'}}>
-              <input type='checkbox' checked={selFUs.size===futureFUs.length&&futureFUs.length>0} onChange={e=>{if(e.target.checked)setSelFUs(new Set(futureFUs.map(f=>f.id)));else setSelFUs(new Set())}} style={{accentColor:S.blue,cursor:'pointer'}}/>
+          <div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',background:'#ffffff',borderBottom:'1px solid #f1f5f9',flexWrap:'wrap',boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#64748b',cursor:'pointer'}}>
+              <input type='checkbox' checked={selFUs.size===futureFUs.length&&futureFUs.length>0} onChange={e=>{if(e.target.checked)setSelFUs(new Set(futureFUs.map(f=>f.id)));else setSelFUs(new Set())}} style={{accentColor:'#2563eb',cursor:'pointer'}}/>
               Select All
             </label>
-            {selFUs.size>0&&<span style={{fontSize:12,fontWeight:600,color:S.txt,background:S.surf2,borderRadius:999,padding:'2px 9px'}}>{selFUs.size} selected</span>}
+            {selFUs.size>0&&<span style={{fontSize:12,fontWeight:600,color:'#0f172a',background:'#f1f5f9',borderRadius:999,padding:'2px 9px'}}>{selFUs.size} selected</span>}
             {selFUs.size>0&&<>
               <div style={{position:'relative'}}>
-                <button onClick={()=>{setBatchDateOpen(v=>!v);setBatchPriOpen(false)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Due Date</button>
-                {batchDateOpen&&<div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'8px',boxShadow:'0 4px 16px rgba(0,0,0,0.4)',display:'flex',gap:6,alignItems:'center'}}>
-                  <input type='date' value={batchDate} onChange={e=>setBatchDate(e.target.value)} style={{fontSize:12,padding:'4px 7px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}/>
-                  <button onClick={applyBatchDate} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply</button>
+                <button onClick={()=>{setBatchDateOpen(v=>!v);setBatchPriOpen(false)}} style={{fontSize:11,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Due Date</button>
+                {batchDateOpen&&<div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,padding:'8px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)',display:'flex',gap:6,alignItems:'center'}}>
+                  <input type='date' value={batchDate} onChange={e=>setBatchDate(e.target.value)} style={{fontSize:12,padding:'4px 7px',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,color:'#374151'}}/>
+                  <button onClick={applyBatchDate} style={{padding:'4px 10px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply</button>
                 </div>}
               </div>
               <div style={{position:'relative'}}>
-                <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
-                {batchPriOpen&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.4)'}}>
+                <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
+                {batchPriOpen&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}}>
                   {['Critical','High','Medium','Low'].map(p=>(
-                    <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:PC[p]?.c||S.txt,cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:`1px solid ${S.bdr}`}}
-                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:priBorder[p]||'#374151',cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:'1px solid #f1f5f9'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{p}</button>
                   ))}
                 </div>}
               </div>
-              <button onClick={applyBatchComplete} style={{fontSize:11,color:S.green,background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.25)',borderRadius:5,padding:'4px 9px',cursor:'pointer',fontWeight:600}}>Mark Complete</button>
+              <button onClick={applyBatchComplete} style={{fontSize:11,color:'#15803d',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'4px 9px',cursor:'pointer',fontWeight:600}}>Mark Complete</button>
             </>}
-            <button onClick={exitSel} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'4px 9px',cursor:'pointer',marginLeft:'auto'}}>Cancel</button>
+            <button onClick={exitSel} style={{fontSize:11,color:'#64748b',background:'transparent',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer',marginLeft:'auto'}}>Cancel</button>
           </div>
         )}
+
         {showOpenTasks&&(
           futureFUs.length===0
-          ?<div style={{fontSize:12,color:S.dim,padding:'10px 0'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
-          :<div style={{display:'flex',flexDirection:'column',gap:5}}>{sortedFuture.map(fu=>renderFU(fu))}</div>
+          ?<div style={{fontSize:12,color:'#94a3b8',padding:'20px 16px',textAlign:'center'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
+          :<div>{sortedFuture.map(fu=>renderFU(fu))}</div>
         )}
       </div>
 
-      <div style={{height:1,background:S.bdr,marginBottom:20}}/>
-
       {/* ─── COMPLETED SECTION ─── */}
-      <div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCompleted&&done.length>0?10:0}}>
-          <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}
-            onMouseEnter={e=>e.currentTarget.style.opacity='0.7'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-            <span style={{fontSize:11,color:S.muted}}>{showCompleted?'▼':'▶'}</span>
-            <span style={{fontSize:13,fontWeight:700,color:S.txt}}>Completed</span>
-            <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
+      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
+            <span style={{fontSize:11,color:'#94a3b8'}}>{showCompleted?'▼':'▶'}</span>
+            <span style={{fontSize:12,fontWeight:600,color:'#64748b'}}>Completed</span>
+            <span style={{fontSize:11,fontWeight:600,color:'#94a3b8',background:'#f8fafc',borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
           </div>
-          {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
+          {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:5,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
         </div>
         {showCompleted&&(
           done.length===0
-          ?<div style={{fontSize:12,color:S.dim,padding:'8px 0'}}>No completed tasks yet.</div>
-          :<div style={{display:'flex',flexDirection:'column',gap:3}}>
+          ?<div style={{fontSize:12,color:'#94a3b8',padding:'12px 16px',borderTop:'1px solid #f8fafc',textAlign:'center'}}>No completed tasks yet.</div>
+          :<div style={{borderTop:'1px solid #f8fafc'}}>
             {done.map(fu=>(
-              <div key={fu.id} style={{display:'flex',gap:8,padding:'7px 10px',cursor:'pointer',borderRadius:6,background:S.isLight?S.surf2:'transparent'}}
-                onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                onMouseLeave={e=>e.currentTarget.style.background=S.isLight?S.surf2:'transparent'}>
-                <div onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${S.green}`,background:S.isLight?'#dcfce7':'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1,cursor:'pointer'}}><span style={{color:S.green,fontSize:11}}>✓</span></div>
-                <span style={{fontSize:13,color:S.dim,textDecoration:'line-through',flex:1,lineHeight:1.4}}>{fu.task}</span>
+              <div key={fu.id} style={{display:'flex',gap:12,padding:'10px 16px',alignItems:'center',background:'#f8fafc',borderBottom:'1px solid #f1f5f9',cursor:'pointer'}}
+                onMouseEnter={e=>e.currentTarget.style.background='#f1f5f9'}
+                onMouseLeave={e=>e.currentTarget.style.background='#f8fafc'}>
+                <div onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:'2px solid #16a34a',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer'}}>
+                  <span style={{color:'#16a34a',fontSize:11}}>✓</span>
+                </div>
+                <span style={{fontSize:13,color:'#94a3b8',textDecoration:'line-through',flex:1,lineHeight:1.4}}>{fu.task}</span>
               </div>
             ))}
           </div>
@@ -3207,6 +3219,7 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [typeFilter,setTypeFilter] = useState('All')
   const [dateFrom,setDateFrom] = useState('')
   const [dateTo,setDateTo] = useState('')
+  const [expandedEntry,setExpandedEntry] = useState(null)
 
   const process = async (date) => {
     setLoading(true);setError('');setResult(null)
@@ -3303,56 +3316,131 @@ ${text}`}]
   const hasFilters=!!(search.trim()||typeFilter!=='All'||dateFrom||dateTo)
   const clearFilters=()=>{setSearch('');setTypeFilter('All');setDateFrom('');setDateTo('')}
 
+  const typeBadge={Call:{bg:'#dbeafe',c:'#1d4ed8'},Meeting:{bg:'#ede9fe',c:'#7c3aed'},Email:{bg:'#fef9c3',c:'#a16207'},Note:{bg:'#f1f5f9',c:'#475569'}}
+
   return (
     <div>
-      <Card style={{padding:16,marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:4}}>Add Intelligence</div>
-        <div style={{fontSize:12,color:S.muted,marginBottom:10}}>Paste a call transcript, meeting notes, email, or quick note. AI extracts follow-ups, updates contacts, and logs the intel automatically.</div>
-        {!effectiveKey&&<div style={{fontSize:11,color:S.orange,marginBottom:8,padding:'6px 10px',background:'rgba(249,115,22,0.08)',border:'1px solid rgba(249,115,22,0.2)',borderRadius:5}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</div>}
-        <textarea value={text} onChange={e=>setText(e.target.value)} rows={8} placeholder={'Paste transcript, meeting notes, email, or a quick note here...\n\nExample: "Talked to Rudy today. NetSpy demo confirmed for Wednesday. Jamie Dennis reached back about Saviynt pricing — wants a decision by June..."'} style={{marginBottom:10}}/>
-        {error&&<div style={{fontSize:12,color:S.red,marginBottom:8,lineHeight:1.5}}>{error}</div>}
-        {result&&<div style={{fontSize:12,color:S.green,marginBottom:8,padding:'8px 12px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:6}}>Done — logged {result.entry?'1 intel entry':''},  added {result.followUps} follow-up{result.followUps!==1?'s':''}, updated {result.contacts} contact{result.contacts!==1?'s':''}</div>}
-        <button onClick={handleProcess} disabled={loading||!text.trim()} style={{display:'flex',alignItems:'center',gap:6,padding:'9px 18px',background:loading||!text.trim()?S.dim:S.blue,border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:loading||!text.trim()?'default':'pointer',opacity:!text.trim()?0.5:1}}>
-          {loading?'Processing...':'Process with AI'}
-        </button>
-      </Card>
+      <style>{`@keyframes ilSpin{to{transform:rotate(360deg)}}`}</style>
 
-      <div style={{marginBottom:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search entries...' style={{flex:1,minWidth:160,fontSize:12,padding:'6px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
-          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,flexShrink:0}}>
-            {['All','Call','Meeting','Email','Note'].map(t=>(
-              <button key={t} onClick={()=>setTypeFilter(t)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:typeFilter===t?S.blue:'transparent',color:typeFilter===t?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>{t}</button>
-            ))}
+      {/* ─── ADD INTELLIGENCE PANEL ─── */}
+      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',padding:20,marginBottom:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+          <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Add Intelligence</div>
+          <span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / 15,000</span>
+        </div>
+        <div style={{fontSize:12,color:'#64748b',marginBottom:12,lineHeight:1.5}}>Paste a call transcript, meeting notes, or quick note. AI extracts follow-ups, updates contacts, and logs intel automatically.</div>
+        {!effectiveKey&&(
+          <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <span style={{color:'#d97706',fontSize:14,flexShrink:0}}>⚠</span>
+            <span style={{fontSize:12,color:'#92400e'}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</span>
           </div>
-          <button onClick={exportIntel} style={{padding:'6px 12px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:12,cursor:'pointer',flexShrink:0}}>↓ Export</button>
+        )}
+        <textarea
+          value={text}
+          onChange={e=>setText(e.target.value)}
+          maxLength={15000}
+          rows={7}
+          placeholder={'Paste transcript, meeting notes, email, or a quick note here...\n\nExample: "Talked to Rudy today. NetSpy demo confirmed for Wednesday. Jamie Dennis reached back about Saviynt pricing — wants a decision by June..."'}
+          style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#0f172a',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
+          onFocus={e=>{e.target.style.borderColor='#2563eb';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
+          onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
+        />
+        <div style={{textAlign:'right',fontSize:11,color:text.length>14000?'#dc2626':text.length>12000?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / 15,000</div>
+        {error&&(
+          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <span style={{color:'#dc2626',fontSize:14,flexShrink:0,fontWeight:700}}>✕</span>
+            <span style={{fontSize:12,color:'#dc2626',lineHeight:1.5}}>{error}</span>
+          </div>
+        )}
+        {result&&(
+          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <span style={{color:'#16a34a',fontSize:14,flexShrink:0,fontWeight:700}}>✓</span>
+            <span style={{fontSize:12,color:'#15803d'}}>Done — {result.entry?'logged 1 intel entry, ':''} added {result.followUps} follow-up{result.followUps!==1?'s':''}, updated {result.contacts} contact{result.contacts!==1?'s':''}</span>
+          </div>
+        )}
+        <button onClick={handleProcess} disabled={loading||!text.trim()}
+          style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:11,background:loading||!text.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#ffffff',fontSize:13,fontWeight:700,cursor:loading||!text.trim()?'not-allowed':'pointer',transition:'opacity 0.15s'}}>
+          {loading
+            ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> Processing...</>
+            :'Process with AI ✨'}
+        </button>
+      </div>
+
+      {/* ─── SEARCH AND FILTER BAR ─── */}
+      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',padding:'12px 16px',marginBottom:16,display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+        <div style={{position:'relative',flex:1,minWidth:200}}>
+          <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'#94a3b8',fontSize:13,pointerEvents:'none'}}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search entries...'
+            style={{width:'100%',boxSizing:'border-box',fontSize:13,padding:'8px 12px 8px 34px',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,color:'#0f172a',outline:'none'}}/>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:11,color:S.muted,flexShrink:0}}>Date range:</span>
-          <input type='date' value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
-          <span style={{fontSize:11,color:S.muted}}>to</span>
-          <input type='date' value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}/>
-          {hasFilters&&<button onClick={clearFilters} style={{fontSize:11,padding:'4px 8px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,color:S.red,cursor:'pointer',flexShrink:0}}>Clear filters</button>}
-          <span style={{fontSize:11,color:S.muted,marginLeft:'auto'}}>Showing {filtered.length} of {acct.intelLog.length} entries</span>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',flexShrink:0}}>
+          {['All','Call','Meeting','Email','Note'].map(t=>(
+            <button key={t} onClick={()=>setTypeFilter(t)}
+              style={{padding:'4px 12px',borderRadius:999,fontSize:12,fontWeight:500,cursor:'pointer',background:typeFilter===t?'#2563eb':'#ffffff',color:typeFilter===t?'#ffffff':'#64748b',border:typeFilter===t?'1px solid #2563eb':'1px solid #e2e8f0',transition:'all 0.12s'}}>{t}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',flexShrink:0}}>
+          <span style={{fontSize:11,color:'#64748b',flexShrink:0}}>From</span>
+          <input type='date' value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:6,color:'#374151'}}/>
+          <span style={{fontSize:11,color:'#64748b'}}>To</span>
+          <input type='date' value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:6,color:'#374151'}}/>
+          {hasFilters&&<button onClick={clearFilters} style={{fontSize:11,padding:'4px 8px',background:'transparent',border:'none',color:'#2563eb',cursor:'pointer',fontWeight:600}}>Clear</button>}
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',marginLeft:'auto',flexWrap:'wrap',flexShrink:0}}>
+          <span style={{fontSize:11,color:'#94a3b8',whiteSpace:'nowrap'}}>Showing {filtered.length} of {acct.intelLog.length}</span>
+          <button onClick={exportIntel} style={{padding:'6px 12px',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,color:'#64748b',fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>↓ Export</button>
         </div>
       </div>
 
+      {/* ─── INTEL ENTRIES FEED ─── */}
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {filtered.length===0&&<div style={{textAlign:'center',padding:'30px',color:S.muted,fontSize:13}}>{acct.intelLog.length===0?'No intel logged yet. Paste a transcript above to get started.':'No entries match your filters.'}</div>}
-        {filtered.map(e=>(
-          <Card key={e.id} style={{padding:'14px 16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-              <Badge label={e.type||'Note'} color={S.blue} bg='rgba(59,130,246,0.12)'/>
-              <span style={{fontSize:12,color:S.muted}}>{fmtDate(e.date)}</span>
-              {e.participants&&<span style={{fontSize:12,color:S.muted}}>· {e.participants}</span>}
+        {filtered.length===0&&<div style={{textAlign:'center',padding:'32px',color:'#94a3b8',fontSize:13,background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0'}}>{acct.intelLog.length===0?'No intel logged yet. Paste a transcript above to get started.':'No entries match your filters.'}</div>}
+        {filtered.map(e=>{
+          const isExp=expandedEntry===e.id
+          const tb=typeBadge[e.type||'Note']||typeBadge.Note
+          const hasDetail=(e.insights?.length||0)+(e.risks?.length||0)+(e.opportunities?.length||0)>0
+          return (
+            <div key={e.id}
+              style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',transition:'box-shadow 0.15s'}}
+              onMouseEnter={e2=>e2.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'}
+              onMouseLeave={e2=>e2.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'}>
+              {/* Header row — click to expand */}
+              <div onClick={()=>setExpandedEntry(isExp?null:e.id)} style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,cursor:'pointer'}}>
+                <span style={{fontSize:11,fontWeight:600,color:tb.c,background:tb.bg,padding:'2px 10px',borderRadius:999,flexShrink:0}}>{e.type||'Note'}</span>
+                <span style={{fontSize:12,color:'#64748b',flexShrink:0}}>{fmtDate(e.date)}</span>
+                {e.participants&&<span style={{fontSize:12,color:'#64748b',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>· {e.participants}</span>}
+                {hasDetail&&<span style={{marginLeft:'auto',color:'#94a3b8',fontSize:12,flexShrink:0}}>{isExp?'▲':'▼'}</span>}
+              </div>
+              {/* Summary always visible */}
+              <p style={{fontSize:13,color:'#374151',margin:'0 0 0',lineHeight:1.6}}>{e.summary}</p>
+              {/* Expandable detail */}
+              {isExp&&hasDetail&&(
+                <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:8}}>
+                  {e.insights?.length>0&&(
+                    <div style={{background:'#f0f9ff',borderRadius:8,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Key Insights</div>
+                      {e.insights.map((ins,i)=><div key={i} style={{fontSize:12,color:'#374151',marginBottom:i<e.insights.length-1?4:0,lineHeight:1.5,display:'flex',gap:6}}><span style={{color:'#2563eb',flexShrink:0}}>→</span>{ins}</div>)}
+                    </div>
+                  )}
+                  {e.risks?.length>0&&(
+                    <div style={{background:'#fef2f2',borderRadius:8,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Risks</div>
+                      {e.risks.map((r,i)=><div key={i} style={{fontSize:12,color:'#374151',marginBottom:i<e.risks.length-1?4:0,lineHeight:1.5,display:'flex',gap:6}}><span style={{color:'#dc2626',flexShrink:0,fontWeight:700}}>!</span>{r}</div>)}
+                    </div>
+                  )}
+                  {e.opportunities?.length>0&&(
+                    <div style={{background:'#f0fdf4',borderRadius:8,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Opportunities</div>
+                      {e.opportunities.map((o,i)=><div key={i} style={{fontSize:12,color:'#374151',marginBottom:i<e.opportunities.length-1?4:0,lineHeight:1.5,display:'flex',gap:6}}><span style={{color:'#16a34a',flexShrink:0,fontWeight:700}}>+</span>{o}</div>)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <p style={{fontSize:13,color:S.secondary,margin:'0 0 10px',lineHeight:1.6}}>{e.summary}</p>
-            {e.insights?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Key Insights</div>{e.insights.map((ins,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>→ {ins}</div>)}</div>}
-            {e.risks?.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:10,color:S.red,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Risks</div>{e.risks.map((r,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>! {r}</div>)}</div>}
-            {e.opportunities?.length>0&&<div><div style={{fontSize:10,color:S.green,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Opportunities</div>{e.opportunities.map((o,i)=><div key={i} style={{fontSize:12,color:S.secondary,marginBottom:3,paddingLeft:10}}>+ {o}</div>)}</div>}
-          </Card>
-        ))}
+          )
+        })}
       </div>
+
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
         {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
