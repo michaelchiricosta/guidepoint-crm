@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
+import { Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { loadData, saveData } from './supabase.js'
 
@@ -78,7 +79,8 @@ const SAMPLE = {
     ],
     unknownMentions:[],
     relSuggestions:[],
-    dismissedAlerts:[]
+    dismissedAlerts:[],
+    snoozedAlerts:[]
   }]
 }
 
@@ -117,7 +119,26 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [showAddFU,setShowAddFU] = useState(false)
   const [showAIChat,setShowAIChat] = useState(false)
   const [hoveredCard,setHoveredCard] = useState(null)
+  const [snoozeOpenFor,setSnoozeOpenFor] = useState(null)
+  const [showSnoozed,setShowSnoozed] = useState(false)
+  const [snoozeToast,setSnoozeToast] = useState(false)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
+
+  useEffect(()=>{
+    const now=new Date()
+    setAcct(prev=>{
+      const cleaned=(prev.snoozedAlerts||[]).filter(s=>new Date(s.snoozedUntil)>now)
+      if(cleaned.length===(prev.snoozedAlerts||[]).length)return prev
+      return{...prev,snoozedAlerts:cleaned}
+    })
+  },[])
+
+  useEffect(()=>{
+    if(!snoozeOpenFor)return
+    const h=()=>setSnoozeOpenFor(null)
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[snoozeOpenFor])
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
@@ -136,11 +157,35 @@ function Overview({acct,setAcct,setTab,apiKey}) {
 
   const dismissed = acct.dismissedAlerts || []
   const dismiss = id => setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),id]}))
-  const visibleAlerts = alerts.filter(a=>!dismissed.includes(a.id))
+  const nowTs = new Date()
+  const activeSnoozedSet = new Set((acct.snoozedAlerts||[]).filter(s=>new Date(s.snoozedUntil)>nowTs).map(s=>s.id))
+  const visibleAlerts = alerts.filter(a=>!dismissed.includes(a.id)&&!activeSnoozedSet.has(a.id))
   const hiddenAlerts = alerts.filter(a=>dismissed.includes(a.id))
+  const snoozedAlertsList = alerts.filter(a=>activeSnoozedSet.has(a.id))
   const clearAll = () => {
     if (!window.confirm(`Dismiss all ${visibleAlerts.length} current alert${visibleAlerts.length!==1?'s':''}?`)) return
     setAcct(p=>({...p,dismissedAlerts:[...(p.dismissedAlerts||[]),...visibleAlerts.map(a=>a.id)]}))
+  }
+  const snooze = (alertId, option) => {
+    const until = new Date()
+    if (option==='later') {
+      until.setHours(17,0,0,0)
+      if (until<=nowTs) { until.setDate(until.getDate()+1); until.setHours(17,0,0,0) }
+    } else if (option==='tomorrow') {
+      until.setDate(until.getDate()+1); until.setHours(8,0,0,0)
+    } else if (option==='3days') {
+      until.setDate(until.getDate()+3); until.setHours(8,0,0,0)
+    } else {
+      const day=until.getDay(); const daysUntilMonday=day===1?7:((1+7-day)%7)||7
+      until.setDate(until.getDate()+daysUntilMonday); until.setHours(7,0,0,0)
+    }
+    setAcct(prev=>{
+      const existing=(prev.snoozedAlerts||[]).filter(s=>s.id!==alertId)
+      return{...prev,snoozedAlerts:[...existing,{id:alertId,snoozedUntil:until.toISOString()}]}
+    })
+    setSnoozeOpenFor(null)
+    setSnoozeToast(true)
+    setTimeout(()=>setSnoozeToast(false),2000)
   }
 
   const openAddFU = (task='',contact='') => { setFuForm({task,contact,priority:'High',dueDate:'',context:''}); setShowAddFU(true) }
@@ -188,6 +233,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   return (
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}}`}</style>
+      {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
@@ -229,16 +275,39 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             {visibleAlerts.map(a=>{
               const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
               const isHov = hoveredAlert===a.id
+              const isSnoozeOpen = snoozeOpenFor===a.id
               return (
-                <div key={a.id}
-                  onClick={()=>openAlertDetail(a)}
-                  onMouseEnter={()=>setHoveredAlert(a.id)}
-                  onMouseLeave={()=>setHoveredAlert(null)}
-                  style={{display:'flex',gap:10,padding:'8px 12px',background:isHov?S.surf2:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,marginBottom:5,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
-                  <span style={{color:c,flexShrink:0}}>!</span>
-                  <span style={{fontSize:13,color:S.secondary,flex:1}}>{a.text}</span>
-                  <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
-                  <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
+                <div key={a.id} style={{position:'relative',marginBottom:5}}>
+                  <div
+                    onClick={()=>openAlertDetail(a)}
+                    onMouseEnter={()=>setHoveredAlert(a.id)}
+                    onMouseLeave={()=>setHoveredAlert(null)}
+                    style={{display:'flex',gap:10,padding:'8px 12px',background:isHov?S.surf2:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
+                    <span style={{color:c,flexShrink:0}}>!</span>
+                    <span style={{fontSize:13,color:S.secondary,flex:1}}>{a.text}</span>
+                    <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
+                    <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
+                      style={{background:'transparent',border:'none',color:isSnoozeOpen?S.blue:S.dim,cursor:'pointer',padding:'0 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center'}}>
+                      <Clock size={14}/>
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
+                  </div>
+                  {isSnoozeOpen&&(
+                    <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:210,overflow:'hidden'}}>
+                      {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'3 Days from Now',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                        <button key={o.opt} onClick={()=>snooze(a.id,o.opt)}
+                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <Clock size={13} color={S.muted}/>
+                          <div>
+                            <div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div>
+                            <div style={{fontSize:10,color:S.muted}}>{o.sub}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -251,9 +320,26 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                 </div>
               )
             })}
+            {showSnoozed&&snoozedAlertsList.map(a=>{
+              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+              const entry=(acct.snoozedAlerts||[]).find(s=>s.id===a.id)
+              const untilStr=entry?new Date(entry.snoozedUntil).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''
+              return (
+                <div key={a.id} style={{display:'flex',gap:8,padding:'7px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}55`,borderRadius:7,marginBottom:4,alignItems:'center',opacity:0.65}}>
+                  <Clock size={12} color={S.muted}/>
+                  <span style={{fontSize:12,color:S.muted,flex:1}}>{a.text}</span>
+                  <span style={{fontSize:10,color:S.muted,whiteSpace:'nowrap',flexShrink:0}}>Until {untilStr}</span>
+                </div>
+              )
+            })}
             {hiddenAlerts.length>0&&(
               <button onClick={()=>setShowDismissed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',textDecoration:'underline',marginTop:4,display:'block'}}>
                 {showDismissed?'Hide dismissed alerts':`${hiddenAlerts.length} alert${hiddenAlerts.length!==1?'s':''} hidden — show all`}
+              </button>
+            )}
+            {snoozedAlertsList.length>0&&(
+              <button onClick={()=>setShowSnoozed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',textDecoration:'underline',marginTop:4,display:'block'}}>
+                {showSnoozed?'Hide snoozed alerts':`${snoozedAlertsList.length} alert${snoozedAlertsList.length!==1?'s':''} snoozed — show all`}
               </button>
             )}
           </div>
