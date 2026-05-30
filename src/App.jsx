@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { loadData, saveData } from './supabase.js'
+import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
 
 const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
@@ -144,7 +144,10 @@ const SAMPLE = {
     snoozedAlerts:[],
     healthScoreOverrides:{},
     healthScoreHistory:[],
-    upcomingDates:[]
+    upcomingDates:[],
+    files:[],
+    adminData:{},
+    endpoints:''
   }]
 }
 
@@ -1315,6 +1318,7 @@ const findVendor = (cap, techStack) => {
 const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444'}[v.status]||S.bdr2)
 
 function TechStack({acct,setAcct}) {
+  const isTouchDevice = typeof window!=='undefined'&&('ontouchstart' in window||navigator.maxTouchPoints>0)
   const [view,setView] = useState('list')
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
@@ -1381,9 +1385,9 @@ function TechStack({acct,setAcct}) {
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+          {!isTouchDevice&&<div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
             {['list','heatmap'].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:'5px 14px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{v==='list'?'List':'Heatmap'}</button>)}
-          </div>
+          </div>}
           <div style={{fontSize:12,color:S.muted,display:'flex',gap:16}}>
             <span>{acct.techStack.length} vendors</span>
             {upcoming>0&&<span style={{color:S.orange}}>{upcoming} renewal{upcoming>1?'s':''} within 5 months</span>}
@@ -1427,7 +1431,7 @@ function TechStack({acct,setAcct}) {
         ))}
       </>}
 
-      {view==='heatmap'&&<div>
+      {!isTouchDevice&&view==='heatmap'&&<div>
         <style>{`
           @keyframes hmFadeIn{from{opacity:0}to{opacity:1}}
           @keyframes hmSpin{to{transform:rotate(360deg)}}
@@ -1435,7 +1439,7 @@ function TechStack({acct,setAcct}) {
           .hm-spin-ccw{transform-box:fill-box;transform-origin:center;animation:hmSpin 14s linear infinite reverse}
         `}</style>
         <div style={{display:'flex',justifyContent:'center'}}>
-        <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:680,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))'}}>
+        <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:680,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))',touchAction:'none'}}>
           <defs>
             {/* Cap status radial gradients */}
             <radialGradient id="hm-gc" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#4ade80"/><stop offset="55%" stopColor="#22c55e"/><stop offset="100%" stopColor="#16a34a"/></radialGradient>
@@ -1579,7 +1583,7 @@ function TechStack({acct,setAcct}) {
       </div>}
 
       {/* Rich tooltip */}
-      {hoveredSeg&&view==='heatmap'&&(()=>{
+      {!isTouchDevice&&hoveredSeg&&view==='heatmap'&&(()=>{
         const sc=hoveredSeg.vendor?capStatusFill(hoveredSeg.vendor):S.bdr2
         const tx=Math.min(hoveredSeg.x+16,window.innerWidth-270)
         const ty=Math.max(10,hoveredSeg.y-70)
@@ -2981,6 +2985,7 @@ function Settings({data,setData,acct,setAcct,theme,setTheme}) {
           <Field label='Cloud Environment' value={acct.cloud} onChange={v=>setAcct(p=>({...p,cloud:v}))} style={{gridColumn:'span 2'}}/>
           <Field label='User Count' value={acct.users} onChange={v=>setAcct(p=>({...p,users:v}))}/>
           <Field label='Relationship Length' value={acct.relationship} onChange={v=>setAcct(p=>({...p,relationship:v}))}/>
+          <Field label='Number of Endpoints' value={acct.endpoints||''} onChange={v=>setAcct(p=>({...p,endpoints:v}))}/>
         </div>
         <Field label='Account Notes' value={acct.notes} onChange={v=>setAcct(p=>({...p,notes:v}))} multiline/>
       </Card>
@@ -3391,7 +3396,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     return()=>window.removeEventListener('resize',check)
   },[])
 
-  const addAccount=()=>{if(!newName.trim())return;const id=uid();setData(p=>({...p,accounts:[...p.accounts,{...SAMPLE.accounts[0],id,name:newName,short:newName.slice(0,5).toUpperCase(),contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],unknownMentions:[],relSuggestions:[]}]}));setActiveId(id);setShowAdd(false);setNewName('')}
+  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:''};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
@@ -3579,7 +3584,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const addAccount = () => {
     if (!newName.trim()) return
     const id = uid()
-    setData(p=>({...p,accounts:[...p.accounts,{...SAMPLE.accounts[0],id,name:newName,short:newName.slice(0,5).toUpperCase(),contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[]}]}))
+    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:''}
+    setData(p=>({...p,accounts:[...p.accounts,blank]}))
     onEnterAccount(id)
     setShowAdd(false)
     setNewName('')
@@ -4114,7 +4120,223 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'settings',label:'Settings'}]
+function Files({acct,setAcct}) {
+  const [showUpload,setShowUpload] = useState(false)
+  const [uploading,setUploading] = useState(false)
+  const [uploadErr,setUploadErr] = useState('')
+  const [fileInput,setFileInput] = useState(null)
+  const [category,setCategory] = useState('Other')
+  const [notes,setNotes] = useState('')
+  const [viewingId,setViewingId] = useState(null)
+  const FILE_CATS = ['NDA','MSA','Contract','SOW','Proposal','Quote','Reference','Other']
+  const fmtSize = b => b>=1048576?`${(b/1048576).toFixed(1)} MB`:b>=1024?`${(b/1024).toFixed(0)} KB`:`${b} B`
+  const fileIcon = type => {
+    if(!type) return {icon:'📄',c:'#94a3b8'}
+    if(type.includes('pdf')) return {icon:'📕',c:'#dc2626'}
+    if(type.includes('word')||type.includes('document')) return {icon:'📘',c:'#2563eb'}
+    if(type.includes('sheet')||type.includes('excel')||type.includes('csv')) return {icon:'📗',c:'#16a34a'}
+    if(type.includes('presentation')||type.includes('powerpoint')) return {icon:'📙',c:'#ea580c'}
+    if(type.startsWith('image/')) return {icon:'🖼️',c:'#7c3aed'}
+    return {icon:'📄',c:'#64748b'}
+  }
+  const grouped = (acct.files||[]).reduce((acc,f)=>{(acc[f.category]||(acc[f.category]=[])).push(f);return acc},{})
+
+  const doUpload = async () => {
+    if(!fileInput) return
+    if(fileInput.size>10*1024*1024 && !window.confirm(`This file is ${fmtSize(fileInput.size)} — over 10 MB. Upload anyway?`)) return
+    setUploading(true); setUploadErr('')
+    try {
+      const meta = await uploadFile(acct.id, fileInput, category, notes)
+      setAcct(p=>({...p, files:[...(p.files||[]), meta]}))
+      setShowUpload(false); setFileInput(null); setCategory('Other'); setNotes('')
+    } catch(e) { setUploadErr(e.message||'Upload failed') }
+    finally { setUploading(false) }
+  }
+
+  const doView = async f => {
+    setViewingId(f.id)
+    try { const url=await getFileUrl(f.path); if(url)window.open(url,'_blank') }
+    catch(e){alert('Could not load file: '+e.message)}
+    finally{setViewingId(null)}
+  }
+
+  const doDownload = async f => {
+    setViewingId(f.id)
+    try {
+      const url=await getFileUrl(f.path)
+      if(url){const a=document.createElement('a');a.href=url;a.download=f.name;a.click()}
+    } catch(e){alert('Could not download file: '+e.message)}
+    finally{setViewingId(null)}
+  }
+
+  const doDelete = async f => {
+    if(!window.confirm(`Delete "${f.name}"?`)) return
+    try {
+      await deleteFile(f.path)
+      setAcct(p=>({...p, files:(p.files||[]).filter(x=>x.id!==f.id)}))
+    } catch(e){alert('Delete failed: '+e.message)}
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Account Files</div>
+          <div style={{fontSize:12,color:S.muted,marginTop:2}}>{(acct.files||[]).length} file{(acct.files||[]).length!==1?'s':''} stored</div>
+        </div>
+        <Btn variant='primary' onClick={()=>setShowUpload(true)}>+ Upload File</Btn>
+      </div>
+
+      {showUpload&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:14,width:'100%',maxWidth:480,boxShadow:'0 20px 60px rgba(0,0,0,0.15)',overflow:'hidden'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`}}>
+              <div style={{fontSize:16,fontWeight:700,color:S.txt}}>Upload File</div>
+              <button onClick={()=>{setShowUpload(false);setFileInput(null);setUploadErr('')}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1}}>×</button>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',background:S.surf2,border:`2px dashed ${S.bdr2}`,borderRadius:8,padding:'24px 16px',textAlign:'center',cursor:'pointer'}}>
+                  <input type='file' style={{display:'none'}} onChange={e=>setFileInput(e.target.files[0]||null)}/>
+                  {fileInput ? (
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:S.txt}}>{fileInput.name}</div>
+                      <div style={{fontSize:11,color:S.muted,marginTop:3}}>{fmtSize(fileInput.size)}</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{fontSize:24,marginBottom:6}}>📁</div>
+                      <div style={{fontSize:13,color:S.muted}}>Click to choose a file</div>
+                    </div>
+                  )}
+                </label>
+              </div>
+              <Field label='Category' value={category} onChange={setCategory} options={FILE_CATS}/>
+              <Field label='Notes (optional)' value={notes} onChange={setNotes} placeholder='Brief description...'/>
+              {uploadErr&&<div style={{fontSize:12,color:S.red,background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',marginBottom:12}}>{uploadErr}</div>}
+              <div style={{display:'flex',gap:8}}>
+                <Btn variant='primary' onClick={doUpload} disabled={!fileInput||uploading} style={{flex:1,justifyContent:'center'}}>{uploading?'Uploading…':'Upload'}</Btn>
+                <Btn onClick={()=>{setShowUpload(false);setFileInput(null);setUploadErr('')}}>Cancel</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(acct.files||[]).length===0 ? (
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'56px 20px',textAlign:'center'}}>
+          <div style={{fontSize:40,marginBottom:12,opacity:0.4}}>📁</div>
+          <div style={{fontSize:15,fontWeight:600,color:S.txt,marginBottom:6}}>No files uploaded yet</div>
+          <div style={{fontSize:13,color:S.muted,maxWidth:340,lineHeight:1.6}}>Upload NDAs, MSAs, contracts, and other account documents to keep everything in one place.</div>
+        </div>
+      ) : (
+        Object.entries(grouped).map(([cat,files])=>(
+          <div key={cat} style={{marginBottom:20}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>{cat}</span>
+              <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{files.length}</span>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {files.map(f=>{
+                const {icon,c}=fileIcon(f.type)
+                const isLoading=viewingId===f.id
+                return (
+                  <div key={f.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none'}}>
+                    <span style={{fontSize:22,flexShrink:0,lineHeight:1}}>{icon}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,color:S.muted}}>{fmtSize(f.size)}</span>
+                        <span style={{fontSize:10,color:S.dim}}>·</span>
+                        <span style={{fontSize:10,color:S.muted}}>{new Date(f.uploadedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
+                        {f.notes&&<><span style={{fontSize:10,color:S.dim}}>·</span><span style={{fontSize:10,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}}>{f.notes}</span></>}
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:4,flexShrink:0}}>
+                      <button onClick={()=>doView(f)} disabled={isLoading} title='View' style={{padding:'5px 10px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>{isLoading?'…':'👁'}</button>
+                      <button onClick={()=>doDownload(f)} disabled={isLoading} title='Download' style={{padding:'5px 10px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>⬇</button>
+                      <button onClick={()=>doDelete(f)} title='Delete' style={{padding:'5px 10px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function Admin({acct,setAcct}) {
+  const [copied,setCopied] = useState(false)
+  const d = acct.adminData||{}
+  const save = (k,v) => setAcct(p=>({...p,adminData:{...(p.adminData||{}),[k]:v}}))
+
+  const FIELDS = [
+    {key:'accountName',label:'Account Name',defaultVal:acct.name,type:'text'},
+    {key:'opportunityName',label:'Opportunity Name',type:'text'},
+    {key:'closeDate',label:'Estimated Close Date',type:'date'},
+    {key:'customerContact',label:'Customer Contact',type:'text'},
+    {key:'customerEmail',label:'Customer Email',type:'text'},
+    {key:'customerTitle',label:'Customer Title',type:'text'},
+    {key:'shipTo',label:'Ship To Address',type:'textarea'},
+    {key:'revenue',label:'Est. Top Line Revenue',type:'text',prefix:'$'},
+    {key:'products',label:'Products',type:'textarea'},
+    {key:'vendorContact',label:'Vendor Contact',type:'text'},
+    {key:'vendorEmail',label:'Vendor Email',type:'text'},
+  ]
+
+  const copyAll = () => {
+    const text = FIELDS.map(f=>`${f.label}: ${d[f.key]||f.defaultVal||''}`).join('\n')
+    navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000)})
+  }
+
+  return (
+    <div style={{maxWidth:680}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Opportunity / Admin Data</div>
+        <button onClick={copyAll} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:copied?(S.isLight?'#dcfce7':'rgba(34,197,94,0.15)'):S.surf,border:`1px solid ${copied?(S.isLight?'#86efac':S.green):S.bdr}`,borderRadius:8,color:copied?S.green:S.secondary,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>
+          {copied?'✓ Copied!':'📋 Copy All'}
+        </button>
+      </div>
+      <Card style={{overflow:'hidden',padding:0}}>
+        {FIELDS.map((f,i)=>{
+          const val = d[f.key]!==undefined ? d[f.key] : (f.defaultVal||'')
+          const isEven = i%2===0
+          return (
+            <div key={f.key} style={{display:'flex',alignItems:f.type==='textarea'?'flex-start':'center',borderBottom:i<FIELDS.length-1?`1px solid ${S.isLight?'#f8fafc':S.bdr}`:'none',background:isEven?(S.isLight?'#ffffff':S.surf):(S.isLight?'#fafafa':S.surf2)}}>
+              <div style={{width:200,flexShrink:0,padding:'12px 16px',fontSize:12,fontWeight:600,color:S.muted}}>
+                {f.prefix&&<span style={{color:S.isLight?'#16a34a':S.green,marginRight:2}}>{f.prefix}</span>}
+                {f.label}
+              </div>
+              <div style={{flex:1,padding:'8px 12px 8px 0'}}>
+                {f.type==='textarea'?(
+                  <textarea value={val} rows={2}
+                    onChange={e=>save(f.key,e.target.value)}
+                    onBlur={e=>save(f.key,e.target.value)}
+                    style={{width:'100%',fontSize:13,padding:'6px 10px',background:'transparent',border:`1px solid transparent`,borderRadius:6,color:S.txt,resize:'vertical',lineHeight:1.5,fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}
+                    onFocus={e=>{e.target.style.background=S.surf;e.target.style.border=`1px solid ${S.blue}`;e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
+                    onBlurCapture={e=>{e.target.style.background='transparent';e.target.style.border='1px solid transparent';e.target.style.boxShadow='none'}}
+                    placeholder={`Enter ${f.label.toLowerCase()}…`}/>
+                ):(
+                  <input type={f.type} value={val}
+                    onChange={e=>save(f.key,e.target.value)}
+                    style={{width:'100%',fontSize:13,padding:'6px 10px',background:'transparent',border:'1px solid transparent',borderRadius:6,color:S.txt,fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}
+                    onFocus={e=>{e.target.style.background=S.surf;e.target.style.border=`1px solid ${S.blue}`;e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
+                    onBlur={e=>{e.target.style.background='transparent';e.target.style.border='1px solid transparent';e.target.style.boxShadow='none'}}
+                    placeholder={`Enter ${f.label.toLowerCase()}…`}/>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </Card>
+    </div>
+  )
+}
+
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
 
 export default function App() {
   const [data,setData] = useState(null)
@@ -4257,6 +4479,8 @@ export default function App() {
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
           {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
+          {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
+          {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
           {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme}/>}
         </div>
       </div>
