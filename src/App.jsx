@@ -1050,7 +1050,11 @@ function Contacts({acct,setAcct}) {
   const [exportToast,setExportToast] = useState(null)
   // Ref bundle so touch/wheel handlers always see latest state
   const orgStateRef = useRef({})
-  useEffect(()=>{ orgStateRef.current = {zoom,pan,panStart,pinchStartDist,pinchStartZoom} })
+  useEffect(()=>{ orgStateRef.current = {zoom,pan,panStart,pinchStartDist,pinchStartZoom,openDetailNode} })
+  // Mouse-based node drag
+  const nodeDragRef = useRef(null)
+  const [liveDragPos,setLiveDragPos] = useState(null)
+  const justDraggedRef = useRef(false)
 
   useEffect(()=>{
     if(!canvasRef.current||contactView!=='orgchart')return
@@ -1295,7 +1299,7 @@ function Contacts({acct,setAcct}) {
   const chartedIds = new Set(orgNodes.map(n=>n.contactId))
   const unassigned = allContacts.filter(c=>!chartedIds.has(c.id))
   const NODE_W=120, NODE_H=80
-  const CANVAS_W=3000, CANVAS_H=2000
+  const CANVAS_W=4000, CANVAS_H=3000
 
   const autoLayout = () => {
     if(orgNodes.length===0)return
@@ -1319,41 +1323,99 @@ function Contacts({acct,setAcct}) {
     saveOrgNodes(newNodes)
   }
 
+  // Tray-chip HTML5 drop only (chart nodes use mouse events instead)
   const handleCanvasDrop = e => {
     e.preventDefault()
-    if(!dragState||!canvasRef.current)return
+    if(!dragState||dragState.type!=='tray-chip'||!canvasRef.current)return
     const rect=canvasRef.current.getBoundingClientRect()
     const dropX=e.clientX-rect.left, dropY=e.clientY-rect.top
-    // Convert screen drop position to content-div pixel coordinates
     const contentX=(dropX-dragState.offX-pan.x)/zoom
     const contentY=(dropY-dragState.offY-pan.y)/zoom
-    const pctX=contentX/CANVAS_W*100
-    const pctY=contentY/CANVAS_H*100
-    if(dragState.type==='tray-chip'){
-      const safeX=contentX<80?400/CANVAS_W*100:pctX
-      const safeY=contentY<60?300/CANVAS_H*100:pctY
-      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:safeX,y:safeY,parentId:null,gradientId:'blue'}])
-    } else if(dragState.type==='chart-node'){
-      saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,x:pctX,y:pctY}:n))
-    }
+    const pctX=(contentX<80?400:contentX)/CANVAS_W*100
+    const pctY=(contentY<60?300:contentY)/CANVAS_H*100
+    saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null,gradientId:'blue'}])
     setDragState(null);setDragOverNode(null)
   }
 
-  const handleNodeDrop = (e,targetId) => {
-    e.preventDefault();e.stopPropagation()
-    if(dragState?.type==='chart-node'&&dragState.contactId!==targetId){
-      saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,parentId:targetId}:n))
+  // Mouse-based drag for chart nodes — no boundaries, tracks outside canvas
+  const handleNodeMouseDown = (e,n) => {
+    if(e.button!==0)return
+    e.stopPropagation()
+    e.preventDefault()
+    if(!canvasRef.current)return
+    const rect=canvasRef.current.getBoundingClientRect()
+    const {pan:p,zoom:z}=orgStateRef.current
+    const startX=n.x/100*CANVAS_W, startY=n.y/100*CANVAS_H
+    const offX=(e.clientX-rect.left-p.x)/z-startX
+    const offY=(e.clientY-rect.top-p.y)/z-startY
+    nodeDragRef.current={contactId:n.contactId,offX,offY,startX,startY,moved:false}
+    setLiveDragPos({contactId:n.contactId,x:startX,y:startY})
+
+    const onMove=e2=>{
+      const dr=nodeDragRef.current; if(!dr)return
+      const r=canvasRef.current?.getBoundingClientRect(); if(!r)return
+      const {pan:p2,zoom:z2}=orgStateRef.current
+      const nx=(e2.clientX-r.left-p2.x)/z2-dr.offX
+      const ny=(e2.clientY-r.top-p2.y)/z2-dr.offY
+      if(!dr.moved&&(Math.abs(nx-dr.startX)>3||Math.abs(ny-dr.startY)>3))dr.moved=true
+      if(!dr.moved)return
+      setLiveDragPos({contactId:dr.contactId,x:nx,y:ny})
+      // Highlight nearest node for reparenting
+      const over=orgNodes.find(o=>{
+        if(o.contactId===dr.contactId)return false
+        const ox=o.x/100*CANVAS_W,oy=o.y/100*CANVAS_H
+        return Math.abs(nx+NODE_W/2-(ox+NODE_W/2))<NODE_W&&Math.abs(ny+NODE_H/2-(oy+NODE_H/2))<NODE_H
+      })
+      setDragOverNode(over?.contactId||null)
     }
-    setDragState(null);setDragOverNode(null)
+
+    const onUp=e2=>{
+      const dr=nodeDragRef.current
+      nodeDragRef.current=null
+      document.removeEventListener('mousemove',onMove)
+      document.removeEventListener('mouseup',onUp)
+      if(!dr){setLiveDragPos(null);setDragOverNode(null);return}
+      if(!dr.moved){
+        setLiveDragPos(null);setDragOverNode(null)
+        const {openDetailNode:od}=orgStateRef.current
+        setOpenDetailNode(od===dr.contactId?null:dr.contactId)
+        setExportDropdown(false)
+        return
+      }
+      const r=canvasRef.current?.getBoundingClientRect()
+      const {pan:p2,zoom:z2}=orgStateRef.current
+      const nx=r?(e2.clientX-r.left-p2.x)/z2-dr.offX:dr.startX
+      const ny=r?(e2.clientY-r.top-p2.y)/z2-dr.offY:dr.startY
+      const pctX=nx/CANVAS_W*100, pctY=ny/CANVAS_H*100
+      const over=orgNodes.find(o=>{
+        if(o.contactId===dr.contactId)return false
+        const ox=o.x/100*CANVAS_W,oy=o.y/100*CANVAS_H
+        return Math.abs(nx+NODE_W/2-(ox+NODE_W/2))<NODE_W&&Math.abs(ny+NODE_H/2-(oy+NODE_H/2))<NODE_H
+      })
+      if(over){
+        saveOrgNodes(orgNodes.map(o=>o.contactId===dr.contactId?{...o,parentId:over.contactId}:o))
+      } else {
+        saveOrgNodes(orgNodes.map(o=>o.contactId===dr.contactId?{...o,x:pctX,y:pctY}:o))
+      }
+      justDraggedRef.current=true
+      requestAnimationFrame(()=>{justDraggedRef.current=false})
+      setLiveDragPos(null);setDragOverNode(null)
+    }
+
+    document.addEventListener('mousemove',onMove)
+    document.addEventListener('mouseup',onUp)
   }
 
+  const getNodePx = n => {
+    if(liveDragPos?.contactId===n.contactId)return{x:liveDragPos.x,y:liveDragPos.y}
+    return{x:n.x/100*CANVAS_W,y:n.y/100*CANVAS_H}
+  }
   const svgLine = (n) => {
     const parent=orgNodes.find(p=>p.contactId===n.parentId)
     if(!parent)return null
-    const cx=(n.x/100*CANVAS_W)+(NODE_W/2)
-    const cy=(n.y/100*CANVAS_H)
-    const px=(parent.x/100*CANVAS_W)+(NODE_W/2)
-    const py=(parent.y/100*CANVAS_H)+NODE_H
+    const np=getNodePx(n),pp=getNodePx(parent)
+    const cx=np.x+(NODE_W/2), cy=np.y
+    const px=pp.x+(NODE_W/2), py=pp.y+NODE_H
     const midY=(cy+py)/2
     return <path key={`${n.contactId}-l`} d={`M ${cx} ${cy} C ${cx} ${midY} ${px} ${midY} ${px} ${py}`} fill="none" stroke="#bbc2ff" strokeWidth="2"/>
   }
@@ -1522,11 +1584,11 @@ function Contacts({acct,setAcct}) {
 
           {/* Canvas outer — handles pan and drop */}
           <div ref={canvasRef}
-            style={{position:'relative',minHeight:typeof window!=='undefined'&&window.innerWidth<768?'70vh':600,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
+            style={{position:'relative',width:'100%',height:typeof window!=='undefined'&&window.innerWidth<768?'70vh':600,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
               backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',
               backgroundSize:'24px 24px',
               backgroundColor:S.isLight?'#f8fafc':S.surf2,
-              cursor:isPanning?'grabbing':'default',
+              cursor:isPanning?'grabbing':'grab',
               touchAction:'none',userSelect:'none'}}
             onDragOver={e=>e.preventDefault()}
             onDrop={handleCanvasDrop}
@@ -1572,7 +1634,7 @@ function Contacts({acct,setAcct}) {
 
             {/* Transformed content div — all chart content lives here */}
             <div ref={chartContentRef}
-              style={{position:'absolute',width:CANVAS_W,height:CANVAS_H,
+              style={{position:'relative',width:CANVAS_W,height:CANVAS_H,
                 transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'0 0'}}>
 
               {/* SVG connection lines */}
@@ -1581,35 +1643,27 @@ function Contacts({acct,setAcct}) {
                 {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
               </svg>
 
-              {/* Chart nodes */}
+              {/* Chart nodes — mouse-event drag, no HTML5 drag boundaries */}
               {orgNodes.map(n=>{
                 const c=allContacts.find(x=>x.id===n.contactId)
                 if(!c)return null
                 const isRoot=orgNodes[0]?.contactId===n.contactId&&!n.parentId
                 const isOver=dragOverNode===n.contactId
+                const isLive=liveDragPos?.contactId===n.contactId
                 const grad=getGrad(n)
+                const nodeX=isLive?liveDragPos.x:n.x/100*CANVAS_W
+                const nodeY=isLive?liveDragPos.y:n.y/100*CANVAS_H
                 return (
                   <div key={n.contactId}
-                    draggable
-                    onDragStart={e=>{
-                      const rect=e.currentTarget.getBoundingClientRect()
-                      setDragState({type:'chart-node',contactId:n.contactId,offX:e.clientX-rect.left,offY:e.clientY-rect.top})
-                      e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',n.contactId)
-                      setTimeout(()=>setDragOverNode(null),0)
-                    }}
-                    onDragEnd={()=>{setDragState(null);setDragOverNode(null)}}
-                    onDragOver={e=>{e.preventDefault();e.stopPropagation();setDragOverNode(n.contactId)}}
-                    onDragLeave={()=>setDragOverNode(null)}
-                    onDrop={e=>handleNodeDrop(e,n.contactId)}
-                    onClick={e=>{e.stopPropagation();setOpenDetailNode(openDetailNode===n.contactId?null:n.contactId);setExportDropdown(false)}}
+                    onMouseDown={e=>handleNodeMouseDown(e,n)}
                     onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
-                    style={{position:'absolute',left:`${n.x/100*CANVAS_W}px`,top:`${n.y/100*CANVAS_H}px`,width:NODE_W,
+                    style={{position:'absolute',left:`${nodeX}px`,top:`${nodeY}px`,width:NODE_W,
                       background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',
-                      cursor:'grab',border:isRoot?'2px solid #fbbf24':'none',
+                      cursor:isLive?'grabbing':'grab',border:isRoot?'2px solid #fbbf24':'none',
                       boxShadow:isOver?`0 0 0 3px #2563eb, 0 8px 24px ${grad.shadow}`:`0 4px 16px ${grad.shadow}`,
-                      transition:'box-shadow 0.15s, transform 0.15s',
+                      transition:isLive?'none':'box-shadow 0.15s, transform 0.15s',
                       transform:isOver?'scale(1.05)':'scale(1)',
-                      userSelect:'none',zIndex:openDetailNode===n.contactId?15:isOver?10:1}}>
+                      userSelect:'none',zIndex:isLive?20:openDetailNode===n.contactId?15:isOver?10:1}}>
                     <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px'}}>{initials(c.name)}</div>
                     <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
                     <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
