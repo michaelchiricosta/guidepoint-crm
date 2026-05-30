@@ -472,7 +472,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
 
   return (
     <div>
-      <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}}`}</style>
+      <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
@@ -522,51 +522,64 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
       {alerts.length>0&&(
-        <>
+        <div style={{marginBottom:16}}>
+          {/* Header */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase'}}>Alerts</div>
+            <div style={{display:'inline-flex',alignItems:'center',gap:8}}>
+              <span style={{width:8,height:8,borderRadius:'50%',background:'#ef4444',display:'inline-block',animation:'alertPulse 2s infinite',flexShrink:0}}/>
+              <span style={{fontSize:11,fontWeight:800,color:'#ef4444',letterSpacing:'0.12em',textTransform:'uppercase'}}>Alerts</span>
+              {visibleAlerts.length>0&&<span style={{background:'rgba(239,68,68,0.2)',color:'#ef4444',fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:999}}>{visibleAlerts.length}</span>}
+            </div>
             {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 8px',cursor:'pointer',lineHeight:'18px'}}>Clear All</button>}
           </div>
-          <div style={{marginBottom:16}}>
-            {visibleAlerts.map(a=>{
-              const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
-              const isHov = hoveredAlert===a.id
-              const isSnoozeOpen = snoozeOpenFor===a.id
-              return (
-                <div key={a.id} style={{position:'relative',marginBottom:5}}>
-                  <div
-                    onClick={()=>openAlertDetail(a)}
-                    onMouseEnter={()=>setHoveredAlert(a.id)}
-                    onMouseLeave={()=>setHoveredAlert(null)}
-                    style={{display:'flex',gap:10,padding:'8px 12px',background:isHov?S.surf2:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
-                    <span style={{color:c,flexShrink:0}}>!</span>
-                    <span style={{fontSize:13,color:S.secondary,flex:1}}>{a.text}</span>
-                    <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
-                    <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
-                      style={{background:'transparent',border:'none',color:isSnoozeOpen?S.blue:S.dim,cursor:'pointer',padding:'0 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center'}}>
-                      <Clock size={14}/>
-                    </button>
-                    <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
-                  </div>
-                  {isSnoozeOpen&&(
-                    <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:210,overflow:'hidden'}}>
-                      {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'3 Days from Now',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
-                        <button key={o.opt} onClick={()=>snooze(a.id,o.opt)}
-                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
-                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                          <Clock size={13} color={S.muted}/>
-                          <div>
-                            <div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div>
-                            <div style={{fontSize:10,color:S.muted}}>{o.sub}</div>
-                          </div>
-                        </button>
-                      ))}
+          {/* Container */}
+          <div style={{background:visibleAlerts.length===0?'rgba(34,197,94,0.04)':'rgba(239,68,68,0.04)',border:`1px solid ${visibleAlerts.length===0?'rgba(34,197,94,0.15)':'rgba(239,68,68,0.15)'}`,borderLeft:`3px solid ${visibleAlerts.length===0?'rgba(34,197,94,0.5)':'rgba(239,68,68,0.5)'}`,borderRadius:8,padding:'14px 14px 10px 14px'}}>
+            {visibleAlerts.length===0
+              ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'6px 0 4px'}}>
+                <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:6,fontSize:16,color:'#22c55e'}}>✓</div>
+                <div style={{fontSize:13,fontWeight:600,color:'#22c55e',marginBottom:3}}>No active alerts</div>
+                <div style={{fontSize:11,color:S.muted}}>All clear — no critical items need attention</div>
+              </div>
+              :<>{visibleAlerts.map(a=>{
+                const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
+                const isHov=hoveredAlert===a.id
+                const isSnoozeOpen=snoozeOpenFor===a.id
+                return (
+                  <div key={a.id} style={{position:'relative',marginBottom:5}}>
+                    <div
+                      onClick={()=>openAlertDetail(a)}
+                      onMouseEnter={()=>setHoveredAlert(a.id)}
+                      onMouseLeave={()=>setHoveredAlert(null)}
+                      style={{display:'flex',gap:10,padding:'10px 12px',background:isHov?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.15)',border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${c}`,borderRadius:7,alignItems:'center',cursor:'pointer',transition:'background 0.1s'}}>
+                      <span style={{color:c,flexShrink:0}}>!</span>
+                      <span style={{fontSize:14,color:S.secondary,flex:1}}>{a.text}</span>
+                      <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:4}}>→ View details</span>
+                      <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
+                        style={{background:'transparent',border:'none',color:isSnoozeOpen?S.blue:S.dim,cursor:'pointer',padding:'0 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center'}}>
+                        <Clock size={14}/>
+                      </button>
+                      <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert' style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1,flexShrink:0}}>×</button>
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                    {isSnoozeOpen&&(
+                      <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:210,overflow:'hidden'}}>
+                        {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'3 Days from Now',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                          <button key={o.opt} onClick={()=>snooze(a.id,o.opt)}
+                            style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
+                            onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                            <Clock size={13} color={S.muted}/>
+                            <div>
+                              <div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div>
+                              <div style={{fontSize:10,color:S.muted}}>{o.sub}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}</>
+            }
             {showDismissed&&hiddenAlerts.map(a=>{
               const c={critical:S.red,high:S.orange,medium:S.yellow}[a.level]||S.muted
               return (
@@ -599,7 +612,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               </button>
             )}
           </div>
-        </>
+        </div>
       )}
       <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:16,alignItems:'stretch'}}>
         {/* Left: Account Profile */}
