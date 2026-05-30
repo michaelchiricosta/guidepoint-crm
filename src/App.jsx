@@ -1793,7 +1793,8 @@ function Projects({acct,setAcct}) {
 function FollowUps({acct,setAcct}) {
   const [showAdd,setShowAdd] = useState(false)
   const [showCompleted,setShowCompleted] = useState(false)
-  const [sortBy,setSortBy] = useState('priority')
+  const [showOpenTasks,setShowOpenTasks] = useState(true)
+  const [openSort,setOpenSort] = useState('priority')
   const [snoozeDropOpen,setSnoozeDropOpen] = useState(false)
   const [snoozeShowCustom,setSnoozeShowCustom] = useState(false)
   const [snoozeCustomDate,setSnoozeCustomDate] = useState('')
@@ -1835,21 +1836,28 @@ function FollowUps({acct,setAcct}) {
   },[snoozeDropOpen])
 
   const todayStr = new Date().toISOString().split('T')[0]
+  const todayFull = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
   const allOpen = acct.followUps.filter(f=>f.status==='Open')
-  const todayFUs = allOpen.filter(f=>f.dueDate===todayStr)
-  const restFUs = allOpen.filter(f=>f.dueDate!==todayStr).sort((a,b)=>{
-    if(sortBy==='duedate'){
+  const done = acct.followUps.filter(f=>f.status==='Done')
+  // Today section: overdue (past) + due today
+  const overdueFUs = allOpen.filter(f=>f.dueDate&&f.dueDate<todayStr)
+    .sort((a,b)=>a.dueDate.localeCompare(b.dueDate))  // most overdue first
+  const dueTodayFUs = allOpen.filter(f=>f.dueDate===todayStr)
+    .sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority))
+  // Open Tasks section: future or no date
+  const futureFUs = allOpen.filter(f=>!f.dueDate||f.dueDate>todayStr)
+  const sortedFuture = [...futureFUs].sort((a,b)=>{
+    if(openSort==='duedate'){
       if(!a.dueDate&&!b.dueDate)return 0
       if(!a.dueDate)return 1
       if(!b.dueDate)return -1
       return a.dueDate.localeCompare(b.dueDate)
     }
+    if(openSort==='contact') return(a.contact||'').localeCompare(b.contact||'')
     return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)
   })
-  const open = allOpen
-  const done = acct.followUps.filter(f=>f.status==='Done')
-  const renderFU = fu => {
-    const p=PC[fu.priority]||PC.Low; const overdue=fu.dueDate&&daysUntil(fu.dueDate)<0
+  const renderFU = (fu, extraBadge=null) => {
+    const p=PC[fu.priority]||PC.Low
     return (
       <div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8}}>
         <button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
@@ -1857,7 +1865,7 @@ function FollowUps({acct,setAcct}) {
           <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
             <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
             <Badge label={fu.priority} color={p.c} bg={p.b}/>
-            {overdue&&<Badge label='OVERDUE' color={S.red} bg='rgba(239,68,68,0.12)'/>}
+            {extraBadge}
           </div>
           <div style={{fontSize:11,color:S.muted}}>{fu.contact&&fu.contact+' · '}{fu.dueDate&&fmtDate(fu.dueDate)+' · '}{fu.context}</div>
         </div>
@@ -1869,53 +1877,84 @@ function FollowUps({acct,setAcct}) {
   return (
     <div>
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      {/* Header row */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:12,flexWrap:'wrap'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <div style={{fontSize:13,color:S.muted}}>{open.length} open · {done.length} done</div>
-          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:6,padding:2}}>
-            <button onClick={()=>setSortBy('priority')} style={{padding:'3px 10px',borderRadius:4,border:'none',background:sortBy==='priority'?S.blue:'transparent',color:sortBy==='priority'?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>Priority</button>
-            <button onClick={()=>setSortBy('duedate')} style={{padding:'3px 10px',borderRadius:4,border:'none',background:sortBy==='duedate'?S.blue:'transparent',color:sortBy==='duedate'?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>Due Date</button>
-          </div>
+      {/* ─── TODAY SECTION ─── */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Today</div>
+          <div style={{fontSize:12,color:S.muted}}>{todayFull}</div>
         </div>
-        <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add</Btn>
+        {(overdueFUs.length===0&&dueTodayFUs.length===0)
+          ?<div style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',background:'rgba(34,197,94,0.06)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:8}}>
+            <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(34,197,94,0.2)',display:'flex',alignItems:'center',justifyContent:'center',color:S.green,fontSize:14,flexShrink:0}}>✓</div>
+            <div style={{fontSize:13,fontWeight:600,color:S.green}}>Nothing due today — you're all caught up</div>
+          </div>
+          :<div style={{display:'flex',flexDirection:'column',gap:5}}>
+            {overdueFUs.map(fu=>{
+              const d=Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000)
+              return renderFU(fu,<Badge label={`${d}d overdue`} color={S.red} bg='rgba(239,68,68,0.12)'/>)
+            })}
+            {dueTodayFUs.map(fu=>renderFU(fu,<Badge label='Due Today' color={S.orange} bg='rgba(249,115,22,0.12)'/>))}
+          </div>
+        }
       </div>
 
-      {/* Due Today section */}
-      {todayFUs.length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:7}}>
-            <span style={{width:7,height:7,borderRadius:'50%',background:S.yellow,flexShrink:0,display:'inline-block'}}/>
-            <span style={{fontSize:10,fontWeight:700,color:S.yellow,textTransform:'uppercase',letterSpacing:'0.1em'}}>Due Today</span>
-            <span style={{fontSize:10,fontWeight:700,color:S.yellow,background:'rgba(234,179,8,0.18)',borderRadius:999,padding:'1px 7px'}}>{todayFUs.length}</span>
+      <div style={{height:1,background:S.bdr,marginBottom:20}}/>
+
+      {/* ─── OPEN TASKS SECTION ─── */}
+      <div style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showOpenTasks?10:0}}>
+          <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}
+            onMouseEnter={e=>e.currentTarget.style.opacity='0.7'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+            <span style={{fontSize:11,color:S.muted}}>{showOpenTasks?'▼':'▶'}</span>
+            <span style={{fontSize:13,fontWeight:700,color:S.txt}}>Open Tasks</span>
+            <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:5,background:'rgba(234,179,8,0.04)',border:'1px solid rgba(234,179,8,0.2)',borderLeft:'3px solid rgba(234,179,8,0.6)',borderRadius:8,padding:'8px 8px 4px'}}>
-            {todayFUs.map(fu=>renderFU(fu))}
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {showOpenTasks&&(
+              <select value={openSort} onChange={e=>setOpenSort(e.target.value)} style={{fontSize:11,padding:'4px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}>
+                <option value='priority'>Priority</option>
+                <option value='duedate'>Due Date</option>
+                <option value='contact'>Contact</option>
+              </select>
+            )}
+            <button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>
           </div>
         </div>
-      )}
-
-      {/* Sorted open list */}
-      <div style={{display:'flex',flexDirection:'column',gap:5}}>
-        {restFUs.map(fu=>renderFU(fu))}
+        {showOpenTasks&&(
+          futureFUs.length===0
+          ?<div style={{fontSize:12,color:S.dim,padding:'10px 0'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
+          :<div style={{display:'flex',flexDirection:'column',gap:5}}>{sortedFuture.map(fu=>renderFU(fu))}</div>
+        )}
       </div>
-      {done.length>0&&(
-        <>
-          <div onClick={()=>setShowCompleted(v=>!v)}
-            style={{display:'flex',alignItems:'center',gap:6,padding:'8px 4px',cursor:'pointer',marginTop:16,borderTop:`1px solid ${S.bdr}`,userSelect:'none'}}
-            onMouseEnter={e=>e.currentTarget.style.opacity='0.65'}
-            onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+
+      <div style={{height:1,background:S.bdr,marginBottom:20}}/>
+
+      {/* ─── COMPLETED SECTION ─── */}
+      <div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showCompleted&&done.length>0?10:0}}>
+          <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}
+            onMouseEnter={e=>e.currentTarget.style.opacity='0.7'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
             <span style={{fontSize:11,color:S.muted}}>{showCompleted?'▼':'▶'}</span>
-            <span style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.1em'}}>Completed ({done.length})</span>
+            <span style={{fontSize:13,fontWeight:700,color:S.txt}}>Completed</span>
+            <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
           </div>
-          {showCompleted&&done.slice(0,15).map(fu=>(
-            <div key={fu.id} onClick={()=>toggle(fu.id)} style={{display:'flex',gap:8,padding:'6px 10px',cursor:'pointer',marginBottom:2}}>
-              <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${S.green}`,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1}}><span style={{color:S.green,fontSize:11}}>✓</span></div>
-              <span style={{fontSize:13,color:S.dim,textDecoration:'line-through'}}>{fu.task}</span>
-            </div>
-          ))}
-        </>
-      )}
+          {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
+        </div>
+        {showCompleted&&(
+          done.length===0
+          ?<div style={{fontSize:12,color:S.dim,padding:'8px 0'}}>No completed tasks yet.</div>
+          :<div style={{display:'flex',flexDirection:'column',gap:3}}>
+            {done.map(fu=>(
+              <div key={fu.id} style={{display:'flex',gap:8,padding:'7px 10px',cursor:'pointer',borderRadius:6}}
+                onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <div onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${S.green}`,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1,cursor:'pointer'}}><span style={{color:S.green,fontSize:11}}>✓</span></div>
+                <span style={{fontSize:13,color:S.dim,textDecoration:'line-through',flex:1,lineHeight:1.4}}>{fu.task}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {showAdd&&<Modal title={form.id?'Edit Follow-Up':'Add Follow-Up'} onClose={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>
         <Field label='Task' value={form.task} onChange={f('task')}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
