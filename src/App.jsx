@@ -147,7 +147,8 @@ const SAMPLE = {
     upcomingDates:[],
     files:[],
     adminData:{},
-    endpoints:''
+    endpoints:'',
+    orgChart:{nodes:[]}
   }]
 }
 
@@ -1027,6 +1028,28 @@ function Contacts({acct,setAcct}) {
   const [sectionExp,setSectionExp] = useState({client:true,vendor:true,internal:true})
   const [meetingFormFor,setMeetingFormFor] = useState(null)
   const [meetingForm,setMeetingForm] = useState({date:'',clientContactIds:[],topics:'',notes:''})
+  // View toggle
+  const [contactView,setContactView] = useState('list')
+  // Org chart
+  const [dragState,setDragState] = useState(null)
+  const [dragOverNode,setDragOverNode] = useState(null)
+  const [contextMenu,setContextMenu] = useState(null)
+  const [canvasSize,setCanvasSize] = useState({w:800,h:480})
+  const canvasRef = useRef(null)
+
+  useEffect(()=>{
+    if(!canvasRef.current||contactView!=='orgchart')return
+    const obs=new ResizeObserver(entries=>{const{width,height}=entries[0].contentRect;setCanvasSize({w:Math.max(width,200),h:Math.max(height,100)})})
+    obs.observe(canvasRef.current)
+    return()=>obs.disconnect()
+  },[contactView])
+
+  useEffect(()=>{
+    if(!contextMenu)return
+    const h=()=>setContextMenu(null)
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[contextMenu])
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',internalMeetings:[]}
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -1214,8 +1237,75 @@ function Contacts({acct,setAcct}) {
 
   const ftype=form.contactType||'Client'
 
+  // ── Org chart helpers ──
+  const orgNodes = acct.orgChart?.nodes||[]
+  const saveOrgNodes = nodes => setAcct(p=>({...p,orgChart:{...(p.orgChart||{}),nodes}}))
+  const chartedIds = new Set(orgNodes.map(n=>n.contactId))
+  const unassigned = allContacts.filter(c=>!chartedIds.has(c.id))
+  const NODE_W=120, NODE_H=80
+
+  const autoLayout = () => {
+    if(orgNodes.length===0)return
+    const roots=orgNodes.filter(n=>!n.parentId||!orgNodes.find(p=>p.contactId===n.parentId))
+    const root=roots[0]||orgNodes[0]
+    const levels={},queue=[{id:root.contactId,level:0}],visited=new Set()
+    while(queue.length){const{id,level}=queue.shift();if(visited.has(id))continue;visited.add(id);levels[id]=level;orgNodes.filter(n=>n.parentId===id).forEach(n=>{if(!visited.has(n.contactId))queue.push({id:n.contactId,level:level+1})})}
+    orgNodes.forEach(n=>{if(levels[n.contactId]===undefined)levels[n.contactId]=0})
+    const byLevel={}
+    Object.entries(levels).forEach(([id,l])=>{if(!byLevel[l])byLevel[l]=[];byLevel[l].push(id)})
+    const maxLevel=Math.max(...Object.values(levels),0)
+    const rowH=maxLevel>0?Math.min(80,(canvasSize.h-80)/maxLevel):80
+    const newNodes=orgNodes.map(n=>{
+      const level=levels[n.contactId]??0
+      const siblings=byLevel[level]||[n.contactId]
+      const idx=siblings.indexOf(n.contactId)
+      const x=((idx+1)/(siblings.length+1))*100-(NODE_W/canvasSize.w*50)
+      const y=(level*rowH+20)/canvasSize.h*100
+      return{...n,x:Math.max(1,Math.min(88,x)),y:Math.max(1,Math.min(85,y))}
+    })
+    saveOrgNodes(newNodes)
+  }
+
+  const handleCanvasDrop = e => {
+    e.preventDefault()
+    if(!dragState||!canvasRef.current)return
+    const rect=canvasRef.current.getBoundingClientRect()
+    const dropX=e.clientX-rect.left
+    const dropY=e.clientY-rect.top
+    const pctX=Math.max(1,Math.min(88,(dropX-dragState.offX)/rect.width*100))
+    const pctY=Math.max(1,Math.min(85,(dropY-dragState.offY)/rect.height*100))
+    if(dragState.type==='tray-chip'){
+      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null}])
+    } else if(dragState.type==='chart-node'){
+      saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,x:pctX,y:pctY}:n))
+    }
+    setDragState(null);setDragOverNode(null)
+  }
+
+  const handleNodeDrop = (e,targetId) => {
+    e.preventDefault();e.stopPropagation()
+    if(dragState?.type==='chart-node'&&dragState.contactId!==targetId){
+      saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,parentId:targetId}:n))
+    }
+    setDragState(null);setDragOverNode(null)
+  }
+
+  const svgLine = (n) => {
+    const parent=orgNodes.find(p=>p.contactId===n.parentId)
+    if(!parent)return null
+    const cx=(n.x/100*canvasSize.w)+(NODE_W/2)
+    const cy=(n.y/100*canvasSize.h)
+    const px=(parent.x/100*canvasSize.w)+(NODE_W/2)
+    const py=(parent.y/100*canvasSize.h)+NODE_H
+    const midY=(cy+py)/2
+    return <path key={`${n.contactId}-l`} d={`M ${cx} ${cy} C ${cx} ${midY} ${px} ${midY} ${px} ${py}`} fill="none" stroke="#bbc2ff" strokeWidth="2"/>
+  }
+
+  const NODE_GRAD = 'linear-gradient(135deg,#a9a8ff 0%,#3c90ff 100%)'
+
   return (
     <div>
+      {/* Notifications */}
       {(acct.unknownMentions||[]).length>0&&<div style={{marginBottom:12,padding:'12px 14px',background:'rgba(234,179,8,0.08)',border:'1px solid rgba(234,179,8,0.3)',borderRadius:8}}>
         <div style={{fontSize:13,fontWeight:700,color:S.yellow,marginBottom:2}}>People to Meet</div>
         <div style={{fontSize:11,color:S.muted,marginBottom:8}}>Mentioned in transcripts but not in your contacts yet</div>
@@ -1242,24 +1332,191 @@ function Contacts({acct,setAcct}) {
           </div>
         ))}
       </div>}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <div style={{fontSize:13,color:S.muted}}>{allContacts.length} contacts</div>
-        <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Contact</Btn>
-      </div>
-      <input value={contactSearch} onChange={e=>setContactSearch(e.target.value)} placeholder='Search by name, title, or department...' style={{width:'100%',fontSize:12,padding:'7px 11px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,marginBottom:10,boxSizing:'border-box'}}/>
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-        <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
-          {['All','Active','Prospect','Executive Sponsor','Needs Attention'].map(pill=>(
-            <button key={pill} onClick={()=>setClientFilter(pill)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:clientFilter===pill?S.blue:'transparent',color:clientFilter===pill?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{pill}</button>
+
+      {/* Top bar: view toggle + add button */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:8,padding:2,border:`1px solid ${S.bdr}`}}>
+          {[{v:'list',l:'List'},{v:'cards',l:'Cards'},{v:'orgchart',l:'Org Chart'}].map(({v,l})=>(
+            <button key={v} onClick={()=>setContactView(v)} style={{padding:'5px 14px',borderRadius:6,border:'none',background:contactView===v?S.blue:'transparent',color:contactView===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}>{l}</button>
           ))}
         </div>
-        <select value={clientSort} onChange={e=>setClientSort(e.target.value)} style={{fontSize:11,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,marginLeft:'auto'}}>
-          {['Name','Last Interacted','Relationship Status','Influence Level','Days Since Contact'].map(o=><option key={o} value={o}>{o}</option>)}
-        </select>
+        <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Contact</Btn>
       </div>
-      <Section type='client' label='Client Contacts' color={S.blue} contacts={filteredClients}/>
-      <Section type='vendor' label='Vendor Contacts' color={S.purple} contacts={filteredVendors}/>
-      <Section type='internal' label='Internal Contacts' color={S.green} contacts={filteredInternal}/>
+
+      {/* ── LIST VIEW ── */}
+      {contactView==='list'&&<>
+        <div style={{fontSize:13,color:S.muted,marginBottom:8}}>{allContacts.length} contacts</div>
+        <input value={contactSearch} onChange={e=>setContactSearch(e.target.value)} placeholder='Search by name, title, or department...' style={{width:'100%',fontSize:12,padding:'7px 11px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,marginBottom:10,boxSizing:'border-box'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+            {['All','Active','Prospect','Executive Sponsor','Needs Attention'].map(pill=>(
+              <button key={pill} onClick={()=>setClientFilter(pill)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:clientFilter===pill?S.blue:'transparent',color:clientFilter===pill?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{pill}</button>
+            ))}
+          </div>
+          <select value={clientSort} onChange={e=>setClientSort(e.target.value)} style={{fontSize:11,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,marginLeft:'auto'}}>
+            {['Name','Last Interacted','Relationship Status','Influence Level','Days Since Contact'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <Section type='client' label='Client Contacts' color={S.blue} contacts={filteredClients}/>
+        <Section type='vendor' label='Vendor Contacts' color={S.purple} contacts={filteredVendors}/>
+        <Section type='internal' label='Internal Contacts' color={S.green} contacts={filteredInternal}/>
+      </>}
+
+      {/* ── CARDS VIEW ── */}
+      {contactView==='cards'&&(
+        allContacts.length===0
+          ?<div style={{textAlign:'center',padding:'40px 20px',color:S.muted,fontSize:13}}>No contacts yet. Click + Add Contact to get started.</div>
+          :<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+            {allContacts.map(c=>{
+              const inf=IC[c.influence]||{c:S.muted,b:S.surf2}
+              const relColor=(relC[c.relStatus]||S.muted)
+              return (
+                <div key={c.id}
+                  onClick={()=>{setContactView('list');setExp(c.id)}}
+                  style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,padding:'16px',cursor:'pointer',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s'}}
+                  onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-1px)'}}
+                  onMouseLeave={e=>{e.currentTarget.style.boxShadow=S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none';e.currentTarget.style.transform='translateY(0)'}}>
+                  <div style={{width:40,height:40,borderRadius:'50%',background:inf.b,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:inf.c,marginBottom:10}}>{initials(c.name)}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:2}}>{c.name}</div>
+                  <div style={{fontSize:11,color:S.muted,marginBottom:8}}>{c.title}</div>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
+                    {c.influence&&<Badge label={c.influence} color={inf.c} bg={inf.b} size={9}/>}
+                    {c.relStatus&&<span style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:10,color:relColor}}>
+                      <span style={{width:5,height:5,borderRadius:'50%',background:relColor,flexShrink:0,display:'inline-block'}}/>
+                      {c.relStatus}
+                    </span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+      )}
+
+      {/* ── ORG CHART VIEW ── */}
+      {contactView==='orgchart'&&(
+        <div>
+          {/* Controls */}
+          <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12}}>
+            <button onClick={autoLayout} style={{padding:'6px 14px',background:S.isLight?'#eff6ff':'rgba(59,130,246,0.15)',border:`1px solid ${S.isLight?'#bfdbfe':'rgba(59,130,246,0.3)'}`,borderRadius:7,color:S.blue,fontSize:12,fontWeight:600,cursor:'pointer'}}>⚡ Auto Layout</button>
+            <button onClick={()=>{if(window.confirm('Move all nodes back to unassigned?'))saveOrgNodes([])}} style={{padding:'6px 14px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:7,color:S.red,fontSize:12,fontWeight:600,cursor:'pointer'}}>✕ Clear Chart</button>
+            <span style={{fontSize:11,color:S.muted,marginLeft:'auto'}}>{orgNodes.length} placed · {unassigned.length} unassigned</span>
+          </div>
+
+          {/* Canvas */}
+          <div ref={canvasRef}
+            style={{position:'relative',height:480,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
+              backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',
+              backgroundSize:'24px 24px',
+              backgroundColor:S.isLight?'#f8fafc':S.surf2}}
+            onDragOver={e=>e.preventDefault()}
+            onDrop={handleCanvasDrop}>
+
+            {/* SVG connection lines */}
+            <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+              width={canvasSize.w} height={canvasSize.h}>
+              {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
+            </svg>
+
+            {/* Nodes */}
+            {orgNodes.map(n=>{
+              const c=allContacts.find(x=>x.id===n.contactId)
+              if(!c)return null
+              const isRoot=orgNodes[0]?.contactId===n.contactId&&!n.parentId
+              const isOver=dragOverNode===n.contactId
+              const inf=IC[c.influence]||{c:S.muted,b:S.surf2}
+              return (
+                <div key={n.contactId}
+                  draggable
+                  onDragStart={e=>{
+                    const rect=e.currentTarget.getBoundingClientRect()
+                    const cRect=canvasRef.current.getBoundingClientRect()
+                    setDragState({type:'chart-node',contactId:n.contactId,offX:e.clientX-rect.left,offY:e.clientY-rect.top})
+                    e.dataTransfer.effectAllowed='move'
+                    e.dataTransfer.setData('text/plain',n.contactId)
+                    // prevent canvas drop from taking over when releasing on a node
+                    setTimeout(()=>setDragOverNode(null),0)
+                  }}
+                  onDragEnd={()=>{setDragState(null);setDragOverNode(null)}}
+                  onDragOver={e=>{e.preventDefault();e.stopPropagation();setDragOverNode(n.contactId)}}
+                  onDragLeave={()=>setDragOverNode(null)}
+                  onDrop={e=>handleNodeDrop(e,n.contactId)}
+                  onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
+                  style={{
+                    position:'absolute',
+                    left:`${n.x}%`,top:`${n.y}%`,
+                    width:NODE_W,
+                    background:NODE_GRAD,
+                    borderRadius:14,
+                    padding:'8px 10px 10px',
+                    cursor:'grab',
+                    border:isRoot?'2px solid #fbbf24':'none',
+                    boxShadow:isOver?'0 0 0 3px #2563eb, 0 8px 24px rgba(60,144,255,0.5)':'0 4px 16px rgba(60,144,255,0.35)',
+                    transition:'box-shadow 0.15s, transform 0.15s',
+                    transform:isOver?'scale(1.05)':'scale(1)',
+                    userSelect:'none',
+                    zIndex:isOver?10:1,
+                  }}>
+                  {/* Avatar */}
+                  <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',flexShrink:0}}>{initials(c.name)}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#ffffff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                  <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
+                  {isRoot&&<div style={{fontSize:8,color:'#fde68a',textAlign:'center',marginTop:3,fontWeight:600}}>★ Primary</div>}
+                </div>
+              )
+            })}
+
+            {/* Empty state */}
+            {orgNodes.length===0&&(
+              <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
+                <div style={{fontSize:32,opacity:0.25}}>🗂️</div>
+                <div style={{fontSize:14,fontWeight:600,color:S.muted}}>Drag contacts from below to build the chart</div>
+                <div style={{fontSize:12,color:S.dim}}>or click Auto Layout to arrange automatically</div>
+              </div>
+            )}
+          </div>
+
+          {/* Unassigned tray */}
+          <div style={{background:S.surf,border:`1px dashed ${S.bdr}`,borderRadius:12,padding:'12px 16px'}}>
+            <div style={{fontSize:11,fontWeight:700,color:S.secondary,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
+              Unassigned Contacts{unassigned.length>0&&<span style={{marginLeft:6,fontSize:10,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px',fontWeight:700}}>{unassigned.length}</span>}
+            </div>
+            {unassigned.length===0
+              ?<div style={{fontSize:12,color:S.dim,padding:'8px 0'}}>All contacts are on the chart</div>
+              :<div className='scroll-no-bar' style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:4}}>
+                {unassigned.map((c,i)=>(
+                  <div key={c.id}
+                    draggable
+                    onDragStart={e=>{setDragState({type:'tray-chip',contactId:c.id,offX:40,offY:25});e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.id)}}
+                    onDragEnd={()=>setDragState(null)}
+                    style={{flexShrink:0,width:80,borderRadius:10,background:NODE_GRAD,padding:'8px 6px',cursor:'grab',boxShadow:'0 2px 8px rgba(60,144,255,0.25)',userSelect:'none',transition:'transform 0.15s'}}
+                    onMouseEnter={e=>e.currentTarget.style.transform='scale(1.06)'}
+                    onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
+                    <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#3c90ff',margin:'0 auto 4px'}}>{initials(c.name)}</div>
+                    <div style={{fontSize:9,fontWeight:700,color:'#fff',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name.split(' ')[0]}</div>
+                  </div>
+                ))}
+              </div>
+            }
+          </div>
+        </div>
+      )}
+
+      {/* Context menu */}
+      {contextMenu&&(
+        <div onClick={e=>e.stopPropagation()}
+          style={{position:'fixed',left:contextMenu.x,top:contextMenu.y,zIndex:2000,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:200}}>
+          <button onClick={()=>{saveOrgNodes(orgNodes.map(n=>n.contactId===contextMenu.contactId?{...n,parentId:null}:n));setContextMenu(null)}}
+            style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,color:S.txt,fontSize:12,cursor:'pointer',textAlign:'left'}}
+            onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>Remove parent connection</button>
+          <button onClick={()=>{saveOrgNodes(orgNodes.filter(n=>n.contactId!==contextMenu.contactId));setContextMenu(null)}}
+            style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',color:S.red,fontSize:12,cursor:'pointer',textAlign:'left'}}
+            onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#fef2f2':S.surf2}
+            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>Remove from chart</button>
+        </div>
+      )}
+
+      {/* Add/Edit contact modal */}
       {showAdd&&<Modal title={form.id?'Edit Contact':'Add Contact'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
         <Field label='Contact Type' value={ftype} onChange={f('contactType')} options={['Client','Vendor','Internal']}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
@@ -3478,7 +3735,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     return()=>window.removeEventListener('resize',check)
   },[])
 
-  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:''};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
+  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
@@ -3666,7 +3923,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const addAccount = () => {
     if (!newName.trim()) return
     const id = uid()
-    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:''}
+    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}}
     setData(p=>({...p,accounts:[...p.accounts,blank]}))
     onEnterAccount(id)
     setShowAdd(false)
