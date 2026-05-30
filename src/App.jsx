@@ -451,12 +451,15 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     </div>
   )
 
+  const TYPE_ICONS = {'Renewal':'🔄','Project':'🎯','Meeting':'📅','Out of Office':'✈️','Personal Note':'👤','Contract Deadline':'📋','Milestone':'🏁','Other':'•'}
+  const typeIcon = src => TYPE_ICONS[src] || '•'
+  const DATE_PLACEHOLDERS = {'Meeting':'e.g. QBR with Jamie Jervey, NetSpy demo with Rudy','Out of Office':'e.g. Rudy out of office — traveling to Italy','Personal Note':"e.g. Jamie's work anniversary, Rudy's daughter's graduation",'Contract Deadline':'e.g. Saviynt contract decision deadline','Renewal':'e.g. Cloudflare SASE renewal','Milestone':'e.g. Google SecOps go-live target'}
   const upcomingItems = []
   ;(acct.techStack||[]).forEach(t=>{
     if (!t.renewalDate) return
     const d=daysUntil(t.renewalDate)
-    if (d===null||d>180) return
-    const dot=d<=30?S.red:d<=90?S.orange:S.yellow
+    if (d===null||d>120) return
+    const dot=d<=30?S.red:d<=60?S.orange:S.yellow
     upcomingItems.push({id:`renewal:${t.id}`,date:t.renewalDate,days:d,label:`${t.vendor} contract renewal`,source:'Renewal',dot,tab:'stack'})
   })
   ;(acct.projects||[]).forEach(p=>{
@@ -465,12 +468,6 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     if (d===null||d>180) return
     const dot=d<0?S.red:d<=30?S.orange:S.yellow
     upcomingItems.push({id:`proj:${p.id}`,date:p.closeDate,days:d,label:`${p.name} target close`,source:'Project',dot,tab:'projects'})
-  })
-  ;(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate).forEach(f=>{
-    const d=daysUntil(f.dueDate)
-    if (d===null||d>30) return
-    const dot=d<0?S.red:d<=1?S.orange:d<=7?S.yellow:S.muted
-    upcomingItems.push({id:`fu:${f.id}`,date:f.dueDate,days:d,label:f.task.length>45?f.task.slice(0,44)+'…':f.task,fullLabel:f.task,source:'Follow-Up',dot,tab:'followups'})
   })
   ;(acct.upcomingDates||[]).forEach(cd=>{
     const d=daysUntil(cd.date)
@@ -633,12 +630,12 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             {showAddDate&&(
               <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'10px 12px',marginBottom:10}}>
                 <div style={{marginBottom:6}}>
-                  <input value={dateForm.title} onChange={e=>setDateForm(p=>({...p,title:e.target.value}))} placeholder='Title / Description' style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                  <input value={dateForm.title} onChange={e=>setDateForm(p=>({...p,title:e.target.value}))} placeholder={DATE_PLACEHOLDERS[dateForm.type]||'Title / Description'} style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:6}}>
                   <input type='date' value={dateForm.date} onChange={e=>setDateForm(p=>({...p,date:e.target.value}))} style={{fontSize:12,padding:'5px 7px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,width:'100%',boxSizing:'border-box'}}/>
                   <select value={dateForm.type} onChange={e=>setDateForm(p=>({...p,type:e.target.value}))} style={{fontSize:12,padding:'5px 7px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}>
-                    {['Meeting','Deadline','Renewal','Milestone','Other'].map(t=><option key={t}>{t}</option>)}
+                    {['Meeting','Out of Office','Personal Note','Contract Deadline','Renewal','Milestone','Other'].map(t=><option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div style={{marginBottom:8}}>
@@ -651,7 +648,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               </div>
             )}
             {upcomingItems.length===0
-              ?<div style={{fontSize:12,color:S.dim,lineHeight:1.7,padding:'6px 0'}}>No upcoming dates within 180 days. Add a date or check your tech stack renewals.</div>
+              ?<div style={{fontSize:12,color:S.dim,lineHeight:1.7,padding:'6px 0'}}>No upcoming dates within 120 days. Add a meeting, renewal, or important note using the + Add Date button.</div>
               :<>
                 {(showMoreDates?upcomingItems:upcomingItems.slice(0,8)).map(item=>{
                   const relLabel=item.days===0?'Today':item.days===1?'Tomorrow':item.days<0?`${Math.abs(item.days)}d ago`:item.days<=30?`In ${item.days}d`:fmtDate(item.date)
@@ -663,7 +660,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                       onMouseLeave={e=>{setHoveredDateId(null);e.currentTarget.style.background='transparent'}}>
                       <div style={{width:8,height:8,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.label}</div>
+                        <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}><span style={{marginRight:4,fontSize:11}}>{typeIcon(item.source)}</span>{item.label}</div>
                         <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
                       </div>
                       <div style={{fontSize:11,fontWeight:600,color:relColor,flexShrink:0,minWidth:56,textAlign:'right'}}>{relLabel}</div>
