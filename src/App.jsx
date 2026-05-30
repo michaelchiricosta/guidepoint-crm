@@ -462,14 +462,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     const dot=d<=30?S.red:d<=60?S.orange:S.yellow
     upcomingItems.push({id:`renewal:${t.id}`,date:t.renewalDate,days:d,label:`${t.vendor} contract renewal`,source:'Renewal',dot,tab:'stack'})
   })
-  ;(acct.projects||[]).forEach(p=>{
-    if (!p.closeDate) return
-    const d=daysUntil(p.closeDate)
-    if (d===null||d>180) return
-    const dot=d<0?S.red:d<=30?S.orange:S.yellow
-    upcomingItems.push({id:`proj:${p.id}`,date:p.closeDate,days:d,label:`${p.name} target close`,source:'Project',dot,tab:'projects'})
-  })
-  ;(acct.upcomingDates||[]).forEach(cd=>{
+;(acct.upcomingDates||[]).forEach(cd=>{
     const d=daysUntil(cd.date)
     if (d===null||d>180||d<-30) return
     const dot=d<0?S.red:d<=30?S.orange:d<=90?S.yellow:S.muted
