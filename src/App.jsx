@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Clock } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
 
 const SK = 'gp-crm-v4'
@@ -3012,9 +3012,11 @@ const detectDate = text => {
   return null
 }
 
-function Dashboard({acct}) {
+function Dashboard({acct, setTab}) {
   const [groupBy,setGroupBy] = useState('monthly')
   const [selectedContacts,setSelectedContacts] = useState([])
+  const [hiddenContacts,setHiddenContacts] = useState([])
+  const [filterOpen,setFilterOpen] = useState(false)
   const [expandedId,setExpandedId] = useState(null)
   const [calendarOpen,setCalendarOpen] = useState(false)
   const [contactFreqOpen,setContactFreqOpen] = useState(false)
@@ -3022,6 +3024,14 @@ function Dashboard({acct}) {
   const [hoveredStat,setHoveredStat] = useState(null)
   const [calHovered,setCalHovered] = useState(null)
   const [breakMonth,setBreakMonth] = useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}})
+  const filterRef = useRef(null)
+
+  useEffect(()=>{
+    if(!filterOpen)return
+    const h=e=>{if(filterRef.current&&!filterRef.current.contains(e.target))setFilterOpen(false)}
+    document.addEventListener('mousedown',h)
+    return()=>document.removeEventListener('mousedown',h)
+  },[filterOpen])
 
   const allContacts = Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean))).sort()
   const filtered = selectedContacts.length===0 ? acct.interactions : acct.interactions.filter(i=>selectedContacts.includes(i.contact))
@@ -3044,6 +3054,57 @@ function Dashboard({acct}) {
   } else {
     for (let i=11;i>=0;i--) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); buckets.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }
   }
+  const fmtBucket = key => {
+    if (!key) return ''
+    if (groupBy==='weekly') return new Date(key+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+    const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'})
+  }
+
+  // Line chart data — per contact
+  const LINE_PALETTE = ['#2563eb','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777']
+  const lineContacts = Array.from(new Set(filtered.map(i=>i.contact).filter(Boolean))).sort()
+  const lineColorMap = Object.fromEntries(lineContacts.map((c,i)=>[c, LINE_PALETTE[i%LINE_PALETTE.length]]))
+  const lineData = buckets.map(b => {
+    const row = {date: fmtBucket(b)}
+    lineContacts.forEach(c => {
+      row[c] = filtered.filter(i => i.contact===c && (groupBy==='weekly' ? getWeekKey(i.date) : getMonthKey(i.date)) === b).length
+    })
+    return row
+  })
+
+  // Custom tooltip renderer
+  const renderLineTooltip = ({active,payload,label}) => {
+    if (!active||!payload?.length) return null
+    const entries = payload.filter(p=>p.value>0)
+    if (!entries.length) return null
+    const total = entries.reduce((s,p)=>s+p.value,0)
+    return (
+      <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.15)',padding:'12px',minWidth:180}}>
+        <div style={{fontSize:12,fontWeight:700,color:S.txt,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,paddingBottom:6,marginBottom:6}}>{label}</div>
+        {entries.map((p,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:i<entries.length-1?4:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0}}/>
+              <span style={{fontSize:12,color:S.secondary}}>{p.dataKey}</span>
+            </div>
+            <span style={{fontSize:12,fontWeight:700,color:S.txt}}>{p.value}</span>
+          </div>
+        ))}
+        {entries.length>1&&<div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,paddingTop:4,marginTop:6}}>
+          <span style={{fontSize:11,color:S.muted}}>Total</span>
+          <span style={{fontSize:11,fontWeight:700,color:S.muted}}>{total}</span>
+        </div>}
+      </div>
+    )
+  }
+
+  // Activity feed type badge colors
+  const typeBadge = t => ({
+    bg: S.isLight ? ({Meeting:'#dbeafe',Call:'#dcfce7',Email:'#fef9c3',Demo:'#ede9fe',Note:'#f1f5f9'}[t]||'#f1f5f9') : (INTERACTION_COLORS[t]||S.muted)+'1a',
+    c:  S.isLight ? ({Meeting:'#1d4ed8',Call:'#15803d',Email:'#a16207',Demo:'#7c3aed',Note:'#475569'}[t]||'#475569') : (INTERACTION_COLORS[t]||S.muted)
+  })
+
+  // Keep bucketMap for legacy tooltip support in modals
   const bucketMap = {}
   buckets.forEach(b => { bucketMap[b]={key:b}; INTERACTION_TYPES.forEach(t=>{bucketMap[b][t]=0;bucketMap[b]['_'+t]=[]}) })
   filtered.forEach(ix => {
@@ -3051,37 +3112,7 @@ function Dashboard({acct}) {
     if (!bk||!bucketMap[bk]) return
     if (INTERACTION_TYPES.includes(ix.type)) { bucketMap[bk][ix.type]++; bucketMap[bk]['_'+ix.type].push(ix) }
   })
-  const chartData = buckets.map(b=>bucketMap[b])
-  const fmtBucket = key => {
-    if (!key) return ''
-    if (groupBy==='weekly') return new Date(key+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
-    const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'})
-  }
-  const renderTooltip = ({active,payload,label}) => {
-    if (!active||!payload?.length||!bucketMap[label]) return null
-    const bucket=bucketMap[label]
-    if (!INTERACTION_TYPES.some(t=>bucket[t]>0)) return null
-    const dateLabel=groupBy==='weekly'?`Week of ${fmtDate(label)}`:(()=>{const [y,m]=label.split('-');return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})})()
-    return (
-      <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 14px',maxWidth:300,boxShadow:'0 4px 16px rgba(0,0,0,0.5)'}}>
-        <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>{dateLabel}</div>
-        {INTERACTION_TYPES.filter(t=>bucket[t]>0).map(t=>(
-          <div key={t} style={{marginBottom:6}}>
-            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-              <div style={{width:8,height:8,borderRadius:2,background:INTERACTION_COLORS[t],flexShrink:0}}/>
-              <span style={{fontSize:12,color:INTERACTION_COLORS[t],fontWeight:600}}>{t} · {bucket[t]}</span>
-            </div>
-            {bucket['_'+t].map((ix,i)=>(
-              <div key={i} style={{fontSize:11,paddingLeft:14,marginBottom:1}}>
-                {ix.contact&&<span style={{color:S.secondary,fontWeight:500}}>{ix.contact}</span>}
-                {ix.topics&&<span style={{color:S.muted}}> · {ix.topics.slice(0,70)}{ix.topics.length>70?'…':''}</span>}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    )
-  }
+
   const feedItems = [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
 
   // Calendar data
@@ -3116,112 +3147,163 @@ function Dashboard({acct}) {
   const modalHdr={display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}
   const xBtn=cb=><button onClick={cb} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
 
-  const statCardStyle=(key)=>{
-    const h=hoveredStat===key
-    return{padding:'12px 14px',cursor:'pointer',border:`1px solid ${h?'rgba(59,130,246,0.45)':S.bdr}`,background:h?S.surf2:S.surf,borderRadius:8,transition:'all 0.15s',position:'relative',overflow:'hidden'}
-  }
-
   return (
     <div>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-        <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Interaction Dashboard</div>
-        <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
-          {['weekly','monthly'].map(v=>(
-            <button key={v} onClick={()=>setGroupBy(v)} style={{padding:'5px 14px',borderRadius:5,border:'none',background:groupBy===v?S.blue:'transparent',color:groupBy===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{v==='weekly'?'Weekly':'Monthly'}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Clickable stats row */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
+      {/* ── STAT CARDS ── */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
         {[
-          {key:'thisMonth',onClick:()=>setCalendarOpen(true),label:'This Month\'s Interactions',main:thisMonthCount,sub:`interaction${thisMonthCount!==1?'s':''} · click for calendar`,mainColor:S.txt},
-          {key:'topContact',onClick:()=>setContactFreqOpen(true),label:'Most Contacted',main:topContact?topContact[0]:null,sub:topContact?`${topContact[1]} interaction${topContact[1]!==1?'s':''}`:null,mainColor:S.txt},
-          {key:'topType',onClick:()=>setActivityBreakOpen(true),label:'Top Activity Type',main:topType?topType[0]:null,sub:topType?`${topType[1]} total`:null,mainColor:topType?INTERACTION_COLORS[topType[0]]||S.txt:S.txt},
-        ].map(({key,onClick,label,main,sub,mainColor})=>(
-          <div key={key} style={statCardStyle(key)} onClick={onClick} onMouseEnter={()=>setHoveredStat(key)} onMouseLeave={()=>setHoveredStat(null)}>
-            <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>{label}</div>
-            {main!=null?<><div style={{fontSize:key==='thisMonth'?22:15,fontWeight:700,color:mainColor,marginBottom:1,lineHeight:1.3}}>{main}</div><div style={{fontSize:11,color:S.muted}}>{sub}</div></>:<div style={{fontSize:13,color:S.dim}}>—</div>}
-            <div style={{position:'absolute',bottom:8,right:12,fontSize:11,color:S.blue,fontWeight:600,opacity:hoveredStat===key?1:0,transition:'opacity 0.15s'}}>→</div>
-          </div>
-        ))}
+          {key:'thisMonth',bc:'#2563eb',onClick:()=>setCalendarOpen(true),label:"This Month's Interactions",main:String(thisMonthCount),sub:`interaction${thisMonthCount!==1?'s':''} · click for calendar`},
+          {key:'topContact',bc:'#16a34a',onClick:()=>setContactFreqOpen(true),label:'Most Contacted',main:topContact?topContact[0]:'—',sub:topContact?`${topContact[1]} interaction${topContact[1]!==1?'s':''}`:null},
+          {key:'topType',bc:'#9333ea',onClick:()=>setActivityBreakOpen(true),label:'Top Activity Type',main:topType?topType[0]:'—',sub:topType?`${topType[1]} total`:null},
+        ].map(({key,bc,onClick,label,main,sub})=>{
+          const isHov=hoveredStat===key
+          return (
+            <div key={key} onClick={onClick}
+              onMouseEnter={()=>setHoveredStat(key)}
+              onMouseLeave={()=>setHoveredStat(null)}
+              style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${bc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.1)':S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
+              <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:8}}>{label}</div>
+              <div style={{fontSize:key==='thisMonth'?28:15,fontWeight:800,color:S.txt,marginBottom:2,lineHeight:1.2}}>{main}</div>
+              {sub&&<div style={{fontSize:11,color:S.muted}}>{sub}</div>}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Contact filter chips */}
-      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
-        <span style={{fontSize:11,color:S.muted,flexShrink:0}}>Filter:</span>
-        <button onClick={()=>setSelectedContacts([])} style={{padding:'3px 10px',borderRadius:999,border:`1px solid ${selectedContacts.length===0?S.blue:S.bdr}`,background:selectedContacts.length===0?'rgba(59,130,246,0.15)':'transparent',color:selectedContacts.length===0?S.blue:S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>All Contacts</button>
-        {allContacts.map(c=>(
-          <button key={c} onClick={()=>setSelectedContacts(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])} style={{padding:'3px 10px',borderRadius:999,border:`1px solid ${selectedContacts.includes(c)?S.blue:S.bdr}`,background:selectedContacts.includes(c)?'rgba(59,130,246,0.15)':'transparent',color:selectedContacts.includes(c)?S.blue:S.muted,fontSize:11,fontWeight:500,cursor:'pointer'}}>{c}</button>
-        ))}
-      </div>
-
-      {/* Type legend */}
-      <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-        {INTERACTION_TYPES.filter(t=>filtered.some(i=>i.type===t)).map(t=>(
-          <div key={t} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6}}>
-            <div style={{width:9,height:9,borderRadius:2,background:INTERACTION_COLORS[t]}}/>
-            <span style={{fontSize:11,color:S.txt,fontWeight:600}}>{filtered.filter(i=>i.type===t).length}</span>
-            <span style={{fontSize:11,color:S.muted}}>{t}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Chart */}
-      {acct.interactions.length===0
-        ?<div style={{textAlign:'center',padding:'50px 20px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:16}}>
-          <div style={{fontSize:14,fontWeight:600,color:S.muted,marginBottom:6}}>No interactions logged yet</div>
-          <div style={{fontSize:12,color:S.dim,lineHeight:1.6,maxWidth:380,margin:'0 auto'}}>Process a call transcript in Intel Log to automatically populate this dashboard.</div>
+      {/* ── EMPTY STATE ── */}
+      {acct.interactions.length===0 ? (
+        <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'60px 20px',textAlign:'center',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+          <div style={{fontSize:40,marginBottom:14,opacity:0.25}}>📈</div>
+          <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:8}}>No interactions logged yet</div>
+          <div style={{fontSize:13,color:S.muted,marginBottom:22,lineHeight:1.6,maxWidth:380,margin:'0 auto 22px'}}>Process a call transcript in Intel Log to automatically populate this dashboard.</div>
+          {setTab&&<button onClick={()=>setTab('intel')} style={{padding:'9px 20px',background:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Go to Intel Log →</button>}
         </div>
-        :<Card style={{padding:'16px 8px 8px',marginBottom:16}}>
-          <ResponsiveContainer width='100%' height={280}>
-            <BarChart data={chartData} margin={{top:0,right:16,bottom:0,left:0}}>
-              <CartesianGrid strokeDasharray='3 3' stroke={S.bdr} vertical={false}/>
-              <XAxis dataKey='key' tickFormatter={fmtBucket} tick={{fontSize:11,fill:S.muted}} axisLine={{stroke:S.bdr}} tickLine={false}/>
-              <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.muted}} axisLine={false} tickLine={false}/>
-              <RechartsTooltip content={renderTooltip} cursor={{fill:S.surf2}}/>
-              {INTERACTION_TYPES.map((t,i)=><Bar key={t} dataKey={t} stackId='a' fill={INTERACTION_COLORS[t]} radius={i===INTERACTION_TYPES.length-1?[3,3,0,0]:[0,0,0,0]}/>)}
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      }
-
-      {/* Activity feed — one-at-a-time expand */}
-      {filtered.length>0&&<>
-        <SH mt={4}>Activity Feed</SH>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          {feedItems.map(ix=>{
-            const isExp=expandedId===ix.id
-            const tc=INTERACTION_COLORS[ix.type]||S.muted
-            const topics=(ix.topics||'').split(',').map(t=>t.trim()).filter(Boolean)
-            return (
-              <div key={ix.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:7,overflow:'hidden'}}>
-                <div onClick={()=>setExpandedId(isExp?null:ix.id)} style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'8px 12px',cursor:'pointer'}}>
-                  <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={10}/>
-                  <span style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</span>
-                  {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
-                  {ix.topics&&<span style={{fontSize:11,color:S.secondary,flex:1,minWidth:0,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{ix.topics}</span>}
-                  <span style={{fontSize:11,color:S.dim,flexShrink:0,marginLeft:'auto'}}>{isExp?'▲':'▼'}</span>
-                </div>
-                <div style={{maxHeight:isExp?'320px':'0',overflow:'hidden',transition:'max-height 0.25s ease'}}>
-                  <div style={{padding:'10px 12px 12px',borderTop:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,marginLeft:-3}}>
-                    {topics.length>1&&(
-                      <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
-                        {topics.map((t,j)=><Badge key={j} label={t} color={tc} bg={tc+'1a'} size={10}/>)}
-                      </div>
-                    )}
-                    {ix.summary&&<div style={{fontSize:12,color:S.secondary,lineHeight:1.65,marginBottom:8}}>{ix.summary.length>500?ix.summary.slice(0,500)+'…':ix.summary}</div>}
-                    <div style={{fontSize:10,color:S.muted,display:'flex',gap:10}}>
-                      <span>{fmtDate(ix.date)}</span>
-                      {ix.duration&&<span>{ix.duration} min</span>}
+      ) : (
+        <>
+          {/* ── CONTROLS ROW ── */}
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:10}}>
+            {/* Weekly/Monthly toggle */}
+            <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:8,padding:2,border:`1px solid ${S.bdr}`}}>
+              {['weekly','monthly'].map(v=>(
+                <button key={v} onClick={()=>setGroupBy(v)} style={{padding:'5px 14px',borderRadius:6,border:'none',background:groupBy===v?S.blue:'transparent',color:groupBy===v?'#ffffff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}>{v==='weekly'?'Weekly':'Monthly'}</button>
+              ))}
+            </div>
+            {/* Contact filter dropdown */}
+            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+              <div style={{position:'relative'}} ref={filterRef}>
+                <button onClick={()=>setFilterOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.secondary,fontSize:12,fontWeight:500,cursor:'pointer'}}>
+                  {selectedContacts.length===0?'All Contacts':`${selectedContacts.length} Contact${selectedContacts.length!==1?'s':''}`} <span style={{fontSize:10,color:S.muted}}>▾</span>
+                </button>
+                {filterOpen&&(
+                  <div style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:220,overflow:'hidden',padding:'4px 0'}}>
+                    <div style={{padding:'6px 14px',borderBottom:`1px solid ${S.bdr}`}}>
+                      <button onClick={()=>setSelectedContacts([])} style={{fontSize:11,color:selectedContacts.length===0?S.blue:S.muted,background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Clear all (show all)</button>
                     </div>
+                    {allContacts.map((c,i)=>{
+                      const col = LINE_PALETTE[i%LINE_PALETTE.length]
+                      const checked = selectedContacts.length===0||selectedContacts.includes(c)
+                      return (
+                        <label key={c} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',cursor:'pointer'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <input type='checkbox' checked={checked} readOnly style={{accentColor:col,width:14,height:14,cursor:'pointer'}}
+                            onClick={()=>{if(selectedContacts.length===0)setSelectedContacts(allContacts.filter(x=>x!==c));else setSelectedContacts(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])}}/>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0}}/>
+                          <span style={{fontSize:12,color:S.txt}}>{c}</span>
+                        </label>
+                      )
+                    })}
                   </div>
-                </div>
+                )}
               </div>
-            )
-          })}
-        </div>
-      </>}
+              {selectedContacts.length>0&&(
+                <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:'flex-end'}}>
+                  {selectedContacts.map(c=>(
+                    <span key={c} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',border:`1px solid ${S.isLight?'#93c5fd':'rgba(59,130,246,0.3)'}`,borderRadius:999,fontSize:11,color:S.blue}}>
+                      {c}<button onClick={()=>setSelectedContacts(p=>p.filter(x=>x!==c))} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 0 0 2px'}}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── LINE CHART ── */}
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'20px 20px 12px',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:10}}>
+            <ResponsiveContainer width='100%' height={280}>
+              <LineChart data={lineData} margin={{top:8,right:16,bottom:0,left:0}}>
+                <CartesianGrid horizontal={true} vertical={false} stroke={S.isLight?'#f1f5f9':S.bdr} strokeDasharray='4 4'/>
+                <XAxis dataKey='date' tick={{fontSize:11,fill:S.isLight?'#94a3b8':S.muted}} axisLine={false} tickLine={false}/>
+                <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.isLight?'#94a3b8':S.muted}} axisLine={false} tickLine={false} width={30}/>
+                <RechartsTooltip content={renderLineTooltip}/>
+                {lineContacts.filter(c=>!hiddenContacts.includes(c)).map(c=>(
+                  <Line key={c} type='monotone' dataKey={c} stroke={lineColorMap[c]} strokeWidth={2.5}
+                    dot={{r:4,fill:lineColorMap[c],stroke:'#ffffff',strokeWidth:2}}
+                    activeDot={{r:6}} animationDuration={600}/>
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* ── CONTACT LEGEND PILLS ── */}
+          {lineContacts.length>0&&(
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:20,paddingLeft:4}}>
+              {lineContacts.map(c=>{
+                const col=lineColorMap[c]
+                const hidden=hiddenContacts.includes(c)
+                return (
+                  <button key={c} onClick={()=>setHiddenContacts(p=>p.includes(c)?p.filter(x=>x!==c):[...p,c])}
+                    style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,fontSize:12,color:hidden?S.dim:S.txt,cursor:'pointer',opacity:hidden?0.35:1,textDecoration:hidden?'line-through':'none',transition:'all 0.15s'}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:col,flexShrink:0}}/>
+                    {c}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── ACTIVITY FEED ── */}
+          {feedItems.length>0&&(
+            <div style={{marginBottom:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Activity Feed</span>
+                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{feedItems.length}</span>
+              </div>
+              <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'hidden',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                {feedItems.map((ix,idx)=>{
+                  const isExp=expandedId===ix.id
+                  const isLast=idx===feedItems.length-1
+                  const {bg:tbg,c:tc}=typeBadge(ix.type||'Note')
+                  return (
+                    <div key={ix.id} style={{borderBottom:isLast?'none':`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+                      <div onClick={()=>setExpandedId(isExp?null:ix.id)}
+                        style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExp?(S.isLight?'#f8fafc':S.surf2):'transparent',transition:'background 0.1s'}}
+                        onMouseEnter={e=>{if(!isExp)e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}}
+                        onMouseLeave={e=>{if(!isExp)e.currentTarget.style.background='transparent'}}>
+                        <span style={{fontSize:10,fontWeight:700,color:tc,background:tbg,padding:'3px 9px',borderRadius:999,flexShrink:0,whiteSpace:'nowrap'}}>{ix.type||'Note'}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          {ix.contact&&<div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.contact}</div>}
+                          {ix.topics&&<div style={{fontSize:12,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics}</div>}
+                        </div>
+                        <div style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</div>
+                      </div>
+                      {isExp&&(
+                        <div style={{background:S.isLight?'#f8fafc':S.surf2,borderTop:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,borderLeft:`3px solid ${tc}`,padding:'10px 16px 12px'}}>
+                          {ix.summary&&<div style={{fontSize:13,color:S.secondary,lineHeight:1.65,marginBottom:6}}>{ix.summary.length>500?ix.summary.slice(0,500)+'…':ix.summary}</div>}
+                          <div style={{fontSize:10,color:S.muted,display:'flex',gap:10}}>
+                            <span>{fmtDate(ix.date)}</span>
+                            {ix.duration&&<span>{ix.duration} min</span>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Calendar modal ── */}
       {calendarOpen&&(
@@ -4472,7 +4554,7 @@ export default function App() {
         </div>
         <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
-          {tab==='dashboard'&&<Dashboard acct={acct}/>}
+          {tab==='dashboard'&&<Dashboard acct={acct} setTab={setTab}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
