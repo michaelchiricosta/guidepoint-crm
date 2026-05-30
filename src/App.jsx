@@ -200,7 +200,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           </div>
         </div>
         {/* Metric cards */}
-        {[{label:'Open Follow-Ups',val:openFU.length,c:openFU.length>3?S.orange:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
+        {[{label:'Open Follow-Ups',val:openFU.length,c:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
           <div key={m.label}
             style={{background:'linear-gradient(135deg,rgba(0,0,0,0.20) 0%,rgba(0,0,0,0.04) 100%)',border:`1px solid ${S.bdr}`,borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,transition:'background 0.2s'}}
             onMouseEnter={e=>e.currentTarget.style.background='linear-gradient(135deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.06) 100%)'}
