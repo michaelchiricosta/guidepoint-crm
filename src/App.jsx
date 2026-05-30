@@ -1793,6 +1793,7 @@ function Projects({acct,setAcct}) {
 function FollowUps({acct,setAcct}) {
   const [showAdd,setShowAdd] = useState(false)
   const [showCompleted,setShowCompleted] = useState(false)
+  const [sortBy,setSortBy] = useState('priority')
   const [snoozeDropOpen,setSnoozeDropOpen] = useState(false)
   const [snoozeShowCustom,setSnoozeShowCustom] = useState(false)
   const [snoozeCustomDate,setSnoozeCustomDate] = useState('')
@@ -1833,32 +1834,70 @@ function FollowUps({acct,setAcct}) {
     return()=>document.removeEventListener('click',h)
   },[snoozeDropOpen])
 
-  const open=acct.followUps.filter(f=>f.status==='Open').sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority))
-  const done=acct.followUps.filter(f=>f.status==='Done')
+  const todayStr = new Date().toISOString().split('T')[0]
+  const allOpen = acct.followUps.filter(f=>f.status==='Open')
+  const todayFUs = allOpen.filter(f=>f.dueDate===todayStr)
+  const restFUs = allOpen.filter(f=>f.dueDate!==todayStr).sort((a,b)=>{
+    if(sortBy==='duedate'){
+      if(!a.dueDate&&!b.dueDate)return 0
+      if(!a.dueDate)return 1
+      if(!b.dueDate)return -1
+      return a.dueDate.localeCompare(b.dueDate)
+    }
+    return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)
+  })
+  const open = allOpen
+  const done = acct.followUps.filter(f=>f.status==='Done')
+  const renderFU = fu => {
+    const p=PC[fu.priority]||PC.Low; const overdue=fu.dueDate&&daysUntil(fu.dueDate)<0
+    return (
+      <div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8}}>
+        <button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
+        <div style={{flex:1}}>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
+            <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
+            <Badge label={fu.priority} color={p.c} bg={p.b}/>
+            {overdue&&<Badge label='OVERDUE' color={S.red} bg='rgba(239,68,68,0.12)'/>}
+          </div>
+          <div style={{fontSize:11,color:S.muted}}>{fu.contact&&fu.contact+' · '}{fu.dueDate&&fmtDate(fu.dueDate)+' · '}{fu.context}</div>
+        </div>
+        <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:11,flexShrink:0}}>Edit</button>
+      </div>
+    )
+  }
 
   return (
     <div>
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
-        <div style={{fontSize:13,color:S.muted}}>{open.length} open · {done.length} done</div>
+      {/* Header row */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div style={{fontSize:13,color:S.muted}}>{open.length} open · {done.length} done</div>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:6,padding:2}}>
+            <button onClick={()=>setSortBy('priority')} style={{padding:'3px 10px',borderRadius:4,border:'none',background:sortBy==='priority'?S.blue:'transparent',color:sortBy==='priority'?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>Priority</button>
+            <button onClick={()=>setSortBy('duedate')} style={{padding:'3px 10px',borderRadius:4,border:'none',background:sortBy==='duedate'?S.blue:'transparent',color:sortBy==='duedate'?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>Due Date</button>
+          </div>
+        </div>
         <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add</Btn>
       </div>
+
+      {/* Due Today section */}
+      {todayFUs.length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:7}}>
+            <span style={{width:7,height:7,borderRadius:'50%',background:S.yellow,flexShrink:0,display:'inline-block'}}/>
+            <span style={{fontSize:10,fontWeight:700,color:S.yellow,textTransform:'uppercase',letterSpacing:'0.1em'}}>Due Today</span>
+            <span style={{fontSize:10,fontWeight:700,color:S.yellow,background:'rgba(234,179,8,0.18)',borderRadius:999,padding:'1px 7px'}}>{todayFUs.length}</span>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:5,background:'rgba(234,179,8,0.04)',border:'1px solid rgba(234,179,8,0.2)',borderLeft:'3px solid rgba(234,179,8,0.6)',borderRadius:8,padding:'8px 8px 4px'}}>
+            {todayFUs.map(fu=>renderFU(fu))}
+          </div>
+        </div>
+      )}
+
+      {/* Sorted open list */}
       <div style={{display:'flex',flexDirection:'column',gap:5}}>
-        {open.map(fu=>{
-          const p=PC[fu.priority]||PC.Low;const overdue=fu.dueDate&&daysUntil(fu.dueDate)<0
-          return (<div key={fu.id} style={{display:'flex',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`,borderRadius:8}}>
-            <button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2}} aria-label='Complete'/>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
-                <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
-                <Badge label={fu.priority} color={p.c} bg={p.b}/>
-                {overdue&&<Badge label='OVERDUE' color={S.red} bg='rgba(239,68,68,0.12)'/>}
-              </div>
-              <div style={{fontSize:11,color:S.muted}}>{fu.contact&&fu.contact+' · '}{fu.dueDate&&fmtDate(fu.dueDate)+' · '}{fu.context}</div>
-            </div>
-            <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:11,flexShrink:0}}>Edit</button>
-          </div>)
-        })}
+        {restFUs.map(fu=>renderFU(fu))}
       </div>
       {done.length>0&&(
         <>
