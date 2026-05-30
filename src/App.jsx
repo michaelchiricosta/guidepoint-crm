@@ -116,6 +116,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [hoveredAlert,setHoveredAlert] = useState(null)
   const [showAddFU,setShowAddFU] = useState(false)
   const [showAIChat,setShowAIChat] = useState(false)
+  const [hoveredCard,setHoveredCard] = useState(null)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const mob = typeof window!=='undefined'&&window.innerWidth<768
@@ -200,15 +201,22 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           </div>
         </div>
         {/* Metric cards */}
-        {[{label:'Open Follow-Ups',val:openFU.length,c:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
-          <div key={m.label}
-            style={{background:'linear-gradient(135deg,rgba(0,0,0,0.20) 0%,rgba(0,0,0,0.04) 100%)',border:`1px solid ${S.bdr}`,borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,transition:'background 0.2s'}}
-            onMouseEnter={e=>e.currentTarget.style.background='linear-gradient(135deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.06) 100%)'}
-            onMouseLeave={e=>e.currentTarget.style.background='linear-gradient(135deg,rgba(0,0,0,0.20) 0%,rgba(0,0,0,0.04) 100%)'}>
-            <div style={{fontSize:13,color:S.txt,opacity:0.8,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>{m.label}</div>
-            <div style={{fontSize:32,fontWeight:800,color:m.c,flexShrink:0,lineHeight:1}}>{m.val}</div>
-          </div>
-        ))}
+        {[{label:'Open Follow-Ups',val:openFU.length,c:S.txt,tab:'followups'},{label:'Active Projects',val:inFlight,c:S.txt,tab:'projects'},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt,tab:'contacts'},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green,tab:'intel'}].map(m=>{
+          const isHov = hoveredCard===m.label
+          return (
+            <div key={m.label}
+              onClick={()=>setTab(m.tab)}
+              onMouseEnter={()=>setHoveredCard(m.label)}
+              onMouseLeave={()=>setHoveredCard(null)}
+              style={{background:isHov?'linear-gradient(135deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.06) 100%)':'linear-gradient(135deg,rgba(0,0,0,0.20) 0%,rgba(0,0,0,0.04) 100%)',border:`1px solid ${isHov?'rgba(59,130,246,0.4)':S.bdr}`,borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s ease',position:'relative'}}>
+              <div style={{fontSize:13,color:S.txt,opacity:0.8,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>{m.label}</div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,flexShrink:0}}>
+                <div style={{fontSize:32,fontWeight:800,color:m.c,lineHeight:1}}>{m.val}</div>
+                <div style={{fontSize:11,color:S.blue,fontWeight:600,opacity:isHov?1:0,transition:'opacity 0.15s ease'}}>View →</div>
+              </div>
+            </div>
+          )
+        })}
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {alerts.length>0&&(
