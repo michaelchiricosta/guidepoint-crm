@@ -38,13 +38,14 @@ const SAMPLE = {
     relationship:'6+ years', lastContact:'2026-05-19',
     notes:'Glass-box philosophy — they want to own licenses not rent platforms. Anti-AI-hype. Cost-conscious. Rudy is the north star.',
     contacts:[
-      {id:'c1',name:'Jamie Jervey',title:'CISO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Executive Sponsor',sentiment:'positive',relStatus:'Strong',toolsOwn:'Overall security portfolio',goals:'Strategic security partner. Modern transparent SOC.',pains:'Too many vendor voices. No clean decision framework. Overloaded.',notes:'Ultimate decision authority. Values trusted partners. Target for ORBIE Award Boston.',personalNotes:'Loves executive networking and camera presence. High-value intimate experiences over golf outings.',lastInteracted:'2026-03-13'},
-      {id:'c2',name:'Rudy Montoya',title:'AVP, Information Security',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Technical Gatekeeper',sentiment:'positive',relStatus:'Strong',toolsOwn:'Entire security stack — runs day-to-day InfoSec',goals:'Defensible transparent architecture. No fake procurement.',pains:'10X delivery issues. QRadar migration complexity. Team asking approval on everything.',notes:'PRIMARY RELATIONSHIP. Candid, long memory, hates buzzwords and black-box. If Rudy respects you the account opens.',personalNotes:'Avid photographer (Leica D-Lux 7, black and white). 3D printing (Bamboo printer). Firearms enthusiast. Recently traveled to Italy.',lastInteracted:'2026-05-19'},
-      {id:'c3',name:'Marc Wood',title:'CIO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT',influence:'Financial Gatekeeper',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'IT strategy and all technology investments',goals:'Data-driven governance. Strict ROI.',pains:'Vendors who cannot justify spend clearly.',notes:'Hardball negotiator. Does not do favors for vendors. Build through Rudy and Jamie — do not approach directly.',personalNotes:'',lastInteracted:''},
-      {id:'c4',name:'Dave Bresnahan',title:'COO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Executive',influence:'Final Approval',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'Strategic veto on major vendor decisions',goals:'Operational risk management. Clean decision process.',pains:'Availability due to international travel.',notes:'Final sign-off and approval bottleneck. Frame all material as risk decision not feature comparison.',personalNotes:'',lastInteracted:''},
-      {id:'c5',name:'Jamie Dennis',title:'QA / Compliance',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT Compliance',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'Compliance processes and infrastructure alignment',goals:'Clean infrastructure deployments.',pains:'Not kept in loop by vendors and internal teams.',notes:'Critical for infrastructure buy-in. Pinged Mike 5/19 on Saviynt contract. Without his alignment deployments stall.',personalNotes:'',lastInteracted:'2026-05-19'},
-      {id:'c6',name:'Bill Randall',title:'Future BHSI SOC Director',email:'',cell:'',linkedin:'',location:'Rhode Island (military deployment)',dept:'GuidePoint to BHSI',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'FIDO2 analysis and secure browser evaluation',goals:'Join BHSI as SOC Director. Build modern SOC.',pains:'Currently on military deployment — transition in progress.',notes:'Deeply trusted by Rudy. Expected to join BHSI as SOC Director May 2026. FIDO2 and browser work must be documented before GuidePoint departure.',personalNotes:'Military deployment Guam/Rhode Island.',lastInteracted:''},
-      {id:'c7',name:'Jake (SOC)',title:'SOC Engineer',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Risk Factor',sentiment:'negative',relStatus:'Needs Attention',toolsOwn:'Internal SOC engineering — moved team to 1Password unilaterally',goals:'Modern SOC tooling his way.',pains:'Feels ignored by security leadership.',notes:'Favors ReliaQuest and 10X internally. Slowed CyberArk WPM eval. Do NOT rely as champion. Rudy is frustrated with him.',personalNotes:'',lastInteracted:''}
+      {id:'c1',contactType:'Client',name:'Jamie Jervey',title:'CISO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Executive Sponsor',sentiment:'positive',relStatus:'Strong',toolsOwn:'Overall security portfolio',goals:'Strategic security partner. Modern transparent SOC.',pains:'Too many vendor voices. No clean decision framework. Overloaded.',notes:'Ultimate decision authority. Values trusted partners. Target for ORBIE Award Boston.',personalNotes:'Loves executive networking and camera presence. High-value intimate experiences over golf outings.',lastInteracted:'2026-03-13',vendorCompany:'',internalMeetings:[]},
+      {id:'c2',contactType:'Client',name:'Rudy Montoya',title:'AVP, Information Security',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Technical Gatekeeper',sentiment:'positive',relStatus:'Strong',toolsOwn:'Entire security stack — runs day-to-day InfoSec',goals:'Defensible transparent architecture. No fake procurement.',pains:'10X delivery issues. QRadar migration complexity. Team asking approval on everything.',notes:'PRIMARY RELATIONSHIP. Candid, long memory, hates buzzwords and black-box. If Rudy respects you the account opens.',personalNotes:'Avid photographer (Leica D-Lux 7, black and white). 3D printing (Bamboo printer). Firearms enthusiast. Recently traveled to Italy.',lastInteracted:'2026-05-19',vendorCompany:'',internalMeetings:[]},
+      {id:'c3',contactType:'Client',name:'Marc Wood',title:'CIO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT',influence:'Financial Gatekeeper',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'IT strategy and all technology investments',goals:'Data-driven governance. Strict ROI.',pains:'Vendors who cannot justify spend clearly.',notes:'Hardball negotiator. Does not do favors for vendors. Build through Rudy and Jamie — do not approach directly.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
+      {id:'c4',contactType:'Client',name:'Dave Bresnahan',title:'COO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Executive',influence:'Final Approval',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'Strategic veto on major vendor decisions',goals:'Operational risk management. Clean decision process.',pains:'Availability due to international travel.',notes:'Final sign-off and approval bottleneck. Frame all material as risk decision not feature comparison.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
+      {id:'c5',contactType:'Client',name:'Jamie Dennis',title:'QA / Compliance',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT Compliance',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'Compliance processes and infrastructure alignment',goals:'Clean infrastructure deployments.',pains:'Not kept in loop by vendors and internal teams.',notes:'Critical for infrastructure buy-in. Pinged Mike 5/19 on Saviynt contract. Without his alignment deployments stall.',personalNotes:'',lastInteracted:'2026-05-19',vendorCompany:'',internalMeetings:[]},
+      {id:'c6',contactType:'Client',name:'Bill Randall',title:'Future BHSI SOC Director',email:'',cell:'',linkedin:'',location:'Rhode Island (military deployment)',dept:'GuidePoint to BHSI',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'FIDO2 analysis and secure browser evaluation',goals:'Join BHSI as SOC Director. Build modern SOC.',pains:'Currently on military deployment — transition in progress.',notes:'Deeply trusted by Rudy. Expected to join BHSI as SOC Director May 2026. FIDO2 and browser work must be documented before GuidePoint departure.',personalNotes:'Military deployment Guam/Rhode Island.',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
+      {id:'c7',contactType:'Client',name:'Jake (SOC)',title:'SOC Engineer',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Risk Factor',sentiment:'negative',relStatus:'Needs Attention',toolsOwn:'Internal SOC engineering — moved team to 1Password unilaterally',goals:'Modern SOC tooling his way.',pains:'Feels ignored by security leadership.',notes:'Favors ReliaQuest and 10X internally. Slowed CyberArk WPM eval. Do NOT rely as champion. Rudy is frustrated with him.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
+      {id:'c8',contactType:'Internal',name:'Mike Chiricosta',title:'Enterprise Client Manager',email:'',cell:'',linkedin:'',location:'',dept:'GuidePoint Security',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'',goals:'',pains:'',notes:'Account owner',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]}
     ],
     techStack:[
       {id:'t1',vendor:'QRadar / QROC',products:'Co-managed SIEM',category:'SIEM / SOC',status:'Replacing',renewalDate:'2026-04-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'EOL April 2026. WinCollect agents crashing on Exchange and GIS servers. 15-20TB log migration to AWS S3 needed.'},
@@ -523,9 +524,15 @@ function Contacts({acct,setAcct}) {
   const [form,setForm] = useState({})
   const [noteTarget,setNoteTarget] = useState(null)
   const [noteText,setNoteText] = useState('')
+  const [contactSearch,setContactSearch] = useState('')
+  const [clientFilter,setClientFilter] = useState('All')
+  const [clientSort,setClientSort] = useState('Name')
+  const [sectionExp,setSectionExp] = useState({client:true,vendor:true,internal:true})
+  const [meetingFormFor,setMeetingFormFor] = useState(null)
+  const [meetingForm,setMeetingForm] = useState({date:'',clientContactIds:[],topics:'',notes:''})
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:''}
-  const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?form:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
+  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',internalMeetings:[]}
+  const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{if(window.confirm('Delete contact?'))setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}))}
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
   const relC={Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
@@ -533,6 +540,183 @@ function Contacts({acct,setAcct}) {
   const dismissMention=id=>setAcct(p=>({...p,unknownMentions:(p.unknownMentions||[]).filter(m=>m.id!==id)}))
   const dismissSuggestion=id=>setAcct(p=>({...p,relSuggestions:(p.relSuggestions||[]).filter(s=>s.id!==id)}))
   const applySuggestion=s=>{setAcct(p=>({...p,contacts:p.contacts.map(c=>{const fn=s.contactName.split(' ')[0].toLowerCase();return c.name.toLowerCase().includes(fn)?{...c,relStatus:s.suggestedStatus}:c}),relSuggestions:(p.relSuggestions||[]).filter(sg=>sg.id!==s.id)}))}
+  const logMeeting=internalId=>{
+    if(!meetingForm.date)return
+    setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===internalId?{...c,internalMeetings:[...(c.internalMeetings||[]),{id:uid(),...meetingForm}]}:c)}))
+    setMeetingFormFor(null);setMeetingForm({date:'',clientContactIds:[],topics:'',notes:''})
+  }
+
+  const allContacts=acct.contacts||[]
+  const sq=contactSearch.toLowerCase().trim()
+  const matchSearch=c=>!sq||c.name.toLowerCase().includes(sq)||c.title.toLowerCase().includes(sq)||(c.dept||'').toLowerCase().includes(sq)
+  const clientContacts=allContacts.filter(c=>(c.contactType||'Client')==='Client')
+  const vendorContacts=allContacts.filter(c=>c.contactType==='Vendor')
+  const internalContacts=allContacts.filter(c=>c.contactType==='Internal')
+  const clientsList=clientContacts
+
+  const applyFilter=c=>{
+    if(!matchSearch(c))return false
+    if(clientFilter==='Active')return c.relStatus==='Strong'||c.relStatus==='Building'
+    if(clientFilter==='Prospect')return c.relStatus==='Unknown'||c.relStatus==='Needs Attention'
+    if(clientFilter==='Executive Sponsor')return c.influence==='Executive Sponsor'
+    if(clientFilter==='Needs Attention')return c.relStatus==='Needs Attention'
+    return true
+  }
+  const applySort=(a,b)=>{
+    if(clientSort==='Name')return a.name.localeCompare(b.name)
+    if(clientSort==='Last Interacted'){const da=daysSince(a.lastInteracted)??999,db=daysSince(b.lastInteracted)??999;return da-db}
+    if(clientSort==='Relationship Status'){const o=['Strong','Building','Needs Attention','Unknown'];return(o.indexOf(a.relStatus)||0)-(o.indexOf(b.relStatus)||0)}
+    if(clientSort==='Influence Level')return(INFLUENCES.indexOf(a.influence)||0)-(INFLUENCES.indexOf(b.influence)||0)
+    if(clientSort==='Days Since Contact'){const da=daysSince(a.lastInteracted)??-1,db=daysSince(b.lastInteracted)??-1;return db-da}
+    return 0
+  }
+  const filteredClients=clientContacts.filter(applyFilter).sort(applySort)
+  const filteredVendors=vendorContacts.filter(matchSearch)
+  const filteredInternal=internalContacts.filter(matchSearch)
+
+  const renderCard=c=>{
+    const ctype=c.contactType||'Client'
+    const isInternal=ctype==='Internal',isVendor=ctype==='Vendor'
+    const inf=IC[c.influence]||IC.Stakeholder
+    const isOpen=exp===c.id
+    const ds=daysSince(c.lastInteracted)
+    const healthDot=ds===null?S.muted:ds<30?S.green:ds<60?S.orange:S.red
+    const healthLabel=ds===null?'Never':ds+'d ago'
+    const fn=c.name.split(' ')[0].toLowerCase(),ln=c.name.split(' ').slice(-1)[0].toLowerCase()
+    const matchEntry=e=>{const h=`${e.participants||''} ${e.topics||''} ${e.summary||''}`.toLowerCase();return h.includes(fn)||(ln!==fn&&h.includes(ln))}
+    const relHistory=[...(acct.interactions||[]).filter(matchEntry).map(e=>({...e,_s:'i'})),...(acct.intelLog||[]).filter(matchEntry).map(e=>({...e,_s:'l'}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    const avatarBg=isInternal?'rgba(59,130,246,0.15)':isVendor?'rgba(168,85,247,0.15)':inf.b
+    const avatarColor=isInternal?S.blue:isVendor?S.purple:inf.c
+    return (
+      <Card key={c.id}>
+        <div onClick={()=>setExp(isOpen?null:c.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
+          <div style={{width:36,height:36,borderRadius:'50%',background:avatarBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:avatarColor,flexShrink:0,position:'relative'}}>
+            {initials(c.name)}
+            {isInternal&&<span style={{position:'absolute',bottom:-2,right:-2,width:12,height:12,borderRadius:'50%',background:S.blue,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',border:`1px solid ${S.surf}`}}>G</span>}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+              <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</span>
+              {!isInternal&&<span style={{width:7,height:7,borderRadius:'50%',background:sentC[c.sentiment]||S.muted,flexShrink:0}} title={c.sentiment}/>}
+              {isInternal&&<Badge label='GP Internal' color={S.blue} bg='rgba(59,130,246,0.12)' size={10}/>}
+              {isVendor&&c.vendorCompany&&<Badge label={c.vendorCompany} color={S.purple} bg='rgba(168,85,247,0.12)' size={10}/>}
+            </div>
+            <div style={{fontSize:11,color:S.muted}}>{c.title}{c.dept?` · ${c.dept}`:''}</div>
+          </div>
+          <div style={{display:'flex',gap:5,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
+            {!isInternal&&<Badge label={c.influence} color={inf.c} bg={inf.b}/>}
+            {!isInternal&&c.relStatus&&<Badge label={c.relStatus} color={relC[c.relStatus]||S.muted} bg={(relC[c.relStatus]||S.muted)+'22'}/>}
+            {!isInternal&&<span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap'}}><span style={{width:6,height:6,borderRadius:'50%',background:healthDot,flexShrink:0,display:'inline-block'}}/>{healthLabel}</span>}
+            <button onClick={e=>{e.stopPropagation();if(noteTarget===c.id){setNoteTarget(null);setNoteText('')}else{setNoteTarget(c.id);setNoteText('')}}} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:11,padding:'3px 8px',whiteSpace:'nowrap',lineHeight:'18px'}}>Note</button>
+          </div>
+        </div>
+        {noteTarget===c.id&&<div style={{padding:'8px 14px 10px',borderTop:`1px solid ${S.bdr}`,background:S.surf2}} onClick={e=>e.stopPropagation()}>
+          <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={2} placeholder='Quick note...' style={{marginBottom:6,fontSize:12}}/>
+          <div style={{display:'flex',gap:6}}><Btn variant='primary' onClick={()=>saveNote(c)} style={{fontSize:11,padding:'4px 10px'}}>Save</Btn><Btn onClick={()=>{setNoteTarget(null);setNoteText('')}} style={{fontSize:11,padding:'4px 8px'}}>Cancel</Btn></div>
+        </div>}
+        {isOpen&&<div style={{padding:'12px 14px 16px',borderTop:`1px solid ${S.bdr}`}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',marginBottom:10,fontSize:12}}>
+            {[['Email',c.email],['Cell',c.cell],['Location',c.location]].map(([l,v])=><div key={l}><span style={{color:S.muted}}>{l}: </span><span style={{color:S.txt}}>{v||'—'}</span></div>)}
+            <div><span style={{color:S.muted}}>LinkedIn: </span>{c.linkedin?<a href={c.linkedin} target='_blank' rel='noopener noreferrer' onClick={e=>e.stopPropagation()} style={{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3}}><span style={{fontSize:10,fontWeight:700,color:'#fff',background:'#0a66c2',padding:'1px 6px',borderRadius:3,lineHeight:'16px'}}>in</span></a>:<span style={{color:S.txt}}>—</span>}</div>
+          </div>
+          {isVendor&&c.vendorCompany&&<div style={{fontSize:12,color:S.secondary,marginBottom:8}}><span style={{color:S.muted}}>Company: </span>{c.vendorCompany}</div>}
+          {c.lastInteracted&&<div style={{fontSize:11,color:S.muted,marginBottom:8}}>Last interacted: {fmtDate(c.lastInteracted)}</div>}
+          {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Notes',c.notes],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:S.secondary,lineHeight:1.6}}>{v}</div></div>:null)}
+          {isInternal&&(
+            <div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:10}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                <SH>Meeting History with Clients</SH>
+                <button onClick={e=>{e.stopPropagation();if(meetingFormFor===c.id){setMeetingFormFor(null)}else{setMeetingFormFor(c.id);setMeetingForm({date:new Date().toISOString().split('T')[0],clientContactIds:[],topics:'',notes:''})}}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>+ Log Meeting</button>
+              </div>
+              {meetingFormFor===c.id&&(
+                <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',marginBottom:10}} onClick={e=>e.stopPropagation()}>
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Date</div>
+                    <input type='date' value={meetingForm.date} onChange={e=>setMeetingForm(p=>({...p,date:e.target.value}))} style={{fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,width:'100%',boxSizing:'border-box'}}/>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Client Contacts Present</div>
+                    {clientsList.length===0&&<div style={{fontSize:12,color:S.dim}}>No client contacts added yet.</div>}
+                    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                      {clientsList.map(cc=>(
+                        <label key={cc.id} style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:S.txt,cursor:'pointer'}}>
+                          <input type='checkbox' checked={(meetingForm.clientContactIds||[]).includes(cc.id)} onChange={ev=>{const ids=meetingForm.clientContactIds||[];setMeetingForm(p=>({...p,clientContactIds:ev.target.checked?[...ids,cc.id]:ids.filter(id=>id!==cc.id)}))}} style={{cursor:'pointer'}}/>
+                          {cc.name}<span style={{color:S.muted,fontSize:10,marginLeft:4}}>— {cc.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Topics</div>
+                    <input value={meetingForm.topics} onChange={e=>setMeetingForm(p=>({...p,topics:e.target.value}))} placeholder='Topics discussed...' style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                  </div>
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Notes</div>
+                    <textarea value={meetingForm.notes} onChange={e=>setMeetingForm(p=>({...p,notes:e.target.value}))} rows={2} placeholder='Meeting notes...' style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button onClick={()=>logMeeting(c.id)} style={{padding:'5px 12px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Meeting</button>
+                    <button onClick={()=>{setMeetingFormFor(null);setMeetingForm({date:'',clientContactIds:[],topics:'',notes:''})}} style={{padding:'5px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              {(c.internalMeetings||[]).length===0&&meetingFormFor!==c.id&&<div style={{fontSize:12,color:S.dim}}>No meetings logged yet.</div>}
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {(c.internalMeetings||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(m=>(
+                  <div key={m.id} style={{padding:'8px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                      <span style={{fontSize:11,color:S.muted,fontWeight:600,flexShrink:0}}>{fmtDate(m.date)}</span>
+                      <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{(m.clientContactIds||[]).map(id=>{const cc=allContacts.find(ct=>ct.id===id);return cc?<Badge key={id} label={cc.name.split(' ')[0]} color={S.blue} bg='rgba(59,130,246,0.12)' size={10}/>:null})}</div>
+                    </div>
+                    {m.topics&&<div style={{fontSize:12,color:S.txt,fontWeight:500,marginBottom:2}}>{m.topics}</div>}
+                    {m.notes&&<div style={{fontSize:11,color:S.secondary,lineHeight:1.5}}>{m.notes}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!isInternal&&(
+            <div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:10}}>
+              <SH>Interaction History</SH>
+              {relHistory.length===0?<div style={{fontSize:12,color:S.dim}}>No interactions logged yet.</div>:<div style={{display:'flex',flexDirection:'column',gap:5}}>{relHistory.map((e,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:7}}>
+                  <span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap',flexShrink:0}}>{fmtDate(e.date)}</span>
+                  <Badge label={e.type||'Note'} color={INTERACTION_COLORS[e.type]||S.muted} bg={(INTERACTION_COLORS[e.type]||S.muted)+'1a'} size={10}/>
+                  <span style={{fontSize:12,color:S.secondary,lineHeight:1.5}}>{(e.summary||'').split('\n')[0].slice(0,120)}{(e.summary||'').length>120?'…':''}</span>
+                </div>
+              ))}</div>}
+            </div>
+          )}
+          <div style={{display:'flex',gap:8,marginTop:10}}><Btn onClick={()=>{setForm({...blank,...c});setShowAdd(true)}}>Edit</Btn><Btn variant='danger' onClick={()=>del(c.id)}>Delete</Btn></div>
+        </div>}
+      </Card>
+    )
+  }
+
+  const Section=({type,label,color,contacts})=>{
+    const isExp=sectionExp[type]
+    const ctype=type==='client'?'Client':type==='vendor'?'Vendor':'Internal'
+    return (
+      <div style={{marginBottom:14}}>
+        <div onClick={()=>setSectionExp(p=>({...p,[type]:!p[type]}))} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',cursor:'pointer',userSelect:'none',borderBottom:`1px solid ${S.bdr}`,marginBottom:8}}
+          onMouseEnter={e=>e.currentTarget.style.opacity='0.7'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+          <span style={{fontSize:11,color:S.muted}}>{isExp?'▼':'▶'}</span>
+          <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{label}</span>
+          <span style={{fontSize:11,fontWeight:700,color,background:color+'1a',borderRadius:999,padding:'1px 8px',marginLeft:2}}>{contacts.length}</span>
+        </div>
+        {isExp&&contacts.length===0&&(
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8}}>
+            <span style={{fontSize:12,color:S.dim}}>None added yet</span>
+            <button onClick={()=>{setForm({...blank,contactType:ctype});setShowAdd(true)}} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>+ Add {ctype} Contact</button>
+          </div>
+        )}
+        {isExp&&contacts.length>0&&<div style={{display:'flex',flexDirection:'column',gap:5}}>{contacts.map(c=>renderCard(c))}</div>}
+      </div>
+    )
+  }
+
+  const ftype=form.contactType||'Client'
+
   return (
     <div>
       {(acct.unknownMentions||[]).length>0&&<div style={{marginBottom:12,padding:'12px 14px',background:'rgba(234,179,8,0.08)',border:'1px solid rgba(234,179,8,0.3)',borderRadius:8}}>
@@ -561,74 +745,29 @@ function Contacts({acct,setAcct}) {
           </div>
         ))}
       </div>}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-        <div style={{fontSize:13,color:S.muted}}>{acct.contacts.length} contacts</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:13,color:S.muted}}>{allContacts.length} contacts</div>
         <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Contact</Btn>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:5}}>
-        {acct.contacts.map(c=>{
-          const inf=IC[c.influence]||IC.Stakeholder;const open=exp===c.id
-          const ds=daysSince(c.lastInteracted)
-          const healthDot=ds===null?S.muted:ds<30?S.green:ds<60?S.orange:S.red
-          const healthLabel=ds===null?'Never':ds+'d ago'
-          const firstName=c.name.split(' ')[0].toLowerCase()
-          const lastName=c.name.split(' ').slice(-1)[0].toLowerCase()
-          const matchEntry=e=>{const h=`${e.participants||''} ${e.topics||''} ${e.summary||''}`.toLowerCase();return h.includes(firstName)||(lastName!==firstName&&h.includes(lastName))}
-          const relHistory=[...(acct.interactions||[]).filter(matchEntry).map(e=>({...e,_s:'i'})),...(acct.intelLog||[]).filter(matchEntry).map(e=>({...e,_s:'l'}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-          return (<Card key={c.id}>
-            <div onClick={()=>setExp(open?null:c.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:inf.b,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:inf.c,flexShrink:0}}>{initials(c.name)}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</span><span style={{width:7,height:7,borderRadius:'50%',background:sentC[c.sentiment]||S.muted,flexShrink:0}} title={c.sentiment}/></div>
-                <div style={{fontSize:11,color:S.muted}}>{c.title} · {c.dept}</div>
-              </div>
-              <div style={{display:'flex',gap:5,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
-                <Badge label={c.influence} color={inf.c} bg={inf.b}/>
-                {c.relStatus&&<Badge label={c.relStatus} color={relC[c.relStatus]||S.muted} bg={(relC[c.relStatus]||S.muted)+'22'}/>}
-                <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap'}}>
-                  <span style={{width:6,height:6,borderRadius:'50%',background:healthDot,flexShrink:0,display:'inline-block'}}/>
-                  {healthLabel}
-                </span>
-                <button onClick={e=>{e.stopPropagation();if(noteTarget===c.id){setNoteTarget(null);setNoteText('')}else{setNoteTarget(c.id);setNoteText('')}}} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,cursor:'pointer',fontSize:11,padding:'3px 8px',whiteSpace:'nowrap',lineHeight:'18px'}}>Note</button>
-              </div>
-            </div>
-            {noteTarget===c.id&&<div style={{padding:'8px 14px 10px',borderTop:`1px solid ${S.bdr}`,background:S.surf2}} onClick={e=>e.stopPropagation()}>
-              <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={2} placeholder='Quick note...' style={{marginBottom:6,fontSize:12}}/>
-              <div style={{display:'flex',gap:6}}>
-                <Btn variant='primary' onClick={()=>saveNote(c)} style={{fontSize:11,padding:'4px 10px'}}>Save</Btn>
-                <Btn onClick={()=>{setNoteTarget(null);setNoteText('')}} style={{fontSize:11,padding:'4px 8px'}}>Cancel</Btn>
-              </div>
-            </div>}
-            {open&&<div style={{padding:'12px 14px 16px',borderTop:`1px solid ${S.bdr}`}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',marginBottom:10,fontSize:12}}>
-                {[['Email',c.email],['Cell',c.cell],['Location',c.location]].map(([l,v])=><div key={l}><span style={{color:S.muted}}>{l}: </span><span style={{color:S.txt}}>{v||'—'}</span></div>)}
-                <div key='li'><span style={{color:S.muted}}>LinkedIn: </span>{c.linkedin?<a href={c.linkedin} target='_blank' rel='noopener noreferrer' onClick={e=>e.stopPropagation()} style={{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3}}><span style={{fontSize:10,fontWeight:700,color:'#fff',background:'#0a66c2',padding:'1px 6px',borderRadius:3,lineHeight:'16px'}}>in</span></a>:<span style={{color:S.txt}}>—</span>}</div>
-              </div>
-              {c.lastInteracted&&<div style={{fontSize:11,color:S.muted,marginBottom:8}}>Last interacted: {fmtDate(c.lastInteracted)}</div>}
-              {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Notes',c.notes],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:S.secondary,lineHeight:1.6}}>{v}</div></div>:null)}
-              <div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:10}}>
-                <SH>Interaction History</SH>
-                {relHistory.length===0
-                  ?<div style={{fontSize:12,color:S.dim}}>No interactions logged yet.</div>
-                  :<div style={{display:'flex',flexDirection:'column',gap:5}}>
-                    {relHistory.map((e,i)=>(
-                      <div key={i} style={{display:'flex',alignItems:'flex-start',gap:7}}>
-                        <span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap',flexShrink:0}}>{fmtDate(e.date)}</span>
-                        <Badge label={e.type||'Note'} color={INTERACTION_COLORS[e.type]||S.muted} bg={(INTERACTION_COLORS[e.type]||S.muted)+'1a'} size={10}/>
-                        <span style={{fontSize:12,color:S.secondary,lineHeight:1.5}}>{(e.summary||'').split('\n')[0].slice(0,120)}{(e.summary||'').length>120?'…':''}</span>
-                      </div>
-                    ))}
-                  </div>
-                }
-              </div>
-              <div style={{display:'flex',gap:8,marginTop:10}}><Btn onClick={()=>{setForm(c);setShowAdd(true)}}>Edit</Btn><Btn variant='danger' onClick={()=>del(c.id)}>Delete</Btn></div>
-            </div>}
-          </Card>)
-        })}
+      <input value={contactSearch} onChange={e=>setContactSearch(e.target.value)} placeholder='Search by name, title, or department...' style={{width:'100%',fontSize:12,padding:'7px 11px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,marginBottom:10,boxSizing:'border-box'}}/>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+          {['All','Active','Prospect','Executive Sponsor','Needs Attention'].map(pill=>(
+            <button key={pill} onClick={()=>setClientFilter(pill)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:clientFilter===pill?S.blue:'transparent',color:clientFilter===pill?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{pill}</button>
+          ))}
+        </div>
+        <select value={clientSort} onChange={e=>setClientSort(e.target.value)} style={{fontSize:11,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,marginLeft:'auto'}}>
+          {['Name','Last Interacted','Relationship Status','Influence Level','Days Since Contact'].map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
       </div>
+      <Section type='client' label='Client Contacts' color={S.blue} contacts={filteredClients}/>
+      <Section type='vendor' label='Vendor Contacts' color={S.purple} contacts={filteredVendors}/>
+      <Section type='internal' label='Internal Contacts' color={S.green} contacts={filteredInternal}/>
       {showAdd&&<Modal title={form.id?'Edit Contact':'Add Contact'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
+        <Field label='Contact Type' value={ftype} onChange={f('contactType')} options={['Client','Vendor','Internal']}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
           <Field label='Name' value={form.name} onChange={f('name')} style={{gridColumn:'span 2'}}/>
+          {ftype==='Vendor'&&<Field label='Company / Vendor Name' value={form.vendorCompany||''} onChange={f('vendorCompany')} style={{gridColumn:'span 2'}}/>}
           <Field label='Title' value={form.title} onChange={f('title')}/>
           <Field label='Department' value={form.dept} onChange={f('dept')}/>
           <Field label='Email' value={form.email} onChange={f('email')} type='email'/>
@@ -636,15 +775,11 @@ function Contacts({acct,setAcct}) {
           <Field label='LinkedIn URL' value={form.linkedin} onChange={f('linkedin')} style={{gridColumn:'span 2'}}/>
           <Field label='Location' value={form.location} onChange={f('location')}/>
           <Field label='Last Interacted' value={form.lastInteracted} onChange={f('lastInteracted')} type='date'/>
-          <Field label='Influence Level' value={form.influence} onChange={f('influence')} options={INFLUENCES}/>
-          <Field label='Relationship Status' value={form.relStatus} onChange={f('relStatus')} options={['Strong','Building','Needs Attention','Unknown']}/>
-          <Field label='Sentiment' value={form.sentiment} onChange={f('sentiment')} options={['positive','neutral','negative']}/>
+          {ftype!=='Internal'&&<><Field label='Influence Level' value={form.influence} onChange={f('influence')} options={INFLUENCES}/><Field label='Relationship Status' value={form.relStatus} onChange={f('relStatus')} options={['Strong','Building','Needs Attention','Unknown']}/><Field label='Sentiment' value={form.sentiment} onChange={f('sentiment')} options={['positive','neutral','negative']}/></>}
         </div>
-        <Field label='Tools / Tech They Own or Work In' value={form.toolsOwn} onChange={f('toolsOwn')} multiline/>
-        <Field label='Key Goals' value={form.goals} onChange={f('goals')} multiline/>
-        <Field label='Key Pains' value={form.pains} onChange={f('pains')} multiline/>
+        {ftype!=='Internal'&&<><Field label='Tools / Tech They Own or Work In' value={form.toolsOwn} onChange={f('toolsOwn')} multiline/><Field label='Key Goals' value={form.goals} onChange={f('goals')} multiline/><Field label='Key Pains' value={form.pains} onChange={f('pains')} multiline/></>}
         <Field label='Professional Notes' value={form.notes} onChange={f('notes')} multiline/>
-        <Field label='Personal Notes — spouse, kids, hobbies, weekend plans' value={form.personalNotes} onChange={f('personalNotes')} multiline/>
+        {ftype!=='Internal'&&<Field label='Personal Notes — spouse, kids, hobbies, weekend plans' value={form.personalNotes} onChange={f('personalNotes')} multiline/>}
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save Contact</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
     </div>
