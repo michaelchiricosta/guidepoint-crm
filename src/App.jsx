@@ -25,7 +25,63 @@ const fmtDate = d => { if (!d) return ''; try { return new Date(d+'T12:00:00').t
 const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000) }
 const daysSince = d => { if (!d) return null; return Math.floor((new Date() - new Date(d+'T12:00:00')) / 86400000) }
 const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()
-const calcHealthScore = acct => { let s=50; const strong=(acct.contacts||[]).filter(c=>c.relStatus==='Strong').length; s+=Math.min(strong*8,20); const last=acct.lastContact?daysSince(acct.lastContact):60; if(last>30)s-=20;else if(last>14)s-=8; const crit=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length; s-=Math.min(crit*12,24); const flying=(acct.projects||[]).filter(p=>p.status==='In Flight').length; s+=Math.min(flying*6,15); const renewals=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=60}).length; s-=Math.min(renewals*8,15); return Math.max(1,Math.min(100,s)) }
+const calcDetailedHealthScore = acct => {
+  const ov = acct.healthScoreOverrides || {}
+  const strong=(acct.contacts||[]).filter(c=>c.relStatus==='Strong').length
+  const building=(acct.contacts||[]).filter(c=>c.relStatus==='Building').length
+  const needsAttn=(acct.contacts||[]).filter(c=>c.relStatus==='Needs Attention').length
+  const relCalc=Math.max(0,Math.min(25,Math.min(strong*5,15)+Math.min(building*2,8)-needsAttn*3))
+  const relVal=ov.relationship?.value??relCalc
+  const lastDays=acct.lastContact?daysSince(acct.lastContact)??999:999
+  const engCalc=lastDays<=7?20:lastDays<=14?15:lastDays<=30?10:lastDays<=60?5:0
+  const engVal=ov.engagement?.value??engCalc
+  const inFl=(acct.projects||[]).filter(p=>p.status==='In Flight').length
+  const inDs=(acct.projects||[]).filter(p=>p.status==='In Discussion').length
+  const stl=(acct.projects||[]).filter(p=>p.status==='Stalled').length
+  const pipeCalc=Math.max(0,Math.min(20,Math.min(inFl*7,14)+Math.min(inDs*3,9)-stl*5))
+  const pipeVal=ov.pipeline?.value??pipeCalc
+  const critFU=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
+  const ren60=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=60}).length
+  const negSen=(acct.contacts||[]).filter(c=>c.sentiment==='negative').length
+  const lostP=(acct.projects||[]).filter(p=>p.status==='Lost').length
+  const riskCalc=Math.max(0,20-critFU*4-ren60*3-negSen*3-lostP*2)
+  const riskVal=ov.risk?.value??riskCalc
+  const evalVend=(acct.techStack||[]).filter(t=>t.status==='Evaluating').length
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-180)
+  const won180=(acct.projects||[]).filter(p=>{if(p.status!=='Won')return false;const ls=p.timeline?.filter(s=>s.status==='completed').slice(-1)[0];return ls?.date&&new Date(ls.date+'T12:00:00')>=cutoff}).length
+  const oppCalc=Math.min(15,Math.min(evalVend*3,9)+Math.min(won180*6,12))
+  const oppVal=ov.opportunity?.value??oppCalc
+  const calcTotal=Math.max(0,Math.min(100,relVal+engVal+pipeVal+riskVal+oppVal))
+  const total=ov.totalOverride!==undefined?Math.max(0,Math.min(100,Number(ov.totalOverride))):calcTotal
+  const helpArr=[
+    strong>0&&{pts:Math.min(strong*5,15),label:`${strong} Strong relationship${strong!==1?'s':''}`},
+    engVal>0&&{pts:engVal,label:lastDays<=7?'Contacted within 7 days':lastDays<=14?'Contacted this week':lastDays<=30?'Contacted this month':'Recent contact logged'},
+    inFl>0&&{pts:Math.min(inFl*7,14),label:`${inFl} in-flight project${inFl!==1?'s':''}`},
+    inDs>0&&{pts:Math.min(inDs*3,9),label:`${inDs} project${inDs!==1?'s':''} in discussion`},
+    evalVend>0&&{pts:Math.min(evalVend*3,9),label:`${evalVend} vendor${evalVend!==1?'s':''} being evaluated`},
+    won180>0&&{pts:Math.min(won180*6,12),label:`${won180} project${won180!==1?'s':''} won recently`},
+    building>0&&{pts:Math.min(building*2,8),label:`${building} Building relationship${building!==1?'s':''}`},
+  ].filter(Boolean).sort((a,b)=>b.pts-a.pts).slice(0,3)
+  const hurtArr=[
+    critFU>0&&{pts:critFU*4,label:`${critFU} Critical follow-up${critFU!==1?'s':''} open`},
+    stl>0&&{pts:stl*5,label:`${stl} stalled project${stl!==1?'s':''}`},
+    ren60>0&&{pts:ren60*3,label:`${ren60} renewal${ren60!==1?'s':''} due within 60 days`},
+    negSen>0&&{pts:negSen*3,label:`${negSen} contact${negSen!==1?'s':''} with negative sentiment`},
+    needsAttn>0&&{pts:needsAttn*3,label:`${needsAttn} contact${needsAttn!==1?'s':''} needing attention`},
+    lostP>0&&{pts:lostP*2,label:`${lostP} lost project${lostP!==1?'s':''}`},
+  ].filter(Boolean).sort((a,b)=>b.pts-a.pts).slice(0,3)
+  return {
+    components:[
+      {key:'relationship',label:'Relationship Strength',value:relVal,max:25,calc:relCalc,overridden:!!ov.relationship,override:ov.relationship},
+      {key:'engagement',label:'Engagement Recency',value:engVal,max:20,calc:engCalc,overridden:!!ov.engagement,override:ov.engagement},
+      {key:'pipeline',label:'Active Pipeline',value:pipeVal,max:20,calc:pipeCalc,overridden:!!ov.pipeline,override:ov.pipeline},
+      {key:'risk',label:'Risk Factors',value:riskVal,max:20,calc:riskCalc,overridden:!!ov.risk,override:ov.risk},
+      {key:'opportunity',label:'Opportunity Coverage',value:oppVal,max:15,calc:oppCalc,overridden:!!ov.opportunity,override:ov.opportunity},
+    ],
+    total,calcTotal,isManualOverride:ov.totalOverride!==undefined,helping:helpArr,hurting:hurtArr
+  }
+}
+const calcHealthScore = acct => calcDetailedHealthScore(acct).total
 const getQuickWin = acct => { const overdue=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)<0).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate)); if(overdue.length>0){const fu=overdue[0];const days=Math.abs(daysUntil(fu.dueDate));return{title:fu.task,meta:`Overdue by ${days} day${days!==1?'s':''}`,cta:'Go to Follow-Ups',tab:'followups',color:S.red}} const renew=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).sort((a,b)=>daysUntil(a.renewalDate)-daysUntil(b.renewalDate)); if(renew.length>0){const t=renew[0];const d=daysUntil(t.renewalDate);return{title:`${t.vendor} renewal in ${d} day${d!==1?'s':''}`,meta:fmtDate(t.renewalDate)+(t.notes?' — '+t.notes.slice(0,70):''),cta:'Go to Tech Stack',tab:'stack',color:S.orange}} const stalled=(acct.projects||[]).filter(p=>p.status==='Stalled'); if(stalled.length>0){const p=stalled[0];return{title:p.name,meta:`Stalled project${p.waitingOn?' — Waiting on: '+p.waitingOn:' — no next action defined'}`,cta:'Go to Projects',tab:'projects',color:S.yellow}} return null }
 const globalSearch = (data, query) => { if(!query||!query.trim()||query.length<2)return []; const q=query.toLowerCase(); const results=[]; (data.accounts||[]).forEach(acct=>{const an=acct.short||acct.name; (acct.contacts||[]).filter(c=>`${c.name} ${c.title}`.toLowerCase().includes(q)).slice(0,3).forEach(c=>results.push({accountId:acct.id,accountName:an,category:'Contacts',label:c.name,sublabel:c.title,tab:'contacts'})); (acct.projects||[]).filter(p=>`${p.name} ${p.vendor||''}`.toLowerCase().includes(q)).slice(0,3).forEach(p=>results.push({accountId:acct.id,accountName:an,category:'Projects',label:p.name,sublabel:p.vendor,tab:'projects'})); (acct.techStack||[]).filter(t=>t.vendor.toLowerCase().includes(q)).slice(0,3).forEach(t=>results.push({accountId:acct.id,accountName:an,category:'Tech Stack',label:t.vendor,sublabel:t.products,tab:'stack'})); (acct.intelLog||[]).filter(e=>(e.summary||'').toLowerCase().includes(q)||(e.participants||'').toLowerCase().includes(q)).slice(0,2).forEach(e=>results.push({accountId:acct.id,accountName:an,category:'Intel',label:(e.summary||'').slice(0,55)+((e.summary||'').length>55?'…':''),sublabel:fmtDate(e.date),tab:'intel'})) }); return results }
 
@@ -81,7 +137,9 @@ const SAMPLE = {
     unknownMentions:[],
     relSuggestions:[],
     dismissedAlerts:[],
-    snoozedAlerts:[]
+    snoozedAlerts:[],
+    healthScoreOverrides:{},
+    healthScoreHistory:[]
   }]
 }
 
@@ -113,12 +171,163 @@ const Modal = ({title,onClose,children,width=520}) => {
 const SH = ({children,mt=0}) => <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8,marginTop:mt}}>{children}</div>
 const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,...style}}>{children}</div>
 
+function HealthScoreModal({acct, setAcct, onClose}) {
+  const [editingComp, setEditingComp] = useState(null)
+  const [compInput, setCompInput] = useState('')
+  const [compReason, setCompReason] = useState('')
+  const [totalActive, setTotalActive] = useState(()=>acct.healthScoreOverrides?.totalOverride!==undefined)
+  const [totalInput, setTotalInput] = useState(()=>String(acct.healthScoreOverrides?.totalOverride??''))
+  const [totalReason, setTotalReason] = useState(()=>acct.healthScoreOverrides?.totalOverrideReason||'')
+
+  const ds = calcDetailedHealthScore(acct)
+  const {total:score, isManualOverride, components, helping, hurting} = ds
+  const hc = score>=70?S.green:score>=40?S.orange:S.red
+  const tier = score>=70?'Healthy':score>=40?'At Risk':'Critical'
+  const history = (acct.healthScoreHistory||[]).slice(-7)
+  const r=26, circ=2*Math.PI*r, prog=(score/100)*circ
+
+  const saveComp = (key, max) => {
+    const v=Math.max(0,Math.min(max,Number(compInput)||0))
+    setAcct(p=>({...p,healthScoreOverrides:{...(p.healthScoreOverrides||{}),[key]:{value:v,reason:compReason,overriddenAt:new Date().toISOString().split('T')[0]}}}))
+    setEditingComp(null)
+  }
+  const resetComp = key => setAcct(p=>{const ov={...(p.healthScoreOverrides||{})};delete ov[key];return{...p,healthScoreOverrides:ov}})
+  const applyTotal = () => {
+    const v=Math.max(0,Math.min(100,Number(totalInput)||0))
+    setAcct(p=>({...p,healthScoreOverrides:{...(p.healthScoreOverrides||{}),totalOverride:v,totalOverrideReason:totalReason}}))
+  }
+  const clearTotal = () => {
+    setTotalActive(false);setTotalInput('');setTotalReason('')
+    setAcct(p=>{const ov={...(p.healthScoreOverrides||{})};delete ov.totalOverride;delete ov.totalOverrideReason;return{...p,healthScoreOverrides:ov}})
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <div style={{width:'65vw',height:'70vh',background:S.surf,borderRadius:12,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${S.bdr}`,boxShadow:'0 24px 80px rgba(0,0,0,0.7)'}}>
+        {isManualOverride&&<div style={{background:'rgba(249,115,22,0.15)',borderBottom:'1px solid rgba(249,115,22,0.3)',padding:'5px 20px',fontSize:11,fontWeight:700,color:S.orange,textAlign:'center',flexShrink:0}}>⚠ Manual total override active — component calculations are ignored</div>}
+        <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Account Health Score</div>
+            <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+            <svg width={r*2+10} height={r*2+10} viewBox={`0 0 ${r*2+10} ${r*2+10}`}>
+              <circle cx={r+5} cy={r+5} r={r} fill='none' stroke={S.bdr} strokeWidth='5'/>
+              <circle cx={r+5} cy={r+5} r={r} fill='none' stroke={hc} strokeWidth='5' strokeDasharray={`${prog} ${circ}`} strokeLinecap='round' transform={`rotate(-90 ${r+5} ${r+5})`}/>
+              <text x={r+5} y={r+10} textAnchor='middle' fontSize='14' fontWeight='800' fill={hc}>{score}</text>
+            </svg>
+            <Badge label={tier} color={hc} bg={hc+'22'}/>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',flexShrink:0}}>×</button>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+          <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:10}}>Score Breakdown</div>
+          {components.map(comp=>{
+            const isEdit=editingComp===comp.key
+            return (
+              <div key={comp.key} style={{marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}}>
+                      <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{comp.label}</span>
+                      {comp.overridden&&<Badge label='Overridden' color={S.orange} bg='rgba(249,115,22,0.12)' size={10}/>}
+                    </div>
+                    <div style={{height:5,background:S.bdr,borderRadius:3,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${Math.min(100,(comp.value/comp.max)*100)}%`,background:comp.value===0?S.dim:hc,borderRadius:3,transition:'width 0.3s'}}/>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,color:S.txt,flexShrink:0,minWidth:50,textAlign:'right'}}>{comp.value} / {comp.max}</div>
+                  <button onClick={()=>{setEditingComp(isEdit?null:comp.key);setCompInput(String(comp.value));setCompReason(comp.override?.reason||'')}} style={{background:'none',border:`1px solid ${S.bdr}`,color:S.muted,cursor:'pointer',fontSize:11,padding:'2px 7px',borderRadius:5,flexShrink:0}}>{isEdit?'✕':'✏'}</button>
+                  {comp.overridden&&<button onClick={()=>resetComp(comp.key)} style={{fontSize:10,color:S.orange,background:'transparent',border:'1px solid rgba(249,115,22,0.3)',borderRadius:4,padding:'2px 7px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>Reset</button>}
+                </div>
+                {comp.overridden&&comp.override?.reason&&<div style={{fontSize:10,color:S.muted,marginTop:2,paddingLeft:2}}>↳ {comp.override.reason}</div>}
+                {isEdit&&(
+                  <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'10px 12px',marginTop:6}}>
+                    <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:8,flexWrap:'wrap'}}>
+                      <span style={{fontSize:11,color:S.muted}}>Value (0–{comp.max}):</span>
+                      <input type='number' min={0} max={comp.max} value={compInput} onChange={e=>setCompInput(e.target.value)} style={{width:64,fontSize:13,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,textAlign:'center'}}/>
+                      <span style={{fontSize:11,color:S.muted}}>Auto-calculated: {comp.calc}</span>
+                    </div>
+                    <textarea value={compReason} onChange={e=>setCompReason(e.target.value)} placeholder='Reason for override (optional)...' rows={2} style={{width:'100%',fontSize:11,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',marginBottom:8}}/>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={()=>saveComp(comp.key,comp.max)} style={{padding:'4px 12px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save</button>
+                      <button onClick={()=>setEditingComp(null)} style={{padding:'4px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:18,marginBottom:16}}>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:S.green,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>✓ What's Helping</div>
+              {helping.length===0&&<div style={{fontSize:12,color:S.dim}}>No significant positive factors yet.</div>}
+              {helping.map((hf,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:`1px solid ${S.bdr}`}}>
+                  <span style={{fontSize:11,color:S.green,fontWeight:700,flexShrink:0,minWidth:44}}>+{hf.pts}pts</span>
+                  <span style={{fontSize:12,color:S.secondary}}>{hf.label}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:S.red,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>✗ What's Hurting</div>
+              {hurting.length===0&&<div style={{fontSize:12,color:S.dim}}>No significant negative factors — great shape!</div>}
+              {hurting.map((hf,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:`1px solid ${S.bdr}`}}>
+                  <span style={{fontSize:11,color:S.red,fontWeight:700,flexShrink:0,minWidth:44}}>-{hf.pts}pts</span>
+                  <span style={{fontSize:12,color:S.secondary}}>{hf.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {history.length>1&&(
+            <>
+              <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:6}}>Score History — Last {history.length} Days</div>
+              <Card style={{padding:'10px 8px 2px',marginBottom:16}}>
+                <ResponsiveContainer width='100%' height={72}>
+                  <BarChart data={history} margin={{top:0,right:8,bottom:0,left:0}}>
+                    <XAxis dataKey='date' tickFormatter={d=>d.slice(5).replace('-','/')} tick={{fontSize:9,fill:S.muted}} axisLine={false} tickLine={false}/>
+                    <Bar dataKey='score' fill={hc} radius={[3,3,0,0]}/>
+                    <RechartsTooltip formatter={v=>[v,'Score']} contentStyle={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:11,color:S.txt}}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Card>
+            </>
+          )}
+          <div style={{borderTop:`1px solid ${S.bdr}`,paddingTop:14}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em'}}>Manual Score Override</div>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12,color:S.muted}}>Use manual total</span>
+                <div onClick={()=>{if(totalActive)clearTotal();else setTotalActive(true)}} style={{width:36,height:20,borderRadius:10,background:totalActive?S.blue:S.bdr,cursor:'pointer',position:'relative',transition:'background 0.2s',flexShrink:0}}>
+                  <div style={{position:'absolute',top:2,left:totalActive?18:2,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left 0.2s'}}/>
+                </div>
+              </div>
+            </div>
+            {totalActive&&(
+              <div style={{background:S.surf2,border:'1px solid rgba(249,115,22,0.25)',borderRadius:8,padding:'12px'}}>
+                <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:12,color:S.txt}}>Score (0–100):</span>
+                  <input type='number' min={0} max={100} value={totalInput} onChange={e=>setTotalInput(e.target.value)} style={{width:72,fontSize:16,fontWeight:700,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,textAlign:'center'}}/>
+                </div>
+                <textarea value={totalReason} onChange={e=>setTotalReason(e.target.value)} placeholder='Reason for manual override...' rows={2} style={{width:'100%',fontSize:11,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',marginBottom:8}}/>
+                <button onClick={applyTotal} style={{padding:'5px 16px',background:S.orange,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply Override</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Overview({acct,setAcct,setTab,apiKey}) {
   const [showDismissed,setShowDismissed] = useState(false)
   const [alertModal,setAlertModal] = useState(null)
   const [hoveredAlert,setHoveredAlert] = useState(null)
   const [showAddFU,setShowAddFU] = useState(false)
   const [showAIChat,setShowAIChat] = useState(false)
+  const [showHealthModal,setShowHealthModal] = useState(false)
   const [hoveredCard,setHoveredCard] = useState(null)
   const [snoozeOpenFor,setSnoozeOpenFor] = useState(null)
   const [showSnoozed,setShowSnoozed] = useState(false)
@@ -235,7 +444,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
           style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
@@ -247,6 +456,21 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             <div style={{fontSize:12,color:'rgba(255,255,255,0.6)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Account Intel</div>
           </div>
         </div>
+        {/* Health Score card — second */}
+        {(()=>{
+          const hs=calcHealthScore(acct)
+          const hg=hs>=70?'linear-gradient(135deg,#14532d 0%,#16a34a 50%,#4ade80 100%)':hs>=40?'linear-gradient(135deg,#7c2d12 0%,#ea580c 50%,#fb923c 100%)':'linear-gradient(135deg,#7f1d1d 0%,#dc2626 50%,#f87171 100%)'
+          const hh=hs>=70?'filter:brightness(1.1)':'filter:brightness(1.1)'
+          return (
+            <div onClick={()=>setShowHealthModal(true)}
+              style={{background:hg,border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,padding:'16px 20px',cursor:'pointer',transition:'filter 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}
+              onMouseEnter={e=>e.currentTarget.style.filter='brightness(1.15)'}
+              onMouseLeave={e=>e.currentTarget.style.filter='brightness(1)'}>
+              <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:600,lineHeight:1.3}}>Health Score</div>
+              <div style={{fontSize:32,fontWeight:800,color:'#fff',lineHeight:1,flexShrink:0}}>{hs}</div>
+            </div>
+          )
+        })()}
         {/* Metric cards */}
         {[{label:'Open Follow-Ups',val:openFU.length,c:S.txt,tab:'followups'},{label:'Active Projects',val:inFlight,c:S.txt,tab:'projects'},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt,tab:'contacts'},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green,tab:'intel'}].map(m=>{
           const isHov = hoveredCard===m.label
@@ -266,6 +490,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
         })}
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
+      {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
       {alerts.length>0&&(
         <>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
@@ -3023,7 +3248,19 @@ export default function App() {
     document.documentElement.setAttribute('data-theme',t)
   }
 
-  useEffect(()=>{ loadData().then(d=>{ if(d) setData(d); else setData(SAMPLE) }) },[])
+  useEffect(()=>{
+    loadData().then(d=>{
+      const loaded = d || SAMPLE
+      const today = new Date().toISOString().split('T')[0]
+      const accounts = loaded.accounts.map(acct=>{
+        const history = acct.healthScoreHistory || []
+        if(history.some(h=>h.date===today)) return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:history}
+        const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
+        return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
+      })
+      setData({...loaded, accounts})
+    })
+  },[])
 
   useEffect(()=>{
     if(!data) return
