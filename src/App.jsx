@@ -813,12 +813,10 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           const isCompleting=completingFU===f.id
           return (
             <div key={f.id}
-              style={{background:isCompleting?S.isLight?'#f0fdf4':S.surf2:(isOverdue&&S.isLight?'#fff5f5':'#ffffff'),borderRadius:10,border:`1px solid ${isOverdue&&S.isLight?'#fecaca':S.bdr}`,padding:'12px 14px 12px 18px',marginBottom:6,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',display:'flex',alignItems:'center',gap:10,transition:'all 0.25s',position:'relative',overflow:'hidden',opacity:isCompleting?0.4:1,transform:isCompleting?'translateX(16px)':'translateX(0)'}}
+              style={{background:isCompleting?(S.isLight?'#f0fdf4':S.surf2):(isOverdue&&S.isLight?'#fff5f5':S.surf),borderRadius:10,border:`1px solid ${isOverdue&&S.isLight?'#fecaca':S.bdr}`,padding:'12px 14px',marginBottom:6,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',display:'flex',alignItems:'center',gap:10,transition:'all 0.25s',opacity:isCompleting?0.4:1,transform:isCompleting?'translateX(16px)':'translateX(0)'}}
               onMouseEnter={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 4px 12px rgba(0,0,0,0.08)':'0 2px 8px rgba(0,0,0,0.2)';e.currentTarget.style.transform='translateY(-1px)'}}}
               onMouseLeave={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none';e.currentTarget.style.transform='translateY(0)'}}}>
-              {/* Left accent bar */}
-              <div style={{position:'absolute',left:0,top:0,bottom:0,width:4,background:p.c,borderRadius:'10px 0 0 10px'}}/>
-              {/* Checkbox */}
+              {/* Checkbox — border color reflects priority */}
               <button
                 onClick={()=>{setCompletingFU(f.id);setTimeout(()=>{setAcct(prev=>({...prev,followUps:prev.followUps.map(fu=>fu.id===f.id?{...fu,status:'Done'}:fu)}));setCompletingFU(null)},280)}}
                 style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.15s'}}
@@ -827,9 +825,9 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                 title='Mark complete'/>
               {/* Content */}
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.task}</div>
+                <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.task}</div>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  {f.contact&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted}}>👤 {f.contact}</span>}
+                  {f.contact&&<span style={{fontSize:11,color:S.muted}}>👤 {f.contact}</span>}
                   <span style={{fontSize:11,color:dateColor,fontWeight:isOverdue?600:400}}>📅 {dateLabel}</span>
                 </div>
               </div>
