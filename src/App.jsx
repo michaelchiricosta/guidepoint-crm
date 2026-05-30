@@ -188,19 +188,27 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}}`}</style>
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:8,marginBottom:16}}>
-        {[{label:'Open Follow-Ups',val:openFU.length,c:openFU.length>3?S.orange:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
-          <Card key={m.label} style={{padding:'14px 16px'}}>
-            <div style={{fontSize:10,color:S.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{m.label}</div>
-            <div style={{fontSize:24,fontWeight:700,color:m.c}}>{m.val}</div>
-          </Card>
-        ))}
-        <div onClick={()=>setShowAIChat(true)} style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s'}}
+        {/* AI Intelligence — first / leftmost */}
+        <div onClick={()=>setShowAIChat(true)}
+          style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:76,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
           onMouseEnter={e=>e.currentTarget.style.boxShadow='0 0 20px rgba(14,165,233,0.4)'}
-          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-          <div style={{fontSize:18,animation:'aiPulse 3s infinite',marginBottom:6}}>✦</div>
-          <div style={{fontSize:13,fontWeight:700,color:'#fff',marginBottom:2}}>AI Intelligence</div>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Account Intel</div>
+          onMouseLeave={e=>e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.3)'}>
+          <div style={{fontSize:18,animation:'aiPulse 3s infinite',lineHeight:1}}>✦</div>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:'#fff',marginBottom:2}}>AI Intelligence</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.6)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Account Intel</div>
+          </div>
         </div>
+        {/* Metric cards */}
+        {[{label:'Open Follow-Ups',val:openFU.length,c:openFU.length>3?S.orange:S.txt},{label:'Active Projects',val:inFlight,c:S.txt},{label:'Contacts Mapped',val:acct.contacts.length,c:S.txt},{label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?S.orange:S.green}].map(m=>(
+          <div key={m.label}
+            style={{background:'linear-gradient(135deg,#374151 0%,#6b7280 50%,#9ca3af 100%)',border:'1px solid rgba(156,163,175,0.2)',borderRadius:8,padding:'14px 16px',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:76,display:'flex',flexDirection:'column',justifyContent:'space-between',transition:'background 0.2s'}}
+            onMouseEnter={e=>e.currentTarget.style.background='linear-gradient(135deg,#4b5563 0%,#9ca3af 100%)'}
+            onMouseLeave={e=>e.currentTarget.style.background='linear-gradient(135deg,#374151 0%,#6b7280 50%,#9ca3af 100%)'}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.85)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>{m.label}</div>
+            <div style={{fontSize:24,fontWeight:700,color:m.c}}>{m.val}</div>
+          </div>
+        ))}
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {alerts.length>0&&(
