@@ -1322,15 +1322,53 @@ function Projects({acct,setAcct}) {
 
 function FollowUps({acct,setAcct}) {
   const [showAdd,setShowAdd] = useState(false)
+  const [showCompleted,setShowCompleted] = useState(false)
+  const [snoozeDropOpen,setSnoozeDropOpen] = useState(false)
+  const [snoozeShowCustom,setSnoozeShowCustom] = useState(false)
+  const [snoozeCustomDate,setSnoozeCustomDate] = useState('')
+  const [fuSnoozeToast,setFuSnoozeToast] = useState(false)
   const blank={id:'',contact:'',task:'',priority:'High',dueDate:'',status:'Open',context:''}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const toggle=id=>setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===id?{...fu,status:fu.status==='Open'?'Done':'Open'}:fu)}))
   const save=()=>{if(!form.task)return;if(form.id)setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===form.id?form:fu)}));else setAcct(p=>({...p,followUps:[...p.followUps,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
+
+  const snoozeFollowUp = (option) => {
+    const now=new Date(); const until=new Date()
+    if (option==='later') { until.setHours(17,0,0,0); if(until<=now){until.setDate(until.getDate()+1);until.setHours(17,0,0,0)} }
+    else if (option==='tomorrow') { until.setDate(until.getDate()+1); until.setHours(8,0,0,0) }
+    else if (option==='3days') { until.setDate(until.getDate()+3); until.setHours(8,0,0,0) }
+    else if (option==='nextweek') { const day=now.getDay(); const d=day===1?7:((1+7-day)%7)||7; until.setDate(until.getDate()+d); until.setHours(7,0,0,0) }
+    const dateStr=until.toISOString().split('T')[0]
+    const updated={...form,dueDate:dateStr,status:'Open'}
+    setForm(updated)
+    if(form.id) setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===form.id?updated:fu)}))
+    setSnoozeDropOpen(false); setSnoozeShowCustom(false); setSnoozeCustomDate('')
+    setFuSnoozeToast(true); setTimeout(()=>setFuSnoozeToast(false),2000)
+  }
+
+  const applyCustomSnooze = () => {
+    if (!snoozeCustomDate) return
+    const updated={...form,dueDate:snoozeCustomDate,status:'Open'}
+    setForm(updated)
+    if(form.id) setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===form.id?updated:fu)}))
+    setSnoozeDropOpen(false); setSnoozeShowCustom(false); setSnoozeCustomDate('')
+    setFuSnoozeToast(true); setTimeout(()=>setFuSnoozeToast(false),2000)
+  }
+
+  useEffect(()=>{
+    if(!snoozeDropOpen)return
+    const h=()=>{setSnoozeDropOpen(false);setSnoozeShowCustom(false)}
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[snoozeDropOpen])
+
   const open=acct.followUps.filter(f=>f.status==='Open').sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority))
   const done=acct.followUps.filter(f=>f.status==='Done')
+
   return (
     <div>
+      {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
         <div style={{fontSize:13,color:S.muted}}>{open.length} open · {done.length} done</div>
         <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add</Btn>
@@ -1348,12 +1386,28 @@ function FollowUps({acct,setAcct}) {
               </div>
               <div style={{fontSize:11,color:S.muted}}>{fu.contact&&fu.contact+' · '}{fu.dueDate&&fmtDate(fu.dueDate)+' · '}{fu.context}</div>
             </div>
-            <button onClick={()=>{setForm(fu);setShowAdd(true)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:11,flexShrink:0}}>Edit</button>
+            <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:11,flexShrink:0}}>Edit</button>
           </div>)
         })}
       </div>
-      {done.length>0&&<><SH mt={16}>Completed ({done.length})</SH>{done.slice(0,15).map(fu=><div key={fu.id} onClick={()=>toggle(fu.id)} style={{display:'flex',gap:8,padding:'6px 10px',cursor:'pointer',marginBottom:2}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${S.green}`,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1}}><span style={{color:S.green,fontSize:11}}>✓</span></div><span style={{fontSize:13,color:S.dim,textDecoration:'line-through'}}>{fu.task}</span></div>)}</>}
-      {showAdd&&<Modal title={form.id?'Edit Follow-Up':'Add Follow-Up'} onClose={()=>{setShowAdd(false);setForm(blank)}}>
+      {done.length>0&&(
+        <>
+          <div onClick={()=>setShowCompleted(v=>!v)}
+            style={{display:'flex',alignItems:'center',gap:6,padding:'8px 4px',cursor:'pointer',marginTop:16,borderTop:`1px solid ${S.bdr}`,userSelect:'none'}}
+            onMouseEnter={e=>e.currentTarget.style.opacity='0.65'}
+            onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+            <span style={{fontSize:11,color:S.muted}}>{showCompleted?'▼':'▶'}</span>
+            <span style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.1em'}}>Completed ({done.length})</span>
+          </div>
+          {showCompleted&&done.slice(0,15).map(fu=>(
+            <div key={fu.id} onClick={()=>toggle(fu.id)} style={{display:'flex',gap:8,padding:'6px 10px',cursor:'pointer',marginBottom:2}}>
+              <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${S.green}`,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1}}><span style={{color:S.green,fontSize:11}}>✓</span></div>
+              <span style={{fontSize:13,color:S.dim,textDecoration:'line-through'}}>{fu.task}</span>
+            </div>
+          ))}
+        </>
+      )}
+      {showAdd&&<Modal title={form.id?'Edit Follow-Up':'Add Follow-Up'} onClose={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>
         <Field label='Task' value={form.task} onChange={f('task')}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
           <Field label='Priority' value={form.priority} onChange={f('priority')} options={['Critical','High','Medium','Low']}/>
@@ -1361,7 +1415,45 @@ function FollowUps({acct,setAcct}) {
           <Field label='Contact Name' value={form.contact} onChange={f('contact')} style={{gridColumn:'span 2'}}/>
         </div>
         <Field label='Context / Notes' value={form.context} onChange={f('context')} multiline/>
-        <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
+        <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+          <Btn variant='primary' onClick={save}>Save</Btn>
+          {form.id&&(
+            <div style={{position:'relative'}} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>{setSnoozeDropOpen(v=>!v);setSnoozeShowCustom(false)}}
+                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',minHeight:44,borderRadius:6,fontSize:13,fontWeight:500,cursor:'pointer',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`}}>
+                <Clock size={14}/> Snooze
+              </button>
+              {snoozeDropOpen&&(
+                <div style={{position:'absolute',bottom:'calc(100% + 4px)',left:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:220,overflow:'hidden'}}>
+                  {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'In 3 Days',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                    <button key={o.opt} onClick={()=>snoozeFollowUp(o.opt)}
+                      style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
+                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <Clock size={13} color={S.muted}/>
+                      <div><div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div><div style={{fontSize:10,color:S.muted}}>{o.sub}</div></div>
+                    </button>
+                  ))}
+                  {!snoozeShowCustom
+                    ?<button onClick={e=>{e.stopPropagation();setSnoozeShowCustom(true)}}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <Clock size={13} color={S.muted}/>
+                        <div style={{fontSize:13,color:S.txt,fontWeight:500}}>Custom Date</div>
+                      </button>
+                    :<div style={{padding:'8px 14px',display:'flex',gap:6,alignItems:'center'}} onClick={e=>e.stopPropagation()}>
+                        <input type='date' value={snoozeCustomDate} onChange={e=>setSnoozeCustomDate(e.target.value)}
+                          style={{flex:1,fontSize:12,padding:'4px 7px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}/>
+                        <button onClick={applyCustomSnooze} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Set</button>
+                      </div>
+                  }
+                </div>
+              )}
+            </div>
+          )}
+          <Btn onClick={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>Cancel</Btn>
+        </div>
       </Modal>}
     </div>
   )
@@ -1810,8 +1902,11 @@ function IntelLog({acct,setAcct,apiKey}) {
         headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({
           model:'claude-sonnet-4-6',max_tokens:8000,
-          system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per array. No markdown, no explanation.',
+          system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per insights/risks/opportunities arrays. No markdown, no explanation.',
           messages:[{role:'user',content:`Extract intelligence and return JSON:
+
+FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Be aggressive about consolidation — if multiple related actions involve the same topic, vendor, or outcome, combine them into a single task. For example if the transcript mentions updating a quote, adding a module, hitting a price target, and sending to a contact, that is ONE follow-up not four. Each task should be a complete actionable sentence that captures all the context needed. Only include follow-ups that are genuinely time-sensitive or critical to the deal or relationship. Skip anything vague, aspirational, or not clearly actionable. If there are fewer than 3 truly important follow-ups return fewer — do not pad to reach 3. Priority: Critical for hard deadlines or deal blockers, High for relationship or project momentum, Medium for everything else.
+
 {
   "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},
   "newFollowUps":[{"contact":"contact name or empty","task":"string","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"string"}],
