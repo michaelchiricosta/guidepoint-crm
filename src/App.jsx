@@ -3289,10 +3289,19 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'})
 
+  const [todayModal, setTodayModal] = useState(false)
+  const lpTodayStr = new Date().toISOString().split('T')[0]
   const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
   const criticalItems = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length, 0)
   const renewals90 = data.accounts.reduce((s,a)=>s+(a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length, 0)
   const activeProjects = data.accounts.reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status==='In Flight').length, 0)
+  const todayTasksCount = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=lpTodayStr).length, 0)
+  const todayGrouped = data.accounts
+    .map(a=>({account:a,tasks:(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=lpTodayStr).sort((a,b)=>{const ao=a.dueDate<lpTodayStr,bo=b.dueDate<lpTodayStr;if(ao&&!bo)return -1;if(!ao&&bo)return 1;if(ao&&bo)return a.dueDate.localeCompare(b.dueDate);return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)})}))
+    .filter(g=>g.tasks.length>0)
+    .sort((a,b)=>{const ac=a.tasks.some(t=>t.priority==='Critical'),bc=b.tasks.some(t=>t.priority==='Critical');if(ac&&!bc)return -1;if(!ac&&bc)return 1;return b.tasks.length-a.tasks.length})
+  const markTaskDone = (accountId,taskId) => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,followUps:a.followUps.map(fu=>fu.id===taskId?{...fu,status:'Done'}:fu)}:a)}))
+  const markAllTodayDone = () => {if(!window.confirm(`Mark all ${todayTasksCount} task${todayTasksCount!==1?'s':''} complete?`))return;setData(prev=>({...prev,accounts:prev.accounts.map(a=>({...a,followUps:(a.followUps||[]).map(fu=>fu.status==='Open'&&fu.dueDate&&fu.dueDate<=lpTodayStr?{...fu,status:'Done'}:fu)}))}));setTodayModal(false)}
 
   const addAccount = () => {
     if (!newName.trim()) return
@@ -3377,7 +3386,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         </div>
 
         {/* Cross-account stats — clickable cards */}
-        <div className={mob?'scroll-no-bar':undefined} style={{display:mob?'flex':'grid',gridTemplateColumns:mob?undefined:'repeat(4,1fr)',flexDirection:mob?'row':undefined,gap:12,marginBottom:mob?32:48,overflowX:mob?'auto':'visible',paddingBottom:mob?8:0,WebkitOverflowScrolling:mob?'touch':undefined}}>
+        <div className={mob?'scroll-no-bar':undefined} style={{display:mob?'flex':'grid',gridTemplateColumns:mob?undefined:'repeat(5,1fr)',flexDirection:mob?'row':undefined,gap:12,marginBottom:mob?32:48,overflowX:mob?'auto':'visible',paddingBottom:mob?8:0,WebkitOverflowScrolling:mob?'touch':undefined}}>
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
               onClick={()=>setStatModal({...stat,items:stat.buildData()})}
@@ -3391,6 +3400,18 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
             </button>
           ))}
+          {/* Today's Tasks tile */}
+          <button
+            onClick={()=>setTodayModal(true)}
+            onMouseEnter={()=>setHoveredStat('today')}
+            onMouseLeave={()=>setHoveredStat(null)}
+            style={{background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',border:`1px solid ${hoveredStat==='today'?'#6366f1':S.bdr}`,boxShadow:hoveredStat==='today'?'0 4px 16px rgba(99,102,241,0.35)':'none',borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <span style={{fontSize:10,color:'rgba(255,255,255,0.7)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
+              <svg width="18" height="18" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/></svg>
+            </div>
+            <div style={{fontSize:36,fontWeight:800,color:'#fff',lineHeight:1}}>{todayTasksCount}</div>
+          </button>
         </div>
 
         {/* Today's Reminders */}
@@ -3506,6 +3527,68 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </div>
         )}
       </div>
+
+      {/* Today's Tasks modal */}
+      {todayModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}} onClick={()=>setTodayModal(false)}>
+          <div style={{width:mob?'100%':'70vw',height:mob?'100%':'75vh',background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:'3px solid #6366f1',borderRadius:mob?0:12,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:700,color:S.txt}}>Today's Tasks</div>
+                <div style={{fontSize:12,color:S.muted,marginTop:2}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</div>
+              </div>
+              <button onClick={()=>setTodayModal(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {todayGrouped.length===0
+                ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14,padding:40}}>
+                  <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,color:S.green}}>✓</div>
+                  <div style={{fontSize:18,fontWeight:700,color:S.txt}}>All clear today!</div>
+                  <div style={{fontSize:13,color:S.muted,textAlign:'center'}}>No tasks due today across any of your accounts.</div>
+                </div>
+                :todayGrouped.map(g=>{
+                  const sc=({Strategic:'#a855f7',Active:S.green,Prospect:S.blue,'At Risk':S.red})[g.account.status]||S.muted
+                  return (
+                    <div key={g.account.id} style={{borderBottom:`1px solid ${S.bdr}`}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 20px 8px',background:S.surf2}}>
+                        <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{g.account.name}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:sc,background:sc+'1a',borderRadius:999,padding:'1px 8px'}}>{g.account.status}</span>
+                        <span style={{fontSize:10,color:S.muted,marginLeft:'auto'}}>{g.tasks.length} task{g.tasks.length!==1?'s':''}</span>
+                      </div>
+                      {g.tasks.map(fu=>{
+                        const p=PC[fu.priority]||PC.Low
+                        const isOverdue=fu.dueDate<lpTodayStr
+                        const daysOver=isOverdue?Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000):0
+                        return (
+                          <div key={fu.id} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 20px',borderLeft:`3px solid ${p.c}`,marginLeft:20,borderBottom:`1px solid ${S.bdr}22`}}>
+                            <button onClick={()=>markTaskDone(g.account.id,fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} title='Mark complete'/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
+                                <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
+                                <Badge label={fu.priority} color={p.c} bg={p.b}/>
+                                {isOverdue&&<Badge label={`${daysOver}d overdue`} color={S.red} bg='rgba(239,68,68,0.12)'/>}
+                                {!isOverdue&&<Badge label='Due Today' color={S.orange} bg='rgba(249,115,22,0.12)'/>}
+                              </div>
+                              {fu.contact&&<div style={{fontSize:11,color:S.muted}}>{fu.contact}</div>}
+                            </div>
+                            <button onClick={()=>{setTodayModal(false);onNavigateTo(g.account.id,'followups')}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>Go →</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })
+              }
+            </div>
+            {todayGrouped.length>0&&(
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderTop:`1px solid ${S.bdr}`,flexShrink:0,background:S.surf2}}>
+                <span style={{fontSize:12,color:S.muted}}>{todayTasksCount} task{todayTasksCount!==1?'s':''} across {todayGrouped.length} account{todayGrouped.length!==1?'s':''}</span>
+                <button onClick={markAllTodayDone} style={{fontSize:12,color:S.green,background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.25)',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontWeight:600}}>Mark All Complete</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add account modal */}
       {showAdd&&(
