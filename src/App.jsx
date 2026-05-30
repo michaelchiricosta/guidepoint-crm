@@ -1295,6 +1295,7 @@ function Contacts({acct,setAcct}) {
   const chartedIds = new Set(orgNodes.map(n=>n.contactId))
   const unassigned = allContacts.filter(c=>!chartedIds.has(c.id))
   const NODE_W=120, NODE_H=80
+  const CANVAS_W=3000, CANVAS_H=2000
 
   const autoLayout = () => {
     if(orgNodes.length===0)return
@@ -1306,13 +1307,13 @@ function Contacts({acct,setAcct}) {
     const byLevel={}
     Object.entries(levels).forEach(([id,l])=>{if(!byLevel[l])byLevel[l]=[];byLevel[l].push(id)})
     const maxLevel=Math.max(...Object.values(levels),0)
-    const rowH=maxLevel>0?Math.min(80,(canvasSize.h-80)/maxLevel):80
+    const rowH=maxLevel>0?Math.min(200,(CANVAS_H-200)/maxLevel):200
     const newNodes=orgNodes.map(n=>{
       const level=levels[n.contactId]??0
       const siblings=byLevel[level]||[n.contactId]
       const idx=siblings.indexOf(n.contactId)
-      const x=((idx+1)/(siblings.length+1))*100-(NODE_W/canvasSize.w*50)
-      const y=(level*rowH+20)/canvasSize.h*100
+      const x=((idx+1)/(siblings.length+1))*100-(NODE_W/CANVAS_W*50)
+      const y=(level*rowH+100)/CANVAS_H*100
       return{...n,x,y}
     })
     saveOrgNodes(newNodes)
@@ -1326,10 +1327,12 @@ function Contacts({acct,setAcct}) {
     // Convert screen drop position to content-div pixel coordinates
     const contentX=(dropX-dragState.offX-pan.x)/zoom
     const contentY=(dropY-dragState.offY-pan.y)/zoom
-    const pctX=contentX/canvasSize.w*100
-    const pctY=contentY/canvasSize.h*100
+    const pctX=contentX/CANVAS_W*100
+    const pctY=contentY/CANVAS_H*100
     if(dragState.type==='tray-chip'){
-      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null,gradientId:'blue'}])
+      const safeX=contentX<80?400/CANVAS_W*100:pctX
+      const safeY=contentY<60?300/CANVAS_H*100:pctY
+      saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:safeX,y:safeY,parentId:null,gradientId:'blue'}])
     } else if(dragState.type==='chart-node'){
       saveOrgNodes(orgNodes.map(n=>n.contactId===dragState.contactId?{...n,x:pctX,y:pctY}:n))
     }
@@ -1347,10 +1350,10 @@ function Contacts({acct,setAcct}) {
   const svgLine = (n) => {
     const parent=orgNodes.find(p=>p.contactId===n.parentId)
     if(!parent)return null
-    const cx=(n.x/100*canvasSize.w)+(NODE_W/2)
-    const cy=(n.y/100*canvasSize.h)
-    const px=(parent.x/100*canvasSize.w)+(NODE_W/2)
-    const py=(parent.y/100*canvasSize.h)+NODE_H
+    const cx=(n.x/100*CANVAS_W)+(NODE_W/2)
+    const cy=(n.y/100*CANVAS_H)
+    const px=(parent.x/100*CANVAS_W)+(NODE_W/2)
+    const py=(parent.y/100*CANVAS_H)+NODE_H
     const midY=(cy+py)/2
     return <path key={`${n.contactId}-l`} d={`M ${cx} ${cy} C ${cx} ${midY} ${px} ${midY} ${px} ${py}`} fill="none" stroke="#bbc2ff" strokeWidth="2"/>
   }
@@ -1366,7 +1369,7 @@ function Contacts({acct,setAcct}) {
   const fitToScreen = () => {
     if(orgNodes.length===0){setZoom(1);setPan({x:0,y:0});return}
     const nW=NODE_W,nH=NODE_H,pad=40
-    const xs=orgNodes.map(n=>n.x/100*canvasSize.w),ys=orgNodes.map(n=>n.y/100*canvasSize.h)
+    const xs=orgNodes.map(n=>n.x/100*CANVAS_W),ys=orgNodes.map(n=>n.y/100*CANVAS_H)
     const minX=Math.min(...xs),maxX=Math.max(...xs)+nW,minY=Math.min(...ys),maxY=Math.max(...ys)+nH
     const cw=maxX-minX,ch=maxY-minY
     if(cw===0||ch===0)return
@@ -1569,12 +1572,12 @@ function Contacts({acct,setAcct}) {
 
             {/* Transformed content div — all chart content lives here */}
             <div ref={chartContentRef}
-              style={{position:'absolute',width:canvasSize.w,
+              style={{position:'absolute',width:CANVAS_W,height:CANVAS_H,
                 transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'0 0'}}>
 
               {/* SVG connection lines */}
-              <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}
-                width={canvasSize.w} height={canvasSize.h}>
+              <svg style={{position:'absolute',top:0,left:0,width:CANVAS_W,height:CANVAS_H,overflow:'visible',pointerEvents:'none'}}
+                width={CANVAS_W} height={CANVAS_H}>
                 {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
               </svg>
 
@@ -1600,7 +1603,7 @@ function Contacts({acct,setAcct}) {
                     onDrop={e=>handleNodeDrop(e,n.contactId)}
                     onClick={e=>{e.stopPropagation();setOpenDetailNode(openDetailNode===n.contactId?null:n.contactId);setExportDropdown(false)}}
                     onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
-                    style={{position:'absolute',left:`${n.x/100*canvasSize.w}px`,top:`${n.y/100*canvasSize.h}px`,width:NODE_W,
+                    style={{position:'absolute',left:`${n.x/100*CANVAS_W}px`,top:`${n.y/100*CANVAS_H}px`,width:NODE_W,
                       background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',
                       cursor:'grab',border:isRoot?'2px solid #fbbf24':'none',
                       boxShadow:isOver?`0 0 0 3px #2563eb, 0 8px 24px ${grad.shadow}`:`0 4px 16px ${grad.shadow}`,
@@ -1631,8 +1634,8 @@ function Contacts({acct,setAcct}) {
               const c=allContacts.find(x=>x.id===openDetailNode)
               if(!n||!c)return null
               const grad=getGrad(n)
-              const nx=n.x/100*canvasSize.w*zoom+pan.x
-              const ny=n.y/100*canvasSize.h*zoom+pan.y
+              const nx=n.x/100*CANVAS_W*zoom+pan.x
+              const ny=n.y/100*CANVAS_H*zoom+pan.y
               const popW=228
               const flipsLeft=nx+NODE_W*zoom+popW+16>canvasSize.w
               const popLeft=flipsLeft?nx-popW-8:nx+NODE_W*zoom+8
@@ -1843,11 +1846,11 @@ function TechStack({acct,setAcct}) {
 
   return (
     <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {!isTouchDevice&&<div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2}}>
             {['list','heatmap'].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:'5px 14px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{v==='list'?'List':'Heatmap'}</button>)}
-          </div>}
+          </div>
           <div style={{fontSize:12,color:S.muted,display:'flex',gap:16}}>
             <span>{acct.techStack.length} vendors</span>
             {upcoming>0&&<span style={{color:S.orange}}>{upcoming} renewal{upcoming>1?'s':''} within 5 months</span>}
@@ -2041,6 +2044,46 @@ function TechStack({acct,setAcct}) {
           )
         })()}
       </div>}
+
+      {/* Mobile heatmap — capability list by domain */}
+      {isTouchDevice&&view==='heatmap'&&(
+        <div>
+          <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:8,marginBottom:14,padding:'8px 12px',background:S.surf,borderRadius:8,border:`1px solid ${S.bdr}`}}>
+            <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{coveragePct}% Coverage</span>
+            <span style={{fontSize:11,color:S.muted}}>·</span>
+            <span style={{fontSize:11,color:S.muted}}>{coveredCaps.length}/{allCaps.length} capabilities</span>
+          </div>
+          {HEATMAP_DOMAINS.map(domain=>{
+            const domCaps=domain.caps.map(cap=>({cap,vendor:findVendor(cap,acct.techStack)}))
+            const covered=domCaps.filter(c=>c.vendor).length
+            return (
+              <div key={domain.name} style={{marginBottom:12,background:S.surf,borderRadius:10,border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderBottom:`1px solid ${S.bdr}`,background:domain.color+'18'}}>
+                  <span style={{fontSize:12,fontWeight:700,color:domain.color}}>{domain.name}</span>
+                  <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{covered}/{domCaps.length}</span>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:0}}>
+                  {domCaps.map(({cap,vendor},ci)=>{
+                    const fill=capStatusFill(vendor)
+                    return (
+                      <div key={cap} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:ci<domCaps.length-1?`1px solid ${S.bdr2}`:'none',gap:8}}
+                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:capToCategory[cap]||domainToCategory[domain.name]||'Other',products:cap});setShowAdd(true)}}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:fill,flexShrink:0}}/>
+                          <span style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cap}</span>
+                        </div>
+                        {vendor
+                          ?<span style={{fontSize:11,color:S.secondary,fontWeight:600,flexShrink:0}}>{vendor.vendor}</span>
+                          :<span style={{fontSize:11,color:S.blue,flexShrink:0}}>+ Add</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Rich tooltip */}
       {!isTouchDevice&&hoveredSeg&&view==='heatmap'&&(()=>{
