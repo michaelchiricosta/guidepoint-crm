@@ -1313,7 +1313,7 @@ function Contacts({acct,setAcct}) {
       const idx=siblings.indexOf(n.contactId)
       const x=((idx+1)/(siblings.length+1))*100-(NODE_W/canvasSize.w*50)
       const y=(level*rowH+20)/canvasSize.h*100
-      return{...n,x:Math.max(1,Math.min(88,x)),y:Math.max(1,Math.min(85,y))}
+      return{...n,x,y}
     })
     saveOrgNodes(newNodes)
   }
@@ -1326,8 +1326,8 @@ function Contacts({acct,setAcct}) {
     // Convert screen drop position to content-div pixel coordinates
     const contentX=(dropX-dragState.offX-pan.x)/zoom
     const contentY=(dropY-dragState.offY-pan.y)/zoom
-    const pctX=Math.max(1,Math.min(88,contentX/canvasSize.w*100))
-    const pctY=Math.max(1,Math.min(85,contentY/canvasSize.h*100))
+    const pctX=contentX/canvasSize.w*100
+    const pctY=contentY/canvasSize.h*100
     if(dragState.type==='tray-chip'){
       saveOrgNodes([...orgNodes,{contactId:dragState.contactId,x:pctX,y:pctY,parentId:null,gradientId:'blue'}])
     } else if(dragState.type==='chart-node'){
@@ -1519,7 +1519,7 @@ function Contacts({acct,setAcct}) {
 
           {/* Canvas outer — handles pan and drop */}
           <div ref={canvasRef}
-            style={{position:'relative',height:480,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
+            style={{position:'relative',minHeight:typeof window!=='undefined'&&window.innerWidth<768?'70vh':600,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
               backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',
               backgroundSize:'24px 24px',
               backgroundColor:S.isLight?'#f8fafc':S.surf2,
@@ -1569,11 +1569,11 @@ function Contacts({acct,setAcct}) {
 
             {/* Transformed content div — all chart content lives here */}
             <div ref={chartContentRef}
-              style={{position:'absolute',width:canvasSize.w,height:canvasSize.h,
+              style={{position:'absolute',width:canvasSize.w,
                 transform:`translate(${pan.x}px,${pan.y}px) scale(${zoom})`,transformOrigin:'0 0'}}>
 
               {/* SVG connection lines */}
-              <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',pointerEvents:'none'}}
+              <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',overflow:'visible',pointerEvents:'none'}}
                 width={canvasSize.w} height={canvasSize.h}>
                 {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
               </svg>
@@ -1600,7 +1600,7 @@ function Contacts({acct,setAcct}) {
                     onDrop={e=>handleNodeDrop(e,n.contactId)}
                     onClick={e=>{e.stopPropagation();setOpenDetailNode(openDetailNode===n.contactId?null:n.contactId);setExportDropdown(false)}}
                     onContextMenu={e=>{e.preventDefault();e.stopPropagation();setContextMenu({contactId:n.contactId,x:e.clientX,y:e.clientY})}}
-                    style={{position:'absolute',left:`${n.x}%`,top:`${n.y}%`,width:NODE_W,
+                    style={{position:'absolute',left:`${n.x/100*canvasSize.w}px`,top:`${n.y/100*canvasSize.h}px`,width:NODE_W,
                       background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',
                       cursor:'grab',border:isRoot?'2px solid #fbbf24':'none',
                       boxShadow:isOver?`0 0 0 3px #2563eb, 0 8px 24px ${grad.shadow}`:`0 4px 16px ${grad.shadow}`,
