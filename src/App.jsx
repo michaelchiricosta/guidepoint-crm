@@ -139,7 +139,8 @@ const SAMPLE = {
     dismissedAlerts:[],
     snoozedAlerts:[],
     healthScoreOverrides:{},
-    healthScoreHistory:[]
+    healthScoreHistory:[],
+    upcomingDates:[]
   }]
 }
 
@@ -329,6 +330,10 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [showAIChat,setShowAIChat] = useState(false)
   const [showHealthModal,setShowHealthModal] = useState(false)
   const [hoveredCard,setHoveredCard] = useState(null)
+  const [showAddDate,setShowAddDate] = useState(false)
+  const [dateForm,setDateForm] = useState({title:'',date:'',type:'Meeting',notes:''})
+  const [showMoreDates,setShowMoreDates] = useState(false)
+  const [hoveredDateId,setHoveredDateId] = useState(null)
   const [snoozeOpenFor,setSnoozeOpenFor] = useState(null)
   const [showSnoozed,setShowSnoozed] = useState(false)
   const [snoozeToast,setSnoozeToast] = useState(false)
@@ -398,6 +403,12 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     setTimeout(()=>setSnoozeToast(false),2000)
   }
 
+  const saveCustomDate = () => {
+    if (!dateForm.title.trim()||!dateForm.date) return
+    setAcct(prev=>({...prev,upcomingDates:[...(prev.upcomingDates||[]),{...dateForm,id:uid()}]}))
+    setShowAddDate(false); setDateForm({title:'',date:'',type:'Meeting',notes:''})
+  }
+  const deleteCustomDate = id => setAcct(prev=>({...prev,upcomingDates:(prev.upcomingDates||[]).filter(d=>d.id!==id)}))
   const openAddFU = (task='',contact='') => { setFuForm({task,contact,priority:'High',dueDate:'',context:''}); setShowAddFU(true) }
   const saveQuickFU = () => {
     if (!fuForm.task.trim()) return
@@ -439,6 +450,35 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       <span style={{color:S.muted,flexShrink:0}}>{label}</span><span style={{color:S.txt,textAlign:'right'}}>{val||'—'}</span>
     </div>
   )
+
+  const upcomingItems = []
+  ;(acct.techStack||[]).forEach(t=>{
+    if (!t.renewalDate) return
+    const d=daysUntil(t.renewalDate)
+    if (d===null||d>180) return
+    const dot=d<=30?S.red:d<=90?S.orange:S.yellow
+    upcomingItems.push({id:`renewal:${t.id}`,date:t.renewalDate,days:d,label:`${t.vendor} contract renewal`,source:'Renewal',dot,tab:'stack'})
+  })
+  ;(acct.projects||[]).forEach(p=>{
+    if (!p.closeDate) return
+    const d=daysUntil(p.closeDate)
+    if (d===null||d>180) return
+    const dot=d<0?S.red:d<=30?S.orange:S.yellow
+    upcomingItems.push({id:`proj:${p.id}`,date:p.closeDate,days:d,label:`${p.name} target close`,source:'Project',dot,tab:'projects'})
+  })
+  ;(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate).forEach(f=>{
+    const d=daysUntil(f.dueDate)
+    if (d===null||d>30) return
+    const dot=d<0?S.red:d<=1?S.orange:d<=7?S.yellow:S.muted
+    upcomingItems.push({id:`fu:${f.id}`,date:f.dueDate,days:d,label:f.task.length>45?f.task.slice(0,44)+'…':f.task,fullLabel:f.task,source:'Follow-Up',dot,tab:'followups'})
+  })
+  ;(acct.upcomingDates||[]).forEach(cd=>{
+    const d=daysUntil(cd.date)
+    if (d===null||d>180||d<-30) return
+    const dot=d<0?S.red:d<=30?S.orange:d<=90?S.yellow:S.muted
+    upcomingItems.push({id:`custom:${cd.id}`,date:cd.date,days:d,label:cd.title.length>45?cd.title.slice(0,44)+'…':cd.title,fullLabel:cd.title,source:cd.type,dot,tab:null,isCustom:true,customId:cd.id,notes:cd.notes})
+  })
+  upcomingItems.sort((a,b)=>a.date.localeCompare(b.date))
 
   return (
     <div>
@@ -571,14 +611,81 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           </div>
         </>
       )}
-      <SH>Account Profile</SH>
-      <Card style={{padding:'14px 16px',marginBottom:16}}>
-        {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v])=>(
-          <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13}}>
-            <span style={{color:S.muted}}>{k}</span><span style={{color:S.txt}}>{v||'—'}</span>
+      <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:16,alignItems:'stretch'}}>
+        {/* Left: Account Profile */}
+        <div style={{flex:1,display:'flex',flexDirection:'column'}}>
+          <SH>Account Profile</SH>
+          <Card style={{padding:'14px 16px',flex:1}}>
+            {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13}}>
+                <span style={{color:S.muted}}>{k}</span><span style={{color:S.txt}}>{v||'—'}</span>
+              </div>
+            ))}
+          </Card>
+        </div>
+        {/* Right: Upcoming Dates */}
+        <div style={{flex:1,display:'flex',flexDirection:'column'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase'}}>📅 Upcoming Dates</div>
+            <button onClick={()=>setShowAddDate(v=>!v)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'3px 9px',cursor:'pointer',fontWeight:600}}>+ Add Date</button>
           </div>
-        ))}
-      </Card>
+          <Card style={{padding:'12px 14px',flex:1}}>
+            {showAddDate&&(
+              <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,padding:'10px 12px',marginBottom:10}}>
+                <div style={{marginBottom:6}}>
+                  <input value={dateForm.title} onChange={e=>setDateForm(p=>({...p,title:e.target.value}))} placeholder='Title / Description' style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:6}}>
+                  <input type='date' value={dateForm.date} onChange={e=>setDateForm(p=>({...p,date:e.target.value}))} style={{fontSize:12,padding:'5px 7px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,width:'100%',boxSizing:'border-box'}}/>
+                  <select value={dateForm.type} onChange={e=>setDateForm(p=>({...p,type:e.target.value}))} style={{fontSize:12,padding:'5px 7px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}>
+                    {['Meeting','Deadline','Renewal','Milestone','Other'].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div style={{marginBottom:8}}>
+                  <input value={dateForm.notes} onChange={e=>setDateForm(p=>({...p,notes:e.target.value}))} placeholder='Notes (optional)' style={{width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                </div>
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={saveCustomDate} style={{padding:'4px 12px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save</button>
+                  <button onClick={()=>{setShowAddDate(false);setDateForm({title:'',date:'',type:'Meeting',notes:''})}} style={{padding:'4px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {upcomingItems.length===0
+              ?<div style={{fontSize:12,color:S.dim,lineHeight:1.7,padding:'6px 0'}}>No upcoming dates within 180 days. Add a date or check your tech stack renewals.</div>
+              :<>
+                {(showMoreDates?upcomingItems:upcomingItems.slice(0,8)).map(item=>{
+                  const relLabel=item.days===0?'Today':item.days===1?'Tomorrow':item.days<0?`${Math.abs(item.days)}d ago`:item.days<=30?`In ${item.days}d`:fmtDate(item.date)
+                  const relColor=item.days<0?S.red:item.days<=1?S.orange:S.muted
+                  return (
+                    <div key={item.id} style={{position:'relative',display:'flex',alignItems:'center',gap:8,padding:'6px 2px',borderBottom:`1px solid ${S.bdr}`,cursor:item.tab?'pointer':'default',transition:'background 0.1s',borderRadius:4}}
+                      onClick={()=>item.tab&&setTab(item.tab)}
+                      onMouseEnter={e=>{setHoveredDateId(item.id);if(item.tab)e.currentTarget.style.background=S.surf2}}
+                      onMouseLeave={e=>{setHoveredDateId(null);e.currentTarget.style.background='transparent'}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:item.dot,flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.label}</div>
+                        <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
+                      </div>
+                      <div style={{fontSize:11,fontWeight:600,color:relColor,flexShrink:0,minWidth:56,textAlign:'right'}}>{relLabel}</div>
+                      {item.isCustom&&<button onClick={e=>{e.stopPropagation();deleteCustomDate(item.customId)}} style={{background:'none',border:'none',color:S.dim,cursor:'pointer',fontSize:15,lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>}
+                      {hoveredDateId===item.id&&item.fullLabel&&item.fullLabel!==item.label&&(
+                        <div style={{position:'absolute',right:0,top:'calc(100% + 2px)',zIndex:50,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'6px 10px',fontSize:11,color:S.txt,maxWidth:220,boxShadow:'0 4px 14px rgba(0,0,0,0.45)',whiteSpace:'normal',lineHeight:1.5}}>
+                          {item.fullLabel}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {upcomingItems.length>8&&(
+                  <button onClick={()=>setShowMoreDates(v=>!v)} style={{fontSize:11,color:S.blue,background:'transparent',border:'none',cursor:'pointer',padding:'6px 0 2px',fontWeight:600,display:'block'}}>
+                    {showMoreDates?'Show less':`Show ${upcomingItems.length-8} more`}
+                  </button>
+                )}
+              </>
+            }
+          </Card>
+        </div>
+      </div>
       <SH>Priority Follow-Ups</SH>
       {openFU.sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)).slice(0,5).map(f=>{
         const p=PC[f.priority]||PC.Low
