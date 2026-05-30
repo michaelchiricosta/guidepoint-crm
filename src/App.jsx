@@ -1254,6 +1254,335 @@ function FollowUps({acct,setAcct}) {
   )
 }
 
+function AIChatModal({acct, setAcct, effectiveKey, onClose}) {
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [fuFormFor, setFuFormFor] = useState(null)
+  const [projFormFor, setProjFormFor] = useState(null)
+  const [fuForm, setFuForm] = useState({task:'',priority:'High',dueDate:'',contact:''})
+  const [projForm, setProjForm] = useState({name:'',category:'',status:'Not Started',notes:''})
+  const [fuSaved, setFuSaved] = useState(new Set())
+  const [projSaved, setProjSaved] = useState(new Set())
+  const messagesEndRef = useRef(null)
+
+  useEffect(()=>{messagesEndRef.current?.scrollIntoView({behavior:'smooth'})},[messages,loading])
+
+  const SYSTEM_PROMPT = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. You have been given detailed information about a specific account. Answer questions ONLY based on the information provided about this account. Do not use outside knowledge about vendors, companies, or cybersecurity beyond what is in the account data. Be concise, direct, and actionable. If the answer is not in the account data, say so clearly. Format responses cleanly — use bullet points for lists, bold for key names. Never make up information not present in the account context.`
+
+  const SUGGESTED = [
+    "What are the biggest risks in this account right now?",
+    "What follow-ups are most overdue and why do they matter?",
+    "Summarize all interactions with the CISO",
+    "What projects are stalled and what is blocking them?"
+  ]
+
+  const buildContext = () => {
+    const a = acct
+    let ctx = `ACCOUNT: ${a.name}${a.short ? ` (${a.short})` : ''}\n`
+    ctx += `Industry: ${a.industry||'N/A'} | HQ: ${a.hq||'N/A'} | Status: ${a.status||'N/A'}\n`
+    if(a.notes) ctx += `Account Notes: ${a.notes}\n`
+    ctx += '\n'
+    if((a.contacts||[]).length) {
+      ctx += 'CONTACTS:\n'
+      a.contacts.forEach(c => {
+        ctx += `- ${c.name} (${c.title}): Influence=${c.influence}, Relationship=${c.relStatus}, Sentiment=${c.sentiment}`
+        if(c.lastInteracted) ctx += `, Last contacted=${c.lastInteracted}`
+        if(c.goals) ctx += `\n  Goals: ${c.goals}`
+        if(c.pains) ctx += `\n  Pains: ${c.pains}`
+        if(c.notes) ctx += `\n  Notes: ${c.notes}`
+        if(c.personalNotes) ctx += `\n  Personal: ${c.personalNotes}`
+        ctx += '\n'
+      })
+      ctx += '\n'
+    }
+    if((a.techStack||[]).length) {
+      ctx += 'TECH STACK:\n'
+      a.techStack.forEach(t => {
+        const vd = t.products ? `${t.vendor} (${t.products})` : t.vendor
+        ctx += `- ${vd}: Category=${t.category}, Status=${t.status}`
+        if(t.renewalDate) ctx += `, Renewal=${t.renewalDate}`
+        if(t.cost) ctx += `, Cost=${t.cost}`
+        if(t.clientOwner) ctx += `, Owner=${t.clientOwner}`
+        if(t.notes) ctx += `\n  Notes: ${t.notes}`
+        ctx += '\n'
+      })
+      ctx += '\n'
+    }
+    if((a.projects||[]).length) {
+      ctx += 'PROJECTS:\n'
+      a.projects.forEach(p => {
+        const currSt = p.timeline?.find(s=>s.status==='current')?.stage || p.timeline?.filter(s=>s.status==='completed').slice(-1)[0]?.stage || 'N/A'
+        ctx += `- ${p.name}: Status=${p.status}, Stage=${currSt}, Vendor=${p.vendor||'N/A'}, Contact=${p.primaryContact||'N/A'}`
+        if(p.goals) ctx += `\n  Goals: ${p.goals}`
+        if(p.pains) ctx += `\n  Pains: ${p.pains}`
+        if(p.nextAction) ctx += `\n  Next Action: ${p.nextAction}`
+        if(p.waitingOn) ctx += `\n  Waiting On: ${p.waitingOn}`
+        if(p.notes) ctx += `\n  Notes: ${p.notes}`
+        ctx += '\n'
+      })
+      ctx += '\n'
+    }
+    const openFUs = (a.followUps||[]).filter(f=>f.status==='Open')
+    if(openFUs.length) {
+      ctx += 'OPEN FOLLOW-UPS:\n'
+      openFUs.forEach(f => {
+        ctx += `- ${f.task}: Priority=${f.priority}, Due=${f.dueDate||'N/A'}, Contact=${f.contact||'N/A'}`
+        if(f.context) ctx += `, Context: ${f.context}`
+        ctx += '\n'
+      })
+      ctx += '\n'
+    }
+    if((a.intelLog||[]).length) {
+      ctx += 'INTEL LOG:\n'
+      a.intelLog.forEach(e => {
+        ctx += `- [${e.date||''}] ${e.type||'Note'} — ${e.participants||''}: ${e.summary||''}\n`
+        if((e.insights||[]).length) ctx += `  Insights: ${e.insights.join('; ')}\n`
+        if((e.risks||[]).length) ctx += `  Risks: ${e.risks.join('; ')}\n`
+        if((e.opportunities||[]).length) ctx += `  Opportunities: ${e.opportunities.join('; ')}\n`
+      })
+      ctx += '\n'
+    }
+    if((a.interactions||[]).length) {
+      ctx += 'INTERACTIONS:\n'
+      a.interactions.forEach(i => {
+        ctx += `- [${i.date||''}] ${i.type||'Note'} — ${i.contact||''}: ${i.summary||''}`
+        if(i.topics) ctx += ` | Topics: ${i.topics}`
+        ctx += '\n'
+      })
+    }
+    return ctx
+  }
+
+  const callAPI = async (msgs) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const firstUserIdx = msgs.findIndex(m=>m.role==='user')
+      const apiMessages = msgs.map((m,i) => ({
+        role: m.role,
+        content: i===firstUserIdx ? `Here is the account data:\n\n${buildContext()}\n\nQuestion: ${m.content}` : m.content
+      }))
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:2000, system:SYSTEM_PROMPT, messages:apiMessages})
+      })
+      const data = await res.json()
+      if(data.error) throw new Error(data.error.message)
+      const aiText = data.content?.[0]?.text || 'No response received.'
+      setMessages(prev=>[...prev, {id:uid(), role:'assistant', content:aiText, timestamp:new Date()}])
+    } catch(e) {
+      setError(e.message || 'API error. Check your API key in Settings.')
+    }
+    setLoading(false)
+  }
+
+  const sendMessage = async (msgText) => {
+    if(!msgText.trim() || loading) return
+    const userMsg = {id:uid(), role:'user', content:msgText.trim(), timestamp:new Date()}
+    const newMsgs = [...messages, userMsg]
+    setMessages(newMsgs)
+    setInput('')
+    await callAPI(newMsgs)
+  }
+
+  const fmtTime = d => d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'})
+
+  const saveFU = (msgId) => {
+    if(!fuForm.task.trim()) return
+    setAcct(prev=>({...prev, followUps:[...(prev.followUps||[]), {...fuForm, id:uid(), status:'Open'}]}))
+    setFuSaved(prev=>new Set([...prev, msgId]))
+    setFuFormFor(null)
+  }
+
+  const saveProj = (msgId) => {
+    if(!projForm.name.trim()) return
+    setAcct(prev=>({...prev, projects:[...(prev.projects||[]), {
+      id:uid(), name:projForm.name, category:projForm.category||'', vendor:'',
+      status:projForm.status, description:'', goals:'', pains:'', primaryContact:'',
+      budget:false, closeDate:'', notes:projForm.notes||'', waitingOn:'', nextAction:'',
+      timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))
+    }]}))
+    setProjSaved(prev=>new Set([...prev, msgId]))
+    setProjFormFor(null)
+  }
+
+  const iBtn = (color) => ({fontSize:11,color,background:color+'1a',border:`1px solid ${color}44`,borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'})
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <style>{`@keyframes dot-pulse{0%,80%,100%{transform:translateY(0);opacity:0.5}40%{transform:translateY(-5px);opacity:1}}`}</style>
+      <div style={{width:'75vw',height:'75vh',background:S.surf,borderRadius:12,display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${S.bdr}`,boxShadow:'0 24px 80px rgba(0,0,0,0.7)'}}>
+
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+          <span style={{fontSize:16,color:S.blue}}>✦</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:S.txt,lineHeight:1.2}}>Account Intelligence Assistant</div>
+            <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</div>
+          </div>
+          <button onClick={()=>{setMessages([]);setFuFormFor(null);setProjFormFor(null)}} style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',whiteSpace:'nowrap',flexShrink:0}}>Clear Chat</button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,flexShrink:0,padding:'0 4px',display:'flex',alignItems:'center'}}>×</button>
+        </div>
+
+        {/* Messages area */}
+        <div style={{flex:1,overflowY:'auto',padding:'16px 18px',display:'flex',flexDirection:'column',gap:14}}>
+          {messages.length===0&&(
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:20,textAlign:'center'}}>
+              <div>
+                <div style={{fontSize:26,color:S.blue,marginBottom:8}}>✦</div>
+                <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>Ask me anything about {acct.short||acct.name}</div>
+                <div style={{fontSize:12,color:S.muted}}>I have full context: contacts, projects, tech stack, intel, and follow-ups.</div>
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',maxWidth:560}}>
+                {SUGGESTED.map((q,i)=>(
+                  <button key={i} onClick={()=>sendMessage(q)}
+                    style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:20,padding:'8px 14px',fontSize:12,color:S.secondary,cursor:'pointer',textAlign:'left',lineHeight:1.4,transition:'border-color 0.15s'}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor=S.blue}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor=S.bdr}
+                  >{q}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {messages.map(msg=>{
+            const isUser = msg.role==='user'
+            return (
+              <div key={msg.id}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:10,flexDirection:isUser?'row-reverse':'row'}}>
+                  <div style={{width:30,height:30,borderRadius:'50%',background:isUser?S.blue:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:isUser?'#fff':S.purple,flexShrink:0}}>
+                    {isUser?'MC':'AI'}
+                  </div>
+                  <div style={{maxWidth:'72%',background:isUser?S.blue:S.surf2,border:isUser?'none':`1px solid ${S.bdr}`,borderRadius:isUser?'12px 12px 2px 12px':'12px 12px 12px 2px',padding:'10px 14px'}}>
+                    <div style={{fontSize:13,color:isUser?'#fff':S.txt,lineHeight:1.65,whiteSpace:'pre-wrap'}}>{msg.content}</div>
+                    <div style={{fontSize:10,color:isUser?'rgba(255,255,255,0.55)':S.muted,marginTop:4,textAlign:isUser?'right':'left'}}>{fmtTime(msg.timestamp)}</div>
+                  </div>
+                </div>
+                {!isUser&&(
+                  <div style={{paddingLeft:40,marginTop:8,display:'flex',flexDirection:'column',gap:8}}>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      <button
+                        onClick={()=>{const open=fuFormFor===msg.id;setFuFormFor(open?null:msg.id);setProjFormFor(null);if(!open)setFuForm({task:msg.content.slice(0,80),priority:'High',dueDate:'',contact:''})}}
+                        style={iBtn(S.blue)}
+                      >{fuSaved.has(msg.id)?'✓ Follow-Up Saved':'＋ Add as Follow-Up'}</button>
+                      <button
+                        onClick={()=>{const open=projFormFor===msg.id;setProjFormFor(open?null:msg.id);setFuFormFor(null);if(!open)setProjForm({name:msg.content.slice(0,60),category:'',status:'Not Started',notes:msg.content.slice(0,200)})}}
+                        style={iBtn(S.purple)}
+                      >{projSaved.has(msg.id)?'✓ Project Saved':'＋ Add as Project'}</button>
+                    </div>
+                    {fuFormFor===msg.id&&(
+                      <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                          <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Follow-Up</div>
+                          <button onClick={()=>setFuFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
+                        </div>
+                        <div style={{marginBottom:7}}>
+                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Task</div>
+                          <textarea value={fuForm.task} onChange={e=>setFuForm(p=>({...p,task:e.target.value}))} rows={2} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+                          <div>
+                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Priority</div>
+                            <select value={fuForm.priority} onChange={e=>setFuForm(p=>({...p,priority:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
+                              {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Due Date</div>
+                            <input type='date' value={fuForm.dueDate} onChange={e=>setFuForm(p=>({...p,dueDate:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                        </div>
+                        <div style={{marginBottom:8}}>
+                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Contact</div>
+                          <input value={fuForm.contact} onChange={e=>setFuForm(p=>({...p,contact:e.target.value}))} placeholder='Contact name...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                        </div>
+                        <div style={{display:'flex',gap:6}}>
+                          <button onClick={()=>saveFU(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Follow-Up</button>
+                          <button onClick={()=>setFuFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                    {projFormFor===msg.id&&(
+                      <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px',maxWidth:460}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                          <div style={{fontSize:11,fontWeight:700,color:S.txt,textTransform:'uppercase',letterSpacing:'0.06em'}}>New Project</div>
+                          <button onClick={()=>setProjFormFor(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:18,lineHeight:1}}>×</button>
+                        </div>
+                        <div style={{marginBottom:7}}>
+                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Project Name</div>
+                          <input value={projForm.name} onChange={e=>setProjForm(p=>({...p,name:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
+                          <div>
+                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Category</div>
+                            <input value={projForm.category} onChange={e=>setProjForm(p=>({...p,category:e.target.value}))} placeholder='e.g. MDR, CSPM...' style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Status</div>
+                            <select value={projForm.status} onChange={e=>setProjForm(p=>({...p,status:e.target.value}))} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 7px',color:S.txt}}>
+                              {PROJ_STATS.map(o=><option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{marginBottom:8}}>
+                          <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Notes</div>
+                          <textarea value={projForm.notes} onChange={e=>setProjForm(p=>({...p,notes:e.target.value}))} rows={3} style={{width:'100%',fontSize:12,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'5px 8px',color:S.txt,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+                        </div>
+                        <div style={{display:'flex',gap:6}}>
+                          <button onClick={()=>saveProj(msg.id)} style={{padding:'6px 14px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Project</button>
+                          <button onClick={()=>setProjFormFor(null)} style={{padding:'6px 10px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                    {fuSaved.has(msg.id)&&fuFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Follow-up saved to Follow-Ups tab</div>}
+                    {projSaved.has(msg.id)&&projFormFor!==msg.id&&<div style={{fontSize:11,color:S.green}}>✓ Project saved to Projects tab</div>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {loading&&(
+            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(168,85,247,0.18)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:S.purple,flexShrink:0}}>AI</div>
+              <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:'12px 12px 12px 2px',padding:'13px 16px',display:'flex',gap:5,alignItems:'center'}}>
+                {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:'50%',background:S.muted,animation:`dot-pulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+              </div>
+            </div>
+          )}
+          {error&&(
+            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(239,68,68,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.red,flexShrink:0}}>!</div>
+              <div style={{background:'rgba(239,68,68,0.07)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:'12px 12px 12px 2px',padding:'10px 14px',maxWidth:'70%'}}>
+                <div style={{fontSize:12,color:S.red,marginBottom:8,lineHeight:1.5}}>{error}</div>
+                <button onClick={()=>{setError(null);callAPI(messages)}} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Retry</button>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef}/>
+        </div>
+
+        {/* Input bar */}
+        <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0,display:'flex',gap:10,alignItems:'flex-end'}}>
+          <textarea
+            value={input}
+            onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage(input)}}}
+            placeholder='Ask anything about this account... (Enter to send, Shift+Enter for new line)'
+            rows={1}
+            style={{flex:1,fontSize:13,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 12px',color:S.txt,resize:'none',lineHeight:1.5,fontFamily:'inherit',maxHeight:120,overflowY:'auto'}}
+          />
+          <button onClick={()=>sendMessage(input)} disabled={!input.trim()||loading}
+            style={{padding:'10px 18px',background:!input.trim()||loading?S.dim:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!input.trim()||loading?'default':'pointer',flexShrink:0,opacity:!input.trim()||loading?0.5:1,minHeight:42}}>
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function IntelLog({acct,setAcct,apiKey}) {
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const [text,setText] = useState('')
@@ -1266,6 +1595,7 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [typeFilter,setTypeFilter] = useState('All')
   const [dateFrom,setDateFrom] = useState('')
   const [dateTo,setDateTo] = useState('')
+  const [showChat,setShowChat] = useState(false)
 
   const process = async (date) => {
     setLoading(true);setError('');setResult(null)
@@ -1381,6 +1711,7 @@ ${text}`}]
               <button key={t} onClick={()=>setTypeFilter(t)} style={{padding:'4px 10px',borderRadius:5,border:'none',background:typeFilter===t?S.blue:'transparent',color:typeFilter===t?'#fff':S.muted,fontSize:11,fontWeight:600,cursor:'pointer'}}>{t}</button>
             ))}
           </div>
+          <button onClick={()=>setShowChat(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',background:S.blue,border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>✦ Ask AI</button>
           <button onClick={exportIntel} style={{padding:'6px 12px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:12,cursor:'pointer',flexShrink:0}}>↓ Export</button>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
@@ -1409,6 +1740,7 @@ ${text}`}]
           </Card>
         ))}
       </div>
+      {showChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowChat(false)}/>}
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
         {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
