@@ -3566,12 +3566,12 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         </div>
       </div>
 
-      {/* HERO SECTION — dark gradient fading into page bg */}
-      <div style={{background:S.isLight?'linear-gradient(180deg,#0f1729 0%,#1e3a5f 40%,#1d4ed8 70%,#f1f5f9 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 48px':'36px 48px 56px',position:'relative',overflow:'hidden',minHeight:S.isLight?180:undefined}}>
+      {/* HERO SECTION — solid dark gradient with drop shadow */}
+      <div style={{background:S.isLight?'linear-gradient(135deg,#0f1729 0%,#1e3a5f 40%,#1d4ed8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?160:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 4px 24px rgba(15,23,42,0.25),0 1px 0 rgba(15,23,42,0.1)':undefined}}>
         {/* Decorative rings */}
         <div style={{position:'absolute',right:-60,top:-60,width:280,height:280,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
         <div style={{position:'absolute',right:-20,top:-20,width:180,height:180,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.04)',pointerEvents:'none'}}/>
-        <div style={{maxWidth:1160,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
+        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
           <div>
             <div style={{fontSize:mob?24:32,fontWeight:900,color:'#ffffff',marginBottom:8,lineHeight:1.1,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
             <div style={{fontSize:14,color:'rgba(255,255,255,0.7)',lineHeight:1.7}}>
