@@ -26,6 +26,7 @@ const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selec
 const PROJ_STATS = ['Not Started','In Discussion','In Flight','Stalled','Won','Lost']
 
 const uid = () => Math.random().toString(36).slice(2,9)
+const _autoSummaryGenerated = new Set()
 const fmtDate = d => { if (!d) return ''; try { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) } catch { return d } }
 const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000) }
 const daysSince = d => { if (!d) return null; return Math.floor((new Date() - new Date(d+'T12:00:00')) / 86400000) }
@@ -359,6 +360,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [showSnoozed,setShowSnoozed] = useState(false)
   const [snoozeToast,setSnoozeToast] = useState(false)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
+  const [summaryLoading,setSummaryLoading] = useState(false)
+  const [summaryError,setSummaryError] = useState(null)
 
   useEffect(()=>{
     const now=new Date()
@@ -498,9 +501,80 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   })
   upcomingItems.sort((a,b)=>a.date.localeCompare(b.date))
 
+  const formatSummaryAge = iso => {
+    const hrs = Math.floor((Date.now()-new Date(iso))/ 3600000)
+    if (hrs<1) return 'just now'
+    if (hrs===1) return '1 hour ago'
+    if (hrs<24) return `${hrs} hours ago`
+    const d=Math.floor(hrs/24); return `${d} day${d!==1?'s':''} ago`
+  }
+
+  const parseSummary = text => {
+    const defs = [
+      {key:'now',title:"WHAT'S HAPPENING NOW",color:'#2563eb',lightBg:'#f0f9ff',darkBg:'rgba(37,99,235,0.08)'},
+      {key:'coming',title:"WHAT'S COMING UP",color:'#7c3aed',lightBg:'#faf5ff',darkBg:'rgba(124,58,237,0.08)'},
+      {key:'watch',title:'WATCH LIST',color:'#fc413d',lightBg:'#fef2f2',darkBg:'rgba(252,65,61,0.08)'},
+      {key:'momentum',title:'MOMENTUM ITEMS',color:'#0ebc5f',lightBg:'#f0fdf4',darkBg:'rgba(14,188,95,0.08)'},
+      {key:'next',title:'RECOMMENDED NEXT MOVE',color:'#92400e',lightBg:'#fffbeb',darkBg:'rgba(146,64,14,0.1)',isNext:true},
+    ]
+    const norm = s=>s.toUpperCase().replace(/['''‘’]/g,'').replace(/\s+/g,' ').trim()
+    const parts = text.split(/\*\*([^*]+)\*\*/)
+    const result = []
+    for (let i=1;i<parts.length-1;i+=2) {
+      const header = norm(parts[i])
+      const content = parts[i+1]||''
+      const def = defs.find(d=>header.includes(norm(d.title)))
+      if (!def) continue
+      const bullets = content.split('\n').map(l=>l.replace(/^[-•→*]\s*/,'').trim()).filter(Boolean)
+      result.push({...def,bullets})
+    }
+    return result
+  }
+
+  const generateSummary = async () => {
+    if (!effectiveKey) { setSummaryError('no_key'); return }
+    setSummaryLoading(true); setSummaryError(null)
+    try {
+      const recentIntel = (acct.intelLog||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3)
+      const pOrder = {Critical:0,High:1,Medium:2,Low:3}
+      const openFUs = (acct.followUps||[]).filter(f=>f.status==='Open').sort((a,b)=>(pOrder[a.priority]??4)-(pOrder[b.priority]??4))
+      const upcoming90 = (acct.upcomingDates||[]).filter(d=>{const dy=daysUntil(d.date);return dy!==null&&dy>=0&&dy<=90}).sort((a,b)=>a.date.localeCompare(b.date))
+      const techUp90 = (acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>=0&&d<=90})
+      const activeProjs = (acct.projects||[]).filter(p=>p.status==='In Flight'||p.status==='In Discussion')
+      const renewals120 = (acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>=0&&d<=120})
+      const attnC = (acct.contacts||[]).filter(c=>c.relStatus==='Needs Attention')
+      const critAlerts = visibleAlerts.filter(a=>a.level==='critical')
+      let ctx = ''
+      if (recentIntel.length>0) { ctx+=`\nRECENT INTEL (last 3):\n`; recentIntel.forEach(e=>{ctx+=`- ${fmtDate(e.date)}: Participants: ${e.participants||'N/A'}. Summary: ${e.summary||'N/A'}. Insights: ${e.insights||'N/A'}. Risks: ${e.risks||'N/A'}. Opportunities: ${e.opportunities||'N/A'}.\n`}) }
+      if (openFUs.length>0) { ctx+=`\nOPEN FOLLOW-UPS:\n`; openFUs.forEach(f=>{ctx+=`- [${f.priority}] ${f.task} — due: ${fmtDate(f.dueDate)||'no date'}, contact: ${f.contact||'N/A'}\n`}) }
+      if (upcoming90.length>0||techUp90.length>0) { ctx+=`\nUPCOMING (90 days):\n`; upcoming90.forEach(d=>{ctx+=`- ${fmtDate(d.date)}: ${d.title} (${d.type})\n`}); techUp90.forEach(t=>{ctx+=`- ${fmtDate(t.renewalDate)}: ${t.vendor} renewal\n`}) }
+      if (activeProjs.length>0) { ctx+=`\nACTIVE PROJECTS:\n`; activeProjs.forEach(p=>{ctx+=`- ${p.name} [${p.status}] Stage: ${p.currentStage||'N/A'}, Waiting on: ${p.waitingOn||'N/A'}, Next: ${p.nextAction||'N/A'}\n`}) }
+      if (renewals120.length>0) { ctx+=`\nRENEWALS (120 days):\n`; renewals120.forEach(t=>{ctx+=`- ${t.vendor}: ${fmtDate(t.renewalDate)}\n`}) }
+      if (attnC.length>0) { ctx+=`\nCONTACTS NEEDING ATTENTION:\n`; attnC.forEach(c=>{ctx+=`- ${c.name} (${c.title||'N/A'})\n`}) }
+      if (acct.lastContact) ctx+=`\nLAST CONTACT: ${fmtDate(acct.lastContact)}\n`
+      if (critAlerts.length>0) { ctx+=`\nCRITICAL ALERTS:\n`; critAlerts.forEach(a=>{ctx+=`- ${a.text}\n`}) }
+      const sys = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. Generate a concise, actionable account briefing based on the data provided. Write in second person (you/your). Be direct and specific — no filler language. Focus on what matters RIGHT NOW for a client manager to know before engaging with this account.`
+      const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response as exactly these sections, keep each section tight and actionable:\n\n**WHAT'S HAPPENING NOW** (2-3 bullet points on the most recent activity and current state)\n**WHAT'S COMING UP** (2-3 bullet points on upcoming dates, deadlines, renewals in the next 90 days)\n**WATCH LIST** (1-3 bullet points on risks, stalled items, relationships needing attention)\n**MOMENTUM ITEMS** (1-3 bullet points on active opportunities and what's moving forward)\n**RECOMMENDED NEXT MOVE** (1 single most important action to take right now)\n\nKeep each bullet to one crisp sentence. No preamble, no filler.`
+      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:usr}]})})
+      if (!res.ok) throw new Error('api')
+      const json = await res.json()
+      const content = json.content?.[0]?.text||''
+      setAcct(prev=>({...prev,aiSummary:{content,generatedAt:new Date().toISOString()}}))
+    } catch { setSummaryError('api_error') } finally { setSummaryLoading(false) }
+  }
+
+  useEffect(()=>{
+    if (!effectiveKey) return
+    if (_autoSummaryGenerated.has(acct.id)) return
+    const s = acct.aiSummary
+    const stale = !s?.generatedAt||(Date.now()-new Date(s.generatedAt))>86400000
+    if (stale) { _autoSummaryGenerated.add(acct.id); generateSummary() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[acct.id])
+
   return (
     <div>
-      <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}}`}</style>
+      <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
@@ -662,6 +736,80 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           </div>
         </div>
       )}
+      {/* AI Account Intelligence Summary */}
+      <div style={{marginBottom:20}}>
+        <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{color:'#2563eb',fontSize:16,lineHeight:1}}>✦</span>
+              <span style={{fontSize:14,fontWeight:700,color:S.isLight?'#0f172a':S.txt}}>Account Intelligence Summary</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              {acct.aiSummary?.generatedAt&&!summaryLoading&&(
+                <span style={{fontSize:11,color:S.muted}}>Generated {formatSummaryAge(acct.aiSummary.generatedAt)}</span>
+              )}
+              <button onClick={generateSummary} disabled={summaryLoading} title='Refresh summary'
+                style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,padding:'4px 10px',cursor:summaryLoading?'default':'pointer',color:S.muted,fontSize:12,fontWeight:500,transition:'all 0.15s'}}
+                onMouseEnter={e=>{if(!summaryLoading)e.currentTarget.style.borderColor=S.blue;if(!summaryLoading)e.currentTarget.style.color=S.blue}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=S.isLight?'#e2e8f0':S.bdr;e.currentTarget.style.color=S.muted}}>
+                <span style={{display:'inline-block',animation:summaryLoading?'spin 1s linear infinite':'none',fontSize:13}}>↺</span>
+                Refresh
+              </button>
+            </div>
+          </div>
+          {/* Body */}
+          <div style={{padding:'12px 16px'}}>
+            {summaryLoading?(
+              <div>
+                {[75,55,85,45,65,50,80].map((w,i)=>(
+                  <div key={i} style={{height:13,borderRadius:4,marginBottom:9,width:`${w}%`,background:S.isLight?'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)':'linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%)',backgroundSize:'200% 100%',animation:'shimmer 1.5s ease infinite'}}/>
+                ))}
+              </div>
+            ):summaryError==='no_key'?(
+              <div style={{textAlign:'center',padding:'20px 0',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+                <span style={{fontSize:22,opacity:0.35}}>🔑</span>
+                <div style={{fontSize:13,color:S.muted}}>Add your Anthropic API key in Settings to generate AI summaries</div>
+                <button onClick={()=>setTab('settings')} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Go to Settings</button>
+              </div>
+            ):summaryError?(
+              <div style={{textAlign:'center',padding:'20px 0',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+                <span style={{fontSize:22,opacity:0.35}}>⚠️</span>
+                <div style={{fontSize:13,color:S.isLight?'#dc2626':S.red}}>Summary unavailable — check your API key in Settings</div>
+                <button onClick={generateSummary} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Retry</button>
+              </div>
+            ):!acct.aiSummary?.content?(
+              <div style={{textAlign:'center',padding:'24px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+                <span style={{fontSize:28,color:'#2563eb',opacity:0.4,lineHeight:1}}>✦</span>
+                <div style={{fontSize:13,fontWeight:600,color:S.txt}}>No summary yet</div>
+                <div style={{fontSize:12,color:S.muted}}>Click Refresh to generate an AI briefing of this account</div>
+                <button onClick={generateSummary}
+                  style={{marginTop:8,padding:'7px 20px',background:'#2563eb',border:'none',borderRadius:7,cursor:'pointer',fontSize:13,fontWeight:700,color:'#fff',boxShadow:'0 2px 8px rgba(37,99,235,0.25)'}}>Generate Summary</button>
+              </div>
+            ):(
+              <div>
+                {parseSummary(acct.aiSummary.content).map(sec=>(
+                  sec.isNext?(
+                    <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                      <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
+                      {sec.bullets.map((b,i)=>(
+                        <div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>
+                      ))}
+                    </div>
+                  ):(
+                    <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                      <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
+                      {sec.bullets.map((b,i)=>(
+                        <div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>
+                      ))}
+                    </div>
+                  )
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:20,alignItems:'stretch'}}>
         {/* Left: Account Profile */}
         <div style={{flex:1,display:'flex',flexDirection:'column'}}>
