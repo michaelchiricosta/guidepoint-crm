@@ -1889,7 +1889,15 @@ function TechStack({acct,setAcct}) {
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
-  const save=()=>{if(!form.vendor)return;if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?form:t)}));else setAcct(p=>({...p,techStack:[...p.techStack,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
+  const save=()=>{
+    const isGap=form.status==='Current Gap'
+    if(!form.vendor&&!isGap)return
+    const entry={...form,vendor:form.vendor||(isGap?'No Solution':'')}
+    if(!entry.vendor)return
+    if(entry.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===entry.id?entry:t)}))
+    else setAcct(p=>({...p,techStack:[...p.techStack,{...entry,id:uid()}]}))
+    setShowAdd(false);setForm(blank)
+  }
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=acct.techStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
