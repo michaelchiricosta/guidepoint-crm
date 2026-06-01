@@ -510,14 +510,15 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   }
 
   const parseSummary = text => {
+    const norm = s=>s.toUpperCase().replace(/['\u2018\u2019\u201a\u2032]/g,'').replace(/\s+/g,' ').trim()
     const defs = [
+      {key:'summary',title:'SUMMARY',isSummary:true},
       {key:'now',title:"WHAT'S HAPPENING NOW",color:'#2563eb',lightBg:'#f0f9ff',darkBg:'rgba(37,99,235,0.08)'},
       {key:'coming',title:"WHAT'S COMING UP",color:'#7c3aed',lightBg:'#faf5ff',darkBg:'rgba(124,58,237,0.08)'},
       {key:'watch',title:'WATCH LIST',color:'#fc413d',lightBg:'#fef2f2',darkBg:'rgba(252,65,61,0.08)'},
       {key:'momentum',title:'MOMENTUM ITEMS',color:'#0ebc5f',lightBg:'#f0fdf4',darkBg:'rgba(14,188,95,0.08)'},
       {key:'next',title:'RECOMMENDED NEXT MOVE',color:'#92400e',lightBg:'#fffbeb',darkBg:'rgba(146,64,14,0.1)',isNext:true},
     ]
-    const norm = s=>s.toUpperCase().replace(/['''‘’]/g,'').replace(/\s+/g,' ').trim()
     const parts = text.split(/\*\*([^*]+)\*\*/)
     const result = []
     for (let i=1;i<parts.length-1;i+=2) {
@@ -525,8 +526,12 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       const content = parts[i+1]||''
       const def = defs.find(d=>header.includes(norm(d.title)))
       if (!def) continue
-      const bullets = content.split('\n').map(l=>l.replace(/^[-•→*]\s*/,'').trim()).filter(Boolean)
-      result.push({...def,bullets})
+      if (def.isSummary) {
+        result.push({...def, text: content.trim()})
+      } else {
+        const bullets = content.split('\n').map(l=>l.replace(/^[-\u2022\u2192*]\s*/,'').trim()).filter(Boolean).slice(0,2)
+        result.push({...def,bullets})
+      }
     }
     return result
   }
@@ -554,7 +559,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       if (acct.lastContact) ctx+=`\nLAST CONTACT: ${fmtDate(acct.lastContact)}\n`
       if (critAlerts.length>0) { ctx+=`\nCRITICAL ALERTS:\n`; critAlerts.forEach(a=>{ctx+=`- ${a.text}\n`}) }
       const sys = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. Generate a concise, actionable account briefing based on the data provided. Write in second person (you/your). Be direct and specific — no filler language. Focus on what matters RIGHT NOW for a client manager to know before engaging with this account.`
-      const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response as exactly these sections, keep each section tight and actionable:\n\n**WHAT'S HAPPENING NOW** (2-3 bullet points on the most recent activity and current state)\n**WHAT'S COMING UP** (2-3 bullet points on upcoming dates, deadlines, renewals in the next 90 days)\n**WATCH LIST** (1-3 bullet points on risks, stalled items, relationships needing attention)\n**MOMENTUM ITEMS** (1-3 bullet points on active opportunities and what's moving forward)\n**RECOMMENDED NEXT MOVE** (1 single most important action to take right now)\n\nKeep each bullet to one crisp sentence. No preamble, no filler.`
+      const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response EXACTLY like this:\n\n**SUMMARY**\n[3 sentences max. Sentence 1: current relationship state and most recent activity. Sentence 2: biggest active opportunity or risk. Sentence 3: most important upcoming item or deadline. Be specific, use names and dates.]\n\n**WHAT'S HAPPENING NOW**\n[2 bullet points max, one sentence each]\n\n**WHAT'S COMING UP**\n[2 bullet points max, one sentence each]\n\n**WATCH LIST**\n[2 bullet points max, one sentence each]\n\n**MOMENTUM ITEMS**\n[2 bullet points max, one sentence each]\n\n**RECOMMENDED NEXT MOVE**\n[1 sentence. The single most important action. Start with a verb.]\n\nNo preamble, no filler.`
       const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:usr}]})})
       if (!res.ok) throw new Error('api')
       const json = await res.json()
@@ -759,9 +764,9 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             </div>
           </div>
           {/* Body */}
-          <div style={{padding:'12px 16px'}}>
+          <div>
             {summaryLoading?(
-              <div>
+              <div style={{padding:'12px 16px'}}>
                 {[75,55,85,45,65,50,80].map((w,i)=>(
                   <div key={i} style={{height:13,borderRadius:4,marginBottom:9,width:`${w}%`,background:S.isLight?'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)':'linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.09) 50%,rgba(255,255,255,0.04) 75%)',backgroundSize:'200% 100%',animation:'shimmer 1.5s ease infinite'}}/>
                 ))}
@@ -786,27 +791,39 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                 <button onClick={generateSummary}
                   style={{marginTop:8,padding:'7px 20px',background:'#2563eb',border:'none',borderRadius:7,cursor:'pointer',fontSize:13,fontWeight:700,color:'#fff',boxShadow:'0 2px 8px rgba(37,99,235,0.25)'}}>Generate Summary</button>
               </div>
-            ):(
-              <div>
-                {parseSummary(acct.aiSummary.content).map(sec=>(
-                  sec.isNext?(
-                    <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
-                      <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
-                      {sec.bullets.map((b,i)=>(
-                        <div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>
-                      ))}
+            ):(()=>{
+              const parsed = parseSummary(acct.aiSummary.content)
+              const summaryBlock = parsed.find(s=>s.isSummary)
+              const otherSections = parsed.filter(s=>!s.isSummary)
+              return (
+                <div>
+                  {summaryBlock?.text&&(
+                    <div style={{fontSize:14,color:S.isLight?'#0f172a':S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,marginBottom:0}}>
+                      {summaryBlock.text}
                     </div>
-                  ):(
-                    <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
-                      <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
-                      {sec.bullets.map((b,i)=>(
-                        <div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>
-                      ))}
-                    </div>
-                  )
-                ))}
-              </div>
-            )}
+                  )}
+                  <div style={{padding:'12px 16px'}}>
+                    {otherSections.map(sec=>(
+                      sec.isNext?(
+                        <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                          <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
+                          {sec.bullets.map((b,i)=>(
+                            <div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>
+                          ))}
+                        </div>
+                      ):(
+                        <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
+                          <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
+                          {sec.bullets.map((b,i)=>(
+                            <div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>
+                          ))}
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -4791,7 +4808,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [taskSnoozeOpen, setTaskSnoozeOpen] = useState(false)
   const lpTodayStr = new Date().toISOString().split('T')[0]
   const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
-  const criticalItems = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length, 0)
+  const highCriticalFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length, 0)
+  const hcDueTodayOrOverdue = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>{if(f.status!=='Open')return false;if(f.priority!=='Critical'&&f.priority!=='High')return false;const d=daysUntil(f.dueDate);return d!==null&&d<=0}).length, 0)
+  const criticalItems = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>{if(f.status!=='Open'||f.priority!=='Critical')return false;const d=daysUntil(f.dueDate);return d!==null&&d<=3}).length, 0)
   const renewals90 = data.accounts.reduce((s,a)=>s+(a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length, 0)
   const activeProjects = data.accounts.reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status==='In Flight').length, 0)
   const todayTasksCount = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=lpTodayStr).length, 0)
@@ -4834,8 +4853,13 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const GP_LIGHT = '#0ea5e9'
 
   const priOrd = {'Critical':0,'High':1,'Medium':2,'Low':3}
-  const buildFUData = (critOnly=false) => data.accounts.flatMap(a=>
-    (a.followUps||[]).filter(f=>f.status==='Open'&&(!critOnly||f.priority==='Critical')).map(f=>({...f,accountName:a.short||a.name,accountId:a.id}))
+  const buildFUData = (filter='hc') => data.accounts.flatMap(a=>
+    (a.followUps||[]).filter(f=>{
+      if (f.status!=='Open') return false
+      if (filter==='hc') return f.priority==='Critical'||f.priority==='High'
+      if (filter==='critical3d') { if (f.priority!=='Critical') return false; const d=daysUntil(f.dueDate); return d!==null&&d<=3 }
+      return true
+    }).map(f=>({...f,accountName:a.short||a.name,accountId:a.id}))
   ).sort((a,b)=>{const pd=(priOrd[a.priority]||3)-(priOrd[b.priority]||3);return pd!==0?pd:(a.dueDate||'9999').localeCompare(b.dueDate||'9999')})
   const buildRenewalData = () => data.accounts.flatMap(a=>
     (a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).map(t=>({...t,accountName:a.short||a.name,accountId:a.id,daysLeft:daysUntil(t.renewalDate)}))
@@ -4845,8 +4869,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   ).sort((a,b)=>(a.closeDate||'9999').localeCompare(b.closeDate||'9999'))
 
   const STAT_DEFS = [
-    {label:'Open Follow-Ups',value:totalOpenFUs,color:'#2563eb',type:'followups',tab:'followups',buildData:()=>buildFUData(false),ctx:`${data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=new Date().toISOString().split('T')[0]).length,0)} due today`},
-    {label:'Critical Items',value:criticalItems,color:'#dc2626',type:'critical',tab:'followups',buildData:()=>buildFUData(true),ctx:'across all accounts'},
+    {label:'HIGH / CRITICAL',value:highCriticalFUs,color:'#2563eb',type:'followups',tab:'followups',buildData:()=>buildFUData('hc'),ctx:`${hcDueTodayOrOverdue} due today or overdue`},
+    {label:'Critical Items',value:criticalItems,color:'#dc2626',type:'critical',tab:'followups',buildData:()=>buildFUData('critical3d'),ctx:'due within 3 days'},
     {label:'Renewals (90d)',value:renewals90,color:'#ea580c',type:'renewals',tab:'stack',buildData:buildRenewalData,ctx:'need attention'},
     {label:'Active Projects',value:activeProjects,color:'#16a34a',type:'projects',tab:'projects',buildData:buildProjectData,ctx:'in flight'},
   ]
@@ -5299,6 +5323,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               {(statModal.type==='followups'||statModal.type==='critical')&&statModal.items.map((item,i)=>{
                 const p=PC[item.priority]||PC.Low
                 const d=item.dueDate?daysUntil(item.dueDate):null
+                const urgLabel=statModal.type==='critical'&&d!==null?(d<0?`${Math.abs(d)}d overdue`:d===0?'Today':d===1?'Tomorrow':`In ${d}d`):null
+                const urgColor=d!==null&&d<0?PC.Critical.c:d===0?PC.High.c:PC.Medium.c
                 return (
                   <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
                     style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',borderLeft:`3px solid ${p.c}44`,transition:'background 0.1s'}}
@@ -5309,6 +5335,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.task}</div>
                       <div style={{fontSize:11,color:S.muted}}>{item.contact&&<span>{item.contact} · </span>}{d!==null&&<span style={{color:d<0?S.red:S.muted}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
                     </div>
+                    {urgLabel&&<span style={{fontSize:11,fontWeight:700,color:urgColor,background:S.isLight?urgColor+'15':urgColor+'22',borderRadius:5,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0,border:`1px solid ${urgColor}33`}}>{urgLabel}</span>}
                     <Badge label={item.priority} color={p.c} bg={p.b}/>
                   </div>
                 )
