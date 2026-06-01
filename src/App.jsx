@@ -3362,6 +3362,46 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [dateFrom,setDateFrom] = useState('')
   const [dateTo,setDateTo] = useState('')
   const [expandedEntry,setExpandedEntry] = useState(null)
+  const [uploadedFile,setUploadedFile] = useState(null)
+  const [fileLoading,setFileLoading] = useState(false)
+  const [fileError2,setFileError2] = useState('')
+  const [dragOver,setDragOver] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const handleFile = async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['txt','pdf','doc','docx','md'].includes(ext)) { setFileError2('Unsupported file type. Use TXT, PDF, DOCX, or MD.'); return }
+    setFileLoading(true); setFileError2(''); setUploadedFile({name:file.name,size:file.size,text:''})
+    try {
+      let extracted = ''
+      if (ext==='txt'||ext==='md') {
+        extracted = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.onerror=reject;r.readAsText(file)})
+      } else if (ext==='pdf') {
+        const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+        const ab = await file.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({data:ab}).promise
+        const pages=[]
+        for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const ct=await pg.getTextContent();pages.push(ct.items.map(it=>it.str).join(' '))}
+        extracted=pages.join('\n')
+      } else if (ext==='docx'||ext==='doc') {
+        const mammoth = await import('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js')
+        const ab = await file.arrayBuffer()
+        const res = await mammoth.extractRawText({arrayBuffer:ab})
+        extracted = res.value
+      }
+      let truncated=false
+      if (extracted.length>15000){extracted=extracted.slice(0,15000);truncated=true}
+      setUploadedFile({name:file.name,size:file.size,text:extracted})
+      setText(extracted)
+      if (truncated) setFileError2('File was truncated to 15,000 characters — only the first portion will be processed.')
+    } catch(e) {
+      setFileError2('Could not extract text from this file. Try copying and pasting the content manually.')
+      setUploadedFile(null)
+    }
+    setFileLoading(false)
+  }
 
   const process = async (date) => {
     setLoading(true);setError('');setResult(null)
@@ -3488,6 +3528,33 @@ ${text}`}]
           onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
         />
         <div style={{textAlign:'right',fontSize:11,color:text.length>14000?'#dc2626':text.length>12000?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / 15,000</div>
+        {/* File upload zone */}
+        <div
+          onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+          onDragLeave={()=>setDragOver(false)}
+          onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleFile(f)}}
+          onClick={()=>fileInputRef.current?.click()}
+          style={{border:`2px dashed ${dragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:dragOver?'#eff6ff':'#f8fafc',cursor:'pointer',marginBottom:8,transition:'all 0.15s'}}>
+          <input ref={fileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
+          {fileLoading?(
+            <div style={{fontSize:13,color:'#64748b'}}>Extracting text...</div>
+          ):(
+            <>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{margin:'0 auto 6px',display:'block'}}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <div style={{fontSize:13,color:'#64748b',marginBottom:2}}>Drop a file here or click to upload</div>
+              <div style={{fontSize:11,color:'#94a3b8'}}>Supports TXT, PDF, DOCX, MD</div>
+            </>
+          )}
+        </div>
+        {uploadedFile&&(
+          <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',marginBottom:8,fontSize:12,color:'#1d4ed8'}}>
+            <span>📄 {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(0)} KB</span>
+            <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('')}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+          </div>
+        )}
+        {fileError2&&(
+          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626',marginBottom:8}}>{fileError2}</div>
+        )}
         {error&&(
           <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
             <span style={{color:'#dc2626',fontSize:14,flexShrink:0,fontWeight:700}}>✕</span>
@@ -4590,7 +4657,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               style={S.isLight?{
                 background:'#ffffff',
                 border:'1px solid #e2e8f0',
-                borderTop:`3px solid ${stat.color}`,
+                borderTop:'none',
                 boxShadow:hoveredStat===stat.label?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
                 borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
                 transform:hoveredStat===stat.label?'translateY(-2px)':'translateY(0)',
@@ -4621,6 +4688,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 <>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
+                    <div style={{width:36,height:36,borderRadius:10,background:stat.color+'20',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <StatIconLg type={stat.type} color={stat.color}/>
+                    </div>
                   </div>
                   <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
                 </>
@@ -5289,6 +5359,8 @@ export default function App() {
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
   const critHighCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length
+  const todayIso = new Date().toISOString().split('T')[0]
+  const overdueOrTodayCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=todayIso).length
   const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   return (
@@ -5326,7 +5398,7 @@ export default function App() {
               {acct.lastContact&&<span style={{fontSize:11,color:S.muted}}>Last contact: {fmtDate(acct.lastContact)}</span>}
             </div>}
           </div>
-          <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}`}</style>
+          <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
@@ -5335,6 +5407,7 @@ export default function App() {
                 style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0,transition:'color 0.15s'}}>
                 {t.label}
                 {t.id==='followups'&&critHighCount>0&&<span style={{width:8,height:8,borderRadius:'50%',background:'#dc2626',display:'inline-block',flexShrink:0,animation:'fuPulse 1s ease-in-out infinite'}}/>}
+                {t.id==='followups'&&overdueOrTodayCount>0&&<span style={{width:7,height:7,borderRadius:'50%',background:'#fc413d',display:'inline-block',marginLeft:overdueOrTodayCount>0&&critHighCount>0?2:5,flexShrink:0,animation:'blink 1s infinite'}}/>}
               </button>
             ))}
           </div>
