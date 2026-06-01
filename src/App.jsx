@@ -2181,8 +2181,9 @@ function TechStack({acct,setAcct}) {
             {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',color:'#22c55e',filter:s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)},
             {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',color:'#f97316',filter:s=>s.vendor&&s.vendor.status==='Watch'},
             {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',color:'#eab308',filter:s=>s.vendor&&s.vendor.status==='Evaluating'},
-            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping','Current Gap'].includes(s.vendor.status)},
-            {label:'Critical Gap',g:'linear-gradient(135deg,#555555,#3d3d3d)',color:'#94a3b8',filter:s=>!s.vendor},
+            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)},
+            {label:'Current Gap',g:'linear-gradient(135deg,#94a3b8,#475569)',color:'#64748b',filter:s=>s.vendor&&s.vendor.status==='Current Gap'},
+            {label:'Unlabeled',g:'linear-gradient(135deg,#555555,#3d3d3d)',color:'#94a3b8',filter:s=>!s.vendor},
           ]
           return (
             <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:18,flexWrap:'wrap'}}>
