@@ -3365,45 +3365,116 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [uploadedFile,setUploadedFile] = useState(null)
   const [fileLoading,setFileLoading] = useState(false)
   const [fileError2,setFileError2] = useState('')
+  const [fileStatus,setFileStatus] = useState('')
   const [dragOver,setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
+  const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
+  const TEXT_EXTS = ['txt','pdf','doc','docx','md']
+
+  const loadPdfJs = () => new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(window.pdfjsLib); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+      resolve(window.pdfjsLib)
+    }
+    script.onerror = () => reject(new Error('Failed to load PDF.js'))
+    document.head.appendChild(script)
+  })
+
+  const loadMammoth = () => new Promise((resolve, reject) => {
+    if (window.mammoth) { resolve(window.mammoth); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'
+    script.onload = () => resolve(window.mammoth)
+    script.onerror = () => reject(new Error('Failed to load mammoth.js'))
+    document.head.appendChild(script)
+  })
+
+  const extractViaVision = async (file) => {
+    const base64 = await new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onload = e => resolve(e.target.result.split(',')[1])
+      reader.readAsDataURL(file)
+    })
+    const mediaType = file.type || 'image/jpeg'
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 2000,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: 'Extract all text and information from this document or image. Return everything you can read including any tables, lists, names, dates, and key information. Format it as clean readable text.' }
+        ]}]
+      })
+    })
+    const d = await res.json()
+    if (d.error) throw new Error('Image extraction failed: ' + d.error.message)
+    return d.content?.[0]?.text || ''
+  }
+
   const handleFile = async (file) => {
     if (!file) return
+    if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
     const ext = file.name.split('.').pop().toLowerCase()
-    if (!['txt','pdf','doc','docx','md'].includes(ext)) { setFileError2('Unsupported file type. Use TXT, PDF, DOCX, or MD.'); return }
-    setFileLoading(true); setFileError2(''); setUploadedFile({name:file.name,size:file.size,text:''})
+    if (!IMAGE_EXTS.includes(ext) && !TEXT_EXTS.includes(ext)) {
+      setFileError2('Unsupported file type. Use TXT, PDF, DOCX, MD, PNG, JPG, or WEBP.')
+      return
+    }
+    setFileLoading(true); setFileError2(''); setFileStatus(''); setUploadedFile({name:file.name,size:file.size})
     try {
       let extracted = ''
       if (ext==='txt'||ext==='md') {
         extracted = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.onerror=reject;r.readAsText(file)})
       } else if (ext==='pdf') {
-        const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
-        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-        const ab = await file.arrayBuffer()
-        const pdf = await pdfjsLib.getDocument({data:ab}).promise
-        const pages=[]
-        for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const ct=await pg.getTextContent();pages.push(ct.items.map(it=>it.str).join(' '))}
-        extracted=pages.join('\n')
+        try {
+          const pdfjsLib = await loadPdfJs()
+          const ab = await file.arrayBuffer()
+          const pdf = await pdfjsLib.getDocument({data:ab}).promise
+          let fullText = ''
+          for (let i=1;i<=pdf.numPages;i++) { const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); fullText+=ct.items.map(it=>it.str).join(' ')+'\n' }
+          if (fullText.trim()) { extracted = fullText }
+          else {
+            // Scanned PDF — use vision
+            if (!effectiveKey) throw new Error('PDF has no text layer. Add an API key in Settings to process scanned PDFs with vision.')
+            extracted = await extractViaVision(file)
+          }
+        } catch(e) { throw new Error('PDF extraction failed. ' + (e.message.includes('API')||e.message.includes('text layer')?e.message:'Try a different format or copy-paste the content.')) }
       } else if (ext==='docx'||ext==='doc') {
-        const mammoth = await import('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js')
-        const ab = await file.arrayBuffer()
-        const res = await mammoth.extractRawText({arrayBuffer:ab})
-        extracted = res.value
+        try {
+          const mammoth = await loadMammoth()
+          const ab = await file.arrayBuffer()
+          const result = await mammoth.extractRawText({arrayBuffer:ab})
+          extracted = result.value
+        } catch(e) { throw new Error('DOCX extraction failed. Try a different format or copy-paste the content.') }
+      } else if (IMAGE_EXTS.includes(ext)) {
+        if (!effectiveKey) throw new Error('Add your Anthropic API key in Settings to process images.')
+        extracted = await extractViaVision(file)
       }
-      let truncated=false
-      if (extracted.length>15000){extracted=extracted.slice(0,15000);truncated=true}
-      setUploadedFile({name:file.name,size:file.size,text:extracted})
+      let truncated = false
+      if (extracted.length>15000) { extracted=extracted.slice(0,15000); truncated=true }
+      setFileLoading(false)
       setText(extracted)
+      setFileStatus('File loaded — analyzing with AI...')
       if (truncated) setFileError2('File was truncated to 15,000 characters — only the first portion will be processed.')
+      // Auto-process after short delay so text state updates flush
+      setTimeout(async () => {
+        const date = detectDate(extracted) || new Date().toISOString().split('T')[0]
+        await process(date, extracted)
+        setFileStatus('')
+      }, 500)
     } catch(e) {
-      setFileError2('Could not extract text from this file. Try copying and pasting the content manually.')
+      setFileError2(e.message || 'Could not extract text from this file. Try a different format.')
       setUploadedFile(null)
+      setFileLoading(false)
     }
-    setFileLoading(false)
   }
 
-  const process = async (date) => {
+  const process = async (date, textOverride) => {
+    const inputText = textOverride !== undefined ? textOverride : text
     setLoading(true);setError('');setResult(null)
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{
@@ -3424,7 +3495,7 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Be aggressive about con
 }
 
 INPUT:
-${text}`}]
+${inputText}`}]
         })
       })
       const data = await res.json()
@@ -3456,6 +3527,7 @@ ${text}`}]
       })
       setResult({followUps:parsed.newFollowUps?.length||0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry})
       setText('')
+      setUploadedFile(null)
     } catch(e) { setError('Error: '+(e.message||'Processing failed. Check your API key in Settings.')) }
     setLoading(false)
   }
@@ -3533,23 +3605,32 @@ ${text}`}]
           onDragOver={e=>{e.preventDefault();setDragOver(true)}}
           onDragLeave={()=>setDragOver(false)}
           onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleFile(f)}}
-          onClick={()=>fileInputRef.current?.click()}
-          style={{border:`2px dashed ${dragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:dragOver?'#eff6ff':'#f8fafc',cursor:'pointer',marginBottom:8,transition:'all 0.15s'}}>
-          <input ref={fileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
+          onClick={()=>!fileLoading&&fileInputRef.current?.click()}
+          style={{border:`2px dashed ${dragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:dragOver?'#eff6ff':'#f8fafc',cursor:fileLoading?'default':'pointer',marginBottom:8,transition:'all 0.15s'}}>
+          <input ref={fileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.gif,.webp' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
           {fileLoading?(
-            <div style={{fontSize:13,color:'#64748b'}}>Extracting text...</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:13,color:'#64748b'}}>
+              <span style={{display:'inline-block',width:14,height:14,border:'2px solid #cbd5e1',borderTop:'2px solid #2563eb',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
+              Reading file...
+            </div>
           ):(
             <>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{margin:'0 auto 6px',display:'block'}}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <div style={{fontSize:13,color:'#64748b',marginBottom:2}}>Drop a file here or click to upload</div>
-              <div style={{fontSize:11,color:'#94a3b8'}}>Supports TXT, PDF, DOCX, MD</div>
+              <div style={{fontSize:11,color:'#94a3b8'}}>Supports TXT, PDF, DOCX, MD, PNG, JPG, WEBP</div>
             </>
           )}
         </div>
         {uploadedFile&&(
           <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',marginBottom:8,fontSize:12,color:'#1d4ed8'}}>
             <span>📄 {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(0)} KB</span>
-            <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('')}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+            <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('');setFileStatus('')}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+          </div>
+        )}
+        {fileStatus&&!loading&&(
+          <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#0369a1',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+            <span style={{display:'inline-block',width:12,height:12,border:'2px solid #bae6fd',borderTop:'2px solid #0369a1',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
+            {fileStatus}
           </div>
         )}
         {fileError2&&(
