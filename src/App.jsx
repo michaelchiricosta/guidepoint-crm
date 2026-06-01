@@ -3368,6 +3368,8 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [fileStatus,setFileStatus] = useState('')
   const [dragOver,setDragOver] = useState(false)
   const fileInputRef = useRef(null)
+  const [pendingParsed, setPendingParsed] = useState(null)
+  const [fuSelections, setFuSelections] = useState(new Set())
 
   const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
   const TEXT_EXTS = ['txt','pdf','doc','docx','md']
@@ -3473,6 +3475,34 @@ function IntelLog({acct,setAcct,apiKey}) {
     }
   }
 
+  const commitSave = (parsed, date, selectedFuTempIds) => {
+    setAcct(prev=>{
+      let next={...prev}
+      if (parsed.intelEntry) {
+        next.intelLog=[{...parsed.intelEntry,id:uid()},...(prev.intelLog||[])]
+        next.lastContact=date
+        const entry=parsed.intelEntry
+        const names=(entry.participants||'').split(/[+,&]/).map(n=>n.trim()).filter(n=>n&&!n.toLowerCase().startsWith('mike'))
+        const contactName=names[0]||(entry.participants||'').split(/[+,&]/)[0]?.trim()||''
+        const topics=(entry.insights||[]).slice(0,2).join('; ').slice(0,120)
+        const firstSentence=(entry.summary||'').split(/(?<=[.!?])\s/)[0]||''
+        next.interactions=[...(prev.interactions||[]),{id:uid(),contact:contactName,type:entry.type||'Note',date:entry.date,topics,summary:firstSentence}]
+      }
+      if (parsed.newFollowUps?.length&&selectedFuTempIds.size) {
+        const toAdd=parsed.newFollowUps.filter(fu=>selectedFuTempIds.has(fu._tempId)).map(({_tempId,...rest})=>({...rest,id:uid(),status:'Open'}))
+        if(toAdd.length) next.followUps=[...(prev.followUps||[]),...toAdd]
+      }
+      if (parsed.contactUpdates?.length) {
+        next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes||'')+' | ['+date+'] '+u.noteToAppend:c.notes}:c})
+        const existFn=(prev.contacts||[]).map(c=>c.name.split(' ')[0].toLowerCase())
+        const newUnknowns=parsed.contactUpdates.filter(u=>u.name&&!existFn.some(fn=>u.name.toLowerCase().includes(fn))).map(u=>({id:uid(),name:u.name,mentionedDate:date,context:''})).filter(u=>!(prev.unknownMentions||[]).some(m=>m.name.toLowerCase()===u.name.toLowerCase()))
+        if(newUnknowns.length) next.unknownMentions=[...(prev.unknownMentions||[]),...newUnknowns]
+      }
+      if (parsed.relationshipSuggestions?.length) next.relSuggestions=[...(prev.relSuggestions||[]),...parsed.relationshipSuggestions.map(s=>({...s,id:uid()}))]
+      return next
+    })
+  }
+
   const process = async (date, textOverride) => {
     const inputText = textOverride !== undefined ? textOverride : text
     setLoading(true);setError('');setResult(null)
@@ -3502,30 +3532,14 @@ ${inputText}`}]
       if (data.error) throw new Error(data.error.message)
       const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
       const parsed = JSON.parse(raw)
-      setAcct(prev=>{
-        let next={...prev}
-        if (parsed.intelEntry) {
-          next.intelLog=[{...parsed.intelEntry,id:uid()},...(prev.intelLog||[])]
-          next.lastContact=date
-          // Auto-log interaction for Dashboard chart
-          const entry=parsed.intelEntry
-          const names=(entry.participants||'').split(/[+,&]/).map(n=>n.trim()).filter(n=>n&&!n.toLowerCase().startsWith('mike'))
-          const contactName=names[0]||(entry.participants||'').split(/[+,&]/)[0]?.trim()||''
-          const topics=(entry.insights||[]).slice(0,2).join('; ').slice(0,120)
-          const firstSentence=(entry.summary||'').split(/(?<=[.!?])\s/)[0]||''
-          next.interactions=[...(prev.interactions||[]),{id:uid(),contact:contactName,type:entry.type||'Note',date:entry.date,topics,summary:firstSentence}]
-        }
-        if (parsed.newFollowUps?.length) next.followUps=[...(prev.followUps||[]),...parsed.newFollowUps.map(fu=>({...fu,id:uid(),status:'Open'}))]
-        if (parsed.contactUpdates?.length) {
-          next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes||'')+' | ['+date+'] '+u.noteToAppend:c.notes}:c})
-          const existFn=(prev.contacts||[]).map(c=>c.name.split(' ')[0].toLowerCase())
-          const newUnknowns=parsed.contactUpdates.filter(u=>u.name&&!existFn.some(fn=>u.name.toLowerCase().includes(fn))).map(u=>({id:uid(),name:u.name,mentionedDate:date,context:''})).filter(u=>!(prev.unknownMentions||[]).some(m=>m.name.toLowerCase()===u.name.toLowerCase()))
-          if(newUnknowns.length) next.unknownMentions=[...(prev.unknownMentions||[]),...newUnknowns]
-        }
-        if (parsed.relationshipSuggestions?.length) next.relSuggestions=[...(prev.relSuggestions||[]),...parsed.relationshipSuggestions.map(s=>({...s,id:uid()}))]
-        return next
-      })
-      setResult({followUps:parsed.newFollowUps?.length||0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry})
+      if (parsed.newFollowUps?.length) {
+        const fuWithIds=parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
+        setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
+        setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
+      } else {
+        commitSave(parsed,date,new Set())
+        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+      }
       setText('')
       setUploadedFile(null)
     } catch(e) { setError('Error: '+(e.message||'Processing failed. Check your API key in Settings.')) }
@@ -3645,7 +3659,9 @@ ${inputText}`}]
         {result&&(
           <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
             <span style={{color:'#16a34a',fontSize:14,flexShrink:0,fontWeight:700}}>✓</span>
-            <span style={{fontSize:12,color:'#15803d'}}>Done — {result.entry?'logged 1 intel entry, ':''} added {result.followUps} follow-up{result.followUps!==1?'s':''}, updated {result.contacts} contact{result.contacts!==1?'s':''}</span>
+            <span style={{fontSize:12,color:'#15803d'}}>
+              {result.selectedMode?`Added ${result.followUps} follow-up${result.followUps!==1?'s':''} to your account`:result.skipAll?'Intel logged. No follow-ups added.':result.noFollowUps?'Intel logged successfully — no follow-ups suggested.':`Done — ${result.entry?'logged 1 intel entry, ':''}added ${result.followUps} follow-up${result.followUps!==1?'s':''},updated ${result.contacts} contact${result.contacts!==1?'s':''}`}
+            </span>
           </div>
         )}
         <button onClick={handleProcess} disabled={loading||!text.trim()}
@@ -3730,6 +3746,62 @@ ${inputText}`}]
           )
         })}
       </div>
+
+      {pendingParsed&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{width:'60vw',maxHeight:'80vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'20px 24px',borderBottom:'1px solid #e2e8f0'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+                <span style={{fontSize:17,fontWeight:700,color:'#0f172a'}}>Review Suggested Follow-Ups</span>
+                <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',background:'#dbeafe',borderRadius:999,padding:'2px 8px'}}>{pendingParsed.parsed.newFollowUps.length} suggested</span>
+              </div>
+              <p style={{fontSize:13,color:'#64748b',margin:0}}>AI extracted these action items from your input. Select the ones you want to add.</p>
+            </div>
+            <div style={{padding:'10px 24px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',gap:10}}>
+              <button onClick={()=>setFuSelections(new Set(pendingParsed.parsed.newFollowUps.map(fu=>fu._tempId)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
+              <button onClick={()=>setFuSelections(new Set())} style={{fontSize:12,color:'#64748b',background:'none',border:'none',cursor:'pointer',padding:0}}>Deselect All</button>
+              <span style={{fontSize:12,color:'#94a3b8',marginLeft:'auto'}}>{fuSelections.size} of {pendingParsed.parsed.newFollowUps.length} selected</span>
+            </div>
+            <div style={{flex:1,overflowY:'auto'}}>
+              {pendingParsed.parsed.newFollowUps.map((fu,i)=>{
+                const sel=fuSelections.has(fu._tempId)
+                const p=PC[fu.priority]||PC.Medium
+                return(
+                  <div key={fu._tempId}
+                    onClick={()=>setFuSelections(prev=>{const ns=new Set(prev);if(ns.has(fu._tempId))ns.delete(fu._tempId);else ns.add(fu._tempId);return ns})}
+                    style={{padding:'12px 24px',cursor:'pointer',background:sel?'rgba(37,99,235,0.04)':'transparent',opacity:sel?1:0.5,borderBottom:i<pendingParsed.parsed.newFollowUps.length-1?'1px solid #f1f5f9':'none',transition:'all 0.12s'}}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                      <input type='checkbox' checked={sel} onChange={()=>{}} style={{marginTop:2,flexShrink:0,accentColor:'#2563eb',cursor:'pointer'}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+                          <span style={{fontSize:13,fontWeight:700,color:'#0f172a',flex:1}}>{fu.task}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px',flexShrink:0,whiteSpace:'nowrap'}}>{fu.priority}</span>
+                        </div>
+                        {(fu.dueDate||fu.contact)&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>{fu.dueDate&&<span>Due: {fu.dueDate}</span>}{fu.dueDate&&fu.contact&&<span> · </span>}{fu.contact&&<span>{fu.contact}</span>}</div>}
+                        {fu.context&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fu.context}</div>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{padding:'16px 24px',borderTop:'1px solid #e2e8f0',display:'flex',gap:10,alignItems:'center'}}>
+              <button
+                onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});setPendingParsed(null);setFuSelections(new Set())}}
+                disabled={fuSelections.size===0}
+                style={{padding:'9px 18px',background:fuSelections.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:fuSelections.size===0?'not-allowed':'pointer'}}>
+                Add Selected Follow-Ups
+              </button>
+              <button
+                onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});setPendingParsed(null);setFuSelections(new Set())}}
+                style={{padding:'9px 18px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+                Skip All
+              </button>
+              <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:13,cursor:'pointer',marginLeft:'auto'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
