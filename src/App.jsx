@@ -8,8 +8,8 @@ const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
 const LIGHT_THEME = { bg:'#f1f5f9', surf:'#ffffff', surf2:'#f8fafc', bdr:'#e2e8f0', bdr2:'#cbd5e1', txt:'#0f172a', muted:'#64748b', dim:'#94a3b8', blue:'#2563eb', green:'#16a34a', red:'#dc2626', orange:'#ea580c', yellow:'#ca8a04', purple:'#7c3aed', secondary:'#475569', sidebarBg:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)', headerBg:'#ffffff', isLight:true, sideTxt:'#e2e8f0', sideMuted:'#64748b', sideActive:'rgba(37,99,235,0.15)', sideBdr:'rgba(255,255,255,0.06)', sideHover:'rgba(255,255,255,0.06)' }
 let S = LIGHT_THEME
-const DARK_PC = { Critical:{c:'#EA4335',b:'rgba(234,67,53,0.12)'}, High:{c:'#FA7B17',b:'rgba(250,123,23,0.12)'}, Medium:{c:'#FBBC04',b:'rgba(251,188,4,0.12)'}, Low:{c:'#34A853',b:'rgba(52,168,83,0.12)'} }
-const LIGHT_PC = { Critical:{c:'#EA4335',b:'#fde8e6'}, High:{c:'#FA7B17',b:'#fdecd6'}, Medium:{c:'#c9900a',b:'#fff4cc'}, Low:{c:'#1a7f37',b:'#e6f4ea'} }
+const DARK_PC = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)'}, High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)'}, Medium:{c:'#fec700',b:'rgba(254,199,0,0.1)'}, Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)'} }
+const LIGHT_PC = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)'}, High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)'}, Medium:{c:'#b38a00',b:'rgba(254,199,0,0.1)'}, Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)'} }
 let PC = LIGHT_PC
 const DARK_IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const LIGHT_IC = { 'Executive Sponsor':{c:'#7c3aed',b:'#ede9fe'}, 'Technical Gatekeeper':{c:'#1d4ed8',b:'#dbeafe'}, 'Financial Gatekeeper':{c:'#a16207',b:'#fef9c3'}, 'Final Approval':{c:'#dc2626',b:'#fee2e2'}, 'Stakeholder':{c:'#475569',b:'#f1f5f9'}, 'Risk Factor':{c:'#c2410c',b:'#ffedd5'}, 'Ally':{c:'#15803d',b:'#dcfce7'} }
@@ -2715,8 +2715,8 @@ function FollowUps({acct,setAcct}) {
   const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
-  const priBorder={Critical:'#EA4335',High:'#FA7B17',Medium:'#c9900a',Low:'#1a7f37'}
-  const priBg={Critical:'#fde8e6',High:'#fdecd6',Medium:'#fff4cc',Low:'#e6f4ea'}
+  const priBorder={Critical:'#fc413d',High:'#fc5c30',Medium:'#b38a00',Low:'#0ebc5f'}
+  const priBg={Critical:'rgba(252,65,61,0.1)',High:'rgba(252,92,48,0.1)',Medium:'rgba(254,199,0,0.1)',Low:'rgba(14,188,95,0.1)'}
   const renderFU = (fu, extraBadge=null) => {
     const pc=priBorder[fu.priority]||'#16a34a'
     const pb=priBg[fu.priority]||'#f0fdf4'
