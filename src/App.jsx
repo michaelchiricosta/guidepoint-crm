@@ -8,8 +8,9 @@ const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
 const LIGHT_THEME = { bg:'#f1f5f9', surf:'#ffffff', surf2:'#f8fafc', bdr:'#e2e8f0', bdr2:'#cbd5e1', txt:'#0f172a', muted:'#64748b', dim:'#94a3b8', blue:'#2563eb', green:'#16a34a', red:'#dc2626', orange:'#ea580c', yellow:'#ca8a04', purple:'#7c3aed', secondary:'#475569', sidebarBg:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)', headerBg:'#ffffff', isLight:true, sideTxt:'#e2e8f0', sideMuted:'#64748b', sideActive:'rgba(37,99,235,0.15)', sideBdr:'rgba(255,255,255,0.06)', sideHover:'rgba(255,255,255,0.06)' }
 let S = LIGHT_THEME
-const DARK_PC = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)'}, High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)'}, Medium:{c:'#fec700',b:'rgba(254,199,0,0.1)'}, Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)'} }
-const LIGHT_PC = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)'}, High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)'}, Medium:{c:'#b38a00',b:'rgba(254,199,0,0.1)'}, Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)'} }
+// c=text, b=background, d=border/checkbox (Medium border is yellow; text is dark amber in light mode)
+const DARK_PC  = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)',d:'#fc413d'},  High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)',d:'#fc5c30'},  Medium:{c:'#fec700',b:'rgba(254,199,0,0.12)',d:'#fec700'},  Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)',d:'#0ebc5f'}  }
+const LIGHT_PC = { Critical:{c:'#fc413d',b:'rgba(252,65,61,0.1)',d:'#fc413d'},  High:{c:'#fc5c30',b:'rgba(252,92,48,0.1)',d:'#fc5c30'},  Medium:{c:'#b38a00',b:'rgba(254,199,0,0.12)',d:'#fec700'}, Low:{c:'#0ebc5f',b:'rgba(14,188,95,0.1)',d:'#0ebc5f'}  }
 let PC = LIGHT_PC
 const DARK_IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const LIGHT_IC = { 'Executive Sponsor':{c:'#7c3aed',b:'#ede9fe'}, 'Technical Gatekeeper':{c:'#1d4ed8',b:'#dbeafe'}, 'Financial Gatekeeper':{c:'#a16207',b:'#fef9c3'}, 'Final Approval':{c:'#dc2626',b:'#fee2e2'}, 'Stakeholder':{c:'#475569',b:'#f1f5f9'}, 'Risk Factor':{c:'#c2410c',b:'#ffedd5'}, 'Ally':{c:'#15803d',b:'#dcfce7'} }
@@ -812,7 +813,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
           const p=PC[f.priority]||PC.Low
           const d=f.dueDate?daysUntil(f.dueDate):null
           const isOverdue=d!==null&&d<0
-          const dateColor=d===null?(S.isLight?'#94a3b8':S.muted):d<0?(S.isLight?'#dc2626':S.red):d<=3?(S.isLight?'#ea580c':S.orange):(S.isLight?'#94a3b8':S.muted)
+          const dateColor=d===null?S.muted:d<0?PC.Critical.c:p.c
           const dateLabel=d===null?'No date set':d<0?`${Math.abs(d)}d overdue`:d===0?'Due today':`Due ${fmtDate(f.dueDate)}`
           const isCompleting=completingFU===f.id
           return (
@@ -823,8 +824,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               {/* Checkbox — border color reflects priority */}
               <button
                 onClick={()=>{setCompletingFU(f.id);setTimeout(()=>{setAcct(prev=>({...prev,followUps:prev.followUps.map(fu=>fu.id===f.id?{...fu,status:'Done'}:fu)}));setCompletingFU(null)},280)}}
-                style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.15s'}}
-                onMouseEnter={e=>{e.currentTarget.style.background=p.c+'22'}}
+                style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.d||p.c}`,background:'transparent',flexShrink:0,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'background 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background=(p.d||p.c)+'22'}}
                 onMouseLeave={e=>{e.currentTarget.style.background='transparent'}}
                 title='Mark complete'/>
               {/* Content */}
@@ -2715,11 +2716,10 @@ function FollowUps({acct,setAcct}) {
   const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
-  const priBorder={Critical:'#fc413d',High:'#fc5c30',Medium:'#b38a00',Low:'#0ebc5f'}
-  const priBg={Critical:'rgba(252,65,61,0.1)',High:'rgba(252,92,48,0.1)',Medium:'rgba(254,199,0,0.1)',Low:'rgba(14,188,95,0.1)'}
   const renderFU = (fu, extraBadge=null) => {
-    const pc=priBorder[fu.priority]||'#16a34a'
-    const pb=priBg[fu.priority]||'#f0fdf4'
+    const p=PC[fu.priority]||PC.Low
+    const dDue=fu.dueDate?daysUntil(fu.dueDate):null
+    const dueDateColor=dDue===null?S.muted:dDue<0?PC.Critical.c:p.c
     const isSelected=selMode&&selFUs.has(fu.id)
     return (
       <div key={fu.id}
@@ -2730,9 +2730,9 @@ function FollowUps({acct,setAcct}) {
           {selMode
             ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:3,cursor:'pointer',flexShrink:0,accentColor:'#2563eb'}}/>
             :<button onClick={()=>toggle(fu.id)}
-                style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${S.isLight?'#cbd5e1':'#475569'}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer',transition:'all 0.15s'}}
-                onMouseEnter={e=>{e.currentTarget.style.background='#dcfce7';e.currentTarget.style.borderColor='#16a34a'}}
-                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':'#475569'}}
+                style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${p.d||p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer',transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background=(p.d||p.c)+'22';e.currentTarget.style.borderColor=p.d||p.c}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=p.d||p.c}}
                 aria-label='Complete'/>
           }
           <div style={{flex:1,minWidth:0}}>
@@ -2741,9 +2741,9 @@ function FollowUps({acct,setAcct}) {
               {extraBadge}
             </div>
             <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-              <span style={{fontSize:10,fontWeight:700,color:pc,background:S.isLight?pb:pc+'22',borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
+              <span style={{fontSize:10,fontWeight:700,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
               {fu.contact&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted,display:'inline-flex',alignItems:'center',gap:3}}>· {fu.contact}</span>}
-              {fu.dueDate&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted,display:'inline-flex',alignItems:'center',gap:3}}>· {fmtDate(fu.dueDate)}</span>}
+              {fu.dueDate&&<span style={{fontSize:11,color:dueDateColor,fontWeight:dDue!==null&&dDue<0?700:400,display:'inline-flex',alignItems:'center',gap:3}}>· {fmtDate(fu.dueDate)}</span>}
               {fu.context&&<span style={{fontSize:11,color:S.isLight?'#94a3b8':S.dim,marginTop:1}}>{fu.context}</span>}
             </div>
           </div>
@@ -2780,9 +2780,9 @@ function FollowUps({acct,setAcct}) {
           :<div>
             {overdueFUs.map(fu=>{
               const d=Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000)
-              return renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#dc2626',background:S.isLight?'#fee2e2':'rgba(220,38,38,0.15)',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>{d}d overdue</span>)
+              return renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:PC.Critical.c,background:PC.Critical.b,borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>{d}d overdue</span>)
             })}
-            {dueTodayFUs.map(fu=>renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:S.isLight?'#ea580c':'#fb923c',background:S.isLight?'#ffedd5':'rgba(249,115,22,0.15)',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>Due Today</span>))}
+            {dueTodayFUs.map(fu=>renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:PC.High.c,background:PC.High.b,borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>Due Today</span>))}
           </div>
         }
       </div>
@@ -2828,7 +2828,7 @@ function FollowUps({acct,setAcct}) {
                 <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
                 {batchPriOpen&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}}>
                   {['Critical','High','Medium','Low'].map(p=>(
-                    <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:priBorder[p]||'#374151',cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:'1px solid #f1f5f9'}}
+                    <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:(PC[p]||PC.Low).c,cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:'1px solid #f1f5f9'}}
                       onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{p}</button>
                   ))}
