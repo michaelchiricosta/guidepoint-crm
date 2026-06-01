@@ -1904,7 +1904,7 @@ function TechStack({acct,setAcct}) {
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
 
   // Heatmap geometry — 680px wheel diameter, viewBox 820×820
-  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=150,HM_START=-Math.PI/2
+  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=171,HM_START=-Math.PI/2
   const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
   const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
@@ -2151,7 +2151,7 @@ function TechStack({acct,setAcct}) {
             stroke="rgba(255,255,255,0.09)" strokeWidth={1} strokeDasharray="200 970"
             className="hm-spin-ccw"/>
           {(()=>{
-            const logoR=Math.round((HM_IR1-10)*0.70)
+            const logoR=Math.round((HM_IR1-10)*0.60)
             if(logoUrl){
               return <>
                 <defs>
