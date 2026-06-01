@@ -8,8 +8,8 @@ const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
 const LIGHT_THEME = { bg:'#f1f5f9', surf:'#ffffff', surf2:'#f8fafc', bdr:'#e2e8f0', bdr2:'#cbd5e1', txt:'#0f172a', muted:'#64748b', dim:'#94a3b8', blue:'#2563eb', green:'#16a34a', red:'#dc2626', orange:'#ea580c', yellow:'#ca8a04', purple:'#7c3aed', secondary:'#475569', sidebarBg:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)', headerBg:'#ffffff', isLight:true, sideTxt:'#e2e8f0', sideMuted:'#64748b', sideActive:'rgba(37,99,235,0.15)', sideBdr:'rgba(255,255,255,0.06)', sideHover:'rgba(255,255,255,0.06)' }
 let S = LIGHT_THEME
-const DARK_PC = { Critical:{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, High:{c:'#f97316',b:'rgba(249,115,22,0.12)'}, Medium:{c:'#eab308',b:'rgba(234,179,8,0.12)'}, Low:{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
-const LIGHT_PC = { Critical:{c:'#dc2626',b:'#fee2e2'}, High:{c:'#c2410c',b:'#ffedd5'}, Medium:{c:'#a16207',b:'#fef9c3'}, Low:{c:'#15803d',b:'#dcfce7'} }
+const DARK_PC = { Critical:{c:'#EA4335',b:'rgba(234,67,53,0.12)'}, High:{c:'#FA7B17',b:'rgba(250,123,23,0.12)'}, Medium:{c:'#FBBC04',b:'rgba(251,188,4,0.12)'}, Low:{c:'#34A853',b:'rgba(52,168,83,0.12)'} }
+const LIGHT_PC = { Critical:{c:'#EA4335',b:'#fde8e6'}, High:{c:'#FA7B17',b:'#fdecd6'}, Medium:{c:'#c9900a',b:'#fff4cc'}, Low:{c:'#1a7f37',b:'#e6f4ea'} }
 let PC = LIGHT_PC
 const DARK_IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const LIGHT_IC = { 'Executive Sponsor':{c:'#7c3aed',b:'#ede9fe'}, 'Technical Gatekeeper':{c:'#1d4ed8',b:'#dbeafe'}, 'Financial Gatekeeper':{c:'#a16207',b:'#fef9c3'}, 'Final Approval':{c:'#dc2626',b:'#fee2e2'}, 'Stakeholder':{c:'#475569',b:'#f1f5f9'}, 'Risk Factor':{c:'#c2410c',b:'#ffedd5'}, 'Ally':{c:'#15803d',b:'#dcfce7'} }
@@ -830,9 +830,10 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               {/* Content */}
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.task}</div>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  {f.contact&&<span style={{fontSize:11,color:S.muted}}>👤 {f.contact}</span>}
-                  <span style={{fontSize:11,color:dateColor,fontWeight:isOverdue?600:400}}>📅 {dateLabel}</span>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  {f.contact&&<span style={{fontSize:11,color:S.muted}}>{f.contact}</span>}
+                  {f.contact&&<span style={{fontSize:11,color:S.isLight?'#cbd5e1':'#334155'}}>·</span>}
+                  <span style={{fontSize:11,color:dateColor,fontWeight:isOverdue?700:400}}>{dateLabel}</span>
                 </div>
               </div>
               <Badge label={f.priority} color={p.c} bg={p.b}/>
@@ -1801,12 +1802,12 @@ function Contacts({acct,setAcct}) {
 }
 
 const HEATMAP_DOMAINS = [
-  {name:'Cloud & App Security',color:'#0ea5e9',caps:['CNAPP/CSPM','CWPP','CIEM','CASB/SSPM','CDN/WAF','SAST','DAST/IAST','SCA','API Security','App Pen Testing']},
-  {name:'Data Protection',color:'#8b5cf6',caps:['Data Governance','DSPM','DLP','GenAI/LLM Security','Data Encryption','Key Management','BC/DR Backup','GRC Platform','3rd Party Risk','DFIR']},
-  {name:'Endpoint & Mail',color:'#f59e0b',caps:['Endpoint EDR','Server EDR','Endpoint Encryption','Insider Threat/DDR','MDM/EMM','Patch Management','Email Gateway','BEC/Phishing','DMARC','Email DLP']},
-  {name:'Security Operations',color:'#ef4444',caps:['SIEM/XDR','SOAR','Threat Intel','MSSP/MDR','Vulnerability Management','Pen Testing','BAS/Continuous Testing','Log Management','Brand/Dark Web','DFIR']},
-  {name:'Network Security',color:'#22c55e',caps:['Firewall','IDS/IPS','URL Filtering','Sandbox','DNS Security','SASE/ZTNA','Zero Trust','NAC','NTA/NDR','FW Segmentation']},
-  {name:'Identity Security',color:'#f97316',caps:['Identity Store/AD','ITDR','IAM','SSO','MFA','IGA','PAM','Certificate Management','ISPM','Non-Human Identity']},
+  {name:'Cloud & App Security',color:'#4285F4',caps:['CNAPP/CSPM','CWPP','CIEM','CASB/SSPM','CDN/WAF','SAST','DAST/IAST','SCA','API Security','App Pen Testing']},
+  {name:'Data Protection',color:'#9334E6',caps:['Data Governance','DSPM','DLP','GenAI/LLM Security','Data Encryption','Key Management','BC/DR Backup','GRC Platform','3rd Party Risk','DFIR']},
+  {name:'Endpoint & Mail',color:'#FBBC04',caps:['Endpoint EDR','Server EDR','Endpoint Encryption','Insider Threat/DDR','MDM/EMM','Patch Management','Email Gateway','BEC/Phishing','DMARC','Email DLP']},
+  {name:'Security Operations',color:'#EA4335',caps:['SIEM/XDR','SOAR','Threat Intel','MSSP/MDR','Vulnerability Management','Pen Testing','BAS/Continuous Testing','Log Management','Brand/Dark Web','DFIR']},
+  {name:'Network Security',color:'#34A853',caps:['Firewall','IDS/IPS','URL Filtering','Sandbox','DNS Security','SASE/ZTNA','Zero Trust','NAC','NTA/NDR','FW Segmentation']},
+  {name:'Identity Security',color:'#FA7B17',caps:['Identity Store/AD','ITDR','IAM','SSO','MFA','IGA','PAM','Certificate Management','ISPM','Non-Human Identity']},
 ]
 const CAP_KEYWORDS = {
   'CNAPP/CSPM':['cspm','cnapp','cloud security posture','wiz'],'CWPP':['cwpp','cloud workload'],'CIEM':['ciem','cloud identity entitlement'],'CASB/SSPM':['casb','sspm'],'CDN/WAF':['cdn','waf','web application firewall','cloudflare'],'SAST':['sast','static analysis'],'DAST/IAST':['dast','iast'],'SCA':['sca','software composition'],'API Security':['api security'],'App Pen Testing':['app pen','application pen'],
@@ -1903,7 +1904,7 @@ function TechStack({acct,setAcct}) {
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
 
   // Heatmap geometry — 680px wheel diameter, viewBox 820×820
-  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=188,HM_START=-Math.PI/2
+  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=150,HM_START=-Math.PI/2
   const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
   const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
@@ -2051,13 +2052,13 @@ function TechStack({acct,setAcct}) {
             <radialGradient id="hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
             <radialGradient id="hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
             <radialGradient id="hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#555555"/><stop offset="55%" stopColor="#4a4a4a"/><stop offset="100%" stopColor="#3d3d3d"/></radialGradient>
-            {/* Domain ring linear gradients */}
-            <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#0ea5e9"/><stop offset="100%" stopColor="#0369a1"/></linearGradient>
-            <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#a855f7"/><stop offset="100%" stopColor="#7c3aed"/></linearGradient>
-            <linearGradient id="hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#f59e0b"/><stop offset="100%" stopColor="#b45309"/></linearGradient>
-            <linearGradient id="hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ef4444"/><stop offset="100%" stopColor="#b91c1c"/></linearGradient>
-            <linearGradient id="hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#22c55e"/><stop offset="100%" stopColor="#15803d"/></linearGradient>
-            <linearGradient id="hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#f97316"/><stop offset="100%" stopColor="#c2410c"/></linearGradient>
+            {/* Domain ring linear gradients — Google palette */}
+            <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6ba8ff"/><stop offset="100%" stopColor="#2a5dc7"/></linearGradient>
+            <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#b96ef9"/><stop offset="100%" stopColor="#6d1fb0"/></linearGradient>
+            <linearGradient id="hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fdd34d"/><stop offset="100%" stopColor="#c9900a"/></linearGradient>
+            <linearGradient id="hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#f26b5e"/><stop offset="100%" stopColor="#b71c1c"/></linearGradient>
+            <linearGradient id="hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#5dcb78"/><stop offset="100%" stopColor="#1a7f37"/></linearGradient>
+            <linearGradient id="hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fca04a"/><stop offset="100%" stopColor="#c75207"/></linearGradient>
             {/* Center circle gradient */}
             <radialGradient id="hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
             {/* Crosshatch pattern for empty segments */}
@@ -2188,8 +2189,7 @@ function TechStack({acct,setAcct}) {
           const ld=[
             {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',color:'#22c55e',filter:s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)},
             {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',color:'#f97316',filter:s=>s.vendor&&s.vendor.status==='Watch'},
-            {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',color:'#eab308',filter:s=>s.vendor&&s.vendor.status==='Evaluating'},
-            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)},
+            {label:'Evaluating',g:'linear-gradient(135deg,#fde047,#ca8a04)',color:'#eab308',filter:s=>s.vendor&&s.vendor.status==='Evaluating'},
             {label:'Current Gap',g:'linear-gradient(135deg,#94a3b8,#475569)',color:'#64748b',filter:s=>s.vendor&&s.vendor.status==='Current Gap'},
             {label:'Unlabeled',g:'linear-gradient(135deg,#555555,#3d3d3d)',color:'#94a3b8',filter:s=>!s.vendor},
           ]
@@ -2715,8 +2715,8 @@ function FollowUps({acct,setAcct}) {
   const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
-  const priBorder={Critical:'#dc2626',High:'#ea580c',Medium:'#eab308',Low:'#16a34a'}
-  const priBg={Critical:'#fef2f2',High:'#fff7ed',Medium:'#fefce8',Low:'#f0fdf4'}
+  const priBorder={Critical:'#EA4335',High:'#FA7B17',Medium:'#c9900a',Low:'#1a7f37'}
+  const priBg={Critical:'#fde8e6',High:'#fdecd6',Medium:'#fff4cc',Low:'#e6f4ea'}
   const renderFU = (fu, extraBadge=null) => {
     const pc=priBorder[fu.priority]||'#16a34a'
     const pb=priBg[fu.priority]||'#f0fdf4'
