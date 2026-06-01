@@ -14,14 +14,14 @@ let PC = LIGHT_PC
 const DARK_IC = { 'Executive Sponsor':{c:'#a855f7',b:'rgba(168,85,247,0.12)'}, 'Technical Gatekeeper':{c:'#3b82f6',b:'rgba(59,130,246,0.12)'}, 'Financial Gatekeeper':{c:'#eab308',b:'rgba(234,179,8,0.12)'}, 'Final Approval':{c:'#ef4444',b:'rgba(239,68,68,0.12)'}, 'Stakeholder':{c:'#64748b',b:'rgba(100,116,139,0.12)'}, 'Risk Factor':{c:'#f97316',b:'rgba(249,115,22,0.12)'}, 'Ally':{c:'#22c55e',b:'rgba(34,197,94,0.12)'} }
 const LIGHT_IC = { 'Executive Sponsor':{c:'#7c3aed',b:'#ede9fe'}, 'Technical Gatekeeper':{c:'#1d4ed8',b:'#dbeafe'}, 'Financial Gatekeeper':{c:'#a16207',b:'#fef9c3'}, 'Final Approval':{c:'#dc2626',b:'#fee2e2'}, 'Stakeholder':{c:'#475569',b:'#f1f5f9'}, 'Risk Factor':{c:'#c2410c',b:'#ffedd5'}, 'Ally':{c:'#15803d',b:'#dcfce7'} }
 let IC = LIGHT_IC
-const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#3b82f6', Replacing:'#f97316', Watch:'#a855f7', Dropping:'#ef4444' }
+const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#3b82f6', Replacing:'#f97316', Watch:'#a855f7', Dropping:'#ef4444', 'Current Gap':'#64748b' }
 const PSC = { 'Not Started':'#64748b', 'In Discussion':'#3b82f6', 'In Flight':'#22c55e', Stalled:'#f97316', Won:'#a855f7', Lost:'#ef4444' }
 const INTERACTION_COLORS = { Meeting:'#3b82f6', Call:'#22c55e', Email:'#eab308', Demo:'#a855f7', Note:'#64748b' }
 const INTERACTION_TYPES = ['Meeting','Call','Email','Demo','Note']
 const STAGES = ['Awareness','NDA','Intro Call','Demo','Scoping','Pricing','Legal','Procurement','PO Received','Deployed']
 const INFLUENCES = ['Executive Sponsor','Technical Gatekeeper','Financial Gatekeeper','Final Approval','Stakeholder','Risk Factor','Ally']
 const TECH_CATS = ['SIEM / SOC','Endpoint','Identity / IAM','Cloud Security','Network / SASE','Email Security','AppSec','Pen Test / Red Team','Threat Intel','GRC','IT Operations','Other']
-const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selected']
+const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selected','Current Gap']
 const PROJ_STATS = ['Not Started','In Discussion','In Flight','Stalled','Won','Lost']
 
 const uid = () => Math.random().toString(36).slice(2,9)
@@ -1859,7 +1859,7 @@ const findVendor = (cap, techStack, domainName=null) => {
   }
   return bestScore>0?best:null
 }
-const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444'}[v.status]||S.bdr2)
+const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444','Current Gap':'#64748b'}[v.status]||S.bdr2)
 
 function TechStack({acct,setAcct}) {
   const isTouchDevice = typeof window!=='undefined'&&('ontouchstart' in window||navigator.maxTouchPoints>0)
@@ -2084,7 +2084,7 @@ function TechStack({acct,setAcct}) {
             ))}
             {hmSegments.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>{
               const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
-              const gid={Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr'}[seg.vendor.status]||'hm-gc'
+              const gid={Current:'hm-gc',Selected:'hm-gc',Evaluating:'hm-ge',Watch:'hm-gw',Replacing:'hm-gr',Dropping:'hm-gr','Current Gap':'hm-gn'}[seg.vendor.status]||'hm-gc'
               const idx=seg.di*10+seg.ci
               return (
                 <path key={`cv-${seg.di}-${seg.ci}`} d={seg.path} fill={`url(#${gid})`} stroke="none"
@@ -2181,7 +2181,7 @@ function TechStack({acct,setAcct}) {
             {label:'Maintain',g:'linear-gradient(135deg,#4ade80,#16a34a)',color:'#22c55e',filter:s=>s.vendor&&['Current','Selected'].includes(s.vendor.status)},
             {label:'Review',g:'linear-gradient(135deg,#fb923c,#ea580c)',color:'#f97316',filter:s=>s.vendor&&s.vendor.status==='Watch'},
             {label:'Invest',g:'linear-gradient(135deg,#fde047,#ca8a04)',color:'#eab308',filter:s=>s.vendor&&s.vendor.status==='Evaluating'},
-            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping'].includes(s.vendor.status)},
+            {label:'Gap',g:'linear-gradient(135deg,#f87171,#dc2626)',color:'#ef4444',filter:s=>s.vendor&&['Replacing','Dropping','Current Gap'].includes(s.vendor.status)},
             {label:'Critical Gap',g:'linear-gradient(135deg,#555555,#3d3d3d)',color:'#94a3b8',filter:s=>!s.vendor},
           ]
           return (
