@@ -1297,7 +1297,7 @@ function Contacts({acct,setAcct}) {
   const orgNodes = acct.orgChart?.nodes||[]
   const saveOrgNodes = nodes => setAcct(p=>({...p,orgChart:{...(p.orgChart||{}),nodes}}))
   const chartedIds = new Set(orgNodes.map(n=>n.contactId))
-  const unassigned = allContacts.filter(c=>!chartedIds.has(c.id))
+  const unassigned = clientContacts.filter(c=>!chartedIds.has(c.id))
   const NODE_W=120, NODE_H=80
   const CANVAS_W=4000, CANVAS_H=3000
 
@@ -1541,10 +1541,10 @@ function Contacts({acct,setAcct}) {
 
       {/* ── CARDS VIEW ── */}
       {contactView==='cards'&&(
-        allContacts.length===0
-          ?<div style={{textAlign:'center',padding:'40px 20px',color:S.muted,fontSize:13}}>No contacts yet. Click + Add Contact to get started.</div>
+        clientContacts.length===0
+          ?<div style={{textAlign:'center',padding:'40px 20px',color:S.muted,fontSize:13}}>No client contacts yet. Click + Add Contact to get started.</div>
           :<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
-            {allContacts.map(c=>{
+            {clientContacts.map(c=>{
               const inf=IC[c.influence]||{c:S.muted,b:S.surf2}
               const relColor=(relC[c.relStatus]||S.muted)
               return (
@@ -1645,7 +1645,7 @@ function Contacts({acct,setAcct}) {
 
               {/* Chart nodes — mouse-event drag, no HTML5 drag boundaries */}
               {orgNodes.map(n=>{
-                const c=allContacts.find(x=>x.id===n.contactId)
+                const c=clientContacts.find(x=>x.id===n.contactId)
                 if(!c)return null
                 const isRoot=orgNodes[0]?.contactId===n.contactId&&!n.parentId
                 const isOver=dragOverNode===n.contactId
@@ -1685,7 +1685,7 @@ function Contacts({acct,setAcct}) {
             {/* Node detail popover — lives outside transform, positioned in screen space */}
             {openDetailNode&&(()=>{
               const n=orgNodes.find(x=>x.contactId===openDetailNode)
-              const c=allContacts.find(x=>x.id===openDetailNode)
+              const c=clientContacts.find(x=>x.id===openDetailNode)
               if(!n||!c)return null
               const grad=getGrad(n)
               const nx=n.x/100*CANVAS_W*zoom+pan.x
@@ -1822,12 +1822,39 @@ const makeArc = (cx,cy,r1,r2,a1,a2,gap=0.01) => {
   const lg=(e-s)>Math.PI?1:0, co=Math.cos, si=Math.sin
   return `M ${cx+r2*co(s)} ${cy+r2*si(s)} A ${r2} ${r2} 0 ${lg} 1 ${cx+r2*co(e)} ${cy+r2*si(e)} L ${cx+r1*co(e)} ${cy+r1*si(e)} A ${r1} ${r1} 0 ${lg} 0 ${cx+r1*co(s)} ${cy+r1*si(s)} Z`
 }
-const findVendor = (cap, techStack) => {
+// Categories that belong to each heatmap domain — used for category-aware vendor matching
+const DOMAIN_CATS = {
+  'Cloud & App Security': ['cloud security','appsec','application security','sast','dast','cspm','cnapp'],
+  'Data Protection': ['data security','grc','dlp','data governance','compliance'],
+  'Endpoint & Mail': ['endpoint','edr','email security','email gateway','email','mdm','patch management','endpoint security'],
+  'Security Operations': ['siem / soc','siem','soc','mdr','mssp','threat intel','soar','vulnerability management','pen test / red team'],
+  'Network Security': ['network','firewall','sase','network / sase','zero trust','dns','nac'],
+  'Identity Security': ['identity','identity / iam','iam','iga','pam','mfa','sso','itdr'],
+}
+
+const findVendor = (cap, techStack, domainName=null) => {
   const kws = (CAP_KEYWORDS[cap]||[cap.toLowerCase()])
+  const allowedCats = domainName ? (DOMAIN_CATS[domainName]||[]) : []
+  // Categories that explicitly belong to OTHER domains — used to penalise cross-domain mismatches
+  const excludedCats = domainName
+    ? Object.entries(DOMAIN_CATS).filter(([d])=>d!==domainName).flatMap(([,cats])=>cats)
+    : []
   let best=null, bestScore=0
   for (const t of techStack) {
     const s=`${t.vendor} ${t.products} ${t.category} ${t.notes}`.toLowerCase()
-    const score=kws.filter(k=>s.includes(k)).length
+    const catLow=(t.category||'').toLowerCase()
+    let score=kws.filter(k=>s.includes(k)).length
+    if(score===0) continue
+    if(allowedCats.length>0){
+      const catMatches=allowedCats.some(c=>catLow.includes(c)||c.includes(catLow.replace(/ \/ /g,'/')))
+      if(catMatches){
+        score+=5  // strong bonus: vendor category aligns with this domain
+      } else {
+        // Penalise if the vendor's category clearly belongs to a different domain
+        const inOtherDomain=excludedCats.some(c=>catLow.includes(c)||c.includes(catLow.replace(/ \/ /g,'/')))
+        if(inOtherDomain) score=0  // exclude cross-domain mismatches entirely
+      }
+    }
     if(score>bestScore){best=t;bestScore=score}
   }
   return bestScore>0?best:null
@@ -1841,6 +1868,24 @@ function TechStack({acct,setAcct}) {
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
   const [legendModal,setLegendModal] = useState(null)
+  const [logoUrl,setLogoUrl] = useState(acct.heatmapLogoUrl||null)
+  const logoInputRef = useRef(null)
+  const handleLogoUpload = e => {
+    const file=e.target.files[0]
+    if(!file)return
+    const reader=new FileReader()
+    reader.onload=ev=>{
+      const url=ev.target.result
+      setLogoUrl(url)
+      setAcct(p=>({...p,heatmapLogoUrl:url}))
+    }
+    reader.readAsDataURL(file)
+  }
+  const removeLogo = () => {
+    setLogoUrl(null)
+    setAcct(p=>({...p,heatmapLogoUrl:null}))
+    if(logoInputRef.current)logoInputRef.current.value=''
+  }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
@@ -1854,7 +1899,7 @@ function TechStack({acct,setAcct}) {
   const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
   const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
   const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
-  const coveredCaps=allCaps.filter(cap=>findVendor(cap,acct.techStack))
+  const coveredCaps=allCaps.filter(cap=>{const dom=HEATMAP_DOMAINS.find(d=>d.caps.includes(cap));return findVendor(cap,acct.techStack,dom?.name)})
   const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
 
   const makeTextArcPath=(cx,cy,r,a1,a2)=>{
@@ -1873,7 +1918,7 @@ function TechStack({acct,setAcct}) {
       textArcPath:makeTextArcPath(HM_CX,HM_CY,302,dS,dE)})
     const aPC=anglePD/domain.caps.length
     domain.caps.forEach((cap,ci)=>{
-      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack)
+      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack,domain.name)
       const midA=(cS+cE)/2,midR=(HM_IR1+HM_IR2)/2
       const centX=HM_CX+midR*Math.cos(midA),centY=HM_CY+midR*Math.sin(midA)
       hmSegments.push({type:'cap',di,ci,domain,cap,vendor,centX,centY,
@@ -1884,15 +1929,49 @@ function TechStack({acct,setAcct}) {
 
   const handleCapHover=(seg,e)=>{if(seg.type!=='cap'){setHoveredSeg(null);return};setHoveredSeg({...seg,x:e.clientX,y:e.clientY})}
   const handleCapMove=(seg,e)=>{if(seg.type!=='cap')return;setHoveredSeg(p=>p?{...p,x:e.clientX,y:e.clientY}:null)}
+  const capToTechCat = {
+    // Security Operations
+    'SIEM/XDR':'SIEM / SOC','SOAR':'SIEM / SOC','Log Management':'SIEM / SOC',
+    'MSSP/MDR':'SIEM / SOC','Threat Intel':'Threat Intel',
+    'Vulnerability Management':'SIEM / SOC',
+    'Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team',
+    'Brand/Dark Web':'Threat Intel',
+    // Endpoint & Mail
+    'Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint',
+    'Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint',
+    'Email Gateway':'Email Security','BEC/Phishing':'Email Security',
+    'DMARC':'Email Security','Email DLP':'Email Security',
+    // Cloud & App Security
+    'CNAPP/CSPM':'Cloud Security','CWPP':'Cloud Security','CIEM':'Cloud Security',
+    'CASB/SSPM':'Cloud Security','CDN/WAF':'Cloud Security',
+    'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec',
+    'API Security':'AppSec','App Pen Testing':'AppSec',
+    // Data Protection
+    'Data Governance':'GRC','DSPM':'GRC','DLP':'GRC',
+    'GenAI/LLM Security':'GRC','Data Encryption':'GRC',
+    'Key Management':'GRC','BC/DR Backup':'GRC','GRC Platform':'GRC',
+    '3rd Party Risk':'GRC','DFIR':'SIEM / SOC',
+    // Network Security
+    'Firewall':'Network / SASE','IDS/IPS':'Network / SASE',
+    'URL Filtering':'Network / SASE','Sandbox':'Network / SASE',
+    'DNS Security':'Network / SASE','SASE/ZTNA':'Network / SASE',
+    'Zero Trust':'Network / SASE','NAC':'Network / SASE',
+    'NTA/NDR':'Network / SASE','FW Segmentation':'Network / SASE',
+    // Identity Security
+    'Identity Store/AD':'Identity / IAM','ITDR':'Identity / IAM',
+    'IAM':'Identity / IAM','SSO':'Identity / IAM','MFA':'Identity / IAM',
+    'IGA':'Identity / IAM','PAM':'Identity / IAM',
+    'Certificate Management':'Identity / IAM','ISPM':'Identity / IAM',
+    'Non-Human Identity':'Identity / IAM',
+  }
+
   const handleCapClick=(seg)=>{
     if(seg.type!=='cap')return
     if(seg.vendor){
-      // Editing existing vendor: merge with blank so all fields are defined
       setForm({...blank,...seg.vendor})
       setShowAdd(true)
     } else {
-      // New vendor: pre-fill category (per-cap first, then domain fallback) and products
-      const category = capToCategory[seg.cap] || domainToCategory[seg.domain.name] || 'Other'
+      const category = capToTechCat[seg.cap] || capToCategory[seg.cap] || domainToCategory[seg.domain.name] || 'Other'
       setForm({...blank, category, products: seg.cap})
       setShowAdd(true)
     }
@@ -2062,13 +2141,37 @@ function TechStack({acct,setAcct}) {
           <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-22} fill="none"
             stroke="rgba(255,255,255,0.09)" strokeWidth={1} strokeDasharray="200 970"
             className="hm-spin-ccw"/>
-          {/* Shield icon */}
-          <path d={`M ${HM_CX} ${HM_CY-80} L ${HM_CX-13} ${HM_CY-74} L ${HM_CX-13} ${HM_CY-60} Q ${HM_CX} ${HM_CY-52} ${HM_CX} ${HM_CY-52} Q ${HM_CX+13} ${HM_CY-60} ${HM_CX+13} ${HM_CY-60} L ${HM_CX+13} ${HM_CY-74} Z`}
-            fill="url(#hm-gc)" opacity={0.85}/>
-          {/* Coverage % */}
-          <text x={HM_CX} y={HM_CY-14} textAnchor="middle" fontSize={54} fontWeight={800} fill="#ffffff" letterSpacing="-2">{coveragePct}%</text>
-          <text x={HM_CX} y={HM_CY+12} textAnchor="middle" fontSize={11} fontWeight={600} fill="#94a3b8" letterSpacing="0.14em">COVERAGE</text>
+          {(()=>{
+            const logoR=Math.round((HM_IR1-10)*0.70)
+            if(logoUrl){
+              return <>
+                <defs>
+                  <clipPath id="hm-logo-clip"><circle cx={HM_CX} cy={HM_CY} r={logoR}/></clipPath>
+                </defs>
+                <circle cx={HM_CX} cy={HM_CY} r={logoR} fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
+                <image x={HM_CX-logoR} y={HM_CY-logoR} width={logoR*2} height={logoR*2}
+                  href={logoUrl} clipPath="url(#hm-logo-clip)" preserveAspectRatio="xMidYMid meet"/>
+              </>
+            }
+            return <>
+              {/* Shield icon — shifted down so group is vertically centered */}
+              <path d={`M ${HM_CX} ${HM_CY-46} L ${HM_CX-13} ${HM_CY-40} L ${HM_CX-13} ${HM_CY-26} Q ${HM_CX} ${HM_CY-18} ${HM_CX} ${HM_CY-18} Q ${HM_CX+13} ${HM_CY-26} ${HM_CX+13} ${HM_CY-26} L ${HM_CX+13} ${HM_CY-40} Z`}
+                fill="url(#hm-gc)" opacity={0.85}/>
+              {/* Coverage % — centered */}
+              <text x={HM_CX} y={HM_CY+22} textAnchor="middle" dominantBaseline="auto" fontSize={54} fontWeight={800} fill="#ffffff" letterSpacing="-2">{coveragePct}%</text>
+              <text x={HM_CX} y={HM_CY+44} textAnchor="middle" dominantBaseline="auto" fontSize={11} fontWeight={600} fill="#94a3b8" letterSpacing="0.14em">COVERAGE</text>
+            </>
+          })()}
         </svg>
+        </div>
+
+        {/* Logo upload controls */}
+        <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:8,marginBottom:8}}>
+          <input ref={logoInputRef} type='file' accept='image/*' onChange={handleLogoUpload} style={{display:'none'}} id='hm-logo-input'/>
+          <label htmlFor='hm-logo-input' style={{display:'inline-flex',alignItems:'center',gap:6,padding:'5px 14px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,fontSize:12,fontWeight:600,color:S.secondary,cursor:'pointer'}}>
+            {logoUrl?'Replace Logo':'Upload Company Logo'}
+          </label>
+          {logoUrl&&<button onClick={removeLogo} style={{padding:'5px 12px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:999,fontSize:12,color:S.muted,cursor:'pointer'}}>Remove</button>}
         </div>
 
         {/* Legend — clickable gradient pills with capability counts */}
@@ -2108,7 +2211,7 @@ function TechStack({acct,setAcct}) {
             <span style={{fontSize:11,color:S.muted}}>{coveredCaps.length}/{allCaps.length} capabilities</span>
           </div>
           {HEATMAP_DOMAINS.map(domain=>{
-            const domCaps=domain.caps.map(cap=>({cap,vendor:findVendor(cap,acct.techStack)}))
+            const domCaps=domain.caps.map(cap=>({cap,vendor:findVendor(cap,acct.techStack,domain.name)}))
             const covered=domCaps.filter(c=>c.vendor).length
             return (
               <div key={domain.name} style={{marginBottom:12,background:S.surf,borderRadius:10,border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
@@ -2121,7 +2224,7 @@ function TechStack({acct,setAcct}) {
                     const fill=capStatusFill(vendor)
                     return (
                       <div key={cap} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:ci<domCaps.length-1?`1px solid ${S.bdr2}`:'none',gap:8}}
-                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:capToCategory[cap]||domainToCategory[domain.name]||'Other',products:cap});setShowAdd(true)}}}>
+                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:capToTechCat[cap]||capToCategory[cap]||domainToCategory[domain.name]||'Other',products:cap});setShowAdd(true)}}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
                           <div style={{width:8,height:8,borderRadius:'50%',background:fill,flexShrink:0}}/>
                           <span style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cap}</span>
@@ -2248,12 +2351,16 @@ const InlineEdit = ({value, onChange, placeholder, multiline=false}) => {
   return <input value={local} onChange={e=>setLocal(e.target.value)} onBlur={()=>onChange(local)} placeholder={placeholder||''} style={base}/>
 }
 
+const TIMELINE_STATUSES = ['In Flight','In Discussion','Not Started','Stalled']
+
 function Projects({acct,setAcct}) {
   const [view,setView] = useState('pipeline')
   const [exp,setExp] = useState(null)
   const [showAdd,setShowAdd] = useState(false)
   const [moveMenu,setMoveMenu] = useState(null)
   const [statusMenu,setStatusMenu] = useState(null)
+  const [tlFilters,setTlFilters] = useState(new Set(TIMELINE_STATUSES))
+  const toggleTlFilter = s => setTlFilters(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
   const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
@@ -2376,7 +2483,19 @@ function Projects({acct,setAcct}) {
         </div>
       )}
       {view==='timeline'&&<div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {acct.projects.map(p=>{
+        {/* Status filter toggles */}
+        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
+          {TIMELINE_STATUSES.map(s=>{
+            const active=tlFilters.has(s);const sc=PSC[s]||S.muted
+            return (
+              <button key={s} onClick={()=>toggleTlFilter(s)}
+                style={{padding:'4px 12px',borderRadius:999,fontSize:11,fontWeight:600,cursor:'pointer',border:`1px solid ${active?sc:S.bdr}`,background:active?sc+'18':'transparent',color:active?sc:S.muted,transition:'all 0.12s'}}>
+                {s}
+              </button>
+            )
+          })}
+        </div>
+        {acct.projects.filter(p=>TIMELINE_STATUSES.includes(p.status)&&tlFilters.has(p.status)).map(p=>{
           const sc=PSC[p.status]||S.muted;const open=exp===p.id
           const stageDays=getStageDuration(p)
           return (<Card key={p.id}>
@@ -2588,31 +2707,42 @@ function FollowUps({acct,setAcct}) {
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
   const priBorder={Critical:'#dc2626',High:'#ea580c',Medium:'#eab308',Low:'#16a34a'}
+  const priBg={Critical:'#fef2f2',High:'#fff7ed',Medium:'#fefce8',Low:'#f0fdf4'}
   const renderFU = (fu, extraBadge=null) => {
-    const bc=priBorder[fu.priority]||'#16a34a'
+    const pc=priBorder[fu.priority]||'#16a34a'
+    const pb=priBg[fu.priority]||'#f0fdf4'
+    const isSelected=selMode&&selFUs.has(fu.id)
     return (
-      <div key={fu.id} style={{display:'flex',gap:12,padding:'12px 16px',background:selMode&&selFUs.has(fu.id)?'#eff6ff':'#ffffff',borderBottom:'1px solid #f8fafc',alignItems:'flex-start',transition:'background 0.1s'}}
-        onMouseEnter={e=>{if(!selMode||!selFUs.has(fu.id))e.currentTarget.style.background='#f9fafb'}}
-        onMouseLeave={e=>e.currentTarget.style.background=selMode&&selFUs.has(fu.id)?'#eff6ff':'#ffffff'}>
-        {selMode
-          ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:2,cursor:'pointer',flexShrink:0,accentColor:'#2563eb'}}/>
-          :<button onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${bc}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} aria-label='Complete'/>
-        }
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:4}}>
-            <span style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{fu.task}</span>
-            {extraBadge}
-          </div>
-          <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
-            {fu.contact&&<span style={{fontSize:11,color:'#64748b',display:'inline-flex',alignItems:'center',gap:3}}>👤 {fu.contact}</span>}
-            {fu.dueDate&&<span style={{fontSize:11,color:'#64748b',display:'inline-flex',alignItems:'center',gap:3}}>📅 {fmtDate(fu.dueDate)}</span>}
-            {fu.context&&<span style={{fontSize:11,color:'#94a3b8'}}>{fu.context}</span>}
+      <div key={fu.id}
+        style={{display:'flex',gap:12,padding:'13px 16px',background:isSelected?'#eff6ff':S.isLight?'#ffffff':S.surf,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,alignItems:'flex-start',transition:'background 0.12s'}}
+        onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=S.isLight?'#f9fafb':S.surf2}}
+        onMouseLeave={e=>e.currentTarget.style.background=isSelected?'#eff6ff':S.isLight?'#ffffff':S.surf}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:10,flex:1,minWidth:0}}>
+          {selMode
+            ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:3,cursor:'pointer',flexShrink:0,accentColor:'#2563eb'}}/>
+            :<button onClick={()=>toggle(fu.id)}
+                style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${S.isLight?'#cbd5e1':'#475569'}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer',transition:'all 0.15s'}}
+                onMouseEnter={e=>{e.currentTarget.style.background='#dcfce7';e.currentTarget.style.borderColor='#16a34a'}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':'#475569'}}
+                aria-label='Complete'/>
+          }
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:5}}>
+              <span style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,lineHeight:1.4}}>{fu.task}</span>
+              {extraBadge}
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+              <span style={{fontSize:10,fontWeight:700,color:pc,background:S.isLight?pb:pc+'22',borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
+              {fu.contact&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted,display:'inline-flex',alignItems:'center',gap:3}}>· {fu.contact}</span>}
+              {fu.dueDate&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted,display:'inline-flex',alignItems:'center',gap:3}}>· {fmtDate(fu.dueDate)}</span>}
+              {fu.context&&<span style={{fontSize:11,color:S.isLight?'#94a3b8':S.dim,marginTop:1}}>{fu.context}</span>}
+            </div>
           </div>
         </div>
         <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}
-          style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:11,flexShrink:0,padding:'2px 6px',borderRadius:4}}
-          onMouseEnter={e=>e.currentTarget.style.color='#64748b'}
-          onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>Edit</button>
+          style={{background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,color:S.isLight?'#94a3b8':S.muted,cursor:'pointer',fontSize:11,flexShrink:0,padding:'3px 9px',borderRadius:6,transition:'all 0.12s'}}
+          onMouseEnter={e=>{e.currentTarget.style.color=S.isLight?'#475569':S.secondary;e.currentTarget.style.borderColor=S.isLight?'#94a3b8':S.secondary}}
+          onMouseLeave={e=>{e.currentTarget.style.color=S.isLight?'#94a3b8':S.muted;e.currentTarget.style.borderColor=S.isLight?'#e2e8f0':S.bdr}}>Edit</button>
       </div>
     )
   }
@@ -2622,37 +2752,39 @@ function FollowUps({acct,setAcct}) {
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
 
       {/* ─── TODAY SECTION ─── */}
-      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
-        <div style={{background:'linear-gradient(135deg,#fffbeb 0%,#fef3c7 100%)',borderBottom:'1px solid #fde68a',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:16,overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:15,color:'#d97706'}}>📅</span>
-            <span style={{fontSize:13,fontWeight:800,color:'#92400e'}}>Today</span>
+            <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#0f172a':S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Today</span>
+            <span style={{fontSize:11,color:S.muted,fontWeight:400}}>{todayFull}</span>
           </div>
-          <span style={{fontSize:12,color:'#b45309'}}>{todayFull}</span>
+          {(overdueFUs.length+dueTodayFUs.length)>0&&<span style={{fontSize:11,fontWeight:700,color:S.isLight?'#dc2626':S.red,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',borderRadius:999,padding:'2px 9px'}}>{overdueFUs.length+dueTodayFUs.length} due</span>}
         </div>
         {(overdueFUs.length===0&&dueTodayFUs.length===0)
-          ?<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'20px 16px',gap:4}}>
-            <span style={{fontSize:20,color:'#16a34a'}}>✓</span>
-            <div style={{fontWeight:600,color:'#15803d',fontSize:13}}>All clear today</div>
-            <div style={{fontSize:12,color:'#94a3b8'}}>No tasks due today</div>
+          ?<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',color:S.isLight?'#16a34a':S.green}}>
+            <span style={{fontSize:16}}>✓</span>
+            <div>
+              <div style={{fontWeight:600,fontSize:13}}>All clear today</div>
+              <div style={{fontSize:11,color:S.muted,marginTop:1}}>No tasks due or overdue</div>
+            </div>
           </div>
           :<div>
             {overdueFUs.map(fu=>{
               const d=Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000)
-              return renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#dc2626',background:'#fee2e2',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>{d}d overdue</span>)
+              return renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#dc2626',background:S.isLight?'#fee2e2':'rgba(220,38,38,0.15)',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>{d}d overdue</span>)
             })}
-            {dueTodayFUs.map(fu=>renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:'#ea580c',background:'#ffedd5',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>Due Today</span>))}
+            {dueTodayFUs.map(fu=>renderFU(fu,<span style={{fontSize:10,fontWeight:600,color:S.isLight?'#ea580c':'#fb923c',background:S.isLight?'#ffedd5':'rgba(249,115,22,0.15)',borderRadius:999,padding:'1px 7px',whiteSpace:'nowrap'}}>Due Today</span>))}
           </div>
         }
       </div>
 
       {/* ─── OPEN TASKS SECTION ─── */}
-      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
-        <div style={{padding:'12px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:16,overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
           <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
-            <span style={{fontSize:11,color:'#94a3b8'}}>{showOpenTasks?'▼':'▶'}</span>
-            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Open Tasks</span>
-            <span style={{fontSize:11,fontWeight:600,color:'#475569',background:'#f1f5f9',borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
+            <span style={{fontSize:10,color:S.muted}}>{showOpenTasks?'▼':'▶'}</span>
+            <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#0f172a':S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Upcoming</span>
+            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.isLight?'#f1f5f9':S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             {showOpenTasks&&!selMode&&(
@@ -2701,33 +2833,34 @@ function FollowUps({acct,setAcct}) {
 
         {showOpenTasks&&(
           futureFUs.length===0
-          ?<div style={{fontSize:12,color:'#94a3b8',padding:'20px 16px',textAlign:'center'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
+          ?<div style={{fontSize:12,color:S.muted,padding:'20px 16px',textAlign:'center'}}>No upcoming follow-ups. Click + Add Follow-Up to create one.</div>
           :<div>{sortedFuture.map(fu=>renderFU(fu))}</div>
         )}
       </div>
 
       {/* ─── COMPLETED SECTION ─── */}
-      <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',overflow:'hidden'}}>
+      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',overflow:'hidden'}}>
         <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
-            <span style={{fontSize:11,color:'#94a3b8'}}>{showCompleted?'▼':'▶'}</span>
-            <span style={{fontSize:12,fontWeight:600,color:'#64748b'}}>Completed</span>
-            <span style={{fontSize:11,fontWeight:600,color:'#94a3b8',background:'#f8fafc',borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
+            <span style={{fontSize:10,color:S.muted}}>{showCompleted?'▼':'▶'}</span>
+            <span style={{fontSize:11,fontWeight:800,color:S.muted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Completed</span>
+            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.isLight?'#f8fafc':S.surf2,borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
           </div>
-          {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:5,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
+          {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:S.isLight?'#dc2626':S.red,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(220,38,38,0.2)'}`,borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
         </div>
         {showCompleted&&(
           done.length===0
-          ?<div style={{fontSize:12,color:'#94a3b8',padding:'12px 16px',borderTop:'1px solid #f8fafc',textAlign:'center'}}>No completed tasks yet.</div>
-          :<div style={{borderTop:'1px solid #f8fafc'}}>
+          ?<div style={{fontSize:12,color:S.muted,padding:'12px 16px',borderTop:`1px solid ${S.isLight?'#f8fafc':S.bdr}`,textAlign:'center'}}>No completed tasks yet.</div>
+          :<div style={{borderTop:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
             {done.map(fu=>(
-              <div key={fu.id} style={{display:'flex',gap:12,padding:'10px 16px',alignItems:'center',background:'#f8fafc',borderBottom:'1px solid #f1f5f9',cursor:'pointer'}}
-                onMouseEnter={e=>e.currentTarget.style.background='#f1f5f9'}
-                onMouseLeave={e=>e.currentTarget.style.background='#f8fafc'}>
-                <div onClick={()=>toggle(fu.id)} style={{width:18,height:18,borderRadius:4,border:'2px solid #16a34a',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer'}}>
-                  <span style={{color:'#16a34a',fontSize:11}}>✓</span>
+              <div key={fu.id} style={{display:'flex',gap:12,padding:'10px 16px',alignItems:'center',background:S.isLight?'#f8fafc':S.surf2,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,cursor:'pointer',transition:'background 0.12s'}}
+                onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f1f5f9':S.surf}
+                onMouseLeave={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}>
+                <div onClick={()=>toggle(fu.id)} style={{width:20,height:20,borderRadius:'50%',border:'2px solid #16a34a',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer'}}>
+                  <span style={{color:'#16a34a',fontSize:10,fontWeight:700}}>✓</span>
                 </div>
-                <span style={{fontSize:13,color:'#94a3b8',textDecoration:'line-through',flex:1,lineHeight:1.4}}>{fu.task}</span>
+                <span style={{fontSize:13,color:S.muted,textDecoration:'line-through',flex:1,lineHeight:1.4}}>{fu.task}</span>
+                {fu.contact&&<span style={{fontSize:11,color:S.dim}}>{fu.contact}</span>}
               </div>
             ))}
           </div>
@@ -3340,7 +3473,7 @@ ${text}`}]
           onChange={e=>setText(e.target.value)}
           maxLength={15000}
           rows={7}
-          placeholder={'Paste transcript, meeting notes, email, or a quick note here...\n\nExample: "Talked to Rudy today. NetSpy demo confirmed for Wednesday. Jamie Dennis reached back about Saviynt pricing — wants a decision by June..."'}
+          placeholder={'Paste transcript, meeting notes, email, or a quick note here…\n\n"Talked to the security architect today. Wiz demo confirmed for Wednesday. The CISO reached back about Palo Alto pricing — wants a decision by June…"'}
           style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#0f172a',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
           onFocus={e=>{e.target.style.borderColor='#2563eb';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
           onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
@@ -3683,7 +3816,8 @@ function Dashboard({acct, setTab}) {
 
   const now = new Date()
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-  const thisMonthCount = acct.interactions.filter(i=>(i.date||'').startsWith(thisMonth)).length
+  const last30Start = new Date(now); last30Start.setDate(now.getDate()-30); last30Start.setHours(0,0,0,0)
+  const last30Count = acct.interactions.filter(i=>{if(!i.date)return false;const d=new Date(i.date+'T12:00:00');return d>=last30Start&&d<=now}).length
   const cntMap={}; acct.interactions.forEach(i=>{if(i.contact)cntMap[i.contact]=(cntMap[i.contact]||0)+1})
   const topContact = Object.entries(cntMap).sort((a,b)=>b[1]-a[1])[0]
   const typeMap={}; acct.interactions.forEach(i=>{if(i.type)typeMap[i.type]=(typeMap[i.type]||0)+1})
@@ -3695,7 +3829,7 @@ function Dashboard({acct, setTab}) {
   const currentMonday = getMonday(new Date(now))
   const buckets = []
   if (groupBy==='weekly') {
-    for (let i=11;i>=0;i--) { const m=new Date(currentMonday); m.setDate(currentMonday.getDate()-i*7); buckets.push(m.toISOString().split('T')[0]) }
+    for (let i=7;i>=0;i--) { const m=new Date(currentMonday); m.setDate(currentMonday.getDate()-i*7); buckets.push(m.toISOString().split('T')[0]) }
   } else {
     for (let i=11;i>=0;i--) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); buckets.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`) }
   }
@@ -3797,7 +3931,7 @@ function Dashboard({acct, setTab}) {
       {/* ── STAT CARDS ── */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
         {[
-          {key:'thisMonth',bc:'#2563eb',onClick:()=>setCalendarOpen(true),label:"This Month's Interactions",main:String(thisMonthCount),sub:`interaction${thisMonthCount!==1?'s':''} · click for calendar`},
+          {key:'last30',bc:'#2563eb',onClick:()=>setCalendarOpen(true),label:'Last 30 Days',main:String(last30Count),sub:`interaction${last30Count!==1?'s':''} · click for calendar`},
           {key:'topContact',bc:'#16a34a',onClick:()=>setContactFreqOpen(true),label:'Most Contacted',main:topContact?topContact[0]:'—',sub:topContact?`${topContact[1]} interaction${topContact[1]!==1?'s':''}`:null},
           {key:'topType',bc:'#9333ea',onClick:()=>setActivityBreakOpen(true),label:'Top Activity Type',main:topType?topType[0]:'—',sub:topType?`${topType[1]} total`:null},
         ].map(({key,bc,onClick,label,main,sub})=>{
@@ -3808,7 +3942,7 @@ function Dashboard({acct, setTab}) {
               onMouseLeave={()=>setHoveredStat(null)}
               style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${bc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.1)':S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
               <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:8}}>{label}</div>
-              <div style={{fontSize:key==='thisMonth'?28:15,fontWeight:800,color:S.txt,marginBottom:2,lineHeight:1.2}}>{main}</div>
+              <div style={{fontSize:key==='last30'?28:15,fontWeight:800,color:S.txt,marginBottom:2,lineHeight:1.2}}>{main}</div>
               {sub&&<div style={{fontSize:11,color:S.muted}}>{sub}</div>}
             </div>
           )
@@ -3955,7 +4089,7 @@ function Dashboard({acct, setTab}) {
         <div style={modalBack} onClick={e=>{if(e.target===e.currentTarget)setCalendarOpen(false)}}>
           <div style={modalBox('65vw','70vh')}>
             <div style={modalHdr}>
-              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>{now.toLocaleDateString('en-US',{month:'long',year:'numeric'})} — Interactions</div>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Last 30 Days — Interactions</div>
               {xBtn(()=>setCalendarOpen(false))}
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
@@ -4000,7 +4134,7 @@ function Dashboard({acct, setTab}) {
                   <div key={t} style={{display:'flex',alignItems:'center',gap:5}}><div style={{width:10,height:10,borderRadius:'50%',background:INTERACTION_COLORS[t]}}/><span style={{fontSize:11,color:S.secondary}}>{t}</span></div>
                 ))}
               </div>
-              <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:12}}>{calMonthIxs.length} interaction{calMonthIxs.length!==1?'s':''} this month</div>
+              <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:12}}>{last30Count} interaction{last30Count!==1?'s':''} in the last 30 days</div>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 {[...calMonthIxs].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map((ix,i)=>{
                   const tc=INTERACTION_COLORS[ix.type]||S.muted
@@ -5183,6 +5317,7 @@ export default function App() {
               {acct.lastContact&&<span style={{fontSize:11,color:S.muted}}>Last contact: {fmtDate(acct.lastContact)}</span>}
             </div>}
           </div>
+          <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}`}</style>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
@@ -5190,9 +5325,7 @@ export default function App() {
                 onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color=S.muted}}
                 style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0,transition:'color 0.15s'}}>
                 {t.label}
-                {t.id==='intel'&&acct.intelLog.length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{acct.intelLog.length}</span>}
-                {t.id==='followups'&&critHighCount>0&&<span style={{fontSize:10,fontWeight:700,background:S.red,color:'#fff',borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{critHighCount}</span>}
-                {t.id==='aihistory'&&(acct.aiHistory||[]).length>0&&<span style={{fontSize:10,fontWeight:700,background:tab===t.id?'rgba(59,130,246,0.2)':'rgba(100,116,139,0.15)',color:tab===t.id?S.blue:S.muted,borderRadius:999,padding:'1px 6px',lineHeight:'16px'}}>{(acct.aiHistory||[]).length}</span>}
+                {t.id==='followups'&&critHighCount>0&&<span style={{width:8,height:8,borderRadius:'50%',background:'#dc2626',display:'inline-block',flexShrink:0,animation:'fuPulse 1s ease-in-out infinite'}}/>}
               </button>
             ))}
           </div>
