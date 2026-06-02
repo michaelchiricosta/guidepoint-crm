@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Clock } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
 
@@ -50,7 +51,9 @@ const calcDetailedHealthScore = acct => {
   const ren60=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=60}).length
   const negSen=(acct.contacts||[]).filter(c=>c.sentiment==='negative').length
   const lostP=(acct.projects||[]).filter(p=>p.status==='Lost').length
-  const riskCalc=Math.max(0,20-critFU*4-ren60*3-negSen*3-lostP*2)
+  const intelCount=acct.intelLog?.length||0
+  const riskFactor=intelCount<5?intelCount/5:1
+  const riskCalc=Math.max(0,20-(critFU*4+ren60*3+negSen*3+lostP*2)*riskFactor)
   const riskVal=ov.risk?.value??riskCalc
   const evalVend=(acct.techStack||[]).filter(t=>t.status==='Evaluating').length
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-180)
@@ -84,7 +87,7 @@ const calcDetailedHealthScore = acct => {
       {key:'risk',label:'Risk Factors',value:riskVal,max:20,calc:riskCalc,overridden:!!ov.risk,override:ov.risk},
       {key:'opportunity',label:'Opportunity Coverage',value:oppVal,max:15,calc:oppCalc,overridden:!!ov.opportunity,override:ov.opportunity},
     ],
-    total,calcTotal,isManualOverride:ov.totalOverride!==undefined,helping:helpArr,hurting:hurtArr
+    total,calcTotal,isManualOverride:ov.totalOverride!==undefined,helping:helpArr,hurting:hurtArr,intelCount
   }
 }
 const calcHealthScore = acct => calcDetailedHealthScore(acct).total
@@ -191,6 +194,14 @@ const Modal = ({title,onClose,children,width=520}) => {
 const SH = ({children,mt=0}) => <div style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8,marginTop:mt}}>{children}</div>
 const Card = ({children,style={}}) => <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)':'none',...style}}>{children}</div>
 
+const HS_TOOLTIPS = {
+  relationship: "Based on the number of contacts with Strong or Building relationship status. Strong contacts add points, contacts Needing Attention deduct points.",
+  engagement: "Based on days since your last logged interaction. Recent contact within 7 days scores highest. No contact in 60+ days scores zero.",
+  pipeline: "Based on projects currently In Flight or In Discussion. Stalled projects deduct points.",
+  risk: "Deductions for open Critical follow-ups, tech stack renewals within 60 days, negative sentiment contacts, and Lost projects.",
+  opportunity: "Points for vendors being actively evaluated and recently Won projects.",
+}
+
 function HealthScoreModal({acct, setAcct, onClose}) {
   const [editingComp, setEditingComp] = useState(null)
   const [compInput, setCompInput] = useState('')
@@ -198,9 +209,10 @@ function HealthScoreModal({acct, setAcct, onClose}) {
   const [totalActive, setTotalActive] = useState(()=>acct.healthScoreOverrides?.totalOverride!==undefined)
   const [totalInput, setTotalInput] = useState(()=>String(acct.healthScoreOverrides?.totalOverride??''))
   const [totalReason, setTotalReason] = useState(()=>acct.healthScoreOverrides?.totalOverrideReason||'')
+  const [hoveredTooltip, setHoveredTooltip] = useState(null)
 
   const ds = calcDetailedHealthScore(acct)
-  const {total:score, isManualOverride, components, helping, hurting} = ds
+  const {total:score, isManualOverride, components, helping, hurting, intelCount} = ds
   const hc = score>=70?S.green:score>=40?S.orange:S.red
   const tier = score>=70?'Healthy':score>=40?'At Risk':'Critical'
   const history = (acct.healthScoreHistory||[]).slice(-7)
@@ -241,6 +253,9 @@ function HealthScoreModal({acct, setAcct, onClose}) {
           <button onClick={onClose} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',flexShrink:0}}>×</button>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+          {intelCount<5&&<div style={{background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.25)',borderRadius:6,padding:'7px 12px',marginBottom:12,fontSize:12,color:'#92400e',lineHeight:1.5}}>
+            ⚡ Health score adjusted — fewer than 5 intel entries logged. Risk factors are weighted proportionally ({intelCount}/5 weight applied).
+          </div>}
           <div style={{fontSize:10,fontWeight:700,color:S.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:10}}>Score Breakdown</div>
           {components.map(comp=>{
             const isEdit=editingComp===comp.key
@@ -250,6 +265,10 @@ function HealthScoreModal({acct, setAcct, onClose}) {
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}}>
                       <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{comp.label}</span>
+                      <span style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
+                        <span onMouseEnter={()=>setHoveredTooltip(comp.key)} onMouseLeave={()=>setHoveredTooltip(null)} style={{fontSize:13,color:'#94a3b8',cursor:'help',display:'inline-flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>ⓘ</span>
+                        {hoveredTooltip===comp.key&&<div style={{position:'absolute',bottom:'100%',left:0,zIndex:1000,background:'#fff',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.15)',padding:'10px 12px',width:260,fontSize:12,color:'#374151',lineHeight:1.5,whiteSpace:'normal',pointerEvents:'none',marginBottom:4}}>{HS_TOOLTIPS[comp.key]}</div>}
+                      </span>
                       {comp.overridden&&<Badge label='Overridden' color={S.orange} bg='rgba(249,115,22,0.12)' size={10}/>}
                     </div>
                     <div style={{height:5,background:S.bdr,borderRadius:3,overflow:'hidden'}}>
@@ -794,32 +813,35 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             ):(()=>{
               const parsed = parseSummary(acct.aiSummary.content)
               const summaryBlock = parsed.find(s=>s.isSummary)
-              const otherSections = parsed.filter(s=>!s.isSummary)
+              const secMap = Object.fromEntries(parsed.filter(s=>!s.isSummary).map(s=>[s.key,s]))
+              const renderSec = sec => !sec ? null : sec.isNext ? (
+                <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
+                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>)}
+                </div>
+              ) : (
+                <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
+                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>)}
+                </div>
+              )
               return (
                 <div>
                   {summaryBlock?.text&&(
-                    <div style={{fontSize:14,color:S.isLight?'#0f172a':S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,marginBottom:0}}>
+                    <div style={{fontSize:14,color:S.isLight?'#0f172a':S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`}}>
                       {summaryBlock.text}
                     </div>
                   )}
-                  <div style={{padding:'12px 16px'}}>
-                    {otherSections.map(sec=>(
-                      sec.isNext?(
-                        <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
-                          <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
-                          {sec.bullets.map((b,i)=>(
-                            <div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>
-                          ))}
-                        </div>
-                      ):(
-                        <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',marginBottom:8}}>
-                          <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
-                          {sec.bullets.map((b,i)=>(
-                            <div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>
-                          ))}
-                        </div>
-                      )
-                    ))}
+                  <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:10}}>
+                    <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:10,alignItems:'stretch'}}>
+                      {renderSec(secMap.now)}
+                      {renderSec(secMap.coming)}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:10,alignItems:'stretch'}}>
+                      {renderSec(secMap.watch)}
+                      {renderSec(secMap.momentum)}
+                    </div>
+                    {renderSec(secMap.next)}
                   </div>
                 </div>
               )
@@ -1215,6 +1237,12 @@ function Contacts({acct,setAcct}) {
   const [openDetailNode,setOpenDetailNode] = useState(null)
   const [exportDropdown,setExportDropdown] = useState(false)
   const [exportToast,setExportToast] = useState(null)
+  // Import contacts
+  const [showImport,setShowImport] = useState(false)
+  const [importRows,setImportRows] = useState([])
+  const [importSelections,setImportSelections] = useState(new Set())
+  const [importSuccess,setImportSuccess] = useState(null)
+  const [importDragOver,setImportDragOver] = useState(false)
   // Ref bundle so touch/wheel handlers always see latest state
   const orgStateRef = useRef({})
   useEffect(()=>{ orgStateRef.current = {zoom,pan,panStart,pinchStartDist,pinchStartZoom,openDetailNode} })
@@ -1684,7 +1712,10 @@ function Contacts({acct,setAcct}) {
             <button key={v} onClick={()=>setContactView(v)} style={{padding:'5px 14px',borderRadius:6,border:'none',background:contactView===v?S.blue:'transparent',color:contactView===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.15s'}}>{l}</button>
           ))}
         </div>
-        <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Contact</Btn>
+        <div style={{display:'flex',gap:8}}>
+          <Btn onClick={()=>{setShowImport(true);setImportRows([]);setImportSelections(new Set());setImportSuccess(null)}}>⬆ Import</Btn>
+          <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Contact</Btn>
+        </div>
       </div>
 
       {/* ── LIST VIEW ── */}
@@ -1963,6 +1994,141 @@ function Contacts({acct,setAcct}) {
         {ftype!=='Internal'&&<Field label='Personal Notes — spouse, kids, hobbies, weekend plans' value={form.personalNotes} onChange={f('personalNotes')} multiline/>}
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save Contact</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
+
+      {showImport&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{width:'70vw',maxWidth:760,maxHeight:'85vh',background:S.surf,borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.3)',display:'flex',flexDirection:'column',overflow:'hidden',border:`1px solid ${S.bdr}`}}>
+            {/* Header */}
+            <div style={{padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:2}}>Import Contacts from Excel</div>
+                <div style={{fontSize:12,color:S.muted}}>Upload .xlsx or .csv — columns: Name, Title, Email, LinkedIn URL, Notes</div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <button onClick={()=>{const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet([['Name','Title','Email','LinkedIn URL','Notes']]);XLSX.utils.book_append_sheet(wb,ws,'Contacts');XLSX.writeFile(wb,'contacts-template.xlsx')}} style={{fontSize:12,color:S.blue,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,padding:'5px 12px',cursor:'pointer',fontWeight:600}}>⬇ Template</button>
+                <button onClick={()=>setShowImport(false)} style={{background:'none',border:'none',color:S.muted,fontSize:20,cursor:'pointer',lineHeight:1,padding:'0 2px'}}>×</button>
+              </div>
+            </div>
+            {/* Upload zone */}
+            {importRows.length===0&&!importSuccess&&(
+              <div style={{padding:'20px'}}>
+                <div
+                  onDragOver={e=>{e.preventDefault();setImportDragOver(true)}}
+                  onDragLeave={()=>setImportDragOver(false)}
+                  onDrop={e=>{
+                    e.preventDefault();setImportDragOver(false)
+                    const file=e.dataTransfer.files[0]
+                    if(!file)return
+                    const reader=new FileReader()
+                    reader.onload=ev=>{
+                      const data=new Uint8Array(ev.target.result)
+                      const wb=XLSX.read(data,{type:'array'})
+                      const sheet=wb.Sheets[wb.SheetNames[0]]
+                      const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''})
+                      const parsed=rows.slice(1).filter(r=>String(r[0]||'').trim()).map(r=>({name:String(r[0]||'').trim(),title:String(r[1]||'').trim(),email:String(r[2]||'').trim(),linkedin:String(r[3]||'').trim(),notes:String(r[4]||'').trim()}))
+                      const existingNames=new Set((acct.contacts||[]).map(c=>c.name.toLowerCase()))
+                      const withStatus=parsed.map(r=>({...r,isDuplicate:existingNames.has(r.name.toLowerCase())}))
+                      setImportRows(withStatus)
+                      setImportSelections(new Set(withStatus.filter(r=>!r.isDuplicate).map((_,i)=>i)))
+                    }
+                    reader.readAsArrayBuffer(file)
+                  }}
+                  onClick={()=>document.getElementById('contact-import-file').click()}
+                  style={{border:`2px dashed ${importDragOver?S.blue:S.bdr}`,borderRadius:12,padding:'40px 20px',textAlign:'center',cursor:'pointer',background:importDragOver?'rgba(37,99,235,0.04)':S.surf2,transition:'all 0.15s'}}>
+                  <div style={{fontSize:28,marginBottom:8,opacity:0.4}}>📂</div>
+                  <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>Drop your file here or click to browse</div>
+                  <div style={{fontSize:12,color:S.muted}}>Accepts .xlsx and .csv files</div>
+                  <input id='contact-import-file' type='file' accept='.xlsx,.csv' style={{display:'none'}} onChange={e=>{
+                    const file=e.target.files[0]
+                    if(!file)return
+                    const reader=new FileReader()
+                    reader.onload=ev=>{
+                      const data=new Uint8Array(ev.target.result)
+                      const wb=XLSX.read(data,{type:'array'})
+                      const sheet=wb.Sheets[wb.SheetNames[0]]
+                      const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''})
+                      const parsed=rows.slice(1).filter(r=>String(r[0]||'').trim()).map(r=>({name:String(r[0]||'').trim(),title:String(r[1]||'').trim(),email:String(r[2]||'').trim(),linkedin:String(r[3]||'').trim(),notes:String(r[4]||'').trim()}))
+                      const existingNames=new Set((acct.contacts||[]).map(c=>c.name.toLowerCase()))
+                      const withStatus=parsed.map(r=>({...r,isDuplicate:existingNames.has(r.name.toLowerCase())}))
+                      setImportRows(withStatus)
+                      setImportSelections(new Set(withStatus.filter(r=>!r.isDuplicate).map((_,i)=>i)))
+                    }
+                    reader.readAsArrayBuffer(file)
+                    e.target.value=''
+                  }}/>
+                </div>
+              </div>
+            )}
+            {/* Preview table */}
+            {importRows.length>0&&!importSuccess&&(
+              <>
+                <div style={{padding:'10px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+                  <button onClick={()=>setImportSelections(new Set(importRows.map((_,i)=>i)))} style={{fontSize:12,color:S.blue,background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
+                  <button onClick={()=>setImportSelections(new Set())} style={{fontSize:12,color:S.blue,background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Deselect All</button>
+                  <span style={{fontSize:12,color:S.muted,marginLeft:'auto'}}>{importRows.length} found · {importRows.filter(r=>!r.isDuplicate).length} new · {importRows.filter(r=>r.isDuplicate).length} duplicates</span>
+                </div>
+                <div style={{overflowY:'auto',flex:1}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead>
+                      <tr style={{background:S.surf2,borderBottom:`1px solid ${S.bdr}`}}>
+                        <th style={{padding:'8px 12px',textAlign:'left',fontWeight:600,color:S.muted,width:32}}></th>
+                        {['Name','Title','Email','LinkedIn','Notes','Status'].map(h=>(
+                          <th key={h} style={{padding:'8px 12px',textAlign:'left',fontWeight:600,color:S.muted}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importRows.map((row,i)=>{
+                        const sel=importSelections.has(i)
+                        return (
+                          <tr key={i} onClick={()=>setImportSelections(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})} style={{cursor:'pointer',background:sel?'rgba(37,99,235,0.03)':'transparent',opacity:sel?1:0.55,borderBottom:`1px solid ${S.bdr}`}}>
+                            <td style={{padding:'8px 12px'}}><input type='checkbox' checked={sel} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{accentColor:S.blue}}/></td>
+                            <td style={{padding:'8px 12px',fontWeight:600,color:S.txt}}>{row.name}</td>
+                            <td style={{padding:'8px 12px',color:S.secondary}}>{row.title||'—'}</td>
+                            <td style={{padding:'8px 12px',color:S.secondary}}>{row.email||'—'}</td>
+                            <td style={{padding:'8px 12px',color:S.secondary,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.linkedin||'—'}</td>
+                            <td style={{padding:'8px 12px',color:S.secondary,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.notes||'—'}</td>
+                            <td style={{padding:'8px 12px'}}>
+                              {row.isDuplicate
+                                ?<span style={{fontSize:10,fontWeight:700,color:'#b45309',background:'rgba(245,158,11,0.12)',borderRadius:999,padding:'2px 7px'}}>Duplicate</span>
+                                :<span style={{fontSize:10,fontWeight:700,color:'#15803d',background:'rgba(34,197,94,0.1)',borderRadius:999,padding:'2px 7px'}}>New</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{padding:'12px 20px',borderTop:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,background:S.surf}}>
+                  <span style={{fontSize:12,color:S.muted}}>{importSelections.size} contact{importSelections.size!==1?'s':''} will be imported</span>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>{setImportRows([]);setImportSelections(new Set())}} style={{padding:'7px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:12,cursor:'pointer'}}>Back</button>
+                    <button onClick={()=>setShowImport(false)} style={{padding:'7px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                    <button
+                      disabled={importSelections.size===0}
+                      onClick={()=>{
+                        const toAdd=[...importSelections].map(i=>importRows[i]).map(r=>({id:uid(),contactType:'Client',name:r.name,title:r.title,email:r.email,linkedin:r.linkedin,notes:r.notes,influence:'Stakeholder',sentiment:'neutral',relStatus:'Unknown',cell:'',location:'',dept:'',toolsOwn:'',goals:'',pains:'',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]}))
+                        setAcct(p=>({...p,contacts:[...p.contacts,...toAdd]}))
+                        setImportSuccess(`${toAdd.length} contact${toAdd.length!==1?'s':''} imported successfully`)
+                        setImportRows([]);setImportSelections(new Set())
+                      }}
+                      style={{padding:'7px 16px',background:importSelections.size===0?S.dim:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:importSelections.size===0?'not-allowed':'pointer'}}>
+                      Import Selected
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            {importSuccess&&(
+              <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 20px',gap:12}}>
+                <div style={{fontSize:32,color:S.green}}>✓</div>
+                <div style={{fontSize:15,fontWeight:700,color:S.txt}}>{importSuccess}</div>
+                <button onClick={()=>setShowImport(false)} style={{marginTop:8,padding:'8px 20px',background:S.blue,color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Done</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2035,6 +2201,7 @@ function TechStack({acct,setAcct}) {
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
   const [legendModal,setLegendModal] = useState(null)
+  const [saleFilter,setSaleFilter] = useState('All')
   const [logoUrl,setLogoUrl] = useState(acct.heatmapLogoUrl||null)
   const logoInputRef = useRef(null)
   const handleLogoUpload = e => {
@@ -2055,7 +2222,7 @@ function TechStack({acct,setAcct}) {
   }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:''}
+  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:''}
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
@@ -2066,7 +2233,8 @@ function TechStack({acct,setAcct}) {
     setShowAdd(false);setForm(blank)
   }
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
-  const grouped=TECH_CATS.reduce((acc,cat)=>{const items=acct.techStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
+  const filteredStack=saleFilter==='All'?acct.techStack:acct.techStack.filter(t=>saleFilter==='Not Set'?!t.contractSale:t.contractSale===saleFilter)
+  const grouped=TECH_CATS.reduce((acc,cat)=>{const items=filteredStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
 
   // Heatmap geometry — 680px wheel diameter, viewBox 820×820
@@ -2163,6 +2331,9 @@ function TechStack({acct,setAcct}) {
             <span>{acct.techStack.length} vendors</span>
             {upcoming>0&&<span style={{color:S.orange}}>{upcoming} renewal{upcoming>1?'s':''} within 5 months</span>}
           </div>
+          {view==='list'&&<select value={saleFilter} onChange={e=>setSaleFilter(e.target.value)} style={{fontSize:11,padding:'5px 9px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,cursor:'pointer'}}>
+            {['All','GuidePoint','Direct','Other VAR','Not Set'].map(o=><option key={o} value={o}>{o==='All'?'All Sales':o}</option>)}
+          </select>}
         </div>
         <Btn variant='primary' onClick={()=>{setForm(blank);setShowAdd(true)}}>+ Add Vendor</Btn>
       </div>
@@ -2174,12 +2345,14 @@ function TechStack({acct,setAcct}) {
             <div style={{display:'flex',flexDirection:'column',gap:4}}>
               {tools.map(t=>{
                 const d=daysUntil(t.renewalDate);const rc=d!==null&&d<=60?S.red:d!==null&&d<=150?S.orange:null;const sc=SC[t.status]||S.muted
+                const saleBadge=t.contractSale==='GuidePoint'?{label:'GP Sale',color:'#0ebc5f',bg:'#f0fdf4'}:t.contractSale==='Direct'?{label:'Direct',color:'#2563eb',bg:'#eff6ff'}:t.contractSale==='Other VAR'?{label:'Other VAR',color:'#fc5c30',bg:'#fff7ed'}:null
                 return (<div key={t.id} style={{background:S.surf,border:`1px solid ${S.isLight&&rc?rc:rc||S.bdr}`,borderLeft:rc&&S.isLight?`4px solid ${rc}`:`1px solid ${rc||S.bdr}`,borderRadius:8,padding:'10px 14px',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
                   <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
                     <div style={{flex:1}}>
                       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
                         <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{t.vendor}</span>
                         <Badge label={t.status} color={sc} bg={S.isLight?sc+'22':sc+'1a'}/>
+                        {saleBadge&&<span style={{fontSize:10,fontWeight:700,color:saleBadge.color,background:saleBadge.bg,borderRadius:999,padding:'2px 7px'}}>{saleBadge.label}</span>}
                         {t.renewalDate&&d!==null&&<Badge label={'Renews '+fmtDate(t.renewalDate)+' ('+d+'d)'} color={rc||S.green} bg={S.isLight?(rc||S.green)+'22':(rc||S.green)+'1a'}/>}
                       </div>
                       {t.products&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>{t.products}</div>}
@@ -2509,6 +2682,8 @@ function TechStack({acct,setAcct}) {
           <Field label='Vendor Rep Name' value={form.vendorRep} onChange={f('vendorRep')}/>
           <Field label='Vendor Rep Email' value={form.vendorRepEmail} onChange={f('vendorRepEmail')} type='email'/>
           <Field label='Client Owner / User' value={form.clientOwner} onChange={f('clientOwner')} style={{gridColumn:'span 2'}}/>
+          <Field label='Contract Sale' value={form.contractSale||''} onChange={f('contractSale')} options={['','GuidePoint','Direct','Other VAR']} placeholder='Not set'/>
+          <Field label='Contract Sale Details' value={form.contractSaleDetails||''} onChange={f('contractSaleDetails')}/>
         </div>
         <Field label='Replacement Options' value={form.replacementOptions} onChange={f('replacementOptions')} multiline placeholder='List alternative vendors being considered'/>
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
