@@ -20,7 +20,7 @@ const SC = { Current:'#22c55e', Selected:'#3b82f6', Evaluating:'#3b82f6', Replac
 const PSC = { 'Not Started':'#64748b', 'In Discussion':'#3b82f6', 'In Flight':'#22c55e', Stalled:'#f97316', Won:'#a855f7', Lost:'#ef4444' }
 const INTERACTION_COLORS = { Meeting:'#3b82f6', Call:'#22c55e', Email:'#eab308', Demo:'#a855f7', Note:'#64748b' }
 const INTERACTION_TYPES = ['Meeting','Call','Email','Demo','Note']
-const STAGES = ['Awareness','NDA','Intro Call','Demo','Scoping','Pricing','Legal','Procurement','PO Received','Deployed']
+const STAGES = ['Awareness','NDA','Intro Call','Demo','POC','Scoping','Pricing','Legal','Procurement','PO Received','Deployed']
 const INFLUENCES = ['Executive Sponsor','Technical Gatekeeper','Financial Gatekeeper','Final Approval','Stakeholder','Risk Factor','Ally']
 const TECH_CATS = ['SIEM / SOC','Endpoint','Identity / IAM','Cloud Security','Network / SASE','Email Security','AppSec','Pen Test / Red Team','Threat Intel','GRC','IT Operations','Other']
 const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selected','Current Gap']
@@ -31,6 +31,8 @@ const _autoSummaryGenerated = new Set()
 const fmtDate = d => { if (!d) return ''; try { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) } catch { return d } }
 const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000) }
 const daysSince = d => { if (!d) return null; return Math.floor((new Date() - new Date(d+'T12:00:00')) / 86400000) }
+const parseCost = s => { if(!s)return 0; const c=String(s).replace(/[$,\s]/g,'').toLowerCase(); if(c.endsWith('k'))return parseFloat(c)*1000||0; if(c.endsWith('m'))return parseFloat(c)*1000000||0; return parseFloat(c)||0 }
+const fmtSpend = n => { if(!n)return '$0'; if(n>=1000000)return `$${(n/1000000).toFixed(1).replace(/\.0$/,'')}M`; if(n>=1000)return `$${n.toLocaleString()}`; return `$${n}` }
 const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()
 const calcDetailedHealthScore = acct => {
   const ov = acct.healthScoreOverrides || {}
@@ -154,11 +156,11 @@ const SAMPLE = {
       {id:'t8',vendor:'Wiz',products:'CSPM / Cloud Security Posture',category:'Cloud Security',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Post-Qualys CSPM gap since May 2025. Integrates well with Google SecOps. Favorable Google pricing. Internal DAST vs CSPM confusion needs resolving first.'}
     ],
     projects:[
-      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
+      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
       {id:'p2',name:'NetSpy PTaaS',category:'Pen Test / Red Team',vendor:'NetSpy',status:'In Discussion',description:'Cost-effective pen testing alternative to Mandiant. GuidePoint facilitating and capturing the paper.',goals:'Annual PTaaS with fast results and real manual testing.',pains:'Mandiant too expensive. Need off-year pen test solution.',primaryContact:'Rudy Montoya',budget:true,closeDate:'2026-06-30',notes:'Richard Booth is vendor rep. Wants to go direct — push through GuidePoint to control pricing and negotiation.',timeline:STAGES.map((s,i)=>({stage:s,status:i<3?'completed':i===3?'current':'pending',date:i===0?'2026-05-01':i===1?'2026-05-10':i===2?'2026-05-15':'' }))},
       {id:'p3',name:'Horizon 3 ASM',category:'ASM',vendor:'Horizon 3',status:'In Discussion',description:'Attack surface management. Jamie has budget allocated. Preferred over Pentera after poor Pentera engagement.',goals:'Continuous ASM separate from PTaaS — separation of duties.',pains:'No continuous attack-path tracking since Qualys terminated May 2025.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-09-01',notes:'Confirm scope with Bill. NetSpy for PTaaS, Horizon 3 for ASM.',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'completed':i===1?'current':'pending',date:i===0?'2026-04-01':'' }))},
       {id:'p4',name:'Saviynt to SailPoint IGA',category:'IGA',vendor:'SailPoint',status:'Not Started',description:'Replace failing Saviynt IGA with SailPoint. Jamie Dennis reached out on Saviynt contract 5/19.',goals:'Functioning IGA covering all 10 target systems not just 3.',pains:'Saviynt only completed 3 of 10 systems. Entire team hates the platform.',primaryContact:'Jamie Dennis',budget:false,closeDate:'',notes:'Get Saviynt contract renewal date. Jamie Dennis must be aligned for deployment to succeed.',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'current':'pending',date:'' }))},
-      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
+      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
     ],
     interactions:[
       {id:'i1',contact:'Rudy Montoya',type:'Call',date:'2026-05-19',duration:45,topics:'NetSpy PTaaS, Horizon 3 ASM, Optiv restructure, Google SecOps frustrations, Saviynt contract',summary:'Wide-ranging strategy call. Pen testing vendor selection, Optiv Services LLC chaos with Chris and Andy, Google SecOps missing basic reporting.'}
@@ -412,6 +414,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const [summaryLoading,setSummaryLoading] = useState(false)
   const [summaryError,setSummaryError] = useState(null)
+  const [showSpendModal,setShowSpendModal] = useState(false)
 
   useEffect(()=>{
     const now=new Date()
@@ -525,6 +528,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
 
   const inFlight = acct.projects.filter(p=>p.status==='In Flight').length
   const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
+  const totalAnnualSpend = (acct.techStack||[]).reduce((s,t)=>s+parseCost(t.cost),0)
 
   const InfoRow = ({label,val}) => (
     <div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13,gap:12}}>
@@ -630,7 +634,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(6,1fr)',gap:8,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(auto-fit,minmax(140px,1fr))',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
           style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
@@ -694,9 +698,77 @@ function Overview({acct,setAcct,setTab,apiKey}) {
             </div>
           )
         })}
+        {/* Annual Spend card */}
+        {(()=>{
+          const isHov=hoveredCard==='ANNUAL SPEND'
+          return (
+            <div
+              onClick={()=>setShowSpendModal(true)}
+              onMouseEnter={()=>setHoveredCard('ANNUAL SPEND')}
+              onMouseLeave={()=>setHoveredCard(null)}
+              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderLeft:'3px solid #7c3aed',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(124,58,237,0.4)':S.bdr}`,borderLeft:'3px solid #7c3aed',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
+              {S.isLight?(
+                <>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
+                  <div style={{fontSize:totalAnnualSpend>0?26:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                </>
+              ):(
+                <>
+                  <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
+                  <div style={{fontSize:totalAnnualSpend>0?20:32,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                </>
+              )}
+            </div>
+          )
+        })()}
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
+      {showSpendModal&&(()=>{
+        const rows=(acct.techStack||[]).map(t=>({...t,_cost:parseCost(t.cost),_rev:parseCost(t.totalRevenue),_gp:parseCost(t.grossProfit)})).filter(t=>t._cost||t._rev||t._gp).sort((a,b)=>b._cost-a._cost)
+        const totCost=rows.reduce((s,t)=>s+t._cost,0)
+        const totRev=rows.reduce((s,t)=>s+t._rev,0)
+        const totGP=rows.reduce((s,t)=>s+t._gp,0)
+        const gpPct=totRev>0?(totGP/totRev*100).toFixed(1)+'%':'—'
+        return(
+          <Modal title={`Technology Spend — ${acct.name}`} onClose={()=>setShowSpendModal(false)} width='min(900px,65vw)'>
+            {rows.length===0
+              ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No costs entered yet. Add annual costs in the Tech Stack tab.</div>
+              :<>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}}>
+                  {[{label:'Total Annual Spend',val:fmtSpend(totCost),c:'#7c3aed'},{label:'Total Revenue',val:totRev>0?fmtSpend(totRev):'—',c:'#2563eb'},{label:'Total Gross Profit',val:totGP>0?fmtSpend(totGP):'—',c:'#16a34a'},{label:'GP%',val:gpPct,c:totRev>0&&totGP/totRev>=0.3?'#16a34a':'#ea580c'}].map(card=>(
+                    <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
+                      <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'7px 14px',fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',background:S.surf2,borderBottom:`1px solid ${S.bdr}`}}>
+                    <div>Vendor</div><div>Category</div><div style={{textAlign:'right'}}>Annual Cost</div><div style={{textAlign:'right'}}>Revenue</div><div style={{textAlign:'right'}}>Gross Profit</div><div style={{textAlign:'right'}}>GP%</div>
+                  </div>
+                  {rows.map((t,i)=>{
+                    const gp=t._rev>0?(t._gp/t._rev*100).toFixed(1)+'%':'—'
+                    return(
+                      <div key={t.id||i} style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'8px 14px',borderBottom:i<rows.length-1?`1px solid ${S.bdr}`:'none',fontSize:12,color:S.txt,alignItems:'center'}}>
+                        <div style={{fontWeight:600}}>{t.vendor}</div>
+                        <div style={{color:S.muted,fontSize:11}}>{t.category}</div>
+                        <div style={{textAlign:'right'}}>{t._cost>0?fmtSpend(t._cost):'—'}</div>
+                        <div style={{textAlign:'right',color:S.muted}}>{t._rev>0?fmtSpend(t._rev):'—'}</div>
+                        <div style={{textAlign:'right',color:S.muted}}>{t._gp>0?fmtSpend(t._gp):'—'}</div>
+                        <div style={{textAlign:'right',color:S.muted}}>{gp}</div>
+                      </div>
+                    )
+                  })}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'8px 14px',fontSize:12,fontWeight:700,color:S.txt,background:S.surf2,borderTop:`1px solid ${S.bdr}`}}>
+                    <div>Total</div><div/><div style={{textAlign:'right'}}>{fmtSpend(totCost)}</div><div style={{textAlign:'right'}}>{totRev>0?fmtSpend(totRev):'—'}</div><div style={{textAlign:'right'}}>{totGP>0?fmtSpend(totGP):'—'}</div><div style={{textAlign:'right'}}>{gpPct}</div>
+                  </div>
+                </div>
+              </>
+            }
+          </Modal>
+        )
+      })()}
       {alerts.length>0&&(
         <div style={{marginBottom:20}}>
           <div style={S.isLight?{background:'#ffffff',borderRadius:12,border:`1px solid ${visibleAlerts.length===0?'#bbf7d0':'#fecaca'}`,boxShadow:visibleAlerts.length===0?'0 2px 8px rgba(22,163,74,0.08)':'0 2px 8px rgba(220,38,38,0.08)',overflow:'hidden'}:{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
@@ -2252,7 +2324,7 @@ function TechStack({acct,setAcct}) {
   }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:''}
+  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:''}
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
@@ -2391,6 +2463,7 @@ function TechStack({acct,setAcct}) {
                         {t.vendorRep&&<span>Rep: {t.vendorRep}</span>}
                         {t.cost&&<span>Cost: {t.cost}</span>}
                       </div>
+                      {(t.totalRevenue||t.grossProfit)&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>Rev: {t.totalRevenue||'—'} | GP: {t.grossProfit||'—'}</div>}
                       {t.notes&&<div style={{fontSize:12,color:S.secondary,marginTop:4}}>{t.notes}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,flexShrink:0}}>
@@ -2707,8 +2780,12 @@ function TechStack({acct,setAcct}) {
           <Field label='Products / Features' value={form.products} onChange={f('products')} style={{gridColumn:'span 2'}}/>
           <Field label='Category' value={form.category} onChange={f('category')} options={TECH_CATS}/>
           <Field label='Status' value={form.status} onChange={f('status')} options={TECH_STATS}/>
-          <Field label='Contract Renewal Date' value={form.renewalDate} onChange={f('renewalDate')} type='date'/>
-          <Field label='Annual Cost' value={form.cost} onChange={f('cost')}/>
+          <Field label='Contract Renewal Date' value={form.renewalDate} onChange={f('renewalDate')} type='date' style={{gridColumn:'span 2'}}/>
+          <div style={{gridColumn:'span 2',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 12px'}}>
+            <Field label='Annual Cost (Client Pays)' value={form.cost} onChange={f('cost')} placeholder='e.g. $50,000'/>
+            <Field label='Total Revenue (GP Books)' value={form.totalRevenue||''} onChange={f('totalRevenue')} placeholder='e.g. $50,000'/>
+            <Field label='Gross Profit' value={form.grossProfit||''} onChange={f('grossProfit')} placeholder='e.g. $15,000'/>
+          </div>
           <Field label='Vendor Rep Name' value={form.vendorRep} onChange={f('vendorRep')}/>
           <Field label='Vendor Rep Email' value={form.vendorRepEmail} onChange={f('vendorRepEmail')} type='email'/>
           <Field label='Client Owner / User' value={form.clientOwner} onChange={f('clientOwner')} style={{gridColumn:'span 2'}}/>
@@ -2745,7 +2822,7 @@ function Projects({acct,setAcct}) {
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,projects:p.projects.map(j=>j.id===form.id?form:j)}));else setAcct(p=>({...p,projects:[...p.projects,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
-  const toggleStage=(projId,idx)=>{setAcct(p=>({...p,projects:p.projects.map(j=>{if(j.id!==projId)return j;const tl=j.timeline.map((s,i)=>i===idx?{...s,status:s.status==='completed'?'pending':'completed',date:s.status!=='completed'?new Date().toISOString().split('T')[0]:''}:s);return{...j,timeline:tl}})}))}
+  const toggleStage=(projId,idx)=>{setAcct(p=>({...p,projects:p.projects.map(j=>{if(j.id!==projId)return j;const tl=j.timeline.map((s,i)=>{if(i!==idx)return s;const next=s.status==='pending'?'current':s.status==='current'?'completed':'pending';return{...s,status:next,date:next==='pending'?'':new Date().toISOString().split('T')[0]};});return{...j,timeline:tl}})}))}
   const updateField=(projId,field,val)=>{setAcct(p=>({...p,projects:p.projects.map(j=>j.id===projId?{...j,[field]:val}:j)}))}
   const moveStatus=(projId,newStatus)=>{updateField(projId,'status',newStatus);setMoveMenu(null);setStatusMenu(null)}
   const openEdit=(p,e)=>{if(e)e.stopPropagation();setForm({...blank,...p});setShowAdd(true)}
@@ -2912,16 +2989,21 @@ function Projects({acct,setAcct}) {
             </div>
             <div style={{padding:'0 14px 14px'}}>
               <div style={{display:'flex',gap:2,marginBottom:8}}>
-                {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?S.green:stage.status==='current'?S.blue:S.bdr;return(<div key={i} onClick={e=>{e.stopPropagation();toggleStage(p.id,i)}} style={{flex:1,height:7,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.2s'}} title={stage.stage+(stage.date?' - '+fmtDate(stage.date):'')+' (click to toggle)'}/>)})}
+                {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#e2e8f0';return(<div key={i} onClick={e=>{e.stopPropagation();toggleStage(p.id,i)}} style={{flex:1,height:7,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.2s'}} title={stage.stage+(stage.date?' - '+fmtDate(stage.date):'')+' (click to toggle)'}/>)})}
               </div>
               <div style={{display:'grid',gridTemplateColumns:`repeat(${p.timeline.length},1fr)`,gap:2}}>
                 {p.timeline.map((stage,i)=>{
-                  const c=stage.status==='completed'?S.green:stage.status==='current'?S.blue:S.dim
+                  const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#94a3b8'
                   return (<div key={i} style={{textAlign:'center'}}>
-                    <div style={{fontSize:9,color:c,fontWeight:stage.status!=='pending'?600:400,lineHeight:1.3,wordBreak:'break-word'}}>{stage.stage}{stage.status==='completed'?' ✓':''}</div>
+                    <div style={{fontSize:9,color:c,fontWeight:stage.status!=='pending'?600:400,lineHeight:1.3,wordBreak:'break-word'}}>{stage.stage}{stage.status==='completed'?' ✓':stage.status==='current'?' ●':''}</div>
                     {stage.status==='completed'&&stage.date&&<div style={{fontSize:8,color:S.muted,marginTop:1,lineHeight:1.2}}>{fmtDate(stage.date)}</div>}
                   </div>)
                 })}
+              </div>
+              <div style={{display:'flex',gap:12,marginTop:6,fontSize:10,color:S.muted}}>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block',flexShrink:0}}/>Completed</span>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block',flexShrink:0}}/>Scheduled / In Progress</span>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#e2e8f0',display:'inline-block',flexShrink:0}}/>Not Started</span>
               </div>
               {open&&<div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:12}}>
                 {/* Quick status action buttons */}
