@@ -5219,6 +5219,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [selectedTask, setSelectedTask] = useState(null)
   const [taskForm, setTaskForm] = useState(null)
   const [taskSnoozeOpen, setTaskSnoozeOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [saveFlash, setSaveFlash] = useState(null)
+  const [todayEditRow, setTodayEditRow] = useState(null)
+  const [todayEditFlash, setTodayEditFlash] = useState(null)
   const lpTodayStr = new Date().toISOString().split('T')[0]
   const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
   const highCriticalFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length, 0)
@@ -5235,6 +5239,31 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const markAllTodayDone = () => {if(!window.confirm(`Mark all ${todayTasksCount} task${todayTasksCount!==1?'s':''} complete?`))return;setData(prev=>({...prev,accounts:prev.accounts.map(a=>({...a,followUps:(a.followUps||[]).map(fu=>fu.status==='Open'&&fu.dueDate&&fu.dueDate<=lpTodayStr?{...fu,status:'Done'}:fu)}))}));setTodayModal(false)}
   const openTaskDetail = (accountId,fu) => { setSelectedTask({accountId}); setTaskForm({...fu}); setTaskSnoozeOpen(false) }
   const closeDetail = () => { setSelectedTask(null); setTaskForm(null); setTaskSnoozeOpen(false) }
+
+  const openEditItem = (type, accountId, item) => {
+    setEditingItem(prev => prev?.itemId===item.id ? null : {type, accountId, itemId:item.id, form:{...item}})
+  }
+  const saveEditItem = () => {
+    if (!editingItem) return
+    const {type, accountId, itemId, form} = editingItem
+    if (type==='followup') setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,followUps:(a.followUps||[]).map(fu=>fu.id===itemId?{...fu,...form}:fu)}:a)}))
+    else if (type==='techstack') setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,techStack:(a.techStack||[]).map(t=>t.id===itemId?{...t,...form}:t)}:a)}))
+    setStatModal(prev=>prev?{...prev,items:prev.items.map(item=>item.id===itemId?{...item,...form}:item)}:null)
+    setSaveFlash(itemId); setTimeout(()=>setSaveFlash(null),1500); setEditingItem(null)
+  }
+  const completeFUInModal = (accountId, itemId) => {
+    setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,followUps:(a.followUps||[]).map(fu=>fu.id===itemId?{...fu,status:'Done'}:fu)}:a)}))
+    setStatModal(prev=>prev?{...prev,items:prev.items.filter(item=>item.id!==itemId)}:null)
+  }
+  const openTodayEdit = (accountId, fu) => {
+    setTodayEditRow(prev=>prev?.fuId===fu.id?null:{accountId,fuId:fu.id,form:{...fu}})
+  }
+  const saveTodayEdit = () => {
+    if (!todayEditRow) return
+    const {accountId,fuId,form} = todayEditRow
+    setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===accountId?{...a,followUps:(a.followUps||[]).map(fu=>fu.id===fuId?{...fu,...form}:fu)}:a)}))
+    setTodayEditFlash(fuId); setTimeout(()=>setTodayEditFlash(null),1500); setTodayEditRow(null)
+  }
   const updateTaskField = (k,v) => {
     if(!taskForm||!selectedTask) return
     const updated={...taskForm,[k]:v}
@@ -5459,7 +5488,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               </div>
               <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:S.isLight?'#2563eb':'#3b82f6',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(3,1fr)',gap:16}}>
+            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':typeof window!=='undefined'&&window.innerWidth>1400?'repeat(4,1fr)':'repeat(3,1fr)',gap:12}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
                 const hc=hs>=70?'#16a34a':hs>=40?'#ea580c':'#dc2626'
@@ -5469,7 +5498,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
                 const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
                 const lastC=acct.lastContact?daysSince(acct.lastContact):null
-                const renewals30=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=30}).length
                 const isHov=hoveredId===acct.id
                 const r=20, circ=2*Math.PI*r, progress=(hs/100)*circ
                 const sc=statusColor[acct.status]||S.muted
@@ -5481,57 +5509,57 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     style={S.isLight?{
                       background:'#ffffff',
                       border:'1px solid #e2e8f0',
-                      borderRadius:14,cursor:'pointer',
+                      borderRadius:10,cursor:'pointer',
                       transform:isHov?'translateY(-3px)':'translateY(0)',
                       boxShadow:isHov?'0 12px 32px rgba(0,0,0,0.12)':'0 2px 8px rgba(0,0,0,0.06)',
                       transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
                     }:{
                       background:'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',
                       border:`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,
-                      borderRadius:14,cursor:'pointer',
+                      borderRadius:10,cursor:'pointer',
                       transform:isHov?'translateY(-2px)':'translateY(0)',
                       boxShadow:isHov?'0 8px 32px rgba(59,130,246,0.15),0 4px 24px rgba(0,0,0,0.4)':'0 4px 24px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.05)',
                       transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
                     }}
                   >
-                    <div style={{padding:S.isLight?'16px 16px 12px':'20px',flex:1}}>
+                    <div style={{padding:S.isLight?'12px 12px 10px':'14px',flex:1}}>
                       {/* Status pill (light mode) or dot (dark mode) */}
                       {S.isLight?(
-                        <div style={{marginBottom:8}}>
+                        <div style={{marginBottom:6}}>
                           <span style={{fontSize:10,fontWeight:700,color:statusPillColor.c,background:statusPillColor.b,borderRadius:999,padding:'2px 8px'}}>{acct.status||'Active'}</span>
                         </div>
                       ):(
-                        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:8}}>
+                        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6}}>
                           <div style={{width:6,height:6,borderRadius:'50%',background:sc,flexShrink:0}}/>
                           <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>{acct.status||'Active'}</span>
                         </div>
                       )}
                       {/* Name + health gauge */}
-                      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:S.isLight?12:14}}>
+                      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#fff',marginBottom:3,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
-                          {acct.industry&&<div style={{fontSize:11,color:S.isLight?'#64748b':'rgba(255,255,255,0.38)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.industry}{acct.hq&&` · ${acct.hq}`}</div>}
+                          <div style={{fontSize:17,fontWeight:900,color:S.isLight?'#0f172a':'#fff',marginBottom:2,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
+                          {acct.industry&&<div style={{fontSize:11,color:S.isLight?'#94a3b8':'rgba(255,255,255,0.38)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.industry}</div>}
                         </div>
                         <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
-                          <svg width={S.isLight?64:52} height={S.isLight?64:52} viewBox="0 0 52 52">
+                          <svg width={52} height={52} viewBox="0 0 52 52">
                             <circle cx="26" cy="26" r={r} fill="none" stroke={S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'} strokeWidth="4"/>
                             <circle cx="26" cy="26" r={r} fill="none" stroke={hc} strokeWidth="4"
                               strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
-                            <text x="26" y="30" textAnchor="middle" fontSize={S.isLight?13:12} fontWeight="800" fill={hc}>{hs}</text>
+                            <text x="26" y="30" textAnchor="middle" fontSize={15} fontWeight="800" fill={hc}>{hs}</text>
                           </svg>
-                          <div style={{fontSize:9,fontWeight:700,color:hc,marginTop:S.isLight?0:2,letterSpacing:'0.04em'}}>{tier}</div>
+                          <div style={{fontSize:9,fontWeight:700,color:hc,marginTop:1,letterSpacing:'0.04em'}}>{tier}</div>
                         </div>
                       </div>
                       {/* Divider */}
-                      <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:12}}/>
+                      <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:10}}/>
                       {/* Stat chips */}
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
                         {[
                           {icon:'📅',label:lastC===null?'No contact':`${lastC}d ago`,c:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'},
                           {icon:'🎯',label:`${activePjs} project${activePjs!==1?'s':''}`,c:S.isLight?'#475569':'rgba(255,255,255,0.55)'},
                           {icon:'☐',label:`${openFUs} open`,c:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')},
                         ].map(chip=>(
-                          <div key={chip.label} style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 9px'}}>
+                          <div key={chip.label} style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
                             <span style={{fontSize:10}}>{chip.icon}</span>
                             <span style={{fontSize:11,fontWeight:600,color:chip.c}}>{chip.label}</span>
                           </div>
@@ -5540,13 +5568,13 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     </div>
                     {/* Alert strip at bottom for critical items (light mode) */}
                     {S.isLight&&critFUs>0&&(
-                      <div style={{padding:'6px 16px',background:'#fef2f2',borderTop:'1px solid #fecaca',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
-                        <span style={{color:'#dc2626',fontSize:12}}>⚠</span>
+                      <div style={{padding:'4px 12px',background:'#fef2f2',borderTop:'1px solid #fecaca',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                        <span style={{color:'#dc2626',fontSize:11}}>⚠</span>
                         <span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span>
                       </div>
                     )}
                     {/* Bottom strip in dark mode */}
-                    {!S.isLight&&<div style={{height:3,background:critFUs>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)',borderRadius:'0 0 14px 14px'}}/>}
+                    {!S.isLight&&<div style={{height:3,background:critFUs>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)',borderRadius:'0 0 10px 10px'}}/>}
                   </div>
                 )
               })}
@@ -5571,7 +5599,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   if(txt){txt.style.color='#94a3b8'}
                   if(label){label.style.color='#64748b'}
                 }}
-                style={{background:S.isLight?'#ffffff':'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':S.bdr}`,borderRadius:14,padding:20,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,minHeight:190,transition:'all 0.2s'}}>
+                style={{background:S.isLight?'#ffffff':'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':S.bdr}`,borderRadius:10,padding:14,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:160,transition:'all 0.2s'}}>
                 <div className="add-icon-circle" style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}>
                   <span className="add-icon-text" style={{fontSize:22,color:'#94a3b8',lineHeight:1,transition:'color 0.2s'}}>+</span>
                 </div>
@@ -5672,19 +5700,54 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         const p=PC[fu.priority]||PC.Low
                         const isOverdue=fu.dueDate<lpTodayStr
                         const daysOver=isOverdue?Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000):0
+                        const isEditingThis = todayEditRow?.fuId===fu.id
                         return (
-                          <div key={fu.id} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 20px',borderLeft:`3px solid ${p.c}`,marginLeft:20,borderBottom:`1px solid ${S.bdr}22`}}>
-                            <button onClick={()=>markTaskDone(g.account.id,fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} title='Mark complete'/>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
-                                <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
-                                <Badge label={fu.priority} color={p.c} bg={p.b}/>
-                                {isOverdue&&<Badge label={`${daysOver}d overdue`} color={S.red} bg='rgba(239,68,68,0.12)'/>}
-                                {!isOverdue&&<Badge label='Due Today' color={S.orange} bg='rgba(249,115,22,0.12)'/>}
+                          <div key={fu.id}>
+                            <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 20px',borderLeft:`3px solid ${p.c}`,marginLeft:20,borderBottom:isEditingThis?'none':`1px solid ${S.bdr}22`}}>
+                              <button onClick={()=>markTaskDone(g.account.id,fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} title='Mark complete'/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
+                                  <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
+                                  <Badge label={fu.priority} color={p.c} bg={p.b}/>
+                                  {isOverdue&&<Badge label={`${daysOver}d overdue`} color={S.red} bg='rgba(239,68,68,0.12)'/>}
+                                  {!isOverdue&&<Badge label='Due Today' color={S.orange} bg='rgba(249,115,22,0.12)'/>}
+                                </div>
+                                {fu.contact&&<div style={{fontSize:11,color:S.muted}}>{fu.contact}</div>}
                               </div>
-                              {fu.contact&&<div style={{fontSize:11,color:S.muted}}>{fu.contact}</div>}
+                              <div style={{display:'flex',gap:5,flexShrink:0}}>
+                                {todayEditFlash===fu.id&&<span style={{fontSize:11,color:S.green,fontWeight:700,alignSelf:'center'}}>Saved!</span>}
+                                <button onClick={()=>openTaskDetail(g.account.id,fu)} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
+                                <button onClick={e=>{e.stopPropagation();openTodayEdit(g.account.id,fu)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏ Edit</button>
+                              </div>
                             </div>
-                            <button onClick={()=>openTaskDetail(g.account.id,fu)} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>View →</button>
+                            {isEditingThis&&todayEditRow&&(
+                              <div style={{margin:'0 20px 8px 43px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:12}}>
+                                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                                  <div style={{gridColumn:'span 2'}}>
+                                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Task</div>
+                                    <textarea value={todayEditRow.form.task||''} onChange={e=>setTodayEditRow(r=>({...r,form:{...r.form,task:e.target.value}}))} rows={2} style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,resize:'none',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.4}}/>
+                                  </div>
+                                  <div>
+                                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Priority</div>
+                                    <select value={todayEditRow.form.priority||'High'} onChange={e=>setTodayEditRow(r=>({...r,form:{...r.form,priority:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 6px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt}}>
+                                      {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Due Date</div>
+                                    <input type='date' value={todayEditRow.form.dueDate||''} onChange={e=>setTodayEditRow(r=>({...r,form:{...r.form,dueDate:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 6px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                                  </div>
+                                  <div style={{gridColumn:'span 2'}}>
+                                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Contact</div>
+                                    <input value={todayEditRow.form.contact||''} onChange={e=>setTodayEditRow(r=>({...r,form:{...r.form,contact:e.target.value}}))} placeholder='Contact name...' style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                                  </div>
+                                </div>
+                                <div style={{display:'flex',gap:6}}>
+                                  <button onClick={saveTodayEdit} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
+                                  <button onClick={()=>setTodayEditRow(null)} style={{padding:'5px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -5721,7 +5784,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {/* Stat detail modal */}
       {statModal&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:mob?'stretch':'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}}
-          onClick={()=>setStatModal(null)}>
+          onClick={()=>{setStatModal(null);setEditingItem(null)}}>
           <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:`3px solid ${statModal.color}`,borderRadius:mob?0:12,width:'100%',maxWidth:mob?'100%':860,height:mob?'100%':'auto',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
             onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
@@ -5729,47 +5792,117 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 <span style={{fontSize:16,fontWeight:700,color:statModal.color}}>{statModal.label}</span>
                 <span style={{fontSize:13,color:S.muted,marginLeft:10}}>{statModal.items.length} item{statModal.items.length!==1?'s':''}</span>
               </div>
-              <button onClick={()=>setStatModal(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+              <button onClick={()=>{setStatModal(null);setEditingItem(null)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
             </div>
             <div style={{overflow:'auto',flex:1,padding:'4px 0'}}>
               {statModal.items.length===0&&<div style={{padding:'32px 20px',textAlign:'center',color:S.muted,fontSize:13}}>No items in this category.</div>}
               {(statModal.type==='followups'||statModal.type==='critical')&&statModal.items.map((item,i)=>{
                 const p=PC[item.priority]||PC.Low
                 const d=item.dueDate?daysUntil(item.dueDate):null
-                const urgLabel=statModal.type==='critical'&&d!==null?(d<0?`${Math.abs(d)}d overdue`:d===0?'Today':d===1?'Tomorrow':`In ${d}d`):null
+                const urgLabel=d!==null?(d<0?`${Math.abs(d)}d overdue`:d===0?'Today':d===1?'Tomorrow':`In ${d}d`):null
                 const urgColor=d!==null&&d<0?PC.Critical.c:d===0?PC.High.c:PC.Medium.c
+                const isEditingThis = editingItem?.itemId===item.id
+                const ef = isEditingThis ? editingItem.form : null
                 return (
-                  <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
-                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',borderLeft:`3px solid ${p.c}44`,transition:'background 0.1s'}}
-                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.task}</div>
-                      <div style={{fontSize:11,color:S.muted}}>{item.contact&&<span>{item.contact} · </span>}{d!==null&&<span style={{color:d<0?S.red:S.muted}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
+                  <div key={item.id||i}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 16px',borderBottom:isEditingThis?'none':`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`}}>
+                      <button onClick={()=>completeFUInModal(item.accountId,item.id)} title='Mark complete'
+                        style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}}/>
+                      <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.task}</div>
+                        <div style={{fontSize:11,color:S.muted}}>{item.contact&&<span>{item.contact} · </span>}{d!==null&&<span style={{color:d<0?S.red:S.muted}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
+                      </div>
+                      {urgLabel&&<span style={{fontSize:11,fontWeight:700,color:urgColor,background:S.isLight?urgColor+'15':urgColor+'22',borderRadius:5,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0,border:`1px solid ${urgColor}33`}}>{urgLabel}</span>}
+                      <Badge label={item.priority} color={p.c} bg={p.b}/>
+                      <div style={{display:'flex',gap:5,flexShrink:0}}>
+                        {saveFlash===item.id&&<span style={{fontSize:11,color:S.green,fontWeight:700,alignSelf:'center'}}>Saved!</span>}
+                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
+                        <button onClick={()=>openEditItem('followup',item.accountId,item)} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏</button>
+                      </div>
                     </div>
-                    {urgLabel&&<span style={{fontSize:11,fontWeight:700,color:urgColor,background:S.isLight?urgColor+'15':urgColor+'22',borderRadius:5,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0,border:`1px solid ${urgColor}33`}}>{urgLabel}</span>}
-                    <Badge label={item.priority} color={p.c} bg={p.b}/>
+                    {isEditingThis&&ef&&(
+                      <div style={{margin:'0 16px 8px 47px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:12}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                          <div style={{gridColumn:'span 2'}}>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Task</div>
+                            <textarea value={ef.task||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,task:e.target.value}}))} rows={2} style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,resize:'none',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.4}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Priority</div>
+                            <select value={ef.priority||'High'} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,priority:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 6px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt}}>
+                              {['Critical','High','Medium','Low'].map(o=><option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Due Date</div>
+                            <input type='date' value={ef.dueDate||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,dueDate:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 6px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                          <div style={{gridColumn:'span 2'}}>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Contact</div>
+                            <input value={ef.contact||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,contact:e.target.value}}))} placeholder='Contact name...' style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:6}}>
+                          <button onClick={saveEditItem} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
+                          <button onClick={()=>setEditingItem(null)} style={{padding:'5px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
               {statModal.type==='renewals'&&statModal.items.map((item,i)=>{
                 const dc=item.daysLeft<30?S.red:item.daysLeft<60?S.orange:S.yellow
+                const isEditingThis = editingItem?.itemId===item.id
+                const ef = isEditingThis ? editingItem.form : null
                 return (
-                  <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
-                    style={{display:'flex',alignItems:'center',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s'}}
-                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.vendor}</div>
-                      {item.products&&<div style={{fontSize:11,color:S.muted}}>{item.products}</div>}
+                  <div key={item.id||i}>
+                    <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:isEditingThis?'none':`1px solid ${S.bdr}`}}>
+                      <button onClick={()=>setStatModal(prev=>prev?{...prev,items:prev.items.filter(it=>it.id!==item.id)}:null)} title='Acknowledge'
+                        style={{width:18,height:18,borderRadius:4,border:`2px solid ${dc}`,background:'transparent',flexShrink:0,cursor:'pointer'}} title='Acknowledge renewal'/>
+                      <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.vendor}</div>
+                        {item.products&&<div style={{fontSize:11,color:S.muted}}>{item.products}</div>}
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontSize:14,fontWeight:700,color:dc}}>{item.daysLeft}d</div>
+                        <div style={{fontSize:11,color:S.muted}}>{fmtDate(item.renewalDate)}</div>
+                        {item.cost&&<div style={{fontSize:11,color:S.muted}}>{item.cost}</div>}
+                      </div>
+                      <div style={{display:'flex',gap:5,flexShrink:0}}>
+                        {saveFlash===item.id&&<span style={{fontSize:11,color:S.green,fontWeight:700}}>Saved!</span>}
+                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
+                        <button onClick={()=>openEditItem('techstack',item.accountId,item)} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏</button>
+                      </div>
                     </div>
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      <div style={{fontSize:14,fontWeight:700,color:dc}}>{item.daysLeft}d</div>
-                      <div style={{fontSize:11,color:S.muted}}>{fmtDate(item.renewalDate)}</div>
-                      {item.cost&&<div style={{fontSize:11,color:S.muted}}>{item.cost}</div>}
-                    </div>
+                    {isEditingThis&&ef&&(
+                      <div style={{margin:'0 16px 8px 48px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:12}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                          <div style={{gridColumn:'span 2'}}>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Vendor</div>
+                            <input value={ef.vendor||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,vendor:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Renewal Date</div>
+                            <input type='date' value={ef.renewalDate||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,renewalDate:e.target.value}}))} style={{width:'100%',fontSize:12,padding:'5px 6px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Annual Cost</div>
+                            <input value={ef.cost||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,cost:e.target.value}}))} placeholder='e.g. $24,000' style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,boxSizing:'border-box'}}/>
+                          </div>
+                          <div style={{gridColumn:'span 2'}}>
+                            <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',marginBottom:3}}>Notes</div>
+                            <textarea value={ef.notes||''} onChange={e=>setEditingItem(ei=>({...ei,form:{...ei.form,notes:e.target.value}}))} rows={2} style={{width:'100%',fontSize:12,padding:'5px 8px',background:'#fff',border:'1px solid #bfdbfe',borderRadius:5,color:S.txt,resize:'none',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.4}}/>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:6}}>
+                          <button onClick={saveEditItem} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
+                          <button onClick={()=>setEditingItem(null)} style={{padding:'5px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
