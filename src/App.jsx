@@ -94,6 +94,37 @@ const calcHealthScore = acct => calcDetailedHealthScore(acct).total
 const getQuickWin = acct => { const overdue=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)<0).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate)); if(overdue.length>0){const fu=overdue[0];const days=Math.abs(daysUntil(fu.dueDate));return{title:fu.task,meta:`Overdue by ${days} day${days!==1?'s':''}`,cta:'Go to Follow-Ups',tab:'followups',color:S.red}} const renew=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).sort((a,b)=>daysUntil(a.renewalDate)-daysUntil(b.renewalDate)); if(renew.length>0){const t=renew[0];const d=daysUntil(t.renewalDate);return{title:`${t.vendor} renewal in ${d} day${d!==1?'s':''}`,meta:fmtDate(t.renewalDate)+(t.notes?' — '+t.notes.slice(0,70):''),cta:'Go to Tech Stack',tab:'stack',color:S.orange}} const stalled=(acct.projects||[]).filter(p=>p.status==='Stalled'); if(stalled.length>0){const p=stalled[0];return{title:p.name,meta:`Stalled project${p.waitingOn?' — Waiting on: '+p.waitingOn:' — no next action defined'}`,cta:'Go to Projects',tab:'projects',color:S.yellow}} return null }
 const globalSearch = (data, query) => { if(!query||!query.trim()||query.length<2)return []; const q=query.toLowerCase(); const results=[]; (data.accounts||[]).forEach(acct=>{const an=acct.short||acct.name; (acct.contacts||[]).filter(c=>`${c.name} ${c.title}`.toLowerCase().includes(q)).slice(0,3).forEach(c=>results.push({accountId:acct.id,accountName:an,category:'Contacts',label:c.name,sublabel:c.title,tab:'contacts'})); (acct.projects||[]).filter(p=>`${p.name} ${p.vendor||''}`.toLowerCase().includes(q)).slice(0,3).forEach(p=>results.push({accountId:acct.id,accountName:an,category:'Projects',label:p.name,sublabel:p.vendor,tab:'projects'})); (acct.techStack||[]).filter(t=>t.vendor.toLowerCase().includes(q)).slice(0,3).forEach(t=>results.push({accountId:acct.id,accountName:an,category:'Tech Stack',label:t.vendor,sublabel:t.products,tab:'stack'})); (acct.intelLog||[]).filter(e=>(e.summary||'').toLowerCase().includes(q)||(e.participants||'').toLowerCase().includes(q)).slice(0,2).forEach(e=>results.push({accountId:acct.id,accountName:an,category:'Intel',label:(e.summary||'').slice(0,55)+((e.summary||'').length>55?'…':''),sublabel:fmtDate(e.date),tab:'intel'})) }); return results }
 
+// Shared retry wrapper for all Anthropic API calls — handles rate limits and overload
+const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
+  // Throttle: maintain at least 2s between calls to avoid bursting
+  const lastCall = window._lastAnthropicCall||0
+  const wait = 2000-(Date.now()-lastCall)
+  if (wait>0) await new Promise(r=>setTimeout(r,wait))
+  for (let attempt=0; attempt<maxRetries; attempt++) {
+    window._lastAnthropicCall = Date.now()
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify(body)
+    })
+    const data = await res.json()
+    const overloaded = data.error?.type==='overloaded_error'||res.status===529||res.status===429
+    if (overloaded) {
+      if (attempt<maxRetries-1) {
+        const delay = Math.pow(2,attempt)*2000
+        console.log(`[Claude] Overloaded — retrying in ${delay}ms (attempt ${attempt+1}/${maxRetries})`)
+        if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay/1000)}s… (${attempt+2}/${maxRetries})`)
+        await new Promise(r=>setTimeout(r,delay))
+        continue
+      }
+      throw new Error('OVERLOADED')
+    }
+    if (onStatus) onStatus(null)
+    return {res,data}
+  }
+  throw new Error('OVERLOADED')
+}
+
 const SAMPLE = {
   apiKey: '',
   accounts: [{
@@ -579,9 +610,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       if (critAlerts.length>0) { ctx+=`\nCRITICAL ALERTS:\n`; critAlerts.forEach(a=>{ctx+=`- ${a.text}\n`}) }
       const sys = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. Generate a concise, actionable account briefing based on the data provided. Write in second person (you/your). Be direct and specific — no filler language. Focus on what matters RIGHT NOW for a client manager to know before engaging with this account.`
       const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response EXACTLY like this:\n\n**SUMMARY**\n[3 sentences max. Sentence 1: current relationship state and most recent activity. Sentence 2: biggest active opportunity or risk. Sentence 3: most important upcoming item or deadline. Be specific, use names and dates.]\n\n**WHAT'S HAPPENING NOW**\n[2 bullet points max, one sentence each]\n\n**WHAT'S COMING UP**\n[2 bullet points max, one sentence each]\n\n**WATCH LIST**\n[2 bullet points max, one sentence each]\n\n**MOMENTUM ITEMS**\n[2 bullet points max, one sentence each]\n\n**RECOMMENDED NEXT MOVE**\n[1 sentence. The single most important action. Start with a verb.]\n\nNo preamble, no filler.`
-      const res = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:usr}]})})
-      if (!res.ok) throw new Error('api')
-      const json = await res.json()
+      const {data:json} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:usr}]}, effectiveKey, null)
+      if (json.error) throw new Error('api')
       const content = json.content?.[0]?.text||''
       setAcct(prev=>({...prev,aiSummary:{content,generatedAt:new Date().toISOString()}}))
     } catch { setSummaryError('api_error') } finally { setSummaryLoading(false) }
@@ -3420,17 +3450,15 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose, initialMessages=[], 
         role: m.role,
         content: i===firstUserIdx ? `Here is the account data:\n\n${buildContext()}\n\nQuestion: ${m.content}` : m.content
       }))
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:2000, system:SYSTEM_PROMPT, messages:apiMessages})
-      })
-      const data = await res.json()
-      if(data.error) throw new Error(data.error.message)
+      const {data} = await callClaudeWithRetry(
+        {model:'claude-sonnet-4-6', max_tokens:2000, system:SYSTEM_PROMPT, messages:apiMessages},
+        effectiveKey, null
+      )
+      if(data.error) throw new Error(data.error.type==='overloaded_error'?'Anthropic API is busy. Please wait 30 seconds and try again.':data.error.message)
       const aiText = data.content?.[0]?.text || 'No response received.'
       setMessages(prev=>[...prev, {id:uid(), role:'assistant', content:aiText, timestamp:new Date()}])
     } catch(e) {
-      setError(e.message || 'API error. Check your API key in Settings.')
+      setError(e.message==='OVERLOADED'?'Anthropic API is busy. Please wait 30 seconds and try again.':(e.message || 'API error. Check your API key in Settings.'))
     }
     setLoading(false)
   }
@@ -3718,6 +3746,7 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [dateModalIsFile, setDateModalIsFile] = useState(false)
   const [pdfAnalysisMethod, setPdfAnalysisMethod] = useState('')
   const [pendingDate, setPendingDate] = useState('')
+  const [retryStatus, setRetryStatus] = useState('')
 
   const FILE_CHAR_LIMIT = 100000
   const MANUAL_CHAR_LIMIT = 40000
@@ -3860,16 +3889,14 @@ function IntelLog({acct,setAcct,apiKey}) {
       setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
     }
 
+    const onStatus = msg => { if(msg) setRetryStatus(msg); else setRetryStatus('') }
+
     const callTextApi = async (inputText, method) => {
-      const res2 = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,
-          system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
-          messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date)}\n\nDOCUMENT TEXT:\n${inputText}`}]
-        })
-      })
-      const d2 = await res2.json()
+      const {data:d2} = await callClaudeWithRetry({
+        model:'claude-sonnet-4-6', max_tokens:4000,
+        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
+        messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date)}\n\nDOCUMENT TEXT:\n${inputText}`}]
+      }, effectiveKey, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
       const raw2 = (d2.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
@@ -3909,15 +3936,13 @@ function IntelLog({acct,setAcct,apiKey}) {
         // Image: direct vision API only
         const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
         const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
-        const res = await fetch('https://api.anthropic.com/v1/messages',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-          body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,messages:[{role:'user',content:[
+        const {data} = await callClaudeWithRetry({
+          model:'claude-sonnet-4-6', max_tokens:4000,
+          messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
             {type:'text',text:FILE_INTEL_PROMPT(date)}
-          ]}]})
-        })
-        const data = await res.json()
+          ]}]
+        }, effectiveKey, onStatus)
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
         console.log('[Image] Error details:', data.error)
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
@@ -3935,15 +3960,13 @@ function IntelLog({acct,setAcct,apiKey}) {
             const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
             const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
             if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
-            const res = await fetch('https://api.anthropic.com/v1/messages',{
-              method:'POST',
-              headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-              body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,messages:[{role:'user',content:[
+            const {data} = await callClaudeWithRetry({
+              model:'claude-sonnet-4-6', max_tokens:4000,
+              messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:FILE_INTEL_PROMPT(date)}
-              ]}]})
-            })
-            const data = await res.json()
+              ]}]
+            }, effectiveKey, onStatus)
             console.log('[Direct PDF] Claude API response:', JSON.stringify(data, null, 2))
             console.log('[Direct PDF] Error details:', data.error)
             if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
@@ -3961,8 +3984,9 @@ function IntelLog({acct,setAcct,apiKey}) {
       }
     } catch(e) {
       const msg = e.message||'Processing failed.'
-      setError(msg.includes('API_ERROR')||msg.includes(':') ? `Analysis failed: ${msg}` : `Could not analyze this file. ${msg}`)
-    } finally { clearTimeout(longTimer); setProcessingLong(false) }
+      if (msg==='OVERLOADED') setError('Anthropic API is busy right now. Please wait 30 seconds and try again.')
+      else setError(msg.includes(':') ? `Analysis failed: ${msg}` : `Could not analyze this file. ${msg}`)
+    } finally { clearTimeout(longTimer); setProcessingLong(false); setRetryStatus('') }
     setLoading(false)
   }
 
@@ -3996,16 +4020,13 @@ function IntelLog({acct,setAcct,apiKey}) {
 
   const process = async (date, textOverride) => {
     const inputText = textOverride !== undefined ? textOverride : text
-    setLoading(true);setError('');setResult(null);setProcessingLong(false)
+    setLoading(true);setError('');setResult(null);setProcessingLong(false);setRetryStatus('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-6',max_tokens:8000,
-          system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per insights/risks/opportunities arrays. No markdown, no explanation.',
-          messages:[{role:'user',content:`Extract intelligence and return JSON:
+      const {data} = await callClaudeWithRetry({
+        model:'claude-sonnet-4-6',max_tokens:8000,
+        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per insights/risks/opportunities arrays. No markdown, no explanation.',
+        messages:[{role:'user',content:`Extract intelligence and return JSON:
 
 FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Be aggressive about consolidation — if multiple related actions involve the same topic, vendor, or outcome, combine them into a single task. For example if the transcript mentions updating a quote, adding a module, hitting a price target, and sending to a contact, that is ONE follow-up not four. Each task should be a complete actionable sentence that captures all the context needed. Only include follow-ups that are genuinely time-sensitive or critical to the deal or relationship. Skip anything vague, aspirational, or not clearly actionable. If there are fewer than 3 truly important follow-ups return fewer — do not pad to reach 3. Priority: Critical for hard deadlines or deal blockers, High for relationship or project momentum, Medium for everything else.
 
@@ -4018,10 +4039,8 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Be aggressive about con
 
 INPUT:
 ${inputText}`}]
-        })
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error.message)
+      }, effectiveKey, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
+      if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
       const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
       const parsed = JSON.parse(raw)
       if (parsed.newFollowUps?.length) {
@@ -4036,8 +4055,10 @@ ${inputText}`}]
       setUploadedFile(null)
       setFileCharCount(0)
       setLargeDocWarning(false)
-    } catch(e) { setError('Error: '+(e.message||'Processing failed. Check your API key in Settings.')) }
-    finally { clearTimeout(longTimer); setProcessingLong(false) }
+    } catch(e) {
+      const msg = e.message||''
+      setError(msg==='OVERLOADED'?'Anthropic API is busy right now. Please wait 30 seconds and try again.':'Error: '+(msg||'Processing failed. Check your API key in Settings.'))
+    } finally { clearTimeout(longTimer); setProcessingLong(false); setRetryStatus('') }
     setLoading(false)
   }
 
@@ -4211,7 +4232,7 @@ ${inputText}`}]
         <button onClick={handleProcess} disabled={loading||(fileIsDirectType?!pendingFile:!text.trim())}
           style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:11,background:loading||(fileIsDirectType?!pendingFile:!text.trim())?'#94a3b8':'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#ffffff',fontSize:13,fontWeight:700,cursor:loading||(fileIsDirectType?!pendingFile:!text.trim())?'not-allowed':'pointer',transition:'opacity 0.15s'}}>
           {loading
-            ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> {processingLong?'Still processing large document...':'Processing...'}</>
+            ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> {retryStatus||( processingLong?'Still processing large document...':'Processing...')}</>
             :fileIsDirectType?'Analyze Document with AI ✨':'Process with AI ✨'}
         </button>
       </div>
