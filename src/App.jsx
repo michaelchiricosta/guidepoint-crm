@@ -3914,55 +3914,68 @@ ${inputText}`}]
 
       {pendingParsed&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{width:'60vw',maxHeight:'80vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
-            <div style={{padding:'20px 24px',borderBottom:'1px solid #e2e8f0'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-                <span style={{fontSize:17,fontWeight:700,color:'#0f172a'}}>Review Suggested Follow-Ups</span>
+          <div style={{width:'70vw',maxWidth:720,maxHeight:'80vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            {/* Header */}
+            <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                <span style={{fontSize:16,fontWeight:700,color:'#0f172a',flex:1}}>Review Suggested Follow-Ups</span>
                 <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',background:'#dbeafe',borderRadius:999,padding:'2px 8px'}}>{pendingParsed.parsed.newFollowUps.length} suggested</span>
+                <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
               </div>
-              <p style={{fontSize:13,color:'#64748b',margin:0}}>AI extracted these action items from your input. Select the ones you want to add.</p>
+              <p style={{fontSize:12,color:'#64748b',margin:'0 0 10px'}}>AI extracted these action items from your input. Select the ones you want to add.</p>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <button onClick={()=>setFuSelections(new Set(pendingParsed.parsed.newFollowUps.map(fu=>fu._tempId)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
+                <button onClick={()=>setFuSelections(new Set())} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Deselect All</button>
+                <span style={{fontSize:12,color:'#94a3b8',marginLeft:'auto'}}>{fuSelections.size} of {pendingParsed.parsed.newFollowUps.length} selected</span>
+              </div>
             </div>
-            <div style={{padding:'10px 24px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',gap:10}}>
-              <button onClick={()=>setFuSelections(new Set(pendingParsed.parsed.newFollowUps.map(fu=>fu._tempId)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
-              <button onClick={()=>setFuSelections(new Set())} style={{fontSize:12,color:'#64748b',background:'none',border:'none',cursor:'pointer',padding:0}}>Deselect All</button>
-              <span style={{fontSize:12,color:'#94a3b8',marginLeft:'auto'}}>{fuSelections.size} of {pendingParsed.parsed.newFollowUps.length} selected</span>
-            </div>
-            <div style={{flex:1,overflowY:'auto'}}>
+            {/* Scrollable rows */}
+            <div style={{overflowY:'auto',maxHeight:'calc(80vh - 140px)'}}>
               {pendingParsed.parsed.newFollowUps.map((fu,i)=>{
                 const sel=fuSelections.has(fu._tempId)
                 const p=PC[fu.priority]||PC.Medium
+                const toggleSel=()=>setFuSelections(prev=>{const ns=new Set(prev);if(ns.has(fu._tempId))ns.delete(fu._tempId);else ns.add(fu._tempId);return ns})
                 return(
                   <div key={fu._tempId}
-                    onClick={()=>setFuSelections(prev=>{const ns=new Set(prev);if(ns.has(fu._tempId))ns.delete(fu._tempId);else ns.add(fu._tempId);return ns})}
-                    style={{padding:'12px 24px',cursor:'pointer',background:sel?'rgba(37,99,235,0.04)':'transparent',opacity:sel?1:0.5,borderBottom:i<pendingParsed.parsed.newFollowUps.length-1?'1px solid #f1f5f9':'none',transition:'all 0.12s'}}>
-                    <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                      <input type='checkbox' checked={sel} onChange={()=>{}} style={{marginTop:2,flexShrink:0,accentColor:'#2563eb',cursor:'pointer'}}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-                          <span style={{fontSize:13,fontWeight:700,color:'#0f172a',flex:1}}>{fu.task}</span>
-                          <span style={{fontSize:10,fontWeight:600,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px',flexShrink:0,whiteSpace:'nowrap'}}>{fu.priority}</span>
+                    onClick={toggleSel}
+                    style={{padding:'12px 16px',cursor:'pointer',display:'flex',alignItems:'flex-start',gap:12,background:sel?'rgba(37,99,235,0.04)':'transparent',opacity:sel?1:0.6,borderBottom:'1px solid #f1f5f9',transition:'all 0.12s'}}>
+                    <input type='checkbox' checked={sel} onChange={()=>{}} onClick={e=>e.stopPropagation()}
+                      style={{marginTop:2,flexShrink:0,accentColor:p.c,cursor:'pointer',width:18,height:18}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#0f172a',lineHeight:1.4,marginBottom:4}}>{fu.task}</div>
+                      {(fu.contact||fu.dueDate)&&(
+                        <div style={{display:'flex',alignItems:'center',gap:12,fontSize:11,color:'#64748b'}}>
+                          {fu.contact&&<span style={{display:'flex',alignItems:'center',gap:3}}>
+                            <span style={{fontSize:11}}>👤</span>{fu.contact}
+                          </span>}
+                          {fu.dueDate&&<span style={{display:'flex',alignItems:'center',gap:3}}>
+                            <span style={{fontSize:11}}>📅</span>Due: {fu.dueDate}
+                          </span>}
                         </div>
-                        {(fu.dueDate||fu.contact)&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>{fu.dueDate&&<span>Due: {fu.dueDate}</span>}{fu.dueDate&&fu.contact&&<span> · </span>}{fu.contact&&<span>{fu.contact}</span>}</div>}
-                        {fu.context&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fu.context}</div>}
-                      </div>
+                      )}
                     </div>
+                    <span style={{fontSize:10,fontWeight:600,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px',flexShrink:0,alignSelf:'flex-start',whiteSpace:'nowrap'}}>{fu.priority}</span>
                   </div>
                 )
               })}
             </div>
-            <div style={{padding:'16px 24px',borderTop:'1px solid #e2e8f0',display:'flex',gap:10,alignItems:'center'}}>
-              <button
-                onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});setPendingParsed(null);setFuSelections(new Set())}}
-                disabled={fuSelections.size===0}
-                style={{padding:'9px 18px',background:fuSelections.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:fuSelections.size===0?'not-allowed':'pointer'}}>
-                Add Selected Follow-Ups
-              </button>
-              <button
-                onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});setPendingParsed(null);setFuSelections(new Set())}}
-                style={{padding:'9px 18px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>
-                Skip All
-              </button>
-              <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:13,cursor:'pointer',marginLeft:'auto'}}>Cancel</button>
+            {/* Sticky footer */}
+            <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',flexShrink:0}}>
+              <span style={{fontSize:12,color:'#94a3b8'}}>{fuSelections.size} follow-up{fuSelections.size!==1?'s':''} will be added</span>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                <button
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});setPendingParsed(null);setFuSelections(new Set())}}
+                  style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>
+                  Skip All
+                </button>
+                <button
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});setPendingParsed(null);setFuSelections(new Set())}}
+                  disabled={fuSelections.size===0}
+                  style={{padding:'8px 16px',background:fuSelections.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:fuSelections.size===0?'not-allowed':'pointer'}}>
+                  Add Selected Follow-Ups
+                </button>
+              </div>
             </div>
           </div>
         </div>
