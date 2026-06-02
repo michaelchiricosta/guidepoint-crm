@@ -635,7 +635,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(auto-fit,minmax(140px,1fr))',gap:8,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(7,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
           style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
@@ -711,12 +711,12 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               {S.isLight?(
                 <>
                   <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
-                  <div style={{fontSize:totalAnnualSpend>0?26:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
                 </>
               ):(
                 <>
                   <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
-                  <div style={{fontSize:totalAnnualSpend>0?20:32,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
                 </>
               )}
             </div>
