@@ -3716,12 +3716,23 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [pendingFile, setPendingFile] = useState(null)
   const [fileIsDirectType, setFileIsDirectType] = useState(false)
   const [dateModalIsFile, setDateModalIsFile] = useState(false)
+  const [pdfAnalysisMethod, setPdfAnalysisMethod] = useState('')
+  const [pendingDate, setPendingDate] = useState('')
 
   const FILE_CHAR_LIMIT = 100000
   const MANUAL_CHAR_LIMIT = 40000
 
   const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
   const TEXT_EXTS = ['txt','pdf','doc','docx','md']
+
+  const loadPdfJs = () => new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(window.pdfjsLib); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    script.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; resolve(window.pdfjsLib) }
+    script.onerror = () => reject(new Error('Failed to load PDF.js'))
+    document.head.appendChild(script)
+  })
 
   const loadMammoth = () => new Promise((resolve, reject) => {
     if (window.mammoth) { resolve(window.mammoth); return }
@@ -3735,6 +3746,7 @@ function IntelLog({acct,setAcct,apiKey}) {
   const resetFileState = () => {
     setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
     setText(''); setFileError2(''); setFileStatus(''); setFileCharCount(0); setLargeDocWarning(false)
+    setPdfAnalysisMethod(''); setPendingDate('')
   }
 
   const handleFile = async (file) => {
@@ -3748,8 +3760,11 @@ function IntelLog({acct,setAcct,apiKey}) {
 
     if (ext === 'pdf') {
       if (file.size > 32 * 1024 * 1024) {
-        setFileError2('PDF too large for direct analysis (max 32MB). Try compressing the PDF first.')
+        setFileError2(`PDF too large (${(file.size/1024/1024).toFixed(1)}MB). Maximum size is 32MB.`)
         return
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        setFileStatus(`Large PDF detected (${(file.size/1024/1024).toFixed(1)}MB). Analysis may take longer.`)
       }
       setUploadedFile({name:file.name, size:file.size})
       setFileIsDirectType(true)
@@ -3825,35 +3840,15 @@ function IntelLog({acct,setAcct,apiKey}) {
 
   const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks — consolidate related actions into single tasks. Only include follow-ups that are genuinely time-sensitive or critical. Priority: Critical for hard deadlines or deal blockers, High for relationship or project momentum, Medium for everything else.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"string","task":"string","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"string"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],\n  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}]\n}`
 
-  const processDirectFile = async (date) => {
+  const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
     const ext = pendingFile.name.split('.').pop().toLowerCase()
     setLoading(true); setError(''); setResult(null); setProcessingLong(false)
+    setPendingDate(date); setPdfAnalysisMethod('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
-    try {
-      const base64 = await new Promise(resolve => {
-        const reader = new FileReader()
-        reader.onload = e => resolve(e.target.result.split(',')[1])
-        reader.readAsDataURL(pendingFile)
-      })
-      const contentArray = ext==='pdf'
-        ? [
-            {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
-            {type:'text', text:FILE_INTEL_PROMPT(date)}
-          ]
-        : [
-            {type:'image', source:{type:'base64', media_type:pendingFile.type||'image/jpeg', data:base64}},
-            {type:'text', text:FILE_INTEL_PROMPT(date)}
-          ]
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6', max_tokens:8000, messages:[{role:'user', content:contentArray}]})
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error.message)
-      const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-      const parsed = JSON.parse(raw)
+
+    const finalizeResult = (parsed, method) => {
+      setPdfAnalysisMethod(method)
       if (parsed.newFollowUps?.length) {
         const fuWithIds = parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
         setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
@@ -3863,8 +3858,110 @@ function IntelLog({acct,setAcct,apiKey}) {
         setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
       }
       setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
+    }
+
+    const callTextApi = async (inputText, method) => {
+      const res2 = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,
+          system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
+          messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date)}\n\nDOCUMENT TEXT:\n${inputText}`}]
+        })
+      })
+      const d2 = await res2.json()
+      console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
+      if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
+      const raw2 = (d2.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
+      return JSON.parse(raw2)
+    }
+
+    const pdfTextFallback = async () => {
+      // Step 2: PDF.js extraction
+      try {
+        const pdfjsLib = await loadPdfJs()
+        const ab = await pendingFile.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({data:ab}).promise
+        let fullText = ''
+        for (let i=1;i<=pdf.numPages;i++) { const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); fullText+=ct.items.map(it=>it.str).join(' ')+'\n' }
+        if (fullText.trim().length > 50) {
+          let txt = fullText.length > FILE_CHAR_LIMIT ? '[Truncated]\n\n'+fullText.slice(0,FILE_CHAR_LIMIT) : fullText
+          const parsed = await callTextApi(txt, 'PDF.js')
+          finalizeResult(parsed, 'Text extraction (PDF.js)')
+          return true
+        }
+      } catch(e2) { console.log('[PDF.js fallback error]', e2.message) }
+      // Step 3: plain text read
+      try {
+        const pt = await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result||'');r.onerror=rej;r.readAsText(pendingFile)})
+        if (pt.trim().length > 50) {
+          let txt = pt.length > FILE_CHAR_LIMIT ? '[Truncated]\n\n'+pt.slice(0,FILE_CHAR_LIMIT) : pt
+          const parsed = await callTextApi(txt, 'PlainText')
+          finalizeResult(parsed, 'Plain text read')
+          return true
+        }
+      } catch(e3) { console.log('[Plain text fallback error]', e3.message) }
+      return false
+    }
+
+    try {
+      if (ext === 'image' || IMAGE_EXTS.includes(ext)) {
+        // Image: direct vision API only
+        const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
+        const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
+        const res = await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
+            {type:'text',text:FILE_INTEL_PROMPT(date)}
+          ]}]})
+        })
+        const data = await res.json()
+        console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
+        console.log('[Image] Error details:', data.error)
+        if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
+        const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
+        finalizeResult(JSON.parse(raw), 'Direct image')
+      } else if (ext === 'pdf') {
+        if (forceFallback) {
+          // Retry: skip direct API, go straight to text extraction
+          const ok = await pdfTextFallback()
+          if (!ok) throw new Error('All extraction methods failed for this PDF.')
+        } else {
+          // Step 1: try direct PDF API
+          let directFailed = false
+          try {
+            const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
+            const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
+            if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
+            const res = await fetch('https://api.anthropic.com/v1/messages',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+              body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,messages:[{role:'user',content:[
+                {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
+                {type:'text',text:FILE_INTEL_PROMPT(date)}
+              ]}]})
+            })
+            const data = await res.json()
+            console.log('[Direct PDF] Claude API response:', JSON.stringify(data, null, 2))
+            console.log('[Direct PDF] Error details:', data.error)
+            if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
+            else {
+              const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
+              finalizeResult(JSON.parse(raw), 'Direct PDF')
+            }
+          } catch(e1) { directFailed = true; console.log('[Direct PDF] Falling back — exception:', e1.message) }
+          // Fallback chain if direct failed
+          if (directFailed) {
+            const ok = await pdfTextFallback()
+            if (!ok) throw new Error('All extraction methods failed. Try a different PDF or copy-paste the text.')
+          }
+        }
+      }
     } catch(e) {
-      setError('Could not analyze this file. Try a different PDF or copy and paste the text manually.')
+      const msg = e.message||'Processing failed.'
+      setError(msg.includes('API_ERROR')||msg.includes(':') ? `Analysis failed: ${msg}` : `Could not analyze this file. ${msg}`)
     } finally { clearTimeout(longTimer); setProcessingLong(false) }
     setLoading(false)
   }
@@ -4084,18 +4181,31 @@ ${inputText}`}]
           <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626',marginBottom:8}}>{fileError2}</div>
         )}
         {error&&(
-          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <span style={{color:'#dc2626',fontSize:14,flexShrink:0,fontWeight:700}}>✕</span>
-            <span style={{fontSize:12,color:'#dc2626',lineHeight:1.5,flex:1}}>{error}</span>
-            {fileIsDirectType&&<button onClick={()=>{resetFileState();setError('')}} style={{fontSize:12,color:'#2563eb',background:'transparent',border:'1px solid #bfdbfe',borderRadius:6,padding:'3px 10px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>Switch to text input</button>}
+          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'flex-start',gap:8,marginBottom:12}}>
+            <span style={{color:'#dc2626',fontSize:14,flexShrink:0,fontWeight:700,marginTop:1}}>✕</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,color:'#dc2626',lineHeight:1.5}}>{error}</div>
+              {pendingFile&&pendingFile.name.endsWith('.pdf')&&(
+                <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+                  <button onClick={()=>{setError('');processDirectFile(pendingDate,true)}} style={{fontSize:12,color:'#1d4ed8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'4px 12px',cursor:'pointer',fontWeight:600}}>Try Again (text extraction)</button>
+                  <button onClick={()=>{resetFileState();setError('')}} style={{fontSize:12,color:'#64748b',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>Switch to text input</button>
+                </div>
+              )}
+              {pendingFile&&!pendingFile.name.endsWith('.pdf')&&(
+                <button onClick={()=>{resetFileState();setError('')}} style={{fontSize:12,color:'#64748b',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,padding:'4px 10px',cursor:'pointer',marginTop:6,display:'inline-block'}}>Switch to text input</button>
+              )}
+            </div>
           </div>
         )}
         {result&&(
-          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <span style={{color:'#16a34a',fontSize:14,flexShrink:0,fontWeight:700}}>✓</span>
-            <span style={{fontSize:12,color:'#15803d'}}>
-              {result.selectedMode?`Added ${result.followUps} follow-up${result.followUps!==1?'s':''} to your account`:result.skipAll?'Intel logged. No follow-ups added.':result.noFollowUps?'Intel logged successfully — no follow-ups suggested.':`Done — ${result.entry?'logged 1 intel entry, ':''}added ${result.followUps} follow-up${result.followUps!==1?'s':''},updated ${result.contacts} contact${result.contacts!==1?'s':''}`}
-            </span>
+          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'flex-start',gap:8,marginBottom:12}}>
+            <span style={{color:'#16a34a',fontSize:14,flexShrink:0,fontWeight:700,marginTop:1}}>✓</span>
+            <div>
+              <div style={{fontSize:12,color:'#15803d'}}>
+                {result.selectedMode?`Added ${result.followUps} follow-up${result.followUps!==1?'s':''} to your account`:result.skipAll?'Intel logged. No follow-ups added.':result.noFollowUps?'Intel logged successfully — no follow-ups suggested.':`Done — ${result.entry?'logged 1 intel entry, ':''}added ${result.followUps} follow-up${result.followUps!==1?'s':''},updated ${result.contacts} contact${result.contacts!==1?'s':''}`}
+              </div>
+              {pdfAnalysisMethod&&<div style={{fontSize:11,color:'#86efac',marginTop:2}}>Analyzed via: {pdfAnalysisMethod}</div>}
+            </div>
           </div>
         )}
         <button onClick={handleProcess} disabled={loading||(fileIsDirectType?!pendingFile:!text.trim())}
