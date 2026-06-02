@@ -3713,24 +3713,15 @@ function IntelLog({acct,setAcct,apiKey}) {
   const [fileCharCount, setFileCharCount] = useState(0)
   const [largeDocWarning, setLargeDocWarning] = useState(false)
   const [processingLong, setProcessingLong] = useState(false)
+  const [pendingFile, setPendingFile] = useState(null)
+  const [fileIsDirectType, setFileIsDirectType] = useState(false)
+  const [dateModalIsFile, setDateModalIsFile] = useState(false)
 
   const FILE_CHAR_LIMIT = 100000
   const MANUAL_CHAR_LIMIT = 40000
 
   const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
   const TEXT_EXTS = ['txt','pdf','doc','docx','md']
-
-  const loadPdfJs = () => new Promise((resolve, reject) => {
-    if (window.pdfjsLib) { resolve(window.pdfjsLib); return }
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-    script.onload = () => {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-      resolve(window.pdfjsLib)
-    }
-    script.onerror = () => reject(new Error('Failed to load PDF.js'))
-    document.head.appendChild(script)
-  })
 
   const loadMammoth = () => new Promise((resolve, reject) => {
     if (window.mammoth) { resolve(window.mammoth); return }
@@ -3741,90 +3732,141 @@ function IntelLog({acct,setAcct,apiKey}) {
     document.head.appendChild(script)
   })
 
-  const extractViaVision = async (file) => {
-    const base64 = await new Promise(resolve => {
-      const reader = new FileReader()
-      reader.onload = e => resolve(e.target.result.split(',')[1])
-      reader.readAsDataURL(file)
-    })
-    const mediaType = file.type || 'image/jpeg'
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6', max_tokens: 4000,
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: 'Extract all text and information from this document or image. Return everything you can read including any tables, lists, names, dates, and key information. Format it as clean readable text.' }
-        ]}]
-      })
-    })
-    const d = await res.json()
-    if (d.error) throw new Error('Image extraction failed: ' + d.error.message)
-    return d.content?.[0]?.text || ''
+  const resetFileState = () => {
+    setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
+    setText(''); setFileError2(''); setFileStatus(''); setFileCharCount(0); setLargeDocWarning(false)
   }
 
   const handleFile = async (file) => {
     if (!file) return
-    if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
     const ext = file.name.split('.').pop().toLowerCase()
     if (!IMAGE_EXTS.includes(ext) && !TEXT_EXTS.includes(ext)) {
       setFileError2('Unsupported file type. Use TXT, PDF, DOCX, MD, PNG, JPG, or WEBP.')
       return
     }
-    setFileLoading(true); setFileError2(''); setFileStatus(''); setUploadedFile({name:file.name,size:file.size})
-    try {
-      let extracted = ''
-      if (ext==='txt'||ext==='md') {
-        extracted = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.onerror=reject;r.readAsText(file)})
-      } else if (ext==='pdf') {
-        try {
-          const pdfjsLib = await loadPdfJs()
-          const ab = await file.arrayBuffer()
-          const pdf = await pdfjsLib.getDocument({data:ab}).promise
-          let fullText = ''
-          for (let i=1;i<=pdf.numPages;i++) { const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); fullText+=ct.items.map(it=>it.str).join(' ')+'\n' }
-          if (fullText.trim()) { extracted = fullText }
-          else {
-            // Scanned PDF — use vision
-            if (!effectiveKey) throw new Error('PDF has no text layer. Add an API key in Settings to process scanned PDFs with vision.')
-            extracted = await extractViaVision(file)
-          }
-        } catch(e) { throw new Error('PDF extraction failed. ' + (e.message.includes('API')||e.message.includes('text layer')?e.message:'Try a different format or copy-paste the content.')) }
-      } else if (ext==='docx'||ext==='doc') {
-        try {
-          const mammoth = await loadMammoth()
-          const ab = await file.arrayBuffer()
-          const result = await mammoth.extractRawText({arrayBuffer:ab})
-          extracted = result.value
-        } catch(e) { throw new Error('DOCX extraction failed. Try a different format or copy-paste the content.') }
-      } else if (IMAGE_EXTS.includes(ext)) {
-        if (!effectiveKey) throw new Error('Add your Anthropic API key in Settings to process images.')
-        extracted = await extractViaVision(file)
+    setFileError2(''); setFileStatus('')
+
+    if (ext === 'pdf') {
+      if (file.size > 32 * 1024 * 1024) {
+        setFileError2('PDF too large for direct analysis (max 32MB). Try compressing the PDF first.')
+        return
       }
-      const rawLen = extracted.length
-      setFileCharCount(rawLen)
-      let wasChunked = false
-      if (extracted.length > FILE_CHAR_LIMIT) {
-        extracted = '[Note: This document was truncated to 100,000 characters for processing. Upload the remainder separately if needed.]\n\n' + extracted.slice(0, FILE_CHAR_LIMIT)
-        wasChunked = true
-      }
-      setLargeDocWarning(wasChunked)
-      setFileLoading(false)
-      setText(extracted)
-      setFileStatus('File loaded — analyzing with AI...')
-      setFileError2('')
-      // Auto-process after short delay so text state updates flush
-      setTimeout(async () => {
-        const date = detectDate(extracted) || new Date().toISOString().split('T')[0]
-        await process(date, extracted)
-        setFileStatus('')
-      }, 500)
-    } catch(e) {
-      setFileError2(e.message || 'Could not extract text from this file. Try a different format.')
-      setUploadedFile(null)
-      setFileLoading(false)
+      setUploadedFile({name:file.name, size:file.size})
+      setFileIsDirectType(true)
+      setPendingFile(file)
+      // Quick date scan from first 1000 bytes
+      try {
+        const headerText = await new Promise(resolve => {
+          const r = new FileReader()
+          r.onload = e => resolve(e.target.result||'')
+          r.onerror = ()=>resolve('')
+          r.readAsText(file.slice(0, 1000))
+        })
+        setCustomDate(detectDate(headerText)||'')
+      } catch { setCustomDate('') }
+      setDateModalIsFile(true)
+      setShowDate(true)
+    } else if (IMAGE_EXTS.includes(ext)) {
+      if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
+      if (!effectiveKey) { setFileError2('Add your Anthropic API key in Settings to process images.'); return }
+      setUploadedFile({name:file.name, size:file.size})
+      setFileIsDirectType(true)
+      setPendingFile(file)
+      setCustomDate('')
+      setDateModalIsFile(true)
+      setShowDate(true)
+    } else if (ext==='docx'||ext==='doc') {
+      if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
+      setFileLoading(true)
+      setFileIsDirectType(false)
+      setUploadedFile({name:file.name, size:file.size})
+      try {
+        const mammoth = await loadMammoth()
+        const ab = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({arrayBuffer:ab})
+        let extracted = result.value
+        const rawLen = extracted.length
+        setFileCharCount(rawLen)
+        if (extracted.length > FILE_CHAR_LIMIT) {
+          extracted = '[Note: This document was truncated to 100,000 characters for processing. Upload the remainder separately if needed.]\n\n' + extracted.slice(0, FILE_CHAR_LIMIT)
+          setLargeDocWarning(true)
+        }
+        setText(extracted)
+        setCustomDate(detectDate(extracted)||'')
+        setDateModalIsFile(true)
+        setShowDate(true)
+      } catch(e) {
+        setFileError2('DOCX extraction failed. Try a different format or copy-paste the content.')
+        setUploadedFile(null)
+      } finally { setFileLoading(false) }
+    } else if (ext==='txt'||ext==='md') {
+      if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
+      setFileLoading(true)
+      setFileIsDirectType(false)
+      setUploadedFile({name:file.name, size:file.size})
+      try {
+        let extracted = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.onerror=reject;r.readAsText(file)})
+        const rawLen = extracted.length
+        setFileCharCount(rawLen)
+        if (extracted.length > FILE_CHAR_LIMIT) {
+          extracted = '[Note: This document was truncated to 100,000 characters for processing. Upload the remainder separately if needed.]\n\n' + extracted.slice(0, FILE_CHAR_LIMIT)
+          setLargeDocWarning(true)
+        }
+        setText(extracted)
+        setCustomDate(detectDate(extracted)||'')
+        setDateModalIsFile(true)
+        setShowDate(true)
+      } catch(e) {
+        setFileError2('Could not read file. Try copy-pasting the content.')
+        setUploadedFile(null)
+      } finally { setFileLoading(false) }
     }
+  }
+
+  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks — consolidate related actions into single tasks. Only include follow-ups that are genuinely time-sensitive or critical. Priority: Critical for hard deadlines or deal blockers, High for relationship or project momentum, Medium for everything else.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"string","task":"string","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"string"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],\n  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}]\n}`
+
+  const processDirectFile = async (date) => {
+    if (!pendingFile) return
+    const ext = pendingFile.name.split('.').pop().toLowerCase()
+    setLoading(true); setError(''); setResult(null); setProcessingLong(false)
+    const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
+    try {
+      const base64 = await new Promise(resolve => {
+        const reader = new FileReader()
+        reader.onload = e => resolve(e.target.result.split(',')[1])
+        reader.readAsDataURL(pendingFile)
+      })
+      const contentArray = ext==='pdf'
+        ? [
+            {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
+            {type:'text', text:FILE_INTEL_PROMPT(date)}
+          ]
+        : [
+            {type:'image', source:{type:'base64', media_type:pendingFile.type||'image/jpeg', data:base64}},
+            {type:'text', text:FILE_INTEL_PROMPT(date)}
+          ]
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6', max_tokens:8000, messages:[{role:'user', content:contentArray}]})
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error.message)
+      const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
+      const parsed = JSON.parse(raw)
+      if (parsed.newFollowUps?.length) {
+        const fuWithIds = parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
+        setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
+        setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
+      } else {
+        commitSave(parsed,date,new Set())
+        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+      }
+      setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
+    } catch(e) {
+      setError('Could not analyze this file. Try a different PDF or copy and paste the text manually.')
+    } finally { clearTimeout(longTimer); setProcessingLong(false) }
+    setLoading(false)
   }
 
   const commitSave = (parsed, date, selectedFuTempIds) => {
@@ -3904,9 +3946,15 @@ ${inputText}`}]
 
   const handleProcess = () => {
     if (!effectiveKey) { setError('Add your Anthropic API key in Settings first.'); return }
-    const detected = detectDate(text)
-    setCustomDate(detected || '')
-    setShowDate(true)
+    if (fileIsDirectType && pendingFile) {
+      setDateModalIsFile(true)
+      setShowDate(true)
+    } else {
+      setDateModalIsFile(false)
+      const detected = detectDate(text)
+      setCustomDate(detected || '')
+      setShowDate(true)
+    }
   }
 
   const exportIntel = () => {
@@ -3950,52 +3998,72 @@ ${inputText}`}]
       <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',padding:20,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
           <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Add Intelligence</div>
-          <span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</span>
+          {!fileIsDirectType&&<span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</span>}
         </div>
-        <div style={{fontSize:12,color:'#64748b',marginBottom:12,lineHeight:1.5}}>Paste a call transcript, meeting notes, or quick note. AI extracts follow-ups, updates contacts, and logs intel automatically.</div>
+        <div style={{fontSize:12,color:'#64748b',marginBottom:12,lineHeight:1.5}}>Paste a call transcript, meeting notes, or upload a file. AI extracts follow-ups, updates contacts, and logs intel automatically.</div>
         {!effectiveKey&&(
           <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
             <span style={{color:'#d97706',fontSize:14,flexShrink:0}}>⚠</span>
             <span style={{fontSize:12,color:'#92400e'}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</span>
           </div>
         )}
-        <textarea
-          value={text}
-          onChange={e=>{setText(e.target.value);setLargeDocWarning(false);setFileCharCount(0)}}
-          maxLength={uploadedFile?undefined:MANUAL_CHAR_LIMIT}
-          rows={7}
-          placeholder={'Paste transcript, meeting notes, email, or a quick note here…\n\n"Talked to the security architect today. Wiz demo confirmed for Wednesday. The CISO reached back about Palo Alto pricing — wants a decision by June…"'}
-          style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#0f172a',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
-          onFocus={e=>{e.target.style.borderColor='#2563eb';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
-          onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
-        />
-        <div style={{textAlign:'right',fontSize:11,color:text.length>MANUAL_CHAR_LIMIT*0.95?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.8?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</div>
-        {/* File upload zone */}
-        <div
-          onDragOver={e=>{e.preventDefault();setDragOver(true)}}
-          onDragLeave={()=>setDragOver(false)}
-          onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleFile(f)}}
-          onClick={()=>!fileLoading&&fileInputRef.current?.click()}
-          style={{border:`2px dashed ${dragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:dragOver?'#eff6ff':'#f8fafc',cursor:fileLoading?'default':'pointer',marginBottom:8,transition:'all 0.15s'}}>
-          <input ref={fileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.gif,.webp' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
-          {fileLoading?(
-            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:13,color:'#64748b'}}>
-              <span style={{display:'inline-block',width:14,height:14,border:'2px solid #cbd5e1',borderTop:'2px solid #2563eb',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
-              Reading file...
+        {/* Textarea — hidden when PDF or image is loaded */}
+        {!fileIsDirectType&&(
+          <>
+            <textarea
+              value={text}
+              onChange={e=>{setText(e.target.value);setLargeDocWarning(false);setFileCharCount(0)}}
+              maxLength={uploadedFile?undefined:MANUAL_CHAR_LIMIT}
+              rows={7}
+              placeholder={'Paste transcript, meeting notes, email, or a quick note here…\n\n"Talked to the security architect today. Wiz demo confirmed for Wednesday. The CISO reached back about Palo Alto pricing — wants a decision by June…"'}
+              style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#0f172a',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
+              onFocus={e=>{e.target.style.borderColor='#2563eb';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
+              onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
+            />
+            <div style={{textAlign:'right',fontSize:11,color:text.length>MANUAL_CHAR_LIMIT*0.95?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.8?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</div>
+          </>
+        )}
+        {/* PDF / image file preview card */}
+        {fileIsDirectType&&uploadedFile&&(
+          <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14}}>
+            <div style={{fontSize:32,flexShrink:0,lineHeight:1}}>{uploadedFile.name.endsWith('.pdf')?'📄':'🖼️'}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#1e40af',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{uploadedFile.name}</div>
+              <div style={{fontSize:11,color:'#3b82f6',marginTop:2}}>{(uploadedFile.size/1024).toFixed(0)} KB · Ready to analyze with AI</div>
+              <div style={{fontSize:11,color:'#64748b',marginTop:3}}>{uploadedFile.name.endsWith('.pdf')?'PDF will be analyzed directly by AI — no text extraction needed':'Image will be analyzed directly by AI'}</div>
             </div>
-          ):(
-            <>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{margin:'0 auto 6px',display:'block'}}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              <div style={{fontSize:13,color:'#64748b',marginBottom:2}}>Drop a file here or click to upload</div>
-              <div style={{fontSize:11,color:'#94a3b8'}}>Supports TXT, PDF, DOCX, MD, PNG, JPG, WEBP</div>
-            </>
-          )}
-        </div>
-        {uploadedFile&&(
+            <button onClick={e=>{e.stopPropagation();resetFileState()}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:18,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+          </div>
+        )}
+        {/* File upload zone — always visible when no file loaded */}
+        {!uploadedFile&&(
+          <div
+            onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+            onDragLeave={()=>setDragOver(false)}
+            onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)handleFile(f)}}
+            onClick={()=>!fileLoading&&fileInputRef.current?.click()}
+            style={{border:`2px dashed ${dragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:dragOver?'#eff6ff':'#f8fafc',cursor:fileLoading?'default':'pointer',marginBottom:8,transition:'all 0.15s'}}>
+            <input ref={fileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.gif,.webp' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
+            {fileLoading?(
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:13,color:'#64748b'}}>
+                <span style={{display:'inline-block',width:14,height:14,border:'2px solid #cbd5e1',borderTop:'2px solid #2563eb',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
+                Reading file...
+              </div>
+            ):(
+              <>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{margin:'0 auto 6px',display:'block'}}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <div style={{fontSize:13,color:'#64748b',marginBottom:2}}>Drop a file here or click to upload</div>
+                <div style={{fontSize:11,color:'#94a3b8'}}>Supports TXT, PDF, DOCX, MD, PNG, JPG, WEBP</div>
+              </>
+            )}
+          </div>
+        )}
+        {/* DOCX/TXT file pill */}
+        {!fileIsDirectType&&uploadedFile&&(
           <div style={{marginBottom:8}}>
             <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',fontSize:12,color:'#1d4ed8'}}>
               <span>📄 {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(0)} KB</span>
-              <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('');setFileStatus('');setFileCharCount(0);setLargeDocWarning(false)}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+              <button onClick={e=>{e.stopPropagation();resetFileState()}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
             </div>
             {fileCharCount>0&&<div style={{fontSize:11,color:'#64748b',marginTop:3,paddingLeft:2}}>Extracted: {fileCharCount.toLocaleString()} characters{fileCharCount>FILE_CHAR_LIMIT?` (processing first ${FILE_CHAR_LIMIT.toLocaleString()})`:''}</div>}
           </div>
@@ -4018,7 +4086,8 @@ ${inputText}`}]
         {error&&(
           <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
             <span style={{color:'#dc2626',fontSize:14,flexShrink:0,fontWeight:700}}>✕</span>
-            <span style={{fontSize:12,color:'#dc2626',lineHeight:1.5}}>{error}</span>
+            <span style={{fontSize:12,color:'#dc2626',lineHeight:1.5,flex:1}}>{error}</span>
+            {fileIsDirectType&&<button onClick={()=>{resetFileState();setError('')}} style={{fontSize:12,color:'#2563eb',background:'transparent',border:'1px solid #bfdbfe',borderRadius:6,padding:'3px 10px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>Switch to text input</button>}
           </div>
         )}
         {result&&(
@@ -4029,11 +4098,11 @@ ${inputText}`}]
             </span>
           </div>
         )}
-        <button onClick={handleProcess} disabled={loading||!text.trim()}
-          style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:11,background:loading||!text.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#ffffff',fontSize:13,fontWeight:700,cursor:loading||!text.trim()?'not-allowed':'pointer',transition:'opacity 0.15s'}}>
+        <button onClick={handleProcess} disabled={loading||(fileIsDirectType?!pendingFile:!text.trim())}
+          style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:11,background:loading||(fileIsDirectType?!pendingFile:!text.trim())?'#94a3b8':'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#ffffff',fontSize:13,fontWeight:700,cursor:loading||(fileIsDirectType?!pendingFile:!text.trim())?'not-allowed':'pointer',transition:'opacity 0.15s'}}>
           {loading
             ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> {processingLong?'Still processing large document...':'Processing...'}</>
-            :'Process with AI ✨'}
+            :fileIsDirectType?'Analyze Document with AI ✨':'Process with AI ✨'}
         </button>
       </div>
 
@@ -4181,13 +4250,13 @@ ${inputText}`}]
         </div>
       )}
 
-      {showDate&&<Modal title='Date this entry' onClose={()=>setShowDate(false)} width={380}>
-        <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>Is this a new entry from today, or are you uploading an older transcript or note?</p>
-        {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from text: <strong>{fmtDate(customDate)}</strong></div>}
+      {showDate&&<Modal title={dateModalIsFile?'When did this document originate?':'Date this entry'} onClose={()=>setShowDate(false)} width={380}>
+        <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>{dateModalIsFile?'When was this document created or the event it describes occurred?':'Is this a new entry from today, or are you uploading an older transcript or note?'}</p>
+        {customDate&&<div style={{fontSize:12,color:S.green,padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:10}}>Date detected from {dateModalIsFile?'document':'text'}: <strong>{fmtDate(customDate)}</strong></div>}
         <Field label='Custom date (leave blank for today)' value={customDate} onChange={setCustomDate} type='date'/>
         <div style={{display:'flex',gap:8,marginTop:4}}>
-          <Btn variant='primary' onClick={()=>{setShowDate(false);process(new Date().toISOString().split('T')[0])}}>Use Today</Btn>
-          <Btn onClick={()=>{if(customDate){setShowDate(false);process(customDate)}}} style={{opacity:customDate?1:0.4}}>Use {customDate?fmtDate(customDate):'Custom Date'}</Btn>
+          <Btn variant='primary' onClick={()=>{const d=new Date().toISOString().split('T')[0];setShowDate(false);dateModalIsFile?processDirectFile(d):process(d)}}>Use Today</Btn>
+          <Btn onClick={()=>{if(customDate){setShowDate(false);dateModalIsFile?processDirectFile(customDate):process(customDate)}}} style={{opacity:customDate?1:0.4}}>Use {customDate?fmtDate(customDate):'Custom Date'}</Btn>
         </div>
       </Modal>}
     </div>
