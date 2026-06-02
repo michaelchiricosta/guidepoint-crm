@@ -5488,7 +5488,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               </div>
               <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:S.isLight?'#2563eb':'#3b82f6',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:mob?'1fr':typeof window!=='undefined'&&window.innerWidth>1400?'repeat(4,1fr)':'repeat(3,1fr)',gap:12}}>
+            <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:12}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
                 const hc=hs>=70?'#16a34a':hs>=40?'#ea580c':'#dc2626'
@@ -5537,8 +5537,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       {/* Name + health gauge */}
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:17,fontWeight:900,color:S.isLight?'#0f172a':'#fff',marginBottom:2,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
-                          {acct.industry&&<div style={{fontSize:11,color:S.isLight?'#94a3b8':'rgba(255,255,255,0.38)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.industry}</div>}
+                          <div style={{fontSize:22,fontWeight:900,color:S.isLight?'#0f172a':'#fff',lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
                         </div>
                         <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
                           <svg width={52} height={52} viewBox="0 0 52 52">
