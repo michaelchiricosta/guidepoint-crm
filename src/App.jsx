@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock } from 'lucide-react'
+import { Clock, Trash2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -4245,6 +4245,11 @@ ${inputText}`}]
     }
   }
 
+  const deleteEntry = id => {
+    if(!window.confirm('Delete this intel entry? This cannot be undone.')) return
+    setAcct(p=>({...p,intelLog:(p.intelLog||[]).filter(e=>e.id!==id)}))
+  }
+
   const exportIntel = () => {
     const lines=acct.intelLog.map(e=>[
       `${e.date||''} | ${e.type||'Note'} | ${e.participants||''}`,
@@ -4451,6 +4456,14 @@ ${inputText}`}]
                 <span style={{fontSize:12,color:'#64748b',flexShrink:0}}>{fmtDate(e.date)}</span>
                 {e.participants&&<span style={{fontSize:12,color:'#64748b',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>· {e.participants}</span>}
                 {hasDetail&&<span style={{marginLeft:'auto',color:'#94a3b8',fontSize:12,flexShrink:0}}>{isExp?'▲':'▼'}</span>}
+                <button
+                  onClick={ev=>{ev.stopPropagation();deleteEntry(e.id)}}
+                  title='Delete entry'
+                  style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center',flexShrink:0,...(!hasDetail?{marginLeft:'auto'}:{})}}
+                  onMouseEnter={ev=>ev.currentTarget.style.color='#dc2626'}
+                  onMouseLeave={ev=>ev.currentTarget.style.color='#94a3b8'}>
+                  <Trash2 size={16}/>
+                </button>
               </div>
               {/* Summary always visible */}
               <p style={{fontSize:13,color:'#374151',margin:'0 0 0',lineHeight:1.6}}>{e.summary}</p>
@@ -4668,7 +4681,12 @@ function AIHistory({acct, setAcct, apiKey}) {
                   </div>
                   <div style={{display:'flex',gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
                     <button onClick={()=>openContinue(s)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Continue Chat</button>
-                    <button onClick={()=>deleteSession(s.id)} style={{fontSize:11,color:S.red,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:5,padding:'4px 8px',cursor:'pointer'}}>Delete</button>
+                    <button onClick={()=>deleteSession(s.id)} title='Delete session'
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center'}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#dc2626'}
+                      onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+                      <Trash2 size={16}/>
+                    </button>
                   </div>
                   <span style={{color:S.dim,fontSize:12,flexShrink:0}}>{isExp?'▲':'▼'}</span>
                 </div>
