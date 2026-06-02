@@ -184,6 +184,7 @@ const SAMPLE = {
     healthScoreHistory:[],
     upcomingDates:[],
     files:[],
+    savedLinks:[],
     adminData:{},
     endpoints:'',
     orgChart:{nodes:[]}
@@ -5146,7 +5147,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     return()=>window.removeEventListener('resize',check)
   },[])
 
-  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
+  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
@@ -5375,7 +5376,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const addAccount = () => {
     if (!newName.trim()) return
     const id = uid()
-    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}}
+    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}}
     setData(p=>({...p,accounts:[...p.accounts,blank]}))
     onEnterAccount(id)
     setShowAdd(false)
@@ -6033,6 +6034,11 @@ function Files({acct,setAcct}) {
   const [category,setCategory] = useState('Other')
   const [notes,setNotes] = useState('')
   const [viewingId,setViewingId] = useState(null)
+  const [showAddLink,setShowAddLink] = useState(false)
+  const [linkForm,setLinkForm] = useState({url:'',title:'',category:'Reference',notes:''})
+  const [linkError,setLinkError] = useState('')
+  const [editLinkId,setEditLinkId] = useState(null)
+  const [copiedId,setCopiedId] = useState(null)
   const FILE_CATS = ['NDA','MSA','Contract','SOW','Proposal','Quote','Reference','Other']
   const fmtSize = b => b>=1048576?`${(b/1048576).toFixed(1)} MB`:b>=1024?`${(b/1024).toFixed(0)} KB`:`${b} B`
   const fileIcon = type => {
@@ -6080,6 +6086,58 @@ function Files({acct,setAcct}) {
       await deleteFile(f.path)
       setAcct(p=>({...p, files:(p.files||[]).filter(x=>x.id!==f.id)}))
     } catch(e){alert('Delete failed: '+e.message)}
+  }
+
+  const LINK_CATS = ['Contract','Proposal','Resource','Portal','Reference','Other']
+  const linkIcon = cat => ({Contract:'📄',Proposal:'📋',Resource:'📚',Portal:'🌐',Reference:'🔍',Other:'🔗'}[cat]||'🔗')
+  const savedLinks = acct.savedLinks||[]
+  const openAddLink = () => {setLinkForm({url:'',title:'',category:'Reference',notes:''});setEditLinkId(null);setLinkError('');setShowAddLink(true)}
+  const cancelLink = () => {setShowAddLink(false);setEditLinkId(null);setLinkForm({url:'',title:'',category:'Reference',notes:''});setLinkError('')}
+  const saveLink = () => {
+    if(!linkForm.url.match(/^https?:\/\//)){setLinkError('URL must start with http:// or https://');return}
+    if(!linkForm.title.trim()){setLinkError('Title is required');return}
+    if(editLinkId){setAcct(p=>({...p,savedLinks:(p.savedLinks||[]).map(l=>l.id===editLinkId?{...l,...linkForm}:l)}));setEditLinkId(null)}
+    else{setAcct(p=>({...p,savedLinks:[...(p.savedLinks||[]),{...linkForm,id:uid(),addedAt:new Date().toISOString()}]}))}
+    setShowAddLink(false);setLinkForm({url:'',title:'',category:'Reference',notes:''});setLinkError('')
+  }
+  const startEditLink = l => {setLinkForm({url:l.url,title:l.title,category:l.category,notes:l.notes||''});setEditLinkId(l.id);setLinkError('');setShowAddLink(true)}
+  const deleteLink = id => {if(!window.confirm('Remove this saved link?'))return;setAcct(p=>({...p,savedLinks:(p.savedLinks||[]).filter(l=>l.id!==id)}))}
+  const copyUrl = (id,url) => {navigator.clipboard.writeText(url).then(()=>{setCopiedId(id);setTimeout(()=>setCopiedId(null),2000)}).catch(()=>{})}
+  const renderLinkRow = l => {
+    const isCopied=copiedId===l.id
+    const truncUrl=l.url.length>50?l.url.slice(0,50)+'…':l.url
+    return(
+      <div key={l.id}
+        style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',transition:'background 0.1s'}}
+        onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}
+        onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
+        <span style={{fontSize:20,flexShrink:0,lineHeight:1}}>{linkIcon(l.category)}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <a href={l.url} target='_blank' rel='noreferrer'
+            style={{fontSize:13,fontWeight:600,color:'#0f172a',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+            onMouseEnter={e=>e.currentTarget.style.textDecoration='underline'}
+            onMouseLeave={e=>e.currentTarget.style.textDecoration='none'}>
+            {l.title||l.url}
+          </a>
+          <a href={l.url} target='_blank' rel='noreferrer' title={l.url}
+            style={{fontSize:11,color:'#2563eb',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>
+            {truncUrl}
+          </a>
+          {l.notes&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{l.notes}</div>}
+        </div>
+        <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center'}}>
+          <span style={{fontSize:10,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 7px',whiteSpace:'nowrap'}}>{l.category}</span>
+          <button onClick={()=>copyUrl(l.id,l.url)} title='Copy URL'
+            style={{padding:'4px 8px',background:isCopied?(S.isLight?'#dcfce7':'rgba(34,197,94,0.15)'):S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${isCopied?(S.isLight?'#86efac':'rgba(34,197,94,0.3)'):S.bdr}`,borderRadius:6,color:isCopied?S.green:S.muted,cursor:'pointer',fontSize:11,fontWeight:isCopied?600:400,transition:'all 0.2s',whiteSpace:'nowrap'}}>
+            {isCopied?'Copied!':'⎘'}
+          </button>
+          <button onClick={()=>startEditLink(l)} title='Edit link'
+            style={{padding:'4px 8px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:12}}>✏</button>
+          <button onClick={()=>deleteLink(l.id)} title='Remove link'
+            style={{padding:'4px 8px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -6169,6 +6227,53 @@ function Files({acct,setAcct}) {
           </div>
         ))
       )}
+
+      {/* ─── Saved Links ─── */}
+      <div style={{marginTop:32,borderTop:`1px solid ${S.bdr}`,paddingTop:24}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showAddLink?12:16}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Saved Links</div>
+            <div style={{fontSize:12,color:S.muted,marginTop:2}}>{savedLinks.length} link{savedLinks.length!==1?'s':''} saved</div>
+          </div>
+          {!showAddLink&&<button onClick={openAddLink} style={{padding:'6px 12px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Add Link</button>}
+        </div>
+
+        {showAddLink&&(
+          <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:10,padding:16,marginBottom:16}}>
+            <Field label='URL' value={linkForm.url} onChange={v=>setLinkForm(p=>({...p,url:v}))} placeholder='https://'/>
+            <Field label='Title' value={linkForm.title} onChange={v=>setLinkForm(p=>({...p,title:v}))} placeholder='Give this link a name (e.g. Customer Portal, SharePoint, Contract Doc)'/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
+              <Field label='Category' value={linkForm.category} onChange={v=>setLinkForm(p=>({...p,category:v}))} options={LINK_CATS}/>
+              <Field label='Notes (optional)' value={linkForm.notes} onChange={v=>setLinkForm(p=>({...p,notes:v}))} placeholder='Brief context...'/>
+            </div>
+            {linkError&&<div style={{fontSize:12,color:S.red,background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'7px 12px',marginBottom:10}}>{linkError}</div>}
+            <div style={{display:'flex',gap:8}}>
+              <Btn variant='primary' onClick={saveLink}>{editLinkId?'Update Link':'Save Link'}</Btn>
+              <Btn onClick={cancelLink}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+
+        {savedLinks.length===0 ? (
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'40px 20px',textAlign:'center'}}>
+            <div style={{fontSize:32,marginBottom:10,opacity:0.4}}>🔗</div>
+            <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>No saved links yet</div>
+            <div style={{fontSize:12,color:S.muted}}>Click + Add Link to save URLs for quick access.</div>
+          </div>
+        ) : savedLinks.length > 3 ? (
+          Object.entries(savedLinks.reduce((acc,l)=>{(acc[l.category]||(acc[l.category]=[])).push(l);return acc},{})).map(([cat,links])=>(
+            <div key={cat} style={{marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>{cat}</span>
+                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{links.length}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:4}}>{links.map(renderLinkRow)}</div>
+            </div>
+          ))
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:4}}>{savedLinks.map(renderLinkRow)}</div>
+        )}
+      </div>
     </div>
   )
 }
