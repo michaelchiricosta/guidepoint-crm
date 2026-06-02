@@ -5049,7 +5049,7 @@ function Dashboard({acct, setTab}) {
   )
 }
 
-function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,theme,setTheme,onGoHome}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
   const [collapsed,setCollapsed] = useState(false)
@@ -5197,7 +5197,17 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
               style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='dark'?'rgba(255,255,255,0.12)':'transparent',color:theme==='dark'?'#93c5fd':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☾</button>
           </div>
         </div>
-        {lastSaved&&<div style={{fontSize:10,color:'#334155',textAlign:'center',marginTop:6}}>Saved {lastSaved}</div>}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4,marginTop:6}}>
+          <div style={{fontSize:10,color:saveStatus==='error'?'#ef4444':'#475569',textAlign:'center'}}>
+            {saveStatus==='saving'?'Saving...'
+            :saveStatus==='error'?'Save failed — check connection'
+            :lastSaved?`Saved ${lastSaved}`:''}
+          </div>
+          <button onClick={onRefresh} title="Refresh from Supabase"
+            style={{background:'transparent',border:'none',cursor:'pointer',color:'#475569',padding:'1px 3px',fontSize:13,lineHeight:1,transition:'color 0.15s',flexShrink:0}}
+            onMouseEnter={e=>e.currentTarget.style.color='#93c5fd'}
+            onMouseLeave={e=>e.currentTarget.style.color='#475569'}>↻</button>
+        </div>
       </div>}
     </div>
   )
@@ -6153,6 +6163,8 @@ const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'
 
 export default function App() {
   const [data,setData] = useState(null)
+  const [storageReady,setStorageReady] = useState(false)
+  const [saveStatus,setSaveStatus] = useState('idle')
   const [activeId,setActiveId] = useState('bhsi')
   const [tab,setTab] = useState('overview')
   const searchRef = useRef(null)
@@ -6175,33 +6187,48 @@ export default function App() {
     document.documentElement.setAttribute('data-theme',t)
   }
 
-  useEffect(()=>{
-    loadData().then(d=>{
-      const loaded = d || SAMPLE
-      const today = new Date().toISOString().split('T')[0]
-      const accounts = loaded.accounts.map(acct=>{
-        const history = acct.healthScoreHistory || []
-        if(history.some(h=>h.date===today)) return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:history}
-        const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
-        return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
-      })
-      setData({...loaded, accounts})
+  const applyLoad = d => {
+    const loaded = d || SAMPLE
+    const today = new Date().toISOString().split('T')[0]
+    const accounts = loaded.accounts.map(acct=>{
+      const history = acct.healthScoreHistory || []
+      if(history.some(h=>h.date===today)) return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:history}
+      const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
+      return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
     })
-  },[])
+    setData({...loaded, accounts})
+    setStorageReady(true)
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{ loadData().then(applyLoad) },[])
+
+  const handleRefresh = () => {
+    setStorageReady(false)
+    loadData().then(applyLoad)
+  }
 
   useEffect(()=>{
-    if(!data) return
-    saveData(data)
+    if(!data || !storageReady) return
+    setSaveStatus('saving')
     const saved = new Date()
-    setLastSavedLabel('just now')
-    const iv = setInterval(()=>{
-      const mins=Math.floor((new Date()-saved)/60000)
-      if(mins<1)setLastSavedLabel('just now')
-      else if(mins===1)setLastSavedLabel('1 min ago')
-      else setLastSavedLabel(`${mins} mins ago`)
-    },30000)
+    let iv
+    saveData(data).then(({error})=>{
+      if(error){
+        setSaveStatus('error')
+      } else {
+        setSaveStatus('saved')
+        setLastSavedLabel('just now')
+        iv = setInterval(()=>{
+          const mins=Math.floor((new Date()-saved)/60000)
+          if(mins<1)setLastSavedLabel('just now')
+          else if(mins===1)setLastSavedLabel('1 min ago')
+          else setLastSavedLabel(`${mins} mins ago`)
+        },30000)
+      }
+    })
     return()=>clearInterval(iv)
-  },[data])
+  },[data,storageReady])
 
   useEffect(()=>{
     const handler=e=>{
@@ -6246,6 +6273,8 @@ export default function App() {
         onNavigate={(id,t)=>{setActiveId(id);setTab(t)}}
         searchRef={searchRef}
         lastSaved={lastSavedLabel}
+        saveStatus={saveStatus}
+        onRefresh={handleRefresh}
         theme={theme}
         setTheme={handleSetTheme}
         onGoHome={()=>setIsLandingPage(true)}

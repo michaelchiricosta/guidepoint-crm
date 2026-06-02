@@ -6,20 +6,27 @@ const SUPABASE_KEY = 'sb_publishable_3rSqBpPP1xF2H6QWw5-xsw_YhpKuMyW'
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 export const loadData = async () => {
+  console.log('[loadData] fetching from Supabase', new Date().toISOString())
   const { data, error } = await supabase
     .from('accounts')
     .select('*')
     .eq('id', 'user-data')
     .single()
-  if (error || !data) return null
+  if (error || !data) {
+    console.log('[loadData] no data or error:', error?.message)
+    return null
+  }
+  console.log('[loadData] loaded', JSON.stringify(data.data).length, 'bytes', new Date().toISOString())
   return data.data
 }
 
 export const saveData = async (appData) => {
+  console.log('[saveData] saving', JSON.stringify(appData).length, 'bytes', new Date().toISOString())
   const { error } = await supabase
     .from('accounts')
     .upsert({ id: 'user-data', data: appData, updated_at: new Date().toISOString() })
-  if (error) console.error('Save error:', error)
+  if (error) console.error('[saveData] error:', error)
+  return { error }
 }
 
 export const uploadFile = async (accountId, file, category, notes) => {
