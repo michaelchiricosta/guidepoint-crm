@@ -33,6 +33,7 @@ const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:
 const daysSince = d => { if (!d) return null; return Math.floor((new Date() - new Date(d+'T12:00:00')) / 86400000) }
 const parseCost = s => { if(!s)return 0; const c=String(s).replace(/[$,\s]/g,'').toLowerCase(); if(c.endsWith('k'))return parseFloat(c)*1000||0; if(c.endsWith('m'))return parseFloat(c)*1000000||0; return parseFloat(c)||0 }
 const fmtSpend = n => { if(!n)return '$0'; if(n>=1000000)return `$${(n/1000000).toFixed(1).replace(/\.0$/,'')}M`; if(n>=1000)return `$${n.toLocaleString()}`; return `$${n}` }
+const formatCompactCurrency = n => { if(!n||isNaN(n))return '$0'; if(n>=1000000)return `$${(n/1000000).toFixed(1).replace(/\.0$/,'')}M`; if(n>=1000)return `$${Math.round(n/1000)}k`; return `$${n.toLocaleString()}` }
 const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()
 const calcDetailedHealthScore = acct => {
   const ov = acct.healthScoreOverrides || {}
@@ -156,11 +157,11 @@ const SAMPLE = {
       {id:'t8',vendor:'Wiz',products:'CSPM / Cloud Security Posture',category:'Cloud Security',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Post-Qualys CSPM gap since May 2025. Integrates well with Google SecOps. Favorable Google pricing. Internal DAST vs CSPM confusion needs resolving first.'}
     ],
     projects:[
-      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
-      {id:'p2',name:'NetSpy PTaaS',category:'Pen Test / Red Team',vendor:'NetSpy',status:'In Discussion',description:'Cost-effective pen testing alternative to Mandiant. GuidePoint facilitating and capturing the paper.',goals:'Annual PTaaS with fast results and real manual testing.',pains:'Mandiant too expensive. Need off-year pen test solution.',primaryContact:'Rudy Montoya',budget:true,closeDate:'2026-06-30',notes:'Richard Booth is vendor rep. Wants to go direct — push through GuidePoint to control pricing and negotiation.',timeline:STAGES.map((s,i)=>({stage:s,status:i<3?'completed':i===3?'current':'pending',date:i===0?'2026-05-01':i===1?'2026-05-10':i===2?'2026-05-15':'' }))},
-      {id:'p3',name:'Horizon 3 ASM',category:'ASM',vendor:'Horizon 3',status:'In Discussion',description:'Attack surface management. Jamie has budget allocated. Preferred over Pentera after poor Pentera engagement.',goals:'Continuous ASM separate from PTaaS — separation of duties.',pains:'No continuous attack-path tracking since Qualys terminated May 2025.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-09-01',notes:'Confirm scope with Bill. NetSpy for PTaaS, Horizon 3 for ASM.',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'completed':i===1?'current':'pending',date:i===0?'2026-04-01':'' }))},
-      {id:'p4',name:'Saviynt to SailPoint IGA',category:'IGA',vendor:'SailPoint',status:'Not Started',description:'Replace failing Saviynt IGA with SailPoint. Jamie Dennis reached out on Saviynt contract 5/19.',goals:'Functioning IGA covering all 10 target systems not just 3.',pains:'Saviynt only completed 3 of 10 systems. Entire team hates the platform.',primaryContact:'Jamie Dennis',budget:false,closeDate:'',notes:'Get Saviynt contract renewal date. Jamie Dennis must be aligned for deployment to succeed.',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'current':'pending',date:'' }))},
-      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
+      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
+      {id:'p2',name:'NetSpy PTaaS',category:'Pen Test / Red Team',vendor:'NetSpy',status:'In Discussion',description:'Cost-effective pen testing alternative to Mandiant. GuidePoint facilitating and capturing the paper.',goals:'Annual PTaaS with fast results and real manual testing.',pains:'Mandiant too expensive. Need off-year pen test solution.',primaryContact:'Rudy Montoya',budget:true,closeDate:'2026-06-30',notes:'Richard Booth is vendor rep. Wants to go direct — push through GuidePoint to control pricing and negotiation.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<3?'completed':i===3?'current':'pending',date:i===0?'2026-05-01':i===1?'2026-05-10':i===2?'2026-05-15':'' }))},
+      {id:'p3',name:'Horizon 3 ASM',category:'ASM',vendor:'Horizon 3',status:'In Discussion',description:'Attack surface management. Jamie has budget allocated. Preferred over Pentera after poor Pentera engagement.',goals:'Continuous ASM separate from PTaaS — separation of duties.',pains:'No continuous attack-path tracking since Qualys terminated May 2025.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-09-01',notes:'Confirm scope with Bill. NetSpy for PTaaS, Horizon 3 for ASM.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'completed':i===1?'current':'pending',date:i===0?'2026-04-01':'' }))},
+      {id:'p4',name:'Saviynt to SailPoint IGA',category:'IGA',vendor:'SailPoint',status:'Not Started',description:'Replace failing Saviynt IGA with SailPoint. Jamie Dennis reached out on Saviynt contract 5/19.',goals:'Functioning IGA covering all 10 target systems not just 3.',pains:'Saviynt only completed 3 of 10 systems. Entire team hates the platform.',primaryContact:'Jamie Dennis',budget:false,closeDate:'',notes:'Get Saviynt contract renewal date. Jamie Dennis must be aligned for deployment to succeed.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'current':'pending',date:'' }))},
+      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
     ],
     interactions:[
       {id:'i1',contact:'Rudy Montoya',type:'Call',date:'2026-05-19',duration:45,topics:'NetSpy PTaaS, Horizon 3 ASM, Optiv restructure, Google SecOps frustrations, Saviynt contract',summary:'Wide-ranging strategy call. Pen testing vendor selection, Optiv Services LLC chaos with Chris and Andy, Google SecOps missing basic reporting.'}
@@ -416,6 +417,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const [summaryLoading,setSummaryLoading] = useState(false)
   const [summaryError,setSummaryError] = useState(null)
   const [showSpendModal,setShowSpendModal] = useState(false)
+  const [showPipelineModal,setShowPipelineModal] = useState(false)
 
   useEffect(()=>{
     const now=new Date()
@@ -530,6 +532,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
   const inFlight = acct.projects.filter(p=>p.status==='In Flight').length
   const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
   const totalAnnualSpend = (acct.techStack||[]).reduce((s,t)=>s+parseCost(t.cost),0)
+  const stageWeights = {'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
+  const totalWeightedPipeline = (acct.projects||[]).filter(p=>p.status!=='Lost'&&p.estimatedRevenue).reduce((s,p)=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage;return s+rev*(stageWeights[cs]??0.10)},0)
 
   const InfoRow = ({label,val}) => (
     <div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13,gap:12}}>
@@ -635,7 +639,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(7,1fr)',gap:8,marginBottom:16}}>
+      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':typeof window!=='undefined'&&window.innerWidth<1200?'repeat(4,1fr)':'repeat(8,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
           style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
@@ -711,12 +715,39 @@ function Overview({acct,setAcct,setTab,apiKey}) {
               {S.isLight?(
                 <>
                   <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
-                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
                 </>
               ):(
                 <>
                   <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
-                  <div style={{fontSize:22,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?fmtSpend(totalAnnualSpend):'—'}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
+                </>
+              )}
+            </div>
+          )
+        })()}
+        {/* Pipeline card */}
+        {(()=>{
+          const isHov=hoveredCard==='PIPELINE'
+          return (
+            <div
+              onClick={()=>setShowPipelineModal(true)}
+              onMouseEnter={()=>setHoveredCard('PIPELINE')}
+              onMouseLeave={()=>setHoveredCard(null)}
+              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:'3px solid #0891b2',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(8,145,178,0.4)':S.bdr}`,borderTop:'3px solid #0891b2',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
+              {S.isLight?(
+                <>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
+                  {totalWeightedPipeline>0&&<div style={{fontSize:9,color:'#94a3b8',marginTop:1}}>weighted by stage</div>}
+                </>
+              ):(
+                <>
+                  <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Pipeline</div>
+                  <div>
+                    <div style={{fontSize:22,fontWeight:800,color:'#06b6d4',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
+                    {totalWeightedPipeline>0&&<div style={{fontSize:9,color:S.muted,marginTop:2}}>weighted by stage</div>}
+                  </div>
                 </>
               )}
             </div>
@@ -725,6 +756,52 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
+      {showPipelineModal&&(()=>{
+        const sw={'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
+        const wBadge=w=>{if(w>=1.0)return{c:'#7c3aed',bg:'rgba(124,58,237,0.12)'};if(w>=0.9)return{c:'#16a34a',bg:'rgba(22,163,74,0.12)'};if(w>=0.6)return{c:'#ea580c',bg:'rgba(234,88,12,0.12)'};if(w>=0.3)return{c:'#ca8a04',bg:'rgba(202,138,4,0.12)'};if(w>=0.15)return{c:'#2563eb',bg:'rgba(37,99,235,0.12)'};return{c:'#64748b',bg:'rgba(100,116,139,0.12)'}}
+        const rows=(acct.projects||[]).filter(p=>p.status!=='Lost').map(p=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage||null;const w=sw[cs]??0.10;return{...p,_rev:rev,_cs:cs,_w:w,_wv:rev*w}}).sort((a,b)=>b._wv-a._wv)
+        const active=rows.filter(r=>r._rev>0)
+        const totW=active.reduce((s,r)=>s+r._wv,0)
+        const totU=active.reduce((s,r)=>s+r._rev,0)
+        return(
+          <Modal title={`Weighted Pipeline — ${acct.name}`} onClose={()=>setShowPipelineModal(false)} width='min(900px,65vw)'>
+            {active.length===0
+              ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No pipeline revenue entered. Add estimated revenue to your projects to track weighted pipeline.</div>
+              :<>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
+                  {[{label:'Total Weighted Pipeline',val:formatCompactCurrency(totW),c:'#0891b2'},{label:'Total Unweighted',val:formatCompactCurrency(totU),c:'#2563eb'},{label:'Active Projects w/ Revenue',val:String(active.length),c:'#16a34a'}].map(card=>(
+                    <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
+                      <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'7px 14px',fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',background:S.surf2,borderBottom:`1px solid ${S.bdr}`}}>
+                    <div>Project</div><div>Stage</div><div style={{textAlign:'right'}}>Est. Revenue</div><div style={{textAlign:'right'}}>Weight</div><div style={{textAlign:'right'}}>Weighted Value</div><div>Status</div>
+                  </div>
+                  {rows.map((p,i)=>{
+                    const wb=wBadge(p._w);const hasRev=p._rev>0
+                    return(
+                      <div key={p.id||i} style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'8px 14px',borderBottom:i<rows.length-1?`1px solid ${S.bdr}`:'none',fontSize:12,color:hasRev?S.txt:S.muted,alignItems:'center',opacity:hasRev?1:0.6}}>
+                        <div style={{fontWeight:hasRev?600:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
+                        <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p._cs||'—'}</div>
+                        <div style={{textAlign:'right'}}>{hasRev?formatCompactCurrency(p._rev):'—'}</div>
+                        <div style={{textAlign:'right'}}><span style={{fontSize:10,fontWeight:700,color:wb.c,background:wb.bg,borderRadius:999,padding:'2px 6px'}}>{Math.round(p._w*100)}%</span></div>
+                        <div style={{textAlign:'right',fontWeight:600,color:hasRev?'#0891b2':S.muted}}>{hasRev?formatCompactCurrency(p._wv):'—'}</div>
+                        <div><span style={{fontSize:10,fontWeight:600,color:PSC[p.status]||S.muted}}>{p.status}</span></div>
+                      </div>
+                    )
+                  })}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'8px 14px',fontSize:12,fontWeight:700,color:S.txt,background:S.surf2,borderTop:`1px solid ${S.bdr}`}}>
+                    <div>Total</div><div/><div style={{textAlign:'right'}}>{formatCompactCurrency(totU)}</div><div/><div style={{textAlign:'right',color:'#0891b2'}}>{formatCompactCurrency(totW)}</div><div/>
+                  </div>
+                </div>
+              </>
+            }
+          </Modal>
+        )
+      })()}
       {showSpendModal&&(()=>{
         const rows=(acct.techStack||[]).map(t=>({...t,_cost:parseCost(t.cost),_rev:parseCost(t.totalRevenue),_gp:parseCost(t.grossProfit)})).filter(t=>t._cost||t._rev||t._gp).sort((a,b)=>b._cost-a._cost)
         const totCost=rows.reduce((s,t)=>s+t._cost,0)
@@ -2819,7 +2896,7 @@ function Projects({acct,setAcct}) {
   const [statusMenu,setStatusMenu] = useState(null)
   const [tlFilters,setTlFilters] = useState(new Set(TIMELINE_STATUSES))
   const toggleTlFilter = s => setTlFilters(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
-  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
+  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,projects:p.projects.map(j=>j.id===form.id?form:j)}));else setAcct(p=>({...p,projects:[...p.projects,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -2909,7 +2986,11 @@ function Projects({acct,setAcct}) {
                         )}
                       </div>
                       <div style={{fontSize:11,color:S.muted,marginBottom:4}}>{p.vendor&&<span>{p.vendor} · </span>}{p.primaryContact||'—'}</div>
-                      {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginBottom:5}}>→ {p.nextAction}</div>}
+                      {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginBottom:4}}>→ {p.nextAction}</div>}
+                      {(p.estimatedRevenue||p.estimatedGrossProfit)&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:5}}>
+                        {p.estimatedRevenue&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>Rev: {p.estimatedRevenue}</span>}
+                        {p.estimatedGrossProfit&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>GP: {p.estimatedGrossProfit}</span>}
+                      </div>}
                       <div style={{height:3,background:S.bdr,borderRadius:2,overflow:'hidden',marginBottom:3}}>
                         <div style={{height:'100%',width:`${(comp/STAGES.length)*100}%`,background:sc}}/>
                       </div>
@@ -2985,6 +3066,10 @@ function Projects({acct,setAcct}) {
                 </div>
                 <div style={{fontSize:11,color:S.muted}}>{p.primaryContact||'—'} · Close: {fmtDate(p.closeDate)||'TBD'}</div>
                 {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginTop:3}}>→ Next: {p.nextAction}</div>}
+                {(p.estimatedRevenue||p.estimatedGrossProfit)&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:3}}>
+                  {p.estimatedRevenue&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>Rev: {p.estimatedRevenue}</span>}
+                  {p.estimatedGrossProfit&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>GP: {p.estimatedGrossProfit}</span>}
+                </div>}
               </div>
               <button onClick={e=>openEdit(p,e)} style={penBtn} title='Edit project'>✏</button>
             </div>
@@ -3078,6 +3163,8 @@ function Projects({acct,setAcct}) {
           <Field label='Vendor' value={form.vendor} onChange={f('vendor')}/>
           <Field label='Status' value={form.status} onChange={f('status')} options={PROJ_STATS}/>
           <Field label='Est. Close Date' value={form.closeDate} onChange={f('closeDate')} type='date'/>
+          <Field label='Est. Revenue' value={form.estimatedRevenue||''} onChange={f('estimatedRevenue')} placeholder='e.g. $50,000'/>
+          <Field label='Est. Gross Profit' value={form.estimatedGrossProfit||''} onChange={f('estimatedGrossProfit')} placeholder='e.g. $15,000'/>
           <Field label='Primary Contact Name' value={form.primaryContact} onChange={f('primaryContact')} style={{gridColumn:'span 2'}}/>
         </div>
         <Field label='Description' value={form.description} onChange={f('description')} multiline/>
