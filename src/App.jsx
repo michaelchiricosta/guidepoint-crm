@@ -3710,6 +3710,12 @@ function IntelLog({acct,setAcct,apiKey}) {
   const fileInputRef = useRef(null)
   const [pendingParsed, setPendingParsed] = useState(null)
   const [fuSelections, setFuSelections] = useState(new Set())
+  const [fileCharCount, setFileCharCount] = useState(0)
+  const [largeDocWarning, setLargeDocWarning] = useState(false)
+  const [processingLong, setProcessingLong] = useState(false)
+
+  const FILE_CHAR_LIMIT = 100000
+  const MANUAL_CHAR_LIMIT = 40000
 
   const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
   const TEXT_EXTS = ['txt','pdf','doc','docx','md']
@@ -3746,7 +3752,7 @@ function IntelLog({acct,setAcct,apiKey}) {
       method: 'POST',
       headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6', max_tokens: 2000,
+        model: 'claude-sonnet-4-6', max_tokens: 4000,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
           { type: 'text', text: 'Extract all text and information from this document or image. Return everything you can read including any tables, lists, names, dates, and key information. Format it as clean readable text.' }
@@ -3796,12 +3802,18 @@ function IntelLog({acct,setAcct,apiKey}) {
         if (!effectiveKey) throw new Error('Add your Anthropic API key in Settings to process images.')
         extracted = await extractViaVision(file)
       }
-      let truncated = false
-      if (extracted.length>15000) { extracted=extracted.slice(0,15000); truncated=true }
+      const rawLen = extracted.length
+      setFileCharCount(rawLen)
+      let wasChunked = false
+      if (extracted.length > FILE_CHAR_LIMIT) {
+        extracted = '[Note: This document was truncated to 100,000 characters for processing. Upload the remainder separately if needed.]\n\n' + extracted.slice(0, FILE_CHAR_LIMIT)
+        wasChunked = true
+      }
+      setLargeDocWarning(wasChunked)
       setFileLoading(false)
       setText(extracted)
       setFileStatus('File loaded — analyzing with AI...')
-      if (truncated) setFileError2('File was truncated to 15,000 characters — only the first portion will be processed.')
+      setFileError2('')
       // Auto-process after short delay so text state updates flush
       setTimeout(async () => {
         const date = detectDate(extracted) || new Date().toISOString().split('T')[0]
@@ -3845,7 +3857,8 @@ function IntelLog({acct,setAcct,apiKey}) {
 
   const process = async (date, textOverride) => {
     const inputText = textOverride !== undefined ? textOverride : text
-    setLoading(true);setError('');setResult(null)
+    setLoading(true);setError('');setResult(null);setProcessingLong(false)
+    const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
@@ -3882,7 +3895,10 @@ ${inputText}`}]
       }
       setText('')
       setUploadedFile(null)
+      setFileCharCount(0)
+      setLargeDocWarning(false)
     } catch(e) { setError('Error: '+(e.message||'Processing failed. Check your API key in Settings.')) }
+    finally { clearTimeout(longTimer); setProcessingLong(false) }
     setLoading(false)
   }
 
@@ -3934,7 +3950,7 @@ ${inputText}`}]
       <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',padding:20,marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
           <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Add Intelligence</div>
-          <span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / 15,000</span>
+          <span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</span>
         </div>
         <div style={{fontSize:12,color:'#64748b',marginBottom:12,lineHeight:1.5}}>Paste a call transcript, meeting notes, or quick note. AI extracts follow-ups, updates contacts, and logs intel automatically.</div>
         {!effectiveKey&&(
@@ -3945,15 +3961,15 @@ ${inputText}`}]
         )}
         <textarea
           value={text}
-          onChange={e=>setText(e.target.value)}
-          maxLength={15000}
+          onChange={e=>{setText(e.target.value);setLargeDocWarning(false);setFileCharCount(0)}}
+          maxLength={uploadedFile?undefined:MANUAL_CHAR_LIMIT}
           rows={7}
           placeholder={'Paste transcript, meeting notes, email, or a quick note here…\n\n"Talked to the security architect today. Wiz demo confirmed for Wednesday. The CISO reached back about Palo Alto pricing — wants a decision by June…"'}
           style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#0f172a',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
           onFocus={e=>{e.target.style.borderColor='#2563eb';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
           onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.boxShadow='none'}}
         />
-        <div style={{textAlign:'right',fontSize:11,color:text.length>14000?'#dc2626':text.length>12000?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / 15,000</div>
+        <div style={{textAlign:'right',fontSize:11,color:text.length>MANUAL_CHAR_LIMIT*0.95?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.8?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</div>
         {/* File upload zone */}
         <div
           onDragOver={e=>{e.preventDefault();setDragOver(true)}}
@@ -3976,9 +3992,18 @@ ${inputText}`}]
           )}
         </div>
         {uploadedFile&&(
-          <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',marginBottom:8,fontSize:12,color:'#1d4ed8'}}>
-            <span>📄 {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(0)} KB</span>
-            <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('');setFileStatus('')}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+          <div style={{marginBottom:8}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',fontSize:12,color:'#1d4ed8'}}>
+              <span>📄 {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(0)} KB</span>
+              <button onClick={e=>{e.stopPropagation();setUploadedFile(null);setText('');setFileError2('');setFileStatus('');setFileCharCount(0);setLargeDocWarning(false)}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+            </div>
+            {fileCharCount>0&&<div style={{fontSize:11,color:'#64748b',marginTop:3,paddingLeft:2}}>Extracted: {fileCharCount.toLocaleString()} characters{fileCharCount>FILE_CHAR_LIMIT?` (processing first ${FILE_CHAR_LIMIT.toLocaleString()})`:''}</div>}
+          </div>
+        )}
+        {largeDocWarning&&(
+          <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#92400e',marginBottom:8,display:'flex',alignItems:'flex-start',gap:6}}>
+            <span style={{flexShrink:0,fontSize:14}}>⚠</span>
+            <span>Large document detected — processing first 100,000 characters. If the document is longer, upload the remaining pages separately.</span>
           </div>
         )}
         {fileStatus&&!loading&&(
@@ -4007,7 +4032,7 @@ ${inputText}`}]
         <button onClick={handleProcess} disabled={loading||!text.trim()}
           style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:11,background:loading||!text.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#ffffff',fontSize:13,fontWeight:700,cursor:loading||!text.trim()?'not-allowed':'pointer',transition:'opacity 0.15s'}}>
           {loading
-            ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> Processing...</>
+            ?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.35)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/> {processingLong?'Still processing large document...':'Processing...'}</>
             :'Process with AI ✨'}
         </button>
       </div>
