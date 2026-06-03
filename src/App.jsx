@@ -172,14 +172,14 @@ const SAMPLE = {
       {id:'c8',contactType:'Internal',name:'Mike Chiricosta',title:'Enterprise Client Manager',email:'',cell:'',linkedin:'',location:'',dept:'GuidePoint Security',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'',goals:'',pains:'',notes:'Account owner',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]}
     ],
     techStack:[
-      {id:'t1',vendor:'QRadar / QROC',products:'Co-managed SIEM',category:'SIEM / SOC',status:'Replacing',renewalDate:'2026-04-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'EOL April 2026. WinCollect agents crashing on Exchange and GIS servers. 15-20TB log migration to AWS S3 needed.'},
-      {id:'t2',vendor:'Google SecOps',products:'SIEM / Chronicle',category:'SIEM / SOC',status:'Selected',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Target SIEM deployed with 10X. Rudy frustrated — cannot get incident list by priority. Caching issues persist.'},
-      {id:'t3',vendor:'Saviynt',products:'IGA',category:'Identity / IAM',status:'Replacing',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Jamie Dennis',notes:'Only 3 of 10 target systems completed. Team hates it. Target replacement: SailPoint. Jamie Dennis pinged Mike on contract 5/19.'},
-      {id:'t4',vendor:'Microsoft E5 Suite',products:'Entra ID, Defender EDR, Sentinel, Purview, PIM',category:'Identity / IAM',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Marc Wood',notes:'Core identity and endpoint platform. PIM is NOT full PAM. Rudy pushing back on Microsoft narrative. Sentinel adoption stalled.'},
-      {id:'t5',vendor:'Cloudflare',products:'SASE, ZTNA, Gateway, VPN replacement',category:'Network / SASE',status:'Watch',renewalDate:'2026-12-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Alec Schmid',notes:'Final contract year 2026. Log noise severe — 20k unknown tunnel events per 5 minutes. Zscaler pivot opportunity as renewal approaches.'},
-      {id:'t6',vendor:'Abnormal Security',products:'Email Protection',category:'Email Security',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Rudy satisfied. Unlikely to replace. SIEM log integration desired.'},
-      {id:'t7',vendor:'NetSpy',products:'PTaaS — Pen Testing as a Service',category:'Pen Test / Red Team',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'Richard Booth',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Scoping call done. Demo this week. Good references from Geico and Metro. Manual testing with live chat and fast results. GuidePoint should capture the paper.'},
-      {id:'t8',vendor:'Wiz',products:'CSPM / Cloud Security Posture',category:'Cloud Security',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Post-Qualys CSPM gap since May 2025. Integrates well with Google SecOps. Favorable Google pricing. Internal DAST vs CSPM confusion needs resolving first.'}
+      {id:'t1',vendor:'QRadar / QROC',products:'Co-managed SIEM',category:'SIEM / SOC',status:'Replacing',renewalDate:'2026-04-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'EOL April 2026. WinCollect agents crashing on Exchange and GIS servers. 15-20TB log migration to AWS S3 needed.'},
+      {id:'t2',vendor:'Google SecOps',products:'SIEM / Chronicle',category:'SIEM / SOC',status:'Selected',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'Target SIEM deployed with 10X. Rudy frustrated — cannot get incident list by priority. Caching issues persist.'},
+      {id:'t3',vendor:'Saviynt',products:'IGA',category:'Identity / IAM',status:'Replacing',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Jamie Dennis',replacementOptions:'SailPoint',notes:'Only 3 of 10 target systems completed. Team hates it. Target replacement: SailPoint. Jamie Dennis pinged Mike on contract 5/19.'},
+      {id:'t4',vendor:'Microsoft E5 Suite',products:'Entra ID, Defender EDR, Sentinel, Purview, PIM',category:'Identity / IAM',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Marc Wood',replacementOptions:'',notes:'Core identity and endpoint platform. PIM is NOT full PAM. Rudy pushing back on Microsoft narrative. Sentinel adoption stalled.'},
+      {id:'t5',vendor:'Cloudflare',products:'SASE, ZTNA, Gateway, VPN replacement',category:'Network / SASE',status:'Watch',renewalDate:'2026-12-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Alec Schmid',replacementOptions:'Zscaler',notes:'Final contract year 2026. Log noise severe — 20k unknown tunnel events per 5 minutes. Zscaler pivot opportunity as renewal approaches.'},
+      {id:'t6',vendor:'Abnormal Security',products:'Email Protection',category:'Email Security',status:'Current',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'Rudy satisfied. Unlikely to replace. SIEM log integration desired.'},
+      {id:'t7',vendor:'NetSpy',products:'PTaaS — Pen Testing as a Service',category:'Pen Test / Red Team',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'Richard Booth',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'Scoping call done. Demo this week. Good references from Geico and Metro. Manual testing with live chat and fast results. GuidePoint should capture the paper.'},
+      {id:'t8',vendor:'Wiz',products:'CSPM / Cloud Security Posture',category:'Cloud Security',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'Post-Qualys CSPM gap since May 2025. Integrates well with Google SecOps. Favorable Google pricing. Internal DAST vs CSPM confusion needs resolving first.'}
     ],
     projects:[
       {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
@@ -7571,6 +7571,11 @@ function KanbanCard({p, col, updateProject}) {
 
 function ClientView({acct, setAcct, onClose}) {
   const [cvTab, setCvTab] = useState('projects')
+  const [cvHoveredSeg, setCvHoveredSeg] = useState(null)
+  const [cvEditModal, setCvEditModal] = useState(null)
+  const [cvEditForm, setCvEditForm] = useState({vendor:'',products:'',replacementOptions:'',contractSale:''})
+  const [tlFilter, setTlFilter] = useState(new Set(['In Flight','In Discussion','Not Started','Stalled']))
+  const [tlSort, setTlSort] = useState('Status')
 
   useEffect(()=>{
     const h = e => { if(e.key==='Escape') onClose() }
@@ -7589,7 +7594,50 @@ function ClientView({acct, setAcct, onClose}) {
     try { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'}) } catch { return d }
   }
 
-  // ── Heatmap geometry (read-only) ──
+  const toggleTlFilter = s => setTlFilter(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
+
+  const cvCapToTechCat = {'SIEM/XDR':'SIEM / SOC','SOAR':'SIEM / SOC','Log Management':'SIEM / SOC','MSSP/MDR':'SIEM / SOC','Threat Intel':'Threat Intel','Vulnerability Management':'SIEM / SOC','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Brand/Dark Web':'Threat Intel','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','CNAPP/CSPM':'Cloud Security','CWPP':'Cloud Security','CIEM':'Cloud Security','CASB/SSPM':'Cloud Security','CDN/WAF':'Cloud Security','SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Data Governance':'GRC','DSPM':'GRC','DLP':'GRC','GenAI/LLM Security':'GRC','Data Encryption':'GRC','Key Management':'GRC','BC/DR Backup':'GRC','GRC Platform':'GRC','3rd Party Risk':'GRC','DFIR':'SIEM / SOC','Firewall':'Network / SASE','IDS/IPS':'Network / SASE','URL Filtering':'Network / SASE','Sandbox':'Network / SASE','DNS Security':'Network / SASE','SASE/ZTNA':'Network / SASE','Zero Trust':'Network / SASE','NAC':'Network / SASE','NTA/NDR':'Network / SASE','FW Segmentation':'Network / SASE','Identity Store/AD':'Identity / IAM','ITDR':'Identity / IAM','IAM':'Identity / IAM','SSO':'Identity / IAM','MFA':'Identity / IAM','IGA':'Identity / IAM','PAM':'Identity / IAM','Certificate Management':'Identity / IAM','ISPM':'Identity / IAM','Non-Human Identity':'Identity / IAM'}
+
+  const handleCvCapHover = (seg,e) => {
+    if(seg.type!=='cap'){setCvHoveredSeg(null);return}
+    setCvHoveredSeg({...seg,x:e.clientX,y:e.clientY})
+  }
+  const handleCvCapMove = (seg,e) => {
+    if(seg.type!=='cap')return
+    setCvHoveredSeg(p=>p?{...p,x:e.clientX,y:e.clientY}:null)
+  }
+  const handleCvCapClick = (seg) => {
+    if(seg.type!=='cap')return
+    if(seg.vendor){
+      setCvEditForm({vendor:seg.vendor.vendor||'',products:seg.vendor.products||'',replacementOptions:seg.vendor.replacementOptions||'',contractSale:seg.vendor.contractSale||''})
+      setCvEditModal({...seg})
+    } else {
+      const category=cvCapToTechCat[seg.cap]||'Other'
+      setCvEditForm({vendor:'',products:seg.cap,replacementOptions:'',contractSale:''})
+      setCvEditModal({...seg,newEntry:true,category})
+    }
+  }
+  const saveCvEdit = () => {
+    if(!cvEditModal)return
+    if(cvEditModal.vendor){
+      setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===cvEditModal.vendor.id?{...t,...cvEditForm}:t)}))
+    } else {
+      if(!cvEditForm.vendor)return
+      const newEntry={id:uid(),vendor:cvEditForm.vendor,products:cvEditForm.products,replacementOptions:cvEditForm.replacementOptions,contractSale:cvEditForm.contractSale,category:cvEditModal.category||'Other',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',notes:'',contractSaleDetails:''}
+      setAcct(p=>({...p,techStack:[...p.techStack,newEntry]}))
+    }
+    setCvEditModal(null)
+  }
+
+  const sortedTlProjects = [...activeProjects].filter(p=>tlFilter.has(p.status)).sort((a,b)=>{
+    if(tlSort==='Project Name')return a.name.localeCompare(b.name)
+    if(tlSort==='Most Recent Stage'){const ac=a.timeline.filter(s=>s.status==='completed').length;const bc=b.timeline.filter(s=>s.status==='completed').length;return bc-ac}
+    if(tlSort==='Client Target Date'){const aD=a.clientTargetDate||'9999-99-99';const bD=b.clientTargetDate||'9999-99-99';return aD.localeCompare(bD)}
+    const order=['In Flight','In Discussion','Not Started','Stalled']
+    return order.indexOf(a.status)-order.indexOf(b.status)
+  })
+
+  // ── Heatmap geometry (interactive) ──
   const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=171,HM_START=-Math.PI/2
   const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
   const hmSegs=[]
@@ -7723,9 +7771,30 @@ function ClientView({acct, setAcct, onClose}) {
             {/* Timeline */}
             {activeProjects.length>0&&(
               <div>
-                <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Project Timelines</div>
+                {/* Controls */}
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginRight:4}}>Project Timelines</div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',flex:1}}>
+                    {[{s:'In Flight',c:'#2563eb'},{s:'In Discussion',c:'#7c3aed'},{s:'Not Started',c:'#64748b'},{s:'Stalled',c:'#ea580c'}].map(({s,c})=>{
+                      const active=tlFilter.has(s)
+                      return (
+                        <button key={s} onClick={()=>toggleTlFilter(s)}
+                          style={{padding:'4px 12px',borderRadius:999,fontSize:11,fontWeight:600,cursor:'pointer',border:`1px solid ${active?c:'#e2e8f0'}`,background:active?c+'18':'transparent',color:active?c:'#94a3b8',transition:'all 0.12s'}}>
+                          {s}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <select value={tlSort} onChange={e=>setTlSort(e.target.value)} style={{fontSize:12,padding:'5px 9px',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,color:'#374151',cursor:'pointer',flexShrink:0}}>
+                    <option value='Status'>Sort: Status</option>
+                    <option value='Project Name'>Sort: Name A–Z</option>
+                    <option value='Most Recent Stage'>Sort: Most Recent Stage</option>
+                    <option value='Client Target Date'>Sort: Target Date</option>
+                  </select>
+                </div>
+                {sortedTlProjects.length===0&&<div style={{fontSize:13,color:'#94a3b8',textAlign:'center',padding:'24px',background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0'}}>No projects match the selected filters.</div>}
                 <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                  {activeProjects.map(p=>{
+                  {sortedTlProjects.map(p=>{
                     const sc=PSC[p.status]||'#64748b'
                     const targetDate=p.clientTargetDate
                     return (
@@ -7744,7 +7813,6 @@ function ClientView({acct, setAcct, onClose}) {
                             const lineColor=isComp?'#16a34a':'#e2e8f0'
                             return (
                               <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',flex:'1 1 0',minWidth:0,position:'relative'}}>
-                                {/* connector line */}
                                 {i<p.timeline.length-1&&<div style={{position:'absolute',top:8,left:'50%',width:'100%',height:2,background:lineColor,zIndex:0}}/>}
                                 <div style={{width:16,height:16,borderRadius:'50%',background:dotColor,border:`2px solid ${isComp?'#16a34a':isCurr?'#2563eb':'#cbd5e1'}`,flexShrink:0,zIndex:1,boxShadow:isCurr?'0 0 0 3px rgba(37,99,235,0.2)':undefined}}/>
                                 <div style={{fontSize:9,color:isComp?'#16a34a':isCurr?'#2563eb':'#94a3b8',fontWeight:isCurr?700:isComp?600:400,marginTop:5,textAlign:'center',lineHeight:1.3,wordBreak:'break-word',padding:'0 2px'}}>{stage.stage}</div>
@@ -7769,11 +7837,12 @@ function ClientView({acct, setAcct, onClose}) {
         {/* ══ TECH STACK TAB ══ */}
         {cvTab==='techstack'&&(
           <div>
-            {/* Heatmap wheel — read-only */}
+            {/* Heatmap wheel — interactive */}
             <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',padding:'24px',marginBottom:28,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <style>{`@keyframes cvHmFadeIn{from{opacity:0}to{opacity:1}}`}</style>
               <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Security Coverage Heatmap</div>
               <div style={{display:'flex',justifyContent:'center'}}>
-                <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:560,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))'}}>
+                <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:560,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))',touchAction:'none'}}>
                   <defs>
                     <radialGradient id="cv-hm-gc" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#4ade80"/><stop offset="55%" stopColor="#22c55e"/><stop offset="100%" stopColor="#16a34a"/></radialGradient>
                     <radialGradient id="cv-hm-ge" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fde047"/><stop offset="55%" stopColor="#eab308"/><stop offset="100%" stopColor="#ca8a04"/></radialGradient>
@@ -7810,12 +7879,27 @@ function ClientView({acct, setAcct, onClose}) {
                     ))}
                     {hmSegs.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>{
                       const gid={Current:'cv-hm-gc',Selected:'cv-hm-gc',Evaluating:'cv-hm-ge',Watch:'cv-hm-gw',Replacing:'cv-hm-gr',Dropping:'cv-hm-gr','Current Gap':'cv-hm-gn'}[seg.vendor.status]||'cv-hm-gc'
-                      return <path key={`cvcv-${seg.di}-${seg.ci}`} d={seg.path} fill={`url(#${gid})`} stroke="none"/>
+                      const isHov=cvHoveredSeg?.di===seg.di&&cvHoveredSeg?.ci===seg.ci
+                      const idx=seg.di*10+seg.ci
+                      return (
+                        <path key={`cvcv-${seg.di}-${seg.ci}`} d={seg.path} fill={`url(#${gid})`} stroke="none"
+                          style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,transform:isHov?'scale(1.1)':'scale(1)',opacity:cvHoveredSeg&&!isHov?0.82:1,transition:'transform 0.15s ease,opacity 0.15s ease',animation:'cvHmFadeIn 0.55s ease-out both',animationDelay:`${idx*11}ms`}}
+                          onMouseEnter={e=>handleCvCapHover(seg,e)} onMouseMove={e=>handleCvCapMove(seg,e)}
+                          onMouseLeave={()=>setCvHoveredSeg(null)} onClick={()=>handleCvCapClick(seg)}/>
+                      )
                     })}
                   </g>
-                  {hmSegs.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>(
-                    <path key={`cvce-${seg.di}-${seg.ci}`} d={seg.path} fill="rgba(255,255,255,0.20)" stroke="none"/>
-                  ))}
+                  {hmSegs.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>{
+                    const isHov=cvHoveredSeg?.di===seg.di&&cvHoveredSeg?.ci===seg.ci
+                    const idx=seg.di*10+seg.ci
+                    return (
+                      <path key={`cvce-${seg.di}-${seg.ci}`} d={seg.path}
+                        fill={isHov?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.20)'} stroke="none"
+                        style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,transform:isHov?'scale(1.1)':'scale(1)',opacity:cvHoveredSeg&&!isHov?0.82:1,transition:'transform 0.15s ease,opacity 0.15s ease',animation:'cvHmFadeIn 0.55s ease-out both',animationDelay:`${idx*11}ms`}}
+                        onMouseEnter={e=>handleCvCapHover(seg,e)} onMouseMove={e=>handleCvCapMove(seg,e)}
+                        onMouseLeave={()=>setCvHoveredSeg(null)} onClick={()=>handleCvCapClick(seg)}/>
+                    )
+                  })}
                   {hmSegs.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(
                     <circle key={`cvvd-${seg.di}-${seg.ci}`} cx={seg.centX} cy={seg.centY} r={2.8} fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>
                   ))}
@@ -7845,7 +7929,74 @@ function ClientView({acct, setAcct, onClose}) {
                   })()}
                 </svg>
               </div>
+              {/* Heatmap tooltip */}
+              {cvHoveredSeg&&(()=>{
+                const sc=cvHoveredSeg.vendor?capStatusFill(cvHoveredSeg.vendor):'#64748b'
+                const tx=Math.min(cvHoveredSeg.x+16,window.innerWidth-270)
+                const ty=Math.max(10,cvHoveredSeg.y-70)
+                return (
+                  <div style={{position:'fixed',left:tx,top:ty,zIndex:3000,background:'rgba(15,23,42,0.95)',borderRadius:10,padding:'10px 14px',pointerEvents:'none',minWidth:200,maxWidth:260,boxShadow:'0 8px 24px rgba(0,0,0,0.4)',border:'1px solid rgba(255,255,255,0.08)'}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#f1f5f9',marginBottom:6,lineHeight:1.3}}>{cvHoveredSeg.cap}</div>
+                    <div style={{fontSize:11,color:'#64748b',marginBottom:6,letterSpacing:'0.04em',textTransform:'uppercase'}}>{cvHoveredSeg.domain.name}</div>
+                    {cvHoveredSeg.vendor?(
+                      <>
+                        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:sc,flexShrink:0}}/>
+                          <span style={{fontSize:12,fontWeight:600,color:'#e2e8f0'}}>{cvHoveredSeg.vendor.vendor}</span>
+                        </div>
+                        {cvHoveredSeg.vendor.products&&<div style={{fontSize:11,color:'#94a3b8',marginBottom:4}}>{cvHoveredSeg.vendor.products}</div>}
+                        <div style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:700,color:sc,background:sc+'22',borderRadius:999,padding:'2px 8px'}}>{cvHoveredSeg.vendor.status}</div>
+                        <div style={{fontSize:10,color:'#475569',marginTop:6}}>Click to edit</div>
+                      </>
+                    ):(
+                      <div style={{fontSize:11,color:'#475569'}}>No vendor assigned — click to add</div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
+
+            {/* Restricted edit modal */}
+            {cvEditModal&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:3000,padding:16}}>
+                <div style={{background:'#ffffff',borderRadius:14,boxShadow:'0 20px 60px rgba(0,0,0,0.2)',width:'100%',maxWidth:440,overflow:'hidden'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:'1px solid #f1f5f9'}}>
+                    <div>
+                      <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>{cvEditModal.vendor?'Edit Vendor':'Add Vendor'}</div>
+                      <div style={{fontSize:12,color:'#64748b',marginTop:2}}>{cvEditModal.cap} · {cvEditModal.domain?.name}</div>
+                    </div>
+                    <button onClick={()=>setCvEditModal(null)} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:20,lineHeight:1,padding:'2px 6px'}}>×</button>
+                  </div>
+                  <div style={{padding:'20px'}}>
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Vendor Name</div>
+                      <input value={cvEditForm.vendor} onChange={e=>setCvEditForm(p=>({...p,vendor:e.target.value}))} placeholder='Vendor name...' style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:7,color:'#0f172a',background:'#f8fafc',boxSizing:'border-box'}}/>
+                    </div>
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Products / Features</div>
+                      <input value={cvEditForm.products} onChange={e=>setCvEditForm(p=>({...p,products:e.target.value}))} placeholder='Products or features...' style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:7,color:'#0f172a',background:'#f8fafc',boxSizing:'border-box'}}/>
+                    </div>
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Replacement Options</div>
+                      <input value={cvEditForm.replacementOptions} onChange={e=>setCvEditForm(p=>({...p,replacementOptions:e.target.value}))} placeholder='Alternative vendors being considered...' style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:7,color:'#0f172a',background:'#f8fafc',boxSizing:'border-box'}}/>
+                    </div>
+                    <div style={{marginBottom:20}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Contract Sale</div>
+                      <select value={cvEditForm.contractSale} onChange={e=>setCvEditForm(p=>({...p,contractSale:e.target.value}))} style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:7,color:'#0f172a',background:'#f8fafc',boxSizing:'border-box'}}>
+                        <option value=''>Not Set</option>
+                        <option value='GuidePoint'>GuidePoint</option>
+                        <option value='Direct'>Direct</option>
+                        <option value='Other VAR'>Other VAR</option>
+                      </select>
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                      <button onClick={saveCvEdit} style={{flex:1,padding:'10px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+                      <button onClick={()=>setCvEditModal(null)} style={{padding:'10px 16px',background:'transparent',border:'1px solid #e2e8f0',borderRadius:8,color:'#64748b',fontSize:13,cursor:'pointer'}}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Vendor list */}
             <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',padding:'24px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
