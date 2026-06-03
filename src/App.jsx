@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2 } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -182,11 +182,11 @@ const SAMPLE = {
       {id:'t8',vendor:'Wiz',products:'CSPM / Cloud Security Posture',category:'Cloud Security',status:'Evaluating',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',notes:'Post-Qualys CSPM gap since May 2025. Integrates well with Google SecOps. Favorable Google pricing. Internal DAST vs CSPM confusion needs resolving first.'}
     ],
     projects:[
-      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
-      {id:'p2',name:'NetSpy PTaaS',category:'Pen Test / Red Team',vendor:'NetSpy',status:'In Discussion',description:'Cost-effective pen testing alternative to Mandiant. GuidePoint facilitating and capturing the paper.',goals:'Annual PTaaS with fast results and real manual testing.',pains:'Mandiant too expensive. Need off-year pen test solution.',primaryContact:'Rudy Montoya',budget:true,closeDate:'2026-06-30',notes:'Richard Booth is vendor rep. Wants to go direct — push through GuidePoint to control pricing and negotiation.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<3?'completed':i===3?'current':'pending',date:i===0?'2026-05-01':i===1?'2026-05-10':i===2?'2026-05-15':'' }))},
-      {id:'p3',name:'Horizon 3 ASM',category:'ASM',vendor:'Horizon 3',status:'In Discussion',description:'Attack surface management. Jamie has budget allocated. Preferred over Pentera after poor Pentera engagement.',goals:'Continuous ASM separate from PTaaS — separation of duties.',pains:'No continuous attack-path tracking since Qualys terminated May 2025.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-09-01',notes:'Confirm scope with Bill. NetSpy for PTaaS, Horizon 3 for ASM.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'completed':i===1?'current':'pending',date:i===0?'2026-04-01':'' }))},
-      {id:'p4',name:'Saviynt to SailPoint IGA',category:'IGA',vendor:'SailPoint',status:'Not Started',description:'Replace failing Saviynt IGA with SailPoint. Jamie Dennis reached out on Saviynt contract 5/19.',goals:'Functioning IGA covering all 10 target systems not just 3.',pains:'Saviynt only completed 3 of 10 systems. Entire team hates the platform.',primaryContact:'Jamie Dennis',budget:false,closeDate:'',notes:'Get Saviynt contract renewal date. Jamie Dennis must be aligned for deployment to succeed.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'current':'pending',date:'' }))},
-      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
+      {id:'p1',name:'MDR / SecOps Stabilization',category:'MDR',vendor:'GuidePoint / 10X',status:'In Flight',description:'10X delivery issues creating GuidePoint MDR opening. Chris and Andy moved to Optiv Services LLC — status uncertain.',goals:'Stable transparent 24/7 MDR. Own Google SecOps and Cribl licenses.',pains:'10X SLA failures. Chad friction. Google SecOps missing basic priority reporting.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-08-01',notes:'Position GuidePoint as continuity and stability play. Glass-box model is the differentiator.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-01-01':i===1?'2026-02-01':i===2?'2026-03-13':i===3?'2026-03-27':'' }))},
+      {id:'p2',name:'NetSpy PTaaS',category:'Pen Test / Red Team',vendor:'NetSpy',status:'In Discussion',description:'Cost-effective pen testing alternative to Mandiant. GuidePoint facilitating and capturing the paper.',goals:'Annual PTaaS with fast results and real manual testing.',pains:'Mandiant too expensive. Need off-year pen test solution.',primaryContact:'Rudy Montoya',budget:true,closeDate:'2026-06-30',notes:'Richard Booth is vendor rep. Wants to go direct — push through GuidePoint to control pricing and negotiation.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<3?'completed':i===3?'current':'pending',date:i===0?'2026-05-01':i===1?'2026-05-10':i===2?'2026-05-15':'' }))},
+      {id:'p3',name:'Horizon 3 ASM',category:'ASM',vendor:'Horizon 3',status:'In Discussion',description:'Attack surface management. Jamie has budget allocated. Preferred over Pentera after poor Pentera engagement.',goals:'Continuous ASM separate from PTaaS — separation of duties.',pains:'No continuous attack-path tracking since Qualys terminated May 2025.',primaryContact:'Jamie Jervey',budget:true,closeDate:'2026-09-01',notes:'Confirm scope with Bill. NetSpy for PTaaS, Horizon 3 for ASM.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'completed':i===1?'current':'pending',date:i===0?'2026-04-01':'' }))},
+      {id:'p4',name:'Saviynt to SailPoint IGA',category:'IGA',vendor:'SailPoint',status:'Not Started',description:'Replace failing Saviynt IGA with SailPoint. Jamie Dennis reached out on Saviynt contract 5/19.',goals:'Functioning IGA covering all 10 target systems not just 3.',pains:'Saviynt only completed 3 of 10 systems. Entire team hates the platform.',primaryContact:'Jamie Dennis',budget:false,closeDate:'',notes:'Get Saviynt contract renewal date. Jamie Dennis must be aligned for deployment to succeed.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i===0?'current':'pending',date:'' }))},
+      {id:'p5',name:'Wiz CSPM',category:'CSPM',vendor:'Wiz',status:'In Discussion',description:'Fill post-Qualys cloud security gap across Azure, AWS, and GCP.',goals:'Real CSPM replacing Datadog stopgap.',pains:'No continuous exploitability tracking since Qualys killed May 2025.',primaryContact:'Rudy Montoya',budget:false,closeDate:'2026-10-01',notes:'Resolve internal DAST vs CSPM confusion first. Cloud Security Workshop is the entry point.',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map((s,i)=>({stage:s,status:i<4?'completed':i===4?'pending':i===5?'current':'pending',date:i===0?'2026-03-01':i===1?'2026-04-01':i===2?'2026-04-15':i===3?'2026-05-01':'' }))}
     ],
     interactions:[
       {id:'i1',contact:'Rudy Montoya',type:'Call',date:'2026-05-19',duration:45,topics:'NetSpy PTaaS, Horizon 3 ASM, Optiv restructure, Google SecOps frustrations, Saviynt contract',summary:'Wide-ranging strategy call. Pen testing vendor selection, Optiv Services LLC chaos with Chris and Andy, Google SecOps missing basic reporting.'}
@@ -2930,7 +2930,7 @@ function Projects({acct,setAcct}) {
   const [statusMenu,setStatusMenu] = useState(null)
   const [tlFilters,setTlFilters] = useState(new Set(TIMELINE_STATUSES))
   const toggleTlFilter = s => setTlFilters(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
-  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
+  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,projects:p.projects.map(j=>j.id===form.id?form:j)}));else setAcct(p=>({...p,projects:[...p.projects,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
@@ -3199,6 +3199,7 @@ function Projects({acct,setAcct}) {
           <Field label='Est. Close Date' value={form.closeDate} onChange={f('closeDate')} type='date'/>
           <Field label='Est. Revenue' value={form.estimatedRevenue||''} onChange={f('estimatedRevenue')} placeholder='e.g. $50,000'/>
           <Field label='Est. Gross Profit' value={form.estimatedGrossProfit||''} onChange={f('estimatedGrossProfit')} placeholder='e.g. $15,000'/>
+          <Field label='Client Target Date' value={form.clientTargetDate||''} onChange={f('clientTargetDate')} type='date' style={{gridColumn:'span 2'}}/>
           <Field label='Primary Contact Name' value={form.primaryContact} onChange={f('primaryContact')} style={{gridColumn:'span 2'}}/>
         </div>
         <Field label='Description' value={form.description} onChange={f('description')} multiline/>
@@ -5724,7 +5725,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 10px',borderRadius:6,border:'none',background:theme===v?'#ffffff':'transparent',color:theme===v?'#2563eb':'#94a3b8',cursor:'pointer',fontSize:13,transition:'all 0.15s',boxShadow:theme===v?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>{icon}</button>
             ))}
           </div>
-          {!mob&&<button onClick={onGoWhitespace} style={{background:'transparent',border:'1px solid #e2e8f0',borderRadius:8,color:'#475569',cursor:'pointer',padding:'6px 14px',fontSize:12,fontWeight:600,lineHeight:1,whiteSpace:'nowrap'}} onMouseEnter={e=>{e.currentTarget.style.background='#f8fafc';e.currentTarget.style.color='#2563eb'}} onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#475569'}}>Whitespace</button>}
           <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:'1px solid #e2e8f0',borderRadius:8,color:'#64748b',cursor:'pointer',padding:'6px 10px',fontSize:14,lineHeight:1}}>⚙</button>
         </div>
       </div>
@@ -7534,6 +7534,426 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
 const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
 
+function KanbanCard({p, col, updateProject}) {
+  const [editingDate, setEditingDate] = useState(false)
+  const comp=p.timeline.filter(s=>s.status==='completed').length
+  const currStage=p.timeline.find(s=>s.status==='current')
+  return (
+    <div style={{background:'#f8fafc',borderRadius:10,border:'1px solid #e2e8f0',padding:'12px 13px'}}>
+      <div style={{fontSize:14,fontWeight:700,color:'#0f172a',lineHeight:1.3,marginBottom:5}}>{p.name}</div>
+      {p.vendor&&<div style={{fontSize:12,color:'#64748b',marginBottom:6}}>{p.vendor}</div>}
+      {currStage&&(
+        <div style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:col.color,background:col.bg,border:`1px solid ${col.border}`,borderRadius:999,padding:'2px 9px',marginBottom:8}}>
+          {currStage.stage}
+        </div>
+      )}
+      <div style={{height:3,background:'#e2e8f0',borderRadius:2,overflow:'hidden',marginBottom:4}}>
+        <div style={{height:'100%',width:`${(comp/STAGES.length)*100}%`,background:col.color,borderRadius:2}}/>
+      </div>
+      <div style={{fontSize:11,color:'#94a3b8',marginBottom:8}}>{comp}/{STAGES.length} stages complete</div>
+      {editingDate?(
+        <div style={{marginTop:4}}>
+          <input type='date' defaultValue={p.clientTargetDate||''} autoFocus
+            onBlur={e=>{updateProject(p.id,'clientTargetDate',e.target.value);setEditingDate(false)}}
+            onKeyDown={e=>{if(e.key==='Enter'){updateProject(p.id,'clientTargetDate',e.target.value);setEditingDate(false)}if(e.key==='Escape')setEditingDate(false)}}
+            style={{fontSize:12,padding:'4px 8px',border:'1px solid #bfdbfe',borderRadius:6,color:'#0f172a',background:'#fff',width:'100%',boxSizing:'border-box'}}/>
+        </div>
+      ):(
+        <div onClick={()=>setEditingDate(true)} style={{fontSize:12,color:p.clientTargetDate?'#16a34a':'#94a3b8',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}
+          onMouseEnter={e=>e.currentTarget.style.color=p.clientTargetDate?'#15803d':'#475569'}
+          onMouseLeave={e=>e.currentTarget.style.color=p.clientTargetDate?'#16a34a':'#94a3b8'}>
+          {p.clientTargetDate?`🎯 Target: ${fmtDate(p.clientTargetDate)}`:'+ Set target date'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClientView({acct, setAcct, onClose}) {
+  const [cvTab, setCvTab] = useState('projects')
+
+  useEffect(()=>{
+    const h = e => { if(e.key==='Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  },[onClose])
+
+  const updateProject = (id, field, val) => {
+    setAcct(p=>({...p, projects: p.projects.map(j=>j.id===id?{...j,[field]:val}:j)}))
+  }
+
+  const activeProjects = acct.projects.filter(p=>['In Flight','In Discussion','Not Started','Stalled'].includes(p.status))
+
+  const fmtMonthYear = d => {
+    if(!d) return ''
+    try { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'numeric'}) } catch { return d }
+  }
+
+  // ── Heatmap geometry (read-only) ──
+  const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=171,HM_START=-Math.PI/2
+  const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
+  const hmSegs=[]
+  let angle=HM_START
+  HEATMAP_DOMAINS.forEach((domain,di)=>{
+    const dS=angle,dE=angle+anglePD
+    hmSegs.push({type:'domain',di,domain,path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018)})
+    const aPC=anglePD/domain.caps.length
+    domain.caps.forEach((cap,ci)=>{
+      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack,domain.name)
+      const midA=(cS+cE)/2,midR=(HM_IR1+HM_IR2)/2
+      const centX=HM_CX+midR*Math.cos(midA),centY=HM_CY+midR*Math.sin(midA)
+      hmSegs.push({type:'cap',di,ci,domain,cap,vendor,centX,centY,
+        fill:capStatusFill(vendor),path:makeArc(HM_CX,HM_CY,HM_IR1,HM_IR2,cS,cE,0.01)})
+    })
+    angle=dE
+  })
+  const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
+  const coveredCaps=allCaps.filter(cap=>{const dom=HEATMAP_DOMAINS.find(d=>d.caps.includes(cap));return findVendor(cap,acct.techStack,dom?.name)})
+  const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
+  const logoUrl=acct.heatmapLogoUrl||null
+
+  // ── Tech stack by category ──
+  const stackGrouped=TECH_CATS.reduce((acc,cat)=>{
+    const items=acct.techStack.filter(t=>t.category===cat&&t.status!=='Current Gap')
+    if(items.length)acc[cat]=items
+    return acc
+  },{})
+
+  // ── Contacts ──
+  const clientContacts=(acct.contacts||[]).filter(c=>(c.contactType||'Client')==='Client')
+  const orgNodes=acct.orgChart?.nodes||[]
+
+  // ── Org chart (read-only) ──
+  const NODE_W=120, NODE_H=80
+  const CANVAS_W=4000, CANVAS_H=3000
+  const [cvZoom,setCvZoom]=useState(1)
+  const [cvPan,setCvPan]=useState({x:0,y:0})
+  const [cvPanning,setCvPanning]=useState(false)
+  const [cvPanStart,setCvPanStart]=useState(null)
+  const cvCanvasRef=useRef(null)
+
+  const ORG_GRAD_MAP={
+    blue:{gradient:'linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%)',shadow:'rgba(59,130,246,0.35)'},
+    purple:{gradient:'linear-gradient(135deg,#a855f7 0%,#7c3aed 100%)',shadow:'rgba(168,85,247,0.35)'},
+    green:{gradient:'linear-gradient(135deg,#22c55e 0%,#15803d 100%)',shadow:'rgba(34,197,94,0.35)'},
+    orange:{gradient:'linear-gradient(135deg,#f97316 0%,#c2410c 100%)',shadow:'rgba(249,115,22,0.35)'},
+    red:{gradient:'linear-gradient(135deg,#ef4444 0%,#b91c1c 100%)',shadow:'rgba(239,68,68,0.35)'},
+    teal:{gradient:'linear-gradient(135deg,#14b8a6 0%,#0f766e 100%)',shadow:'rgba(20,184,166,0.35)'},
+    pink:{gradient:'linear-gradient(135deg,#ec4899 0%,#be185d 100%)',shadow:'rgba(236,72,153,0.35)'},
+    gold:{gradient:'linear-gradient(135deg,#f59e0b 0%,#b45309 100%)',shadow:'rgba(245,158,11,0.35)'},
+  }
+  const getGrad=n=>ORG_GRAD_MAP[n.gradientId||'blue']||ORG_GRAD_MAP.blue
+
+  const svgLine = n => {
+    const parent=orgNodes.find(p=>p.contactId===n.parentId)
+    if(!parent)return null
+    const cx1=n.x/100*CANVAS_W+NODE_W/2,cy1=n.y/100*CANVAS_H
+    const cx2=parent.x/100*CANVAS_W+NODE_W/2,cy2=parent.y/100*CANVAS_H+NODE_H
+    const my=(cy1+cy2)/2
+    return <path key={`line-${n.contactId}`} d={`M${cx2},${cy2} C${cx2},${my} ${cx1},${my} ${cx1},${cy1}`} stroke='rgba(148,163,184,0.6)' strokeWidth={2} fill='none'/>
+  }
+
+  const KANBAN_COLS = [
+    {status:'In Flight',color:'#2563eb',bg:'#eff6ff',border:'#bfdbfe'},
+    {status:'In Discussion',color:'#7c3aed',bg:'#f5f3ff',border:'#ddd6fe'},
+    {status:'Not Started',color:'#64748b',bg:'#f8fafc',border:'#e2e8f0'},
+    {status:'Stalled',color:'#ea580c',bg:'#fff7ed',border:'#fed7aa'},
+  ]
+
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:2000,background:'#f8fafc',display:'flex',flexDirection:'column',overflowY:'auto'}}>
+
+      {/* ── Header ── */}
+      <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:'0 28px',flexShrink:0,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 0 0'}}>
+          {acct.logoImage&&<img src={acct.logoImage} alt='' style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',flexShrink:0}}/>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</div>
+            <div style={{display:'flex',gap:6,marginTop:5,flexWrap:'wrap'}}>
+              {[acct.industry,acct.hq].filter(Boolean).map(t=>(
+                <span key={t} style={{fontSize:11,color:'#64748b',background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:999,padding:'2px 10px'}}>{t}</span>
+              ))}
+            </div>
+          </div>
+          <button onClick={onClose} style={{display:'inline-flex',alignItems:'center',gap:6,background:'transparent',border:'1px solid #e2e8f0',borderRadius:8,color:'#475569',cursor:'pointer',fontSize:12,fontWeight:600,padding:'7px 14px',flexShrink:0}}
+            onMouseEnter={e=>{e.currentTarget.style.background='#f8fafc';e.currentTarget.style.borderColor='#94a3b8'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='#e2e8f0'}}>
+            <X size={14}/> Exit Client View
+          </button>
+        </div>
+
+        {/* Tab nav */}
+        <div style={{display:'flex',gap:0,marginTop:4}}>
+          {[{id:'projects',label:'Projects'},{id:'techstack',label:'Tech Stack'},{id:'contacts',label:'Contacts'}].map(t=>(
+            <button key={t.id} onClick={()=>setCvTab(t.id)}
+              style={{padding:'10px 20px',background:'transparent',border:'none',borderBottom:cvTab===t.id?'2px solid #2563eb':'2px solid transparent',cursor:'pointer',fontSize:14,fontWeight:600,color:cvTab===t.id?'#2563eb':'#64748b',transition:'all 0.15s'}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <div style={{flex:1,padding:'28px 28px 60px',maxWidth:1400,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
+
+        {/* ══ PROJECTS TAB ══ */}
+        {cvTab==='projects'&&(
+          <div>
+            {/* Kanban */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:36}}>
+              {KANBAN_COLS.map(col=>{
+                const projs=acct.projects.filter(p=>p.status===col.status)
+                return (
+                  <div key={col.status} style={{background:'#ffffff',borderRadius:14,border:`1px solid ${col.border}`,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.05)'}}>
+                    <div style={{padding:'10px 14px',background:col.bg,borderBottom:`1px solid ${col.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:12,fontWeight:700,color:col.color,textTransform:'uppercase',letterSpacing:'0.06em'}}>{col.status}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:col.color,background:'#ffffff',borderRadius:999,padding:'1px 8px',border:`1px solid ${col.border}`}}>{projs.length}</span>
+                    </div>
+                    <div style={{padding:10,display:'flex',flexDirection:'column',gap:8,minHeight:120}}>
+                      {projs.length===0&&<div style={{fontSize:12,color:'#94a3b8',textAlign:'center',padding:'16px 0'}}>No projects</div>}
+                      {projs.map(p=>(
+                        <KanbanCard key={p.id} p={p} col={col} updateProject={updateProject}/>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Timeline */}
+            {activeProjects.length>0&&(
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Project Timelines</div>
+                <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                  {activeProjects.map(p=>{
+                    const sc=PSC[p.status]||'#64748b'
+                    const targetDate=p.clientTargetDate
+                    return (
+                      <div key={p.id} style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',padding:'18px 20px',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+                          <span style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>{p.name}</span>
+                          <span style={{fontSize:11,fontWeight:600,color:sc,background:sc+'18',border:`1px solid ${sc}44`,borderRadius:999,padding:'2px 8px'}}>{p.status}</span>
+                          {p.vendor&&<span style={{fontSize:11,color:'#94a3b8'}}>{p.vendor}</span>}
+                        </div>
+                        {/* Stage dots */}
+                        <div style={{display:'flex',alignItems:'flex-start',overflowX:'auto',gap:0,paddingBottom:4}}>
+                          {p.timeline.map((stage,i)=>{
+                            const isComp=stage.status==='completed'
+                            const isCurr=stage.status==='current'
+                            const dotColor=isComp?'#16a34a':isCurr?'#2563eb':'#cbd5e1'
+                            const lineColor=isComp?'#16a34a':'#e2e8f0'
+                            return (
+                              <div key={i} style={{display:'flex',flexDirection:'column',alignItems:'center',flex:'1 1 0',minWidth:0,position:'relative'}}>
+                                {/* connector line */}
+                                {i<p.timeline.length-1&&<div style={{position:'absolute',top:8,left:'50%',width:'100%',height:2,background:lineColor,zIndex:0}}/>}
+                                <div style={{width:16,height:16,borderRadius:'50%',background:dotColor,border:`2px solid ${isComp?'#16a34a':isCurr?'#2563eb':'#cbd5e1'}`,flexShrink:0,zIndex:1,boxShadow:isCurr?'0 0 0 3px rgba(37,99,235,0.2)':undefined}}/>
+                                <div style={{fontSize:9,color:isComp?'#16a34a':isCurr?'#2563eb':'#94a3b8',fontWeight:isCurr?700:isComp?600:400,marginTop:5,textAlign:'center',lineHeight:1.3,wordBreak:'break-word',padding:'0 2px'}}>{stage.stage}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {targetDate&&(
+                          <div style={{marginTop:10,display:'inline-flex',alignItems:'center',gap:5,fontSize:12,color:'#16a34a',fontWeight:600,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:6,padding:'4px 10px'}}>
+                            🎯 Target Go-Live: {fmtDate(targetDate)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ TECH STACK TAB ══ */}
+        {cvTab==='techstack'&&(
+          <div>
+            {/* Heatmap wheel — read-only */}
+            <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',padding:'24px',marginBottom:28,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Security Coverage Heatmap</div>
+              <div style={{display:'flex',justifyContent:'center'}}>
+                <svg viewBox="0 0 820 820" style={{width:'100%',maxWidth:560,display:'block',margin:'0 auto',filter:'drop-shadow(0 8px 40px rgba(0,0,0,0.8))'}}>
+                  <defs>
+                    <radialGradient id="cv-hm-gc" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#4ade80"/><stop offset="55%" stopColor="#22c55e"/><stop offset="100%" stopColor="#16a34a"/></radialGradient>
+                    <radialGradient id="cv-hm-ge" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fde047"/><stop offset="55%" stopColor="#eab308"/><stop offset="100%" stopColor="#ca8a04"/></radialGradient>
+                    <radialGradient id="cv-hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
+                    <radialGradient id="cv-hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
+                    <radialGradient id="cv-hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#555555"/><stop offset="55%" stopColor="#4a4a4a"/><stop offset="100%" stopColor="#3d3d3d"/></radialGradient>
+                    <linearGradient id="cv-hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff7a77"/><stop offset="100%" stopColor="#c9100d"/></linearGradient>
+                    <linearGradient id="cv-hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ffe566"/><stop offset="100%" stopColor="#c49800"/></linearGradient>
+                    <linearGradient id="cv-hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4dd4e2"/><stop offset="100%" stopColor="#007a88"/></linearGradient>
+                    <linearGradient id="cv-hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6eaaff"/><stop offset="100%" stopColor="#1255cc"/></linearGradient>
+                    <linearGradient id="cv-hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#96e8a4"/><stop offset="100%" stopColor="#30a048"/></linearGradient>
+                    <linearGradient id="cv-hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff9cc5"/><stop offset="100%" stopColor="#d42070"/></linearGradient>
+                    <radialGradient id="cv-hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
+                    <filter id="cv-hm-round" x="-5%" y="-5%" width="110%" height="110%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+                      <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo"/>
+                      <feComposite in="SourceGraphic" in2="goo" operator="in"/>
+                    </filter>
+                    {hmSegs.filter(s=>s.type==='domain').map((seg,i)=>{
+                      const dS=HM_START+i*anglePD,dE=dS+anglePD,mid=(dS+dE)/2,lg=(dE-dS)>Math.PI?1:0
+                      const r=302
+                      const path=Math.sin(mid)>0.1
+                        ?`M ${HM_CX+r*Math.cos(dE)} ${HM_CY+r*Math.sin(dE)} A ${r} ${r} 0 ${lg} 0 ${HM_CX+r*Math.cos(dS)} ${HM_CY+r*Math.sin(dS)}`
+                        :`M ${HM_CX+r*Math.cos(dS)} ${HM_CY+r*Math.sin(dS)} A ${r} ${r} 0 ${lg} 1 ${HM_CX+r*Math.cos(dE)} ${HM_CY+r*Math.sin(dE)}`
+                      return <path key={`cv-ta${i}`} id={`cv-hm-ta-${i}`} d={path} fill="none"/>
+                    })}
+                  </defs>
+                  {[HM_IR1,HM_IR2,HM_OR1,HM_OR2].map(r=>(
+                    <circle key={r} cx={HM_CX} cy={HM_CY} r={r} fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
+                  ))}
+                  <g filter="url(#cv-hm-round)">
+                    {hmSegs.filter(s=>s.type==='domain').map((seg,i)=>(
+                      <path key={`cvd${i}`} d={seg.path} fill={`url(#cv-hm-dg${i})`} stroke="none"/>
+                    ))}
+                    {hmSegs.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>{
+                      const gid={Current:'cv-hm-gc',Selected:'cv-hm-gc',Evaluating:'cv-hm-ge',Watch:'cv-hm-gw',Replacing:'cv-hm-gr',Dropping:'cv-hm-gr','Current Gap':'cv-hm-gn'}[seg.vendor.status]||'cv-hm-gc'
+                      return <path key={`cvcv-${seg.di}-${seg.ci}`} d={seg.path} fill={`url(#${gid})`} stroke="none"/>
+                    })}
+                  </g>
+                  {hmSegs.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>(
+                    <path key={`cvce-${seg.di}-${seg.ci}`} d={seg.path} fill="rgba(255,255,255,0.20)" stroke="none"/>
+                  ))}
+                  {hmSegs.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(
+                    <circle key={`cvvd-${seg.di}-${seg.ci}`} cx={seg.centX} cy={seg.centY} r={2.8} fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>
+                  ))}
+                  {(()=>{
+                    const abbrev=['CLOUD & APP SEC','DATA PROTECTION','ENDPOINT & MAIL','SEC OPERATIONS','NETWORK SEC','IDENTITY SEC']
+                    return hmSegs.filter(s=>s.type==='domain').map((seg,i)=>(
+                      <text key={`cvdl${i}`} fontSize={11} fontWeight={700} letterSpacing="0.05em" fill="rgba(255,255,255,0.95)">
+                        <textPath href={`#cv-hm-ta-${i}`} startOffset="50%" textAnchor="middle">{abbrev[i]}</textPath>
+                      </text>
+                    ))
+                  })()}
+                  <circle cx={HM_CX} cy={HM_CY} r={HM_IR1-10} fill="url(#cv-hm-ctr)"/>
+                  {(()=>{
+                    const logoR=Math.round((HM_IR1-10)*0.60)
+                    if(logoUrl){
+                      return <>
+                        <defs><clipPath id="cv-hm-logo-clip"><circle cx={HM_CX} cy={HM_CY} r={logoR}/></clipPath></defs>
+                        <circle cx={HM_CX} cy={HM_CY} r={logoR} fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" strokeWidth={1}/>
+                        <image x={HM_CX-logoR} y={HM_CY-logoR} width={logoR*2} height={logoR*2} href={logoUrl} clipPath="url(#cv-hm-logo-clip)" preserveAspectRatio="xMidYMid meet"/>
+                      </>
+                    }
+                    return <>
+                      <path d={`M ${HM_CX} ${HM_CY-46} L ${HM_CX-13} ${HM_CY-40} L ${HM_CX-13} ${HM_CY-26} Q ${HM_CX} ${HM_CY-18} ${HM_CX} ${HM_CY-18} Q ${HM_CX+13} ${HM_CY-26} ${HM_CX+13} ${HM_CY-26} L ${HM_CX+13} ${HM_CY-40} Z`} fill="url(#cv-hm-gc)" opacity={0.85}/>
+                      <text x={HM_CX} y={HM_CY+22} textAnchor="middle" dominantBaseline="auto" fontSize={54} fontWeight={800} fill="#ffffff" letterSpacing="-2">{coveragePct}%</text>
+                      <text x={HM_CX} y={HM_CY+44} textAnchor="middle" dominantBaseline="auto" fontSize={11} fontWeight={600} fill="#94a3b8" letterSpacing="0.14em">COVERAGE</text>
+                    </>
+                  })()}
+                </svg>
+              </div>
+            </div>
+
+            {/* Vendor list */}
+            <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',padding:'24px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Technology Vendors</div>
+              {Object.entries(stackGrouped).map(([cat,tools])=>(
+                <div key={cat} style={{marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'#94a3b8',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:8,paddingBottom:4,borderBottom:'1px solid #f1f5f9'}}>{cat}</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {tools.map(t=>{
+                      const sc=SC[t.status]||'#64748b'
+                      const renewalDisplay=t.renewalDate?fmtMonthYear(t.renewalDate):null
+                      const d=t.renewalDate?daysUntil(t.renewalDate):null
+                      const renewColor=d!==null&&d<=60?'#ef4444':d!==null&&d<=150?'#f97316':null
+                      return (
+                        <div key={t.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,border:'1px solid #f1f5f9'}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{t.vendor}</div>
+                            {t.products&&<div style={{fontSize:12,color:'#64748b',marginTop:1}}>{t.products}</div>}
+                          </div>
+                          <span style={{fontSize:11,fontWeight:600,color:'#64748b',background:'#f1f5f9',borderRadius:999,padding:'2px 9px',whiteSpace:'nowrap',flexShrink:0}}>{cat}</span>
+                          <span style={{fontSize:11,fontWeight:600,color:sc,background:sc+'18',borderRadius:999,padding:'2px 9px',whiteSpace:'nowrap',flexShrink:0}}>{t.status}</span>
+                          {renewalDisplay&&<span style={{fontSize:11,color:renewColor||'#64748b',fontWeight:renewColor?700:400,whiteSpace:'nowrap',flexShrink:0}}>Renews {renewalDisplay}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              {Object.keys(stackGrouped).length===0&&<div style={{fontSize:13,color:'#94a3b8',textAlign:'center',padding:'24px 0'}}>No tech stack entries yet.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ══ CONTACTS TAB ══ */}
+        {cvTab==='contacts'&&(
+          <div>
+            {/* Org chart — read-only */}
+            {orgNodes.length>0&&(
+              <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',marginBottom:28,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                <div style={{padding:'16px 20px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase'}}>Org Chart</div>
+                  <div style={{display:'flex',gap:4,background:'#f8fafc',borderRadius:8,padding:2,border:'1px solid #e2e8f0'}}>
+                    {[{label:'−',onClick:()=>setCvZoom(z=>Math.max(0.25,z-0.1))},{label:`${Math.round(cvZoom*100)}%`,onClick:null,style:{minWidth:44,textAlign:'center',fontSize:11,fontWeight:700,color:'#374151',padding:'6px 4px',cursor:'default'}},{label:'+',onClick:()=>setCvZoom(z=>Math.min(3,z+0.1))}].map((b,i)=>(
+                      <button key={i} onClick={b.onClick||undefined} style={{...(b.style||{}),padding:b.style?undefined:'6px 10px',background:'transparent',border:'none',color:'#374151',fontSize:13,fontWeight:600,cursor:b.onClick?'pointer':'default',minHeight:28}}>{b.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div ref={cvCanvasRef}
+                  style={{position:'relative',width:'100%',height:500,backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',backgroundSize:'24px 24px',backgroundColor:'#f8fafc',cursor:cvPanning?'grabbing':'grab',overflow:'hidden',userSelect:'none'}}
+                  onMouseDown={e=>{if(e.target===cvCanvasRef.current||e.target.dataset?.role==='content'){e.preventDefault();setCvPanning(true);setCvPanStart({x:e.clientX-cvPan.x,y:e.clientY-cvPan.y})}}}
+                  onMouseMove={e=>{if(!cvPanning||!cvPanStart)return;setCvPan({x:e.clientX-cvPanStart.x,y:e.clientY-cvPanStart.y})}}
+                  onMouseUp={()=>setCvPanning(false)}
+                  onMouseLeave={()=>setCvPanning(false)}>
+                  <div data-role='content' style={{position:'relative',width:CANVAS_W,height:CANVAS_H,transform:`translate(${cvPan.x}px,${cvPan.y}px) scale(${cvZoom})`,transformOrigin:'0 0'}}>
+                    <svg style={{position:'absolute',top:0,left:0,width:CANVAS_W,height:CANVAS_H,overflow:'visible',pointerEvents:'none'}} width={CANVAS_W} height={CANVAS_H}>
+                      {orgNodes.filter(n=>n.parentId).map(n=>svgLine(n))}
+                    </svg>
+                    {orgNodes.map(n=>{
+                      const c=clientContacts.find(x=>x.id===n.contactId)
+                      if(!c)return null
+                      const grad=getGrad(n)
+                      const nodeX=n.x/100*CANVAS_W, nodeY=n.y/100*CANVAS_H
+                      return (
+                        <div key={n.contactId} style={{position:'absolute',left:`${nodeX}px`,top:`${nodeY}px`,width:NODE_W,background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',boxShadow:`0 4px 16px ${grad.shadow}`,userSelect:'none'}}>
+                          <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px'}}>{initials(c.name)}</div>
+                          <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
+                          <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Client contacts list */}
+            <div style={{background:'#ffffff',borderRadius:16,border:'1px solid #e2e8f0',padding:'24px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#64748b',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:16}}>Client Contacts</div>
+              {clientContacts.length===0&&<div style={{fontSize:13,color:'#94a3b8',textAlign:'center',padding:'24px 0'}}>No client contacts yet.</div>}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
+                {clientContacts.map(c=>(
+                  <div key={c.id} style={{background:'#f8fafc',borderRadius:10,border:'1px solid #e2e8f0',padding:'14px 16px'}}>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:'#eff6ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#2563eb',marginBottom:10}}>{initials(c.name)}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.3,marginBottom:3}}>{c.name}</div>
+                    <div style={{fontSize:12,color:'#64748b',lineHeight:1.4}}>{c.title}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* GuidePoint branding footer */}
+      <div style={{position:'fixed',bottom:12,right:16,display:'flex',alignItems:'center',gap:5,pointerEvents:'none'}}>
+        <svg width="14" height="14" viewBox="0 0 28 28" style={{flexShrink:0}}>
+          <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinejoin="round"/>
+          <circle cx="14" cy="15" r="4.5" fill="none" stroke="#94a3b8" strokeWidth="1.3" opacity="0.7"/>
+          <circle cx="14" cy="15" r="1.8" fill="#94a3b8"/>
+        </svg>
+        <span style={{fontSize:10,color:'#94a3b8',fontWeight:500}}>Powered by GuidePoint Security</span>
+      </div>
+
+    </div>
+  )
+}
+
 export default function App() {
   const [data,setData] = useState(null)
   const [storageReady,setStorageReady] = useState(false)
@@ -7544,6 +7964,7 @@ export default function App() {
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [isLandingPage,setIsLandingPage] = useState(true)
   const [showWhitespace,setShowWhitespace] = useState(false)
+  const [showClientView,setShowClientView] = useState(false)
   const [theme,setTheme] = useState(()=>{
     const t = localStorage.getItem('gp-theme')||'light'
     document.documentElement.setAttribute('data-theme',t)
@@ -7684,6 +8105,11 @@ export default function App() {
               {[acct.industry,acct.hq].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.isLight?'#475569':S.muted,background:S.isLight?'#f8fafc':S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'3px 10px'}}>{t}</span>)}
               {acct.lastContact&&<span style={{fontSize:11,color:S.muted}}>Last contact: {fmtDate(acct.lastContact)}</span>}
             </div>}
+            <button onClick={()=>setShowClientView(true)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,color:'#374151',cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 14px',flexShrink:0,boxShadow:'0 1px 2px rgba(0,0,0,0.06)',whiteSpace:'nowrap'}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor='#2563eb';e.currentTarget.style.color='#2563eb'}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor='#e2e8f0';e.currentTarget.style.color='#374151'}}>
+              <Eye size={14}/> Client View
+            </button>
           </div>
           <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
@@ -7713,6 +8139,7 @@ export default function App() {
           {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme}/>}
         </div>
       </div>
+      {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
     </div>
   )
 }
