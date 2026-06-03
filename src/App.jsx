@@ -107,34 +107,17 @@ const calcDetailedHealthScore = acct => {
 }
 const calcHealthScore = acct => calcDetailedHealthScore(acct).total
 const getQuickWin = acct => { const overdue=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)<0).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate)); if(overdue.length>0){const fu=overdue[0];const days=Math.abs(daysUntil(fu.dueDate));return{title:fu.task,meta:`Overdue by ${days} day${days!==1?'s':''}`,cta:'Go to Follow-Ups',tab:'followups',color:S.red}} const renew=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).sort((a,b)=>daysUntil(a.renewalDate)-daysUntil(b.renewalDate)); if(renew.length>0){const t=renew[0];const d=daysUntil(t.renewalDate);return{title:`${t.vendor} renewal in ${d} day${d!==1?'s':''}`,meta:fmtDate(t.renewalDate)+(t.notes?' — '+t.notes.slice(0,70):''),cta:'Go to Tech Stack',tab:'stack',color:S.orange}} const stalled=(acct.projects||[]).filter(p=>p.status==='Stalled'); if(stalled.length>0){const p=stalled[0];return{title:p.name,meta:`Stalled project${p.waitingOn?' — Waiting on: '+p.waitingOn:' — no next action defined'}`,cta:'Go to Projects',tab:'projects',color:S.yellow}} return null }
-const sendToReminders = (followUp, accountName) => {
-  const uid = followUp.id + '@guidepoint-crm'
-  const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z'
+const sendToAppleReminders = (followUp, accountName) => {
+  const title = followUp.task || ''
   const notes = [
     followUp.context || '',
     followUp.contact ? 'Contact: ' + followUp.contact : '',
-    accountName ? 'Account: ' + accountName : ''
-  ].filter(Boolean).join('\\n')
-  const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//GuidePoint CRM//EN',
-    'BEGIN:VTODO',
-    'UID:' + uid,
-    'DTSTAMP:' + now,
-    'SUMMARY:' + followUp.task,
-    notes ? 'DESCRIPTION:' + notes : '',
-    'STATUS:NEEDS-ACTION',
-    'END:VTODO',
-    'END:VCALENDAR'
-  ].filter(Boolean).join('\r\n')
-  const blob = new Blob([ics], {type:'text/calendar'})
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'reminder.ics'
-  a.click()
-  URL.revokeObjectURL(url)
+    accountName ? 'Account: ' + accountName : '',
+    followUp.dueDate ? 'Due: ' + followUp.dueDate : ''
+  ].filter(Boolean).join(' | ')
+  const input = notes ? `${title} — ${notes}` : title
+  const encoded = encodeURIComponent(input)
+  window.location.href = `shortcuts://run-shortcut?name=Add%20to%20Reminders&input=${encoded}`
 }
 
 const globalSearch = (data, query) => { if(!query||!query.trim()||query.length<2)return []; const q=query.toLowerCase(); const results=[]; (data.accounts||[]).forEach(acct=>{const an=acct.short||acct.name; (acct.contacts||[]).filter(c=>`${c.name} ${c.title}`.toLowerCase().includes(q)).slice(0,3).forEach(c=>results.push({accountId:acct.id,accountName:an,category:'Contacts',label:c.name,sublabel:c.title,tab:'contacts'})); (acct.projects||[]).filter(p=>`${p.name} ${p.vendor||''}`.toLowerCase().includes(q)).slice(0,3).forEach(p=>results.push({accountId:acct.id,accountName:an,category:'Projects',label:p.name,sublabel:p.vendor,tab:'projects'})); (acct.techStack||[]).filter(t=>t.vendor.toLowerCase().includes(q)).slice(0,3).forEach(t=>results.push({accountId:acct.id,accountName:an,category:'Tech Stack',label:t.vendor,sublabel:t.products,tab:'stack'})); (acct.intelLog||[]).filter(e=>(e.summary||'').toLowerCase().includes(q)||(e.participants||'').toLowerCase().includes(q)).slice(0,2).forEach(e=>results.push({accountId:acct.id,accountName:an,category:'Intel',label:(e.summary||'').slice(0,55)+((e.summary||'').length>55?'…':''),sublabel:fmtDate(e.date),tab:'intel'})) }); return results }
@@ -684,7 +667,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Downloaded — double-click the file to add to Apple Reminders</div>}
+      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':typeof window!=='undefined'&&window.innerWidth<1200?'repeat(4,1fr)':'repeat(8,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
@@ -1251,7 +1234,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                 </div>
               </div>
               <Badge label={f.priority} color={p.c} bg={p.b}/>
-              <button onClick={()=>{sendToReminders(f,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
+              <button onClick={()=>{sendToAppleReminders(f,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
                 title='Send to Apple Reminders'
                 style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id?1:0,transition:'opacity 0.15s'}}
                 onMouseEnter={e=>e.currentTarget.style.color='#475569'}
@@ -3346,7 +3329,7 @@ function FollowUps({acct,setAcct}) {
             style={{background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,color:S.isLight?'#94a3b8':S.muted,cursor:'pointer',fontSize:11,flexShrink:0,padding:'3px 9px',borderRadius:6,transition:'all 0.12s'}}
             onMouseEnter={e=>{e.currentTarget.style.color=S.isLight?'#475569':S.secondary;e.currentTarget.style.borderColor=S.isLight?'#94a3b8':S.secondary}}
             onMouseLeave={e=>{e.currentTarget.style.color=S.isLight?'#94a3b8':S.muted;e.currentTarget.style.borderColor=S.isLight?'#e2e8f0':S.bdr}}>Edit</button>
-          <button onClick={()=>{sendToReminders(fu,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
+          <button onClick={()=>{sendToAppleReminders(fu,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
             title='Send to Apple Reminders'
             style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===fu.id?1:0,transition:'opacity 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.color='#475569'}
@@ -3359,7 +3342,7 @@ function FollowUps({acct,setAcct}) {
   return (
     <div>
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
-      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Downloaded — double-click the file to add to Apple Reminders</div>}
+      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
 
       {/* ─── TODAY SECTION ─── */}
       <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:16,overflow:'hidden'}}>
@@ -5716,7 +5699,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
-      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Downloaded — double-click the file to add to Apple Reminders</div>}
+      {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} onEnterAccount={onEnterAccount} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* TOP NAV BAR */}
@@ -6109,7 +6092,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                                 {todayEditFlash===fu.id&&<span style={{fontSize:11,color:S.green,fontWeight:700,alignSelf:'center'}}>Saved!</span>}
                                 <button onClick={()=>openTaskDetail(g.account.id,fu)} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
                                 <button onClick={e=>{e.stopPropagation();openTodayEdit(g.account.id,fu)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏ Edit</button>
-                                <button onClick={()=>{sendToReminders(fu,g.account.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
+                                <button onClick={()=>{sendToAppleReminders(fu,g.account.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
                                   title='Send to Apple Reminders'
                                   style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0}}
                                   onMouseEnter={e=>e.currentTarget.style.color='#475569'}
