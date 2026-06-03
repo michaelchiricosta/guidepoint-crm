@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -4323,7 +4323,7 @@ ${inputText}`}]
           {detectedCompanies.map(name=>(
             <div key={name} style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
               <span style={{fontSize:12,color:S.txt,flex:1}}>{name}</span>
-              <button onClick={()=>{if(!setAppData)return;const now=new Date().toISOString();setAppData(prev=>({...prev,whitespaceAccounts:[...(prev.whitespaceAccounts||[]),{id:uid(),name,hq:'',industry:'',employees:'',revenue:'',status:'Prospect',contacts:[],notes:[],intelLog:[],addedAt:now,updatedAt:now}]}));dismissedCompaniesRef.current.add(name.toLowerCase());setDetectedCompanies(prev=>prev.filter(n=>n!==name))}}
+              <button onClick={()=>{if(!setAppData)return;const now=new Date().toISOString();setAppData(prev=>({...prev,whitespaceAccounts:[...(prev.whitespaceAccounts||[]),{id:uid(),name,hq:'',industry:'',employees:'',revenue:'',status:'Prospect',contacts:[],technologies:[],notes:[],intelLog:[],addedAt:now,updatedAt:now}]}));dismissedCompaniesRef.current.add(name.toLowerCase());setDetectedCompanies(prev=>prev.filter(n=>n!==name))}}
                 style={{fontSize:11,color:'#fff',background:'#d97706',border:'none',borderRadius:5,padding:'3px 10px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add to Whitespace</button>
               <button onClick={()=>{dismissedCompaniesRef.current.add(name.toLowerCase());setDetectedCompanies(prev=>prev.filter(n=>n!==name))}}
                 style={{background:'transparent',border:'none',color:S.muted,cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 2px'}}>✕</button>
@@ -6578,10 +6578,64 @@ function Admin({acct,setAcct}) {
   )
 }
 
+const WS_VENDORS = ['CrowdStrike','SentinelOne','Palo Alto','Zscaler','Okta','Splunk','Wiz','Varonis','SailPoint','CyberArk','Qualys','Tenable','Rapid7','Darktrace','Vectra','Arctic Wolf','ReliaQuest','Cloudflare','Fortinet','Check Point','Cisco','Proofpoint','Mimecast','Abnormal','KnowBe4','BeyondTrust','Delinea','Microsoft','ThreatLocker','LogRhythm','QRadar','Elastic','Datadog','Lacework','Orca','VMware','Symantec','1Password','Google','Saviynt','NetSpy','Horizon 3','IBM','Carbon Black','FireEye','Mandiant','Recorded Future','ServiceNow','Sailpoint']
+const parseContactsFromEntries = entries => {
+  const map = {}; const text = entries.map(e=>e.text||'').join('\n')
+  const TITLES = 'VP|SVP|EVP|Director|Manager|Head|CISO|CTO|CEO|CFO|COO|CIO|President|Officer|Lead|Engineer|Architect|Analyst|Specialist|Consultant'
+  // Structured: "Contact: Name, Title — context"
+  const re1 = /Contact:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)[,\s]*([^—\n]{0,60}?)(?:\s*—\s*([^\n]{0,200}))?(?=\n|Contact:|Technology:|$)/g
+  let m
+  while ((m = re1.exec(text)) !== null) {
+    const name=m[1].trim(), title=(m[2]||'').replace(/^[,\s]+|[,\s]+$/g,'').trim(), ctx=(m[3]||'').trim()
+    if(!map[name])map[name]={name,title:'',contexts:[],mentions:0}
+    if(!map[name].title&&title)map[name].title=title
+    if(ctx)map[name].contexts.push(ctx)
+    map[name].mentions++
+  }
+  // Unstructured: "Name, Title" with title keyword
+  const re2 = new RegExp(`([A-Z][a-z]+\\s+[A-Z][a-z]+)\\s*[,(]\\s*([^,.\\n()]{0,50}?(?:${TITLES})[^,.\\n()]{0,30})\\s*[,).]`, 'g')
+  while ((m = re2.exec(text)) !== null) {
+    const name=m[1].trim(), title=(m[2]||'').replace(/^[,\s]+|[,\s]+$/g,'').trim()
+    if(!map[name])map[name]={name,title,contexts:[],mentions:0}
+    else if(!map[name].title&&title)map[name].title=title
+    map[name].mentions=(map[name].mentions||0)+1
+  }
+  return Object.values(map).filter(c=>c.name.split(/\s+/).length>=2)
+}
+const parseTechFromEntries = entries => {
+  const map = {}; const text = entries.map(e=>e.text||'').join('\n')
+  // Structured: "Technology: Vendor — Status — context"
+  const re1 = /Technology:\s*([^—\n]+?)\s*—\s*(Customer|Evaluating|Replacing|Considering|Unknown)\s*—\s*([^\n]{0,200})/g
+  let m
+  while ((m = re1.exec(text)) !== null) {
+    const name=m[1].trim(), status=m[2], ctx=m[3].trim()
+    if(!map[name])map[name]={name,status,contexts:[],mentions:0}
+    map[name].status=status; if(ctx)map[name].contexts.push(ctx); map[name].mentions++
+  }
+  // Known vendors
+  WS_VENDORS.forEach(vendor=>{
+    const vesc=vendor.replace(/[().+]/g,'\\$&').replace(/\s+/g,'[\\s]+')
+    const vre=new RegExp(`\\b${vesc}\\b`,'i')
+    if(!vre.test(text))return
+    if(map[vendor]){map[vendor].mentions++;return}
+    let status='Unknown'
+    if(new RegExp(`evaluating[\\s\\S]{0,30}${vesc}|${vesc}[\\s\\S]{0,20}evaluating|looking at[\\s\\S]{0,20}${vesc}`,'i').test(text))status='Evaluating'
+    else if(new RegExp(`${vesc}[\\s\\S]{0,20}customer|uses[\\s\\S]{0,20}${vesc}|running[\\s\\S]{0,20}${vesc}|deployed[\\s\\S]{0,20}${vesc}`,'i').test(text))status='Customer'
+    else if(new RegExp(`replacing[\\s\\S]{0,20}${vesc}|${vesc}[\\s\\S]{0,20}replacement`,'i').test(text))status='Replacing'
+    const cm=text.match(new RegExp(`.{0,40}${vesc}.{0,40}`,'i'))
+    map[vendor]={name:vendor,status,contexts:cm?[cm[0].trim().slice(0,120)]:[], mentions:1}
+  })
+  return Object.values(map)
+}
+
 function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
   const [editForm, setEditForm] = useState({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})
   const [addingNote, setAddingNote] = useState(false)
   const [noteText, setNoteText] = useState('')
+  const [addingContact, setAddingContact] = useState(false)
+  const [contactForm, setContactForm] = useState({name:'',title:'',notes:''})
+  const [addingTech, setAddingTech] = useState(false)
+  const [techForm, setTechForm] = useState({name:'',status:'Unknown',notes:''})
   useEffect(()=>{setEditForm({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})},[acct.id])
   const inBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.05)'
   const inBdr = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'
@@ -6589,60 +6643,211 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
     ...(acct.notes||[]).map(n=>({...n,_src:'note'})),
     ...(acct.intelLog||[]).map(n=>({...n,_src:'intel'}))
   ].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const extractedContacts = parseContactsFromEntries(allEntries)
+  const manualContacts = (acct.contacts||[]).filter(c=>c.addedManually)
+  const extractedTech = parseTechFromEntries(allEntries)
+  const manualTech = (acct.technologies||[]).filter(t=>t.addedManually)
+  const TECH_SC = {Customer:{c:'#15803d',bg:'#dcfce7'},Evaluating:{c:'#1d4ed8',bg:'#dbeafe'},Replacing:{c:'#c2410c',bg:'#ffedd5'},Considering:{c:'#7c3aed',bg:'#ede9fe'},Unknown:{c:'#64748b',bg:'#f1f5f9'}}
+  const sHdr = (icon,label) => (
+    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:10}}>
+      <span style={{color:'#94a3b8',display:'flex'}}>{icon}</span>
+      <span style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>{label}</span>
+    </div>
+  )
   return (
-    <div style={{padding:'16px 24px 20px',background:isLight?'#f0f9ff':'rgba(37,99,235,0.04)',borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,display:'grid',gridTemplateColumns:'1fr 1.8fr',gap:28}}>
-      <div>
-        <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Account Details</div>
-        {[{label:'Name',key:'name'},{label:'HQ',key:'hq'},{label:'Industry',key:'industry'},{label:'Employees',key:'employees'},{label:'Revenue',key:'revenue'}].map(f=>(
-          <div key={f.key} style={{marginBottom:9}}>
-            <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
-            <input value={editForm[f.key]||''} onChange={e=>setEditForm(p=>({...p,[f.key]:e.target.value}))} onBlur={e=>updateAccount(acct.id,{[f.key]:e.target.value})}
-              style={{width:'100%',fontSize:12,padding:'5px 8px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
-          </div>
-        ))}
+    <div style={{padding:'16px 24px 20px',background:isLight?'#f0f9ff':'rgba(37,99,235,0.04)',borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`}}>
+      {/* Top row: Account Details + Notes & Intel */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1.8fr',gap:28,marginBottom:16}}>
         <div>
-          <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Status</div>
-          <select value={editForm.status||'Prospect'} onChange={e=>{setEditForm(p=>({...p,status:e.target.value}));updateAccount(acct.id,{status:e.target.value})}}
-            style={{width:'100%',fontSize:12,padding:'5px 8px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:5,color:S.txt}}>
-            {['Prospect','Researching','Reached Out','Active Conversation'].map(s=><option key={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-      <div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Notes & Intel</div>
-          <button onClick={()=>setAddingNote(v=>!v)} style={{fontSize:11,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>+ Add Note</button>
-        </div>
-        {addingNote&&(
-          <div style={{marginBottom:12}}>
-            <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3} placeholder='Add a note...' autoFocus
-              style={{width:'100%',fontSize:12,padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box',resize:'none',fontFamily:'inherit',lineHeight:1.5,outline:'none'}}/>
-            <div style={{display:'flex',gap:6,marginTop:6}}>
-              <button onClick={()=>{if(!noteText.trim())return;updateAccount(acct.id,{notes:[{id:uid(),text:noteText,date:new Date().toISOString().split('T')[0],addedBy:''},...(acct.notes||[])]});setNoteText('');setAddingNote(false)}} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save</button>
-              <button onClick={()=>{setNoteText('');setAddingNote(false)}} style={{padding:'5px 10px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
-            </div>
-          </div>
-        )}
-        {allEntries.length===0&&!addingNote&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic'}}>No notes yet.</div>}
-        <div style={{maxHeight:300,overflowY:'auto',display:'flex',flexDirection:'column',gap:7}}>
-          {allEntries.map(n=>(
-            <div key={n.id} style={{padding:'8px 10px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:7}}>
-              <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
-                    <span style={{fontSize:10,color:'#94a3b8'}}>{fmtDate(n.date)}</span>
-                    {n._src==='intel'&&<span style={{fontSize:9,fontWeight:700,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px',lineHeight:1.4}}>AI</span>}
-                  </div>
-                  <div style={{fontSize:12,color:S.txt,lineHeight:1.6}}>{n.text}</div>
-                </div>
-                <button onClick={()=>{
-                  if(n._src==='intel'){updateAccount(acct.id,{intelLog:(acct.intelLog||[]).filter(x=>x.id!==n.id)})}
-                  else{updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}
-                }} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
-                  onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
-              </div>
+          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Account Details</div>
+          {[{label:'Name',key:'name'},{label:'HQ',key:'hq'},{label:'Industry',key:'industry'},{label:'Employees',key:'employees'},{label:'Revenue',key:'revenue'}].map(f=>(
+            <div key={f.key} style={{marginBottom:9}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
+              <input value={editForm[f.key]||''} onChange={e=>setEditForm(p=>({...p,[f.key]:e.target.value}))} onBlur={e=>updateAccount(acct.id,{[f.key]:e.target.value})}
+                style={{width:'100%',fontSize:12,padding:'5px 8px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
             </div>
           ))}
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Status</div>
+            <select value={editForm.status||'Prospect'} onChange={e=>{setEditForm(p=>({...p,status:e.target.value}));updateAccount(acct.id,{status:e.target.value})}}
+              style={{width:'100%',fontSize:12,padding:'5px 8px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:5,color:S.txt}}>
+              {['Prospect','Researching','Reached Out','Active Conversation'].map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Notes & Intel</div>
+            <button onClick={()=>setAddingNote(v=>!v)} style={{fontSize:11,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>+ Add Note</button>
+          </div>
+          {addingNote&&(
+            <div style={{marginBottom:12}}>
+              <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3} placeholder='Add a note...' autoFocus
+                style={{width:'100%',fontSize:12,padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box',resize:'none',fontFamily:'inherit',lineHeight:1.5,outline:'none'}}/>
+              <div style={{display:'flex',gap:6,marginTop:6}}>
+                <button onClick={()=>{if(!noteText.trim())return;updateAccount(acct.id,{notes:[{id:uid(),text:noteText,date:new Date().toISOString().split('T')[0],addedBy:''},...(acct.notes||[])]});setNoteText('');setAddingNote(false)}} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save</button>
+                <button onClick={()=>{setNoteText('');setAddingNote(false)}} style={{padding:'5px 10px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {allEntries.length===0&&!addingNote&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic'}}>No notes yet.</div>}
+          <div style={{maxHeight:260,overflowY:'auto',display:'flex',flexDirection:'column',gap:7}}>
+            {allEntries.map(n=>(
+              <div key={n.id} style={{padding:'8px 10px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:7}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                      <span style={{fontSize:10,color:'#94a3b8'}}>{fmtDate(n.date)}</span>
+                      {n._src==='intel'&&<span style={{fontSize:9,fontWeight:700,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px',lineHeight:1.4}}>AI</span>}
+                    </div>
+                    <div style={{fontSize:12,color:S.txt,lineHeight:1.6}}>{n.text}</div>
+                  </div>
+                  <button onClick={()=>{
+                    if(n._src==='intel'){updateAccount(acct.id,{intelLog:(acct.intelLog||[]).filter(x=>x.id!==n.id)})}
+                    else{updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}
+                  }} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
+                    onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom row: Contacts + Technology */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.15)'}`,paddingTop:16}}>
+        {/* CONTACTS MENTIONED */}
+        <div>
+          {sHdr(<User size={11}/>, 'Contacts Mentioned')}
+          {extractedContacts.length===0&&manualContacts.length===0&&!addingContact&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No contacts detected yet.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
+            {extractedContacts.map((c,ci)=>(
+              <div key={ci} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                  <User size={12} style={{color:'#94a3b8',marginTop:1,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                      <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{c.name}</span>
+                      {c.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{c.mentions}</span>}
+                    </div>
+                    {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
+                    {c.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2,lineHeight:1.4}}>{c.contexts[0].slice(0,100)}{c.contexts[0].length>100?'…':''}</div>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {manualContacts.map(c=>(
+              <div key={c.id} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                  <User size={12} style={{color:'#94a3b8',marginTop:1,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                      <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{c.name}</span>
+                      <span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>
+                    </div>
+                    {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
+                    {c.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{c.notes.slice(0,100)}</div>}
+                  </div>
+                  <button onClick={()=>updateAccount(acct.id,{contacts:(acct.contacts||[]).filter(x=>x.id!==c.id)})}
+                    style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
+                    onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {addingContact?(
+            <div style={{background:inBg,border:`1px solid ${inBdr}`,borderRadius:7,padding:10}}>
+              {[{label:'Name *',k:'name'},{label:'Title',k:'title'},{label:'Notes',k:'notes'}].map(f=>(
+                <div key={f.k} style={{marginBottom:6}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
+                  <input value={contactForm[f.k]||''} onChange={e=>setContactForm(p=>({...p,[f.k]:e.target.value}))} autoFocus={f.k==='name'}
+                    style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
+                </div>
+              ))}
+              <div style={{display:'flex',gap:6,marginTop:4}}>
+                <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...(acct.contacts||[]),{id:uid(),...contactForm,addedManually:true}]});setContactForm({name:'',title:'',notes:''});setAddingContact(false)}}
+                  style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+                <button onClick={()=>setAddingContact(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>setAddingContact(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Contact</button>
+          )}
+        </div>
+
+        {/* TECHNOLOGY */}
+        <div>
+          {sHdr(<Cpu size={11}/>, 'Technology')}
+          {extractedTech.length===0&&manualTech.length===0&&!addingTech&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No technology detected yet.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
+            {extractedTech.map((t,ti)=>{
+              const sc=TECH_SC[t.status]||TECH_SC.Unknown
+              return (
+                <div key={ti} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:sc.c,flexShrink:0,marginTop:3}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                        <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{t.name}</span>
+                        <span style={{fontSize:9,fontWeight:700,color:sc.c,background:sc.bg,borderRadius:4,padding:'1px 6px'}}>{t.status}</span>
+                        {t.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{t.mentions}</span>}
+                      </div>
+                      {t.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2,lineHeight:1.4}}>{t.contexts[0].slice(0,80)}{t.contexts[0].length>80?'…':''}</div>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {manualTech.map(t=>{
+              const sc=TECH_SC[t.status]||TECH_SC.Unknown
+              return (
+                <div key={t.id} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:sc.c,flexShrink:0,marginTop:3}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                        <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{t.name}</span>
+                        <span style={{fontSize:9,fontWeight:700,color:sc.c,background:sc.bg,borderRadius:4,padding:'1px 6px'}}>{t.status}</span>
+                        <span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>
+                      </div>
+                      {t.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{t.notes.slice(0,80)}</div>}
+                    </div>
+                    <button onClick={()=>updateAccount(acct.id,{technologies:(acct.technologies||[]).filter(x=>x.id!==t.id)})}
+                      style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {addingTech?(
+            <div style={{background:inBg,border:`1px solid ${inBdr}`,borderRadius:7,padding:10}}>
+              <div style={{marginBottom:6}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Vendor / Technology *</div>
+                <input value={techForm.name||''} onChange={e=>setTechForm(p=>({...p,name:e.target.value}))} autoFocus
+                  style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
+              </div>
+              <div style={{marginBottom:6}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Status</div>
+                <select value={techForm.status||'Unknown'} onChange={e=>setTechForm(p=>({...p,status:e.target.value}))}
+                  style={{width:'100%',fontSize:12,padding:'4px 6px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt}}>
+                  {['Customer','Evaluating','Replacing','Considering','Unknown'].map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div style={{marginBottom:6}}>
+                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Notes</div>
+                <input value={techForm.notes||''} onChange={e=>setTechForm(p=>({...p,notes:e.target.value}))}
+                  style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>{if(!techForm.name.trim())return;updateAccount(acct.id,{technologies:[...(acct.technologies||[]),{id:uid(),...techForm,addedManually:true}]});setTechForm({name:'',status:'Unknown',notes:''});setAddingTech(false)}}
+                  style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+                <button onClick={()=>setAddingTech(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>setAddingTech(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Technology</button>
+          )}
         </div>
       </div>
     </div>
@@ -6710,7 +6915,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const addAccount = () => {
     if(!addForm.name.trim())return
     const now = new Date().toISOString()
-    const newA = {id:uid(),name:addForm.name,hq:addForm.hq,industry:addForm.industry,employees:addForm.employees,revenue:addForm.revenue,status:addForm.status,contacts:[],notes:addForm.notes?[{id:uid(),text:addForm.notes,date:new Date().toISOString().split('T')[0],addedBy:''}]:[],intelLog:[],addedAt:now,updatedAt:now}
+    const newA = {id:uid(),name:addForm.name,hq:addForm.hq,industry:addForm.industry,employees:addForm.employees,revenue:addForm.revenue,status:addForm.status,contacts:[],technologies:[],notes:addForm.notes?[{id:uid(),text:addForm.notes,date:new Date().toISOString().split('T')[0],addedBy:''}]:[],intelLog:[],addedAt:now,updatedAt:now}
     setData(prev=>({...prev,whitespaceAccounts:[...(prev.whitespaceAccounts||[]),newA]}))
     setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
     setShowAdd(false)
@@ -6732,7 +6937,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const {data: resp} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:4000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep. Extract prospect company intelligence from vendor calls and notes. Keep it simple — just company names and notes about what was discussed.',
-        messages:[{role:'user',content:`Extract whitespace account intelligence. Return ONLY valid JSON:\n{\n  "accounts": [\n    {\n      "name": "company name",\n      "hq": "city state if mentioned or empty",\n      "industry": "industry if mentioned or empty",\n      "employees": "employee count if mentioned or empty",\n      "note": "2-3 sentence summary of everything mentioned about this company including any contact names, what they are evaluating, budget, timeline, anything relevant"\n    }\n  ]\n}\nInclude ALL prospect companies mentioned. Put contact names and all details into the note field. Do not create separate contact objects. Return empty accounts array if no prospects found.\n\nInput: ${intelText}`}]
+        messages:[{role:'user',content:`Extract whitespace account intelligence. Return ONLY valid JSON:\n{\n  "accounts": [\n    {\n      "name": "company name",\n      "hq": "city state if mentioned or empty",\n      "industry": "industry if mentioned or empty",\n      "employees": "employee count if mentioned or empty",\n      "note": "Summary of what was discussed. For each person mentioned include a line: Contact: Full Name, Title — context. For each technology or vendor mentioned include a line: Technology: Vendor Name — Customer/Evaluating/Replacing/Considering/Unknown — context."\n    }\n  ]\n}\nInclude ALL prospect companies mentioned. Return empty accounts array if no prospects found.\n\nInput: ${intelText}`}]
       }, effectiveKey, null)
       if (resp.error) throw new Error(resp.error.message||'API error')
       const raw = (resp.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
@@ -6767,7 +6972,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         if (existIdx>=0) {
           wsList[existIdx] = {...wsList[existIdx], intelLog:[noteEntry,...(wsList[existIdx].intelLog||[])], updatedAt:now}
         } else {
-          wsList.push({id:uid(),name:finalName,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
+          wsList.push({id:uid(),name:finalName,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],technologies:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
         }
       })
       return {...prev, whitespaceAccounts:wsList}
