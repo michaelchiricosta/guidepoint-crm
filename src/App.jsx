@@ -1849,6 +1849,24 @@ function Contacts({acct,setAcct}) {
     setPan({x:(canvasSize.w-cw*nz)/2-minX*nz, y:(canvasSize.h-ch*nz)/2-minY*nz})
   }
 
+  const centerOnRoot = () => {
+    if(!canvasRef.current)return
+    const rootNode=orgNodes.find(n=>!n.parentId)
+    if(!rootNode)return
+    const canvasWidth=canvasRef.current.offsetWidth
+    const defaultZoom=0.8
+    const targetX=rootNode.x!=null?rootNode.x/100*CANVAS_W:2000
+    const targetY=rootNode.y!=null?rootNode.y/100*CANVAS_H:100
+    setZoom(defaultZoom)
+    setPan({x:canvasWidth/2-(targetX+NODE_W/2)*defaultZoom, y:60-targetY*defaultZoom})
+  }
+
+  useEffect(()=>{
+    if(contactView!=='orgchart')return
+    const t=setTimeout(centerOnRoot,50)
+    return()=>clearTimeout(t)
+  },[contactView])
+
   const doExport = async type => {
     setExportDropdown(false)
     setExportToast('Generating export…')
@@ -2029,7 +2047,7 @@ function Contacts({acct,setAcct}) {
               ].map((b,i)=>(
                 <button key={i} onClick={b.onClick||undefined} style={{...(b.style||{}),padding:b.style?undefined:'6px 10px',background:'transparent',border:'none',borderRight:i<2?`1px solid ${S.bdr}`:'none',color:S.secondary,fontSize:13,fontWeight:600,cursor:b.onClick?'pointer':'default',minHeight:32,lineHeight:1}}>{b.label}</button>
               ))}
-              <button onClick={fitToScreen} title='Fit to screen' style={{padding:'6px 10px',background:'transparent',border:`none`,borderLeft:`1px solid ${S.bdr}`,color:S.secondary,fontSize:13,cursor:'pointer',minHeight:32}}>⊡</button>
+              <button onClick={centerOnRoot} title='Reset view to root node' style={{padding:'6px 10px',background:'transparent',border:'none',borderLeft:`1px solid ${S.bdr}`,color:S.secondary,fontSize:11,fontWeight:600,cursor:'pointer',minHeight:32,whiteSpace:'nowrap'}}>⊡ Reset View</button>
               <div style={{position:'relative',borderLeft:`1px solid ${S.bdr}`}}>
                 <button onClick={()=>setExportDropdown(v=>!v)} style={{padding:'6px 10px',background:'transparent',border:'none',color:S.blue,fontSize:11,fontWeight:600,cursor:'pointer',minHeight:32,display:'flex',alignItems:'center',gap:4}}>⬇ Export</button>
                 {exportDropdown&&(
@@ -7680,6 +7698,24 @@ function ClientView({acct, setAcct, onClose}) {
   const [cvPanStart,setCvPanStart]=useState(null)
   const cvCanvasRef=useRef(null)
 
+  const centerCvOnRoot = () => {
+    if(!cvCanvasRef.current)return
+    const rootNode=orgNodes.find(n=>!n.parentId)
+    if(!rootNode)return
+    const canvasWidth=cvCanvasRef.current.offsetWidth
+    const defaultZoom=0.8
+    const targetX=rootNode.x!=null?rootNode.x/100*CANVAS_W:2000
+    const targetY=rootNode.y!=null?rootNode.y/100*CANVAS_H:100
+    setCvZoom(defaultZoom)
+    setCvPan({x:canvasWidth/2-(targetX+NODE_W/2)*defaultZoom, y:60-targetY*defaultZoom})
+  }
+
+  useEffect(()=>{
+    if(cvTab!=='contacts')return
+    const t=setTimeout(centerCvOnRoot,50)
+    return()=>clearTimeout(t)
+  },[cvTab])
+
   const ORG_GRAD_MAP={
     blue:{gradient:'linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%)',shadow:'rgba(59,130,246,0.35)'},
     purple:{gradient:'linear-gradient(135deg,#a855f7 0%,#7c3aed 100%)',shadow:'rgba(168,85,247,0.35)'},
@@ -8042,6 +8078,7 @@ function ClientView({acct, setAcct, onClose}) {
                     {[{label:'−',onClick:()=>setCvZoom(z=>Math.max(0.25,z-0.1))},{label:`${Math.round(cvZoom*100)}%`,onClick:null,style:{minWidth:44,textAlign:'center',fontSize:11,fontWeight:700,color:'#374151',padding:'6px 4px',cursor:'default'}},{label:'+',onClick:()=>setCvZoom(z=>Math.min(3,z+0.1))}].map((b,i)=>(
                       <button key={i} onClick={b.onClick||undefined} style={{...(b.style||{}),padding:b.style?undefined:'6px 10px',background:'transparent',border:'none',color:'#374151',fontSize:13,fontWeight:600,cursor:b.onClick?'pointer':'default',minHeight:28}}>{b.label}</button>
                     ))}
+                    <button onClick={centerCvOnRoot} title='Reset view to root node' style={{padding:'6px 10px',background:'transparent',border:'none',borderLeft:'1px solid #e2e8f0',color:'#64748b',fontSize:11,fontWeight:600,cursor:'pointer',minHeight:28,whiteSpace:'nowrap'}}>⊡ Reset View</button>
                   </div>
                 </div>
                 <div ref={cvCanvasRef}
