@@ -6578,54 +6578,75 @@ function Admin({acct,setAcct}) {
   )
 }
 
-const WS_VENDORS = ['CrowdStrike','SentinelOne','Palo Alto','Zscaler','Okta','Splunk','Wiz','Varonis','SailPoint','CyberArk','Qualys','Tenable','Rapid7','Darktrace','Vectra','Arctic Wolf','ReliaQuest','Cloudflare','Fortinet','Check Point','Cisco','Proofpoint','Mimecast','Abnormal','KnowBe4','BeyondTrust','Delinea','Microsoft','ThreatLocker','LogRhythm','QRadar','Elastic','Datadog','Lacework','Orca','VMware','Symantec','1Password','Google','Saviynt','NetSpy','Horizon 3','IBM','Carbon Black','FireEye','Mandiant','Recorded Future','ServiceNow','Sailpoint']
+const WS_VENDORS = ['CrowdStrike','SentinelOne','Palo Alto','Zscaler','Okta','Splunk','Wiz','Varonis','SailPoint','CyberArk','Qualys','Tenable','Rapid7','Darktrace','Vectra','Arctic Wolf','ReliaQuest','Cloudflare','Fortinet','Check Point','Cisco','Proofpoint','Mimecast','Abnormal','KnowBe4','BeyondTrust','Delinea','Microsoft','ThreatLocker','LogRhythm','QRadar','Elastic','Datadog','Lacework','Orca','VMware','Symantec','1Password','Google','Saviynt','NetSpy','IBM','Carbon Black','FireEye','Mandiant','ServiceNow']
+
+// Simple, fast contact extraction — only structured "Contact: Name, Title — context" lines
 const parseContactsFromEntries = entries => {
-  const map = {}; const text = entries.map(e=>e.text||'').join('\n')
-  const TITLES = 'VP|SVP|EVP|Director|Manager|Head|CISO|CTO|CEO|CFO|COO|CIO|President|Officer|Lead|Engineer|Architect|Analyst|Specialist|Consultant'
-  // Structured: "Contact: Name, Title — context"
-  const re1 = /Contact:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)[,\s]*([^—\n]{0,60}?)(?:\s*—\s*([^\n]{0,200}))?(?=\n|Contact:|Technology:|$)/g
-  let m
-  while ((m = re1.exec(text)) !== null) {
-    const name=m[1].trim(), title=(m[2]||'').replace(/^[,\s]+|[,\s]+$/g,'').trim(), ctx=(m[3]||'').trim()
-    if(!map[name])map[name]={name,title:'',contexts:[],mentions:0}
-    if(!map[name].title&&title)map[name].title=title
-    if(ctx)map[name].contexts.push(ctx)
-    map[name].mentions++
-  }
-  // Unstructured: "Name, Title" with title keyword
-  const re2 = new RegExp(`([A-Z][a-z]+\\s+[A-Z][a-z]+)\\s*[,(]\\s*([^,.\\n()]{0,50}?(?:${TITLES})[^,.\\n()]{0,30})\\s*[,).]`, 'g')
-  while ((m = re2.exec(text)) !== null) {
-    const name=m[1].trim(), title=(m[2]||'').replace(/^[,\s]+|[,\s]+$/g,'').trim()
-    if(!map[name])map[name]={name,title,contexts:[],mentions:0}
-    else if(!map[name].title&&title)map[name].title=title
-    map[name].mentions=(map[name].mentions||0)+1
-  }
-  return Object.values(map).filter(c=>c.name.split(/\s+/).length>=2)
+  try {
+    const map = {}
+    const lines = entries.map(e=>e.text||'').join('\n').split('\n')
+    for (const line of lines) {
+      const m = line.match(/^Contact:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)[,\s]*([^—]{0,60}?)(?:\s*—\s*(.{0,200}))?$/)
+      if (!m) continue
+      const name = m[1].trim()
+      const title = (m[2]||'').replace(/^[,\s]+|[,\s]+$/g,'').trim()
+      const ctx = (m[3]||'').trim()
+      if (!map[name]) map[name] = {name, title:'', contexts:[], mentions:0}
+      if (!map[name].title && title) map[name].title = title
+      if (ctx) map[name].contexts.push(ctx)
+      map[name].mentions++
+    }
+    // Also scan for "Name, Title" pattern with simple title keyword list (no backtracking)
+    const titleKw = ['VP','SVP','EVP','Director','Manager','CISO','CTO','CEO','CFO','COO','CIO','President','Head of','Head,']
+    const allText = entries.map(e=>e.text||'').join('\n')
+    const nameRe = /\b([A-Z][a-z]+ [A-Z][a-z]+)\s*[,(]\s*([^,.\n(]{3,40})/g
+    let m2
+    while ((m2 = nameRe.exec(allText)) !== null) {
+      const name = m2[1].trim()
+      const candidate = m2[2].trim()
+      if (titleKw.some(t => candidate.toLowerCase().includes(t.toLowerCase()))) {
+        if (!map[name]) map[name] = {name, title: candidate.slice(0,40), contexts:[], mentions:0}
+        map[name].mentions++
+      }
+    }
+    return Object.values(map)
+  } catch(e) { return [] }
 }
+
+// Simple, fast tech extraction — structured lines + plain string indexOf for vendors
 const parseTechFromEntries = entries => {
-  const map = {}; const text = entries.map(e=>e.text||'').join('\n')
-  // Structured: "Technology: Vendor — Status — context"
-  const re1 = /Technology:\s*([^—\n]+?)\s*—\s*(Customer|Evaluating|Replacing|Considering|Unknown)\s*—\s*([^\n]{0,200})/g
-  let m
-  while ((m = re1.exec(text)) !== null) {
-    const name=m[1].trim(), status=m[2], ctx=m[3].trim()
-    if(!map[name])map[name]={name,status,contexts:[],mentions:0}
-    map[name].status=status; if(ctx)map[name].contexts.push(ctx); map[name].mentions++
-  }
-  // Known vendors
-  WS_VENDORS.forEach(vendor=>{
-    const vesc=vendor.replace(/[().+]/g,'\\$&').replace(/\s+/g,'[\\s]+')
-    const vre=new RegExp(`\\b${vesc}\\b`,'i')
-    if(!vre.test(text))return
-    if(map[vendor]){map[vendor].mentions++;return}
-    let status='Unknown'
-    if(new RegExp(`evaluating[\\s\\S]{0,30}${vesc}|${vesc}[\\s\\S]{0,20}evaluating|looking at[\\s\\S]{0,20}${vesc}`,'i').test(text))status='Evaluating'
-    else if(new RegExp(`${vesc}[\\s\\S]{0,20}customer|uses[\\s\\S]{0,20}${vesc}|running[\\s\\S]{0,20}${vesc}|deployed[\\s\\S]{0,20}${vesc}`,'i').test(text))status='Customer'
-    else if(new RegExp(`replacing[\\s\\S]{0,20}${vesc}|${vesc}[\\s\\S]{0,20}replacement`,'i').test(text))status='Replacing'
-    const cm=text.match(new RegExp(`.{0,40}${vesc}.{0,40}`,'i'))
-    map[vendor]={name:vendor,status,contexts:cm?[cm[0].trim().slice(0,120)]:[], mentions:1}
-  })
-  return Object.values(map)
+  try {
+    const map = {}
+    const allText = entries.map(e=>e.text||'').join('\n')
+    const lower = allText.toLowerCase()
+    // Structured "Technology: Vendor — Status — context" lines
+    const lines = allText.split('\n')
+    for (const line of lines) {
+      const m = line.match(/^Technology:\s*([^—]+?)\s*—\s*(Customer|Evaluating|Replacing|Considering|Unknown)\s*—\s*(.{0,200})$/)
+      if (!m) continue
+      const name = m[1].trim(), status = m[2], ctx = m[3].trim()
+      if (!map[name]) map[name] = {name, status, contexts:[], mentions:0}
+      map[name].status = status
+      if (ctx) map[name].contexts.push(ctx)
+      map[name].mentions++
+    }
+    // Known vendor scan — simple toLowerCase indexOf, no complex regex
+    for (const vendor of WS_VENDORS) {
+      const vl = vendor.toLowerCase()
+      const idx = lower.indexOf(vl)
+      if (idx === -1) continue
+      if (map[vendor]) { map[vendor].mentions++; continue }
+      // Detect status with simple substring checks around the match
+      const window = lower.slice(Math.max(0,idx-40), idx+vendor.length+40)
+      let status = 'Unknown'
+      if (window.includes('evaluat') || window.includes('looking at') || window.includes('considering')) status = 'Evaluating'
+      else if (window.includes('customer') || window.includes('uses ') || window.includes('running') || window.includes('deployed')) status = 'Customer'
+      else if (window.includes('replac')) status = 'Replacing'
+      const ctx = allText.slice(Math.max(0,idx-40), idx+vendor.length+60).replace(/\s+/g,' ').trim()
+      map[vendor] = {name:vendor, status, contexts:ctx?[ctx.slice(0,120)]:[], mentions:1}
+    }
+    return Object.values(map)
+  } catch(e) { return [] }
 }
 
 function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
@@ -6643,10 +6664,12 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
     ...(acct.notes||[]).map(n=>({...n,_src:'note'})),
     ...(acct.intelLog||[]).map(n=>({...n,_src:'intel'}))
   ].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const contacts = acct.contacts || []
+  const technologies = acct.technologies || []
   const extractedContacts = parseContactsFromEntries(allEntries)
-  const manualContacts = (acct.contacts||[]).filter(c=>c.addedManually)
+  const manualContacts = contacts.filter(c=>c.addedManually)
   const extractedTech = parseTechFromEntries(allEntries)
-  const manualTech = (acct.technologies||[]).filter(t=>t.addedManually)
+  const manualTech = technologies.filter(t=>t.addedManually)
   const TECH_SC = {Customer:{c:'#15803d',bg:'#dcfce7'},Evaluating:{c:'#1d4ed8',bg:'#dbeafe'},Replacing:{c:'#c2410c',bg:'#ffedd5'},Considering:{c:'#7c3aed',bg:'#ede9fe'},Unknown:{c:'#64748b',bg:'#f1f5f9'}}
   const sHdr = (icon,label) => (
     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:10}}>
@@ -6714,11 +6737,11 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
         </div>
       </div>
 
-      {/* Bottom row: Contacts + Technology */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.15)'}`,paddingTop:16}}>
+      {/* Bottom sections: Contacts + Technology stacked */}
+      <div style={{borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.15)'}`,paddingTop:16,display:'flex',flexDirection:'column',gap:16}}>
         {/* CONTACTS MENTIONED */}
-        <div>
-          {sHdr(<User size={11}/>, 'Contacts Mentioned')}
+        <div style={{background:isLight?'rgba(37,99,235,0.04)':'rgba(255,255,255,0.02)',border:`1px solid ${isLight?'#dbeafe':'rgba(255,255,255,0.08)'}`,borderRadius:8,padding:'12px 14px'}}>
+          {sHdr(<User size={11}/>, `Contacts Mentioned${(extractedContacts.length+manualContacts.length)>0?' ('+( extractedContacts.length+manualContacts.length)+')':''}`)}
           {extractedContacts.length===0&&manualContacts.length===0&&!addingContact&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No contacts detected yet.</div>}
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
             {extractedContacts.map((c,ci)=>(
@@ -6748,7 +6771,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
                     {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
                     {c.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{c.notes.slice(0,100)}</div>}
                   </div>
-                  <button onClick={()=>updateAccount(acct.id,{contacts:(acct.contacts||[]).filter(x=>x.id!==c.id)})}
+                  <button onClick={()=>updateAccount(acct.id,{contacts:contacts.filter(x=>x.id!==c.id)})}
                     style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
                     onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
                 </div>
@@ -6765,7 +6788,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
                 </div>
               ))}
               <div style={{display:'flex',gap:6,marginTop:4}}>
-                <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...(acct.contacts||[]),{id:uid(),...contactForm,addedManually:true}]});setContactForm({name:'',title:'',notes:''});setAddingContact(false)}}
+                <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...contacts,{id:uid(),...contactForm,addedManually:true}]});setContactForm({name:'',title:'',notes:''});setAddingContact(false)}}
                   style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
                 <button onClick={()=>setAddingContact(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
               </div>
@@ -6776,8 +6799,8 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
         </div>
 
         {/* TECHNOLOGY */}
-        <div>
-          {sHdr(<Cpu size={11}/>, 'Technology')}
+        <div style={{background:isLight?'rgba(37,99,235,0.04)':'rgba(255,255,255,0.02)',border:`1px solid ${isLight?'#dbeafe':'rgba(255,255,255,0.08)'}`,borderRadius:8,padding:'12px 14px'}}>
+          {sHdr(<Cpu size={11}/>, `Technology${(extractedTech.length+manualTech.length)>0?' ('+(extractedTech.length+manualTech.length)+')':''}`)}
           {extractedTech.length===0&&manualTech.length===0&&!addingTech&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No technology detected yet.</div>}
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
             {extractedTech.map((t,ti)=>{
@@ -6812,7 +6835,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
                       </div>
                       {t.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{t.notes.slice(0,80)}</div>}
                     </div>
-                    <button onClick={()=>updateAccount(acct.id,{technologies:(acct.technologies||[]).filter(x=>x.id!==t.id)})}
+                    <button onClick={()=>updateAccount(acct.id,{technologies:technologies.filter(x=>x.id!==t.id)})}
                       style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
                       onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
                   </div>
@@ -6840,7 +6863,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
                   style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
               </div>
               <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>{if(!techForm.name.trim())return;updateAccount(acct.id,{technologies:[...(acct.technologies||[]),{id:uid(),...techForm,addedManually:true}]});setTechForm({name:'',status:'Unknown',notes:''});setAddingTech(false)}}
+                <button onClick={()=>{if(!techForm.name.trim())return;updateAccount(acct.id,{technologies:[...technologies,{id:uid(),...techForm,addedManually:true}]});setTechForm({name:'',status:'Unknown',notes:''});setAddingTech(false)}}
                   style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
                 <button onClick={()=>setAddingTech(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
               </div>
