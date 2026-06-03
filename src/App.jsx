@@ -4,6 +4,7 @@ import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, M
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
+import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from './namedAccounts.js'
 
 const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
@@ -6656,6 +6657,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
   const [hoveredId, setHoveredId] = useState(null)
+  const [bannerOpen, setBannerOpen] = useState(false)
   const [showIntel, setShowIntel] = useState(false)
   const [intelText, setIntelText] = useState('')
   const [intelDate, setIntelDate] = useState('')
@@ -6736,7 +6738,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const sel = new Set()
       parsed.accounts.forEach((a,i)=>{
         const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
-        if (!inCRM) sel.add(i)
+        const blocked = isBlockedAccount(a.name)
+        if (!inCRM && !blocked) sel.add(i)
       })
       setPendingIntel({accounts:parsed.accounts, date})
       setSelectedIntel(sel)
@@ -6855,6 +6858,26 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               <button onClick={()=>setShowAdd(true)} style={{padding:'9px 18px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
             </div>
           </div>
+        </div>
+        {/* Named accounts banner */}
+        <div style={{background:isLight?'#eff6ff':'rgba(37,99,235,0.08)',borderBottom:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,flexShrink:0}}>
+          <button onClick={()=>setBannerOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'7px 20px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+            <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0,transform:bannerOpen?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s',color:'#64748b'}}><polyline points="3,2 9,6 3,10" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span style={{fontSize:12,color:isLight?'#1d4ed8':'#93c5fd',fontWeight:500}}>Referencing 1,829 GuidePoint named accounts</span>
+            <span style={{fontSize:12,color:S.muted}}>·</span>
+            <span style={{fontSize:12,color:S.muted}}>1,234 blocked</span>
+            <span style={{fontSize:12,color:S.muted}}>·</span>
+            <span style={{fontSize:12,color:'#0ebc5f'}}>595 open (Pete Ballas &amp; Carl Morris)</span>
+            <span style={{fontSize:12,color:S.muted}}>·</span>
+            <span style={{fontSize:12,color:S.muted}}>Unknown accounts always available</span>
+          </button>
+          {bannerOpen&&(
+            <div style={{padding:'4px 20px 10px 38px',fontSize:12,color:S.muted,lineHeight:1.7}}>
+              <div>Blocked accounts are named by another GuidePoint rep — you can still track them but cannot pursue them without clearing conflict.</div>
+              <div>Open accounts (Pete Ballas &amp; Carl Morris) are available for pursuit — they show as available in the tracker.</div>
+              <div>Any company not on the named accounts list is always fully available.</div>
+            </div>
+          )}
         </div>
         <div style={{flex:1,overflowY:'auto'}}>
           {ws.length===0?(
@@ -6991,7 +7014,12 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       )}
 
       {/* CONFIRMATION MODAL */}
-      {pendingIntel&&(
+      {pendingIntel&&(()=>{
+        const totalFound = pendingIntel.accounts.length
+        const blockedCount = pendingIntel.accounts.filter(a=>isBlockedAccount(a.name)).length
+        const availableCount = totalFound - blockedCount
+        const allBlocked = blockedCount === totalFound
+        return (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setPendingIntel(null)}>
           <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'60vw',maxWidth:780,maxHeight:'80vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
@@ -7002,38 +7030,56 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 </div>
                 <button onClick={()=>setPendingIntel(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:12,marginTop:10}}>
-                <button onClick={()=>setSelectedIntel(new Set(pendingIntel.accounts.map((_,i)=>i)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>Select All</button>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginTop:10,flexWrap:'wrap'}}>
+                <span style={{fontSize:12,color:S.muted}}>{totalFound} found</span>
+                {blockedCount>0&&<><span style={{fontSize:12,color:S.muted}}>·</span><span style={{fontSize:12,color:'#dc2626',fontWeight:600}}>{blockedCount} blocked</span></>}
+                {availableCount>0&&<><span style={{fontSize:12,color:S.muted}}>·</span><span style={{fontSize:12,color:'#0ebc5f',fontWeight:600}}>{availableCount} available</span></>}
+                <span style={{flex:1}}/>
+                <button onClick={()=>setSelectedIntel(new Set(pendingIntel.accounts.map((_,i)=>i).filter(i=>!isBlockedAccount(pendingIntel.accounts[i].name))))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>Select Available</button>
                 <span style={{fontSize:12,color:S.muted}}>·</span>
                 <button onClick={()=>setSelectedIntel(new Set())} style={{fontSize:12,color:S.muted,background:'none',border:'none',cursor:'pointer',padding:0}}>Deselect All</button>
-                <span style={{fontSize:12,color:S.muted,marginLeft:'auto'}}>{selectedIntel.size} of {pendingIntel.accounts.length} selected</span>
+                <span style={{fontSize:12,color:S.muted}}>{selectedIntel.size} of {totalFound} selected</span>
               </div>
             </div>
             <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
-              {pendingIntel.accounts.map((a,i)=>{
-                const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
-                const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
-                const isChecked = selectedIntel.has(i)
-                return (
-                  <div key={i} onClick={()=>{if(inCRM)return;setSelectedIntel(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})}}
-                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:inCRM?'default':'pointer',opacity:inCRM?0.5:1,background:isChecked&&!inCRM?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
-                    onMouseEnter={e=>{if(!inCRM)e.currentTarget.style.background=S.surf2}}
-                    onMouseLeave={e=>{e.currentTarget.style.background=isChecked&&!inCRM?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}>
-                    <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${isChecked&&!inCRM?'#2563eb':S.bdr}`,background:isChecked&&!inCRM?'#2563eb':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {isChecked&&!inCRM&&<svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 4,7 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
-                        <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{a.name}</span>
-                        {inWS&&<span style={{fontSize:10,fontWeight:700,color:'#a16207',background:'#fef9c3',borderRadius:4,padding:'1px 7px'}}>Update</span>}
-                        {inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#64748b',background:S.surf2,borderRadius:4,padding:'1px 7px',border:`1px solid ${S.bdr}`}}>In CRM</span>}
+              {allBlocked?(
+                <div style={{padding:'32px 24px',textAlign:'center'}}>
+                  <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:8}}>All accounts mentioned are already named at GuidePoint.</div>
+                  <div style={{fontSize:13,color:S.muted,lineHeight:1.6}}>These accounts are covered by other reps. You can still add them to your whitespace tracker for monitoring, but you cannot actively pursue them without clearing the conflict.</div>
+                </div>
+              ):(
+                pendingIntel.accounts.map((a,i)=>{
+                  const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
+                  const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
+                  const blocked = isBlockedAccount(a.name)
+                  const openNamed = !blocked && isOpenNamedAccount(a.name)
+                  const owner = getAccountOwner(a.name)
+                  const isChecked = selectedIntel.has(i)
+                  const dimmed = inCRM
+                  return (
+                    <div key={i} onClick={()=>{if(dimmed)return;setSelectedIntel(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})}}
+                      style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:dimmed?'default':'pointer',opacity:dimmed?0.45:1,background:isChecked&&!dimmed?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
+                      onMouseEnter={e=>{if(!dimmed)e.currentTarget.style.background=S.surf2}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=isChecked&&!dimmed?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}>
+                      <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${isChecked&&!dimmed?'#2563eb':S.bdr}`,background:isChecked&&!dimmed?'#2563eb':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {isChecked&&!dimmed&&<svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 4,7 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
                       </div>
-                      {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:4}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
-                      {a.note&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',lineHeight:1.5}}>{a.note.slice(0,120)}{a.note.length>120?'…':''}</div>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3,flexWrap:'wrap'}}>
+                          <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{a.name}</span>
+                          {blocked&&<span style={{fontSize:10,fontWeight:700,color:'#dc2626',background:'#fee2e2',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Named — {owner||'Other rep'}</span>}
+                          {openNamed&&<span style={{fontSize:10,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Open ({owner})</span>}
+                          {!blocked&&!openNamed&&!inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#15803d',background:'#dcfce7',borderRadius:4,padding:'1px 7px'}}>Available</span>}
+                          {inWS&&<span style={{fontSize:10,fontWeight:700,color:'#a16207',background:'#fef9c3',borderRadius:4,padding:'1px 7px'}}>Update</span>}
+                          {inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#64748b',background:S.surf2,borderRadius:4,padding:'1px 7px',border:`1px solid ${S.bdr}`}}>In CRM</span>}
+                        </div>
+                        {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:4}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
+                        {a.note&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',lineHeight:1.5}}>{a.note.slice(0,120)}{a.note.length>120?'…':''}</div>}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
             <div style={{padding:'14px 24px',borderTop:`1px solid ${S.bdr}`,display:'flex',gap:10,flexShrink:0}}>
               <button onClick={saveIntel} disabled={selectedIntel.size===0}
@@ -7044,7 +7090,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
