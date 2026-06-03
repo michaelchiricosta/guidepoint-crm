@@ -7033,6 +7033,23 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [editingNameDraft, setEditingNameDraft] = useState('')
   const [pendingNames, setPendingNames] = useState({})
 
+  // File upload state for Add Intelligence modal
+  const [wsUploadedFile, setWsUploadedFile] = useState(null)
+  const [wsFileLoading, setWsFileLoading] = useState(false)
+  const [wsFileError, setWsFileError] = useState('')
+  const [wsFileStatus, setWsFileStatus] = useState('')
+  const [wsDragOver, setWsDragOver] = useState(false)
+  const wsFileInputRef = useRef(null)
+  const [wsPendingFile, setWsPendingFile] = useState(null)
+  const [wsFileIsDirectType, setWsFileIsDirectType] = useState(false)
+  const [wsShowDate, setWsShowDate] = useState(false)
+  const [wsCustomDate, setWsCustomDate] = useState('')
+  const [wsPendingDate, setWsPendingDate] = useState('')
+  const [wsRetryStatus, setWsRetryStatus] = useState('')
+  const [wsLargeDocWarning, setWsLargeDocWarning] = useState(false)
+  const [wsFileCharCount, setWsFileCharCount] = useState(0)
+  const [wsDateModalIsFile, setWsDateModalIsFile] = useState(false)
+
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
   const effectiveKey = data.apiKey || ''
@@ -7080,6 +7097,229 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setShowAdd(false)
   }
 
+  const WS_FILE_CHAR_LIMIT = 100000
+  const WS_IMAGE_EXTS = ['png','jpg','jpeg','webp']
+  const WS_TEXT_EXTS = ['txt','pdf','doc','docx','md']
+
+  const loadMammothWS = () => new Promise((resolve, reject) => {
+    if (window.mammoth) { resolve(window.mammoth); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'
+    script.onload = () => resolve(window.mammoth)
+    script.onerror = () => reject(new Error('Failed to load mammoth.js'))
+    document.head.appendChild(script)
+  })
+
+  const loadPdfJsWS = () => new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(window.pdfjsLib); return }
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    script.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; resolve(window.pdfjsLib) }
+    script.onerror = () => reject(new Error('Failed to load PDF.js'))
+    document.head.appendChild(script)
+  })
+
+  const resetWsFileState = () => {
+    setWsUploadedFile(null); setWsPendingFile(null); setWsFileIsDirectType(false)
+    setWsFileError(''); setWsFileStatus(''); setWsFileCharCount(0); setWsLargeDocWarning(false)
+    setWsCustomDate(''); setWsPendingDate('')
+  }
+
+  const wsHandleFile = async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!WS_IMAGE_EXTS.includes(ext) && !WS_TEXT_EXTS.includes(ext)) {
+      setWsFileError('Unsupported file type. Use TXT, PDF, DOCX, MD, PNG, JPG, or WEBP.')
+      return
+    }
+    setWsFileError(''); setWsFileStatus('')
+
+    if (ext === 'pdf') {
+      if (file.size > 32 * 1024 * 1024) { setWsFileError(`PDF too large (${(file.size/1024/1024).toFixed(1)}MB). Maximum size is 32MB.`); return }
+      if (file.size > 20 * 1024 * 1024) setWsFileStatus(`Large PDF detected (${(file.size/1024/1024).toFixed(1)}MB). Analysis may take longer.`)
+      setWsUploadedFile({name:file.name, size:file.size})
+      setWsFileIsDirectType(true)
+      setWsPendingFile(file)
+      try {
+        const headerText = await new Promise(resolve => { const r=new FileReader(); r.onload=e=>resolve(e.target.result||''); r.onerror=()=>resolve(''); r.readAsText(file.slice(0,1000)) })
+        setWsCustomDate(detectDate(headerText)||'')
+      } catch { setWsCustomDate('') }
+      setWsDateModalIsFile(true)
+      setWsShowDate(true)
+    } else if (WS_IMAGE_EXTS.includes(ext)) {
+      if (file.size > 32 * 1024 * 1024) { setWsFileError('File too large. Maximum size is 32MB.'); return }
+      if (!effectiveKey) { setWsFileError('Add your Anthropic API key in Settings to process images.'); return }
+      setWsUploadedFile({name:file.name, size:file.size})
+      setWsFileIsDirectType(true)
+      setWsPendingFile(file)
+      setWsCustomDate('')
+      setWsDateModalIsFile(true)
+      setWsShowDate(true)
+    } else if (ext==='docx'||ext==='doc') {
+      if (file.size > 32 * 1024 * 1024) { setWsFileError('File too large. Maximum size is 32MB.'); return }
+      setWsFileLoading(true); setWsFileIsDirectType(false)
+      setWsUploadedFile({name:file.name, size:file.size})
+      try {
+        const mammoth = await loadMammothWS()
+        const ab = await file.arrayBuffer()
+        const result = await mammoth.extractRawText({arrayBuffer:ab})
+        let extracted = result.value
+        setWsFileCharCount(extracted.length)
+        if (extracted.length > WS_FILE_CHAR_LIMIT) { extracted='[Note: This document was truncated to 100,000 characters for processing.]\n\n'+extracted.slice(0,WS_FILE_CHAR_LIMIT); setWsLargeDocWarning(true) }
+        setIntelText(extracted)
+        setWsCustomDate(detectDate(extracted)||'')
+        setWsDateModalIsFile(false)
+        setWsShowDate(true)
+      } catch(e) { setWsFileError('DOCX extraction failed. Try a different format or copy-paste the content.'); setWsUploadedFile(null) }
+      finally { setWsFileLoading(false) }
+    } else if (ext==='txt'||ext==='md') {
+      if (file.size > 32 * 1024 * 1024) { setWsFileError('File too large. Maximum size is 32MB.'); return }
+      setWsFileLoading(true); setWsFileIsDirectType(false)
+      setWsUploadedFile({name:file.name, size:file.size})
+      try {
+        let extracted = await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.onerror=reject;r.readAsText(file)})
+        setWsFileCharCount(extracted.length)
+        if (extracted.length > WS_FILE_CHAR_LIMIT) { extracted='[Note: This document was truncated to 100,000 characters for processing.]\n\n'+extracted.slice(0,WS_FILE_CHAR_LIMIT); setWsLargeDocWarning(true) }
+        setIntelText(extracted)
+        setWsCustomDate(detectDate(extracted)||'')
+        setWsDateModalIsFile(false)
+        setWsShowDate(true)
+      } catch(e) { setWsFileError('Could not read file. Try copy-pasting the content.'); setWsUploadedFile(null) }
+      finally { setWsFileLoading(false) }
+    }
+  }
+
+  const processFileIntel = async (date, forceFallback = false) => {
+    if (!wsPendingFile) return
+    const ext = wsPendingFile.name.split('.').pop().toLowerCase()
+    setIntelLoading(true); setIntelError(''); setIntelStatus(''); setWsRetryStatus('')
+    setWsPendingDate(date)
+
+    const SYS_WS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
+    const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"City, State or empty","industry":"industry or empty","note":"1-2 sentence summary of intel including source, what they need, any contacts mentioned","status":"Prospect"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 1-2 sentences max per account\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+
+    const onStatus = msg => { if(msg) setWsRetryStatus(msg); else setWsRetryStatus('') }
+
+    const callTextApiWS = async (inputText) => {
+      const {data: resp} = await callClaudeWithRetry({
+        model:'claude-sonnet-4-6', max_tokens:8000,
+        system:SYS_WS,
+        messages:[{role:'user',content:buildPromptWS(inputText)}]
+      }, effectiveKey, onStatus)
+      if (resp.error) throw new Error(resp.error.message||'API error')
+      const raw = resp.content?.[0]?.text||''
+      let parsed = extractJSON(raw)
+      if (!parsed) {
+        try {
+          const {data: fix} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:`Fix this malformed JSON and return ONLY valid JSON:\n${raw}`}]}, effectiveKey, null)
+          parsed = extractJSON(fix.content?.[0]?.text||'')
+        } catch {}
+      }
+      return parsed?.accounts || []
+    }
+
+    const pdfTextFallbackWS = async () => {
+      try {
+        const pdfjsLib = await loadPdfJsWS()
+        const ab = await wsPendingFile.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({data:ab}).promise
+        let fullText = ''
+        for (let i=1;i<=pdf.numPages;i++) { const pg=await pdf.getPage(i); const ct=await pg.getTextContent(); fullText+=ct.items.map(it=>it.str).join(' ')+'\n' }
+        if (fullText.trim().length > 50) {
+          let txt = fullText.length > WS_FILE_CHAR_LIMIT ? '[Truncated]\n\n'+fullText.slice(0,WS_FILE_CHAR_LIMIT) : fullText
+          return await callTextApiWS(txt)
+        }
+      } catch(e2) { console.log('[WS PDF.js fallback]', e2.message) }
+      try {
+        const pt = await new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result||'');r.onerror=rej;r.readAsText(wsPendingFile)})
+        if (pt.trim().length > 50) {
+          let txt = pt.length > WS_FILE_CHAR_LIMIT ? '[Truncated]\n\n'+pt.slice(0,WS_FILE_CHAR_LIMIT) : pt
+          return await callTextApiWS(txt)
+        }
+      } catch(e3) { console.log('[WS plain text fallback]', e3.message) }
+      return null
+    }
+
+    try {
+      let allAccounts = []
+      if (WS_IMAGE_EXTS.includes(ext)) {
+        const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(wsPendingFile)})
+        const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
+        const {data: imgData} = await callClaudeWithRetry({
+          model:'claude-sonnet-4-6', max_tokens:8000,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:wsPendingFile.type||'image/jpeg',data:cleanBase64}},
+            {type:'text',text:buildPromptWS('')}
+          ]}]
+        }, effectiveKey, onStatus)
+        if (imgData.error) throw new Error(`${imgData.error.type}: ${imgData.error.message}`)
+        const rawImg = imgData.content?.[0]?.text||''
+        let parsed = extractJSON(rawImg)
+        if (!parsed) throw new Error('Could not parse AI response.')
+        allAccounts = parsed?.accounts || []
+      } else if (ext === 'pdf') {
+        if (forceFallback) {
+          const accs = await pdfTextFallbackWS()
+          if (!accs) throw new Error('All extraction methods failed for this PDF.')
+          allAccounts = accs
+        } else {
+          let directFailed = false
+          try {
+            const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(wsPendingFile)})
+            const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
+            if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
+            const {data: pdfData} = await callClaudeWithRetry({
+              model:'claude-sonnet-4-6', max_tokens:8000,
+              messages:[{role:'user',content:[
+                {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
+                {type:'text',text:buildPromptWS('')}
+              ]}]
+            }, effectiveKey, onStatus)
+            if (pdfData.error) { directFailed = true; console.log('[WS Direct PDF] Error:', pdfData.error.type, pdfData.error.message) }
+            else {
+              const rawPdf = pdfData.content?.[0]?.text||''
+              let parsed = extractJSON(rawPdf)
+              if (!parsed) { directFailed = true }
+              else allAccounts = parsed?.accounts || []
+            }
+          } catch(e1) { directFailed = true; console.log('[WS Direct PDF] Exception:', e1.message) }
+          if (directFailed) {
+            const accs = await pdfTextFallbackWS()
+            if (!accs) throw new Error('All extraction methods failed. Try a different PDF or copy-paste the text.')
+            allAccounts = accs
+          }
+        }
+      }
+
+      setIntelStatus('')
+      if (allAccounts.length === 0) { setIntelError('No prospect companies found in the document.'); setIntelLoading(false); return }
+      const sel = new Set()
+      allAccounts.forEach((a,i) => {
+        const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
+        const blocked = isBlockedAccount(a.name)
+        if (!inCRM && !blocked) sel.add(i)
+      })
+      setPendingIntel({accounts:allAccounts, date})
+      setSelectedIntel(sel)
+      setShowIntel(false)
+      setWsUploadedFile(null); setWsPendingFile(null); setWsFileIsDirectType(false)
+    } catch(e) {
+      const msg = e.message||'Processing failed.'
+      if (msg==='OVERLOADED') setIntelError('Anthropic API is busy right now. Please wait 30 seconds and try again.')
+      else setIntelError('Processing failed: '+(msg||'Unknown error'))
+    }
+    setIntelLoading(false); setWsRetryStatus('')
+  }
+
+  const handleWsProcess = () => {
+    if (wsFileIsDirectType && wsPendingFile) {
+      setWsDateModalIsFile(true)
+      setWsShowDate(true)
+    } else {
+      processIntel()
+    }
+  }
+
   const openIntel = () => {
     const detected = detectDate(intelText)
     setIntelDate(detected || new Date().toISOString().split('T')[0])
@@ -7087,10 +7327,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setShowIntel(true)
   }
 
-  const processIntel = async () => {
+  const processIntel = async (dateOverride) => {
     if (!effectiveKey) { setIntelError('Add your Anthropic API key in Settings first.'); return }
     if (!intelText.trim()) { setIntelError('Please paste some text first.'); return }
-    const date = intelDate || new Date().toISOString().split('T')[0]
+    const date = dateOverride || intelDate || new Date().toISOString().split('T')[0]
     setIntelLoading(true); setIntelError(''); setIntelStatus('')
 
     const SYS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
@@ -7276,7 +7516,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'3px 12px'}}>{ws.length}</span>
-              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');setShowIntel(true)}}
+              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
                 style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
                 <Zap size={14}/>Add Intelligence
               </button>
@@ -7400,40 +7640,142 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
       {/* ADD INTELLIGENCE MODAL */}
       {showIntel&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setShowIntel(false)}>
-          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'65vw',maxWidth:900,height:'70vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>{resetWsFileState();setShowIntel(false)}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'65vw',maxWidth:900,maxHeight:'88vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
             <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
               <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:4}}>Add Whitespace Intelligence</div>
-                  <div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>Paste a vendor call transcript or note. AI extracts account names and notes and maps them to your whitespace tracker.</div>
+                  <div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>Paste a transcript or upload a file. AI extracts prospect accounts and maps them to your whitespace tracker.</div>
                 </div>
-                <button onClick={()=>setShowIntel(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
+                <button onClick={()=>{resetWsFileState();setShowIntel(false)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
               </div>
             </div>
-            <div style={{flex:1,padding:'16px 24px',display:'flex',flexDirection:'column',gap:12,overflow:'hidden'}}>
-              <div style={{flex:1,position:'relative'}}>
-                <textarea
-                  value={intelText}
-                  onChange={e=>setIntelText(e.target.value)}
-                  placeholder={`Paste a vendor call or quick note here...\n\nExample: 'On a call with CrowdStrike today. They mentioned Waters Corporation is actively evaluating EDR — no incumbent, budget confirmed Q3. Also Watts Water is looking at SIEM. Sarah Chen is the IT contact at Waters.'`}
-                  style={{width:'100%',height:'100%',fontSize:13,padding:'12px 14px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,boxSizing:'border-box',resize:'none',fontFamily:'inherit',lineHeight:1.6,outline:'none'}}
-                />
-                <div style={{position:'absolute',bottom:8,right:12,fontSize:11,color:S.muted,pointerEvents:'none'}}>{intelText.length.toLocaleString()} / 40,000</div>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+            {/* Scrollable content */}
+            <div style={{flex:1,padding:'16px 24px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto',minHeight:0}}>
+              {/* Textarea — hidden when PDF or image is loaded */}
+              {!wsFileIsDirectType&&(
+                <div style={{position:'relative'}}>
+                  <textarea
+                    value={intelText}
+                    onChange={e=>setIntelText(e.target.value)}
+                    placeholder={`Paste a vendor call or quick note here...\n\nExample: 'On a call with CrowdStrike today. They mentioned Waters Corporation is actively evaluating EDR — no incumbent, budget confirmed Q3. Also Watts Water is looking at SIEM. Sarah Chen is the IT contact at Waters.'`}
+                    rows={7}
+                    style={{width:'100%',fontSize:13,padding:'12px 14px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,boxSizing:'border-box',resize:'vertical',fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
+                  />
+                  <div style={{textAlign:'right',fontSize:11,color:S.muted,marginTop:3}}>{intelText.length.toLocaleString()} / 40,000</div>
+                </div>
+              )}
+              {/* PDF / image file preview card */}
+              {wsFileIsDirectType&&wsUploadedFile&&(
+                <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',gap:14}}>
+                  <div style={{fontSize:32,flexShrink:0,lineHeight:1}}>{wsUploadedFile.name.endsWith('.pdf')?'📄':'🖼️'}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1e40af',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{wsUploadedFile.name}</div>
+                    <div style={{fontSize:11,color:'#3b82f6',marginTop:2}}>{(wsUploadedFile.size/1024).toFixed(0)} KB · Ready to analyze with AI</div>
+                    <div style={{fontSize:11,color:'#64748b',marginTop:3}}>{wsUploadedFile.name.endsWith('.pdf')?'PDF will be analyzed directly by AI':'Image will be analyzed directly by AI'}</div>
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();resetWsFileState()}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:18,lineHeight:1,padding:0,flexShrink:0}}>×</button>
+                </div>
+              )}
+              {/* File upload zone — visible when no file loaded */}
+              {!wsUploadedFile&&(
+                <div
+                  onDragOver={e=>{e.preventDefault();setWsDragOver(true)}}
+                  onDragLeave={()=>setWsDragOver(false)}
+                  onDrop={e=>{e.preventDefault();setWsDragOver(false);const f=e.dataTransfer.files[0];if(f)wsHandleFile(f)}}
+                  onClick={()=>!wsFileLoading&&wsFileInputRef.current?.click()}
+                  style={{border:`2px dashed ${wsDragOver?'#2563eb':'#cbd5e1'}`,borderRadius:8,padding:20,textAlign:'center',background:wsDragOver?'#eff6ff':S.surf2,cursor:wsFileLoading?'default':'pointer',transition:'all 0.15s'}}>
+                  <input ref={wsFileInputRef} type='file' accept='.txt,.pdf,.doc,.docx,.md,.png,.jpg,.jpeg,.webp' style={{display:'none'}} onChange={e=>{const f=e.target.files?.[0];if(f)wsHandleFile(f);e.target.value=''}}/>
+                  {wsFileLoading?(
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:13,color:S.muted}}>
+                      <span style={{display:'inline-block',width:14,height:14,border:'2px solid #cbd5e1',borderTop:'2px solid #2563eb',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
+                      Reading file...
+                    </div>
+                  ):(
+                    <>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{margin:'0 auto 6px',display:'block'}}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <div style={{fontSize:13,color:S.muted,marginBottom:2}}>Drop a file here or click to upload</div>
+                      <div style={{fontSize:11,color:'#94a3b8'}}>Supports PDF, DOCX, TXT, MD, PNG, JPG, WEBP</div>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* DOCX / TXT file pill */}
+              {!wsFileIsDirectType&&wsUploadedFile&&(
+                <div>
+                  <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',fontSize:12,color:'#1d4ed8'}}>
+                    <span>📄 {wsUploadedFile.name} · {(wsUploadedFile.size/1024).toFixed(0)} KB</span>
+                    <button onClick={e=>{e.stopPropagation();resetWsFileState()}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+                  </div>
+                  {wsFileCharCount>0&&<div style={{fontSize:11,color:S.muted,marginTop:3,paddingLeft:2}}>Extracted: {wsFileCharCount.toLocaleString()} characters{wsFileCharCount>WS_FILE_CHAR_LIMIT?` (processing first ${WS_FILE_CHAR_LIMIT.toLocaleString()})`:''}</div>}
+                </div>
+              )}
+              {wsLargeDocWarning&&(
+                <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#92400e',display:'flex',alignItems:'flex-start',gap:6}}>
+                  <span style={{flexShrink:0,fontSize:14}}>⚠</span>
+                  <span>Large document — processing first 100,000 characters. Upload remaining pages separately if needed.</span>
+                </div>
+              )}
+              {wsFileStatus&&!intelLoading&&(
+                <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#0369a1',display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{display:'inline-block',width:12,height:12,border:'2px solid #bae6fd',borderTop:'2px solid #0369a1',borderRadius:'50%',animation:'ilSpin 0.75s linear infinite',flexShrink:0}}/>
+                  {wsFileStatus}
+                </div>
+              )}
+              {wsFileError&&(
+                <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626'}}>{wsFileError}</div>
+              )}
+              {intelError&&wsFileIsDirectType&&wsPendingFile&&wsPendingFile.name.endsWith('.pdf')&&(
+                <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626',display:'flex',alignItems:'flex-start',gap:8}}>
+                  <div style={{flex:1}}>{intelError}</div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',flexShrink:0}}>
+                    <button onClick={()=>{setIntelError('');processFileIntel(wsPendingDate,true)}} style={{fontSize:12,color:'#1d4ed8',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>Try Again (text extraction)</button>
+                    <button onClick={()=>{resetWsFileState();setIntelError('')}} style={{fontSize:12,color:'#64748b',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,padding:'3px 8px',cursor:'pointer'}}>Clear file</button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Fixed footer */}
+            <div style={{padding:'12px 24px 16px',borderTop:`1px solid ${S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+              {!wsFileIsDirectType&&(
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <span style={{fontSize:12,color:S.muted,fontWeight:500}}>Date:</span>
                   <input type='date' value={intelDate} onChange={e=>setIntelDate(e.target.value)}
                     style={{fontSize:12,padding:'5px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,outline:'none'}}/>
                 </div>
-                {intelError&&<div style={{fontSize:12,color:S.red,flex:1}}>{intelError}</div>}
-                {!intelError&&intelStatus&&<div style={{fontSize:12,color:S.muted,flex:1}}>{intelStatus}</div>}
-                <button onClick={processIntel} disabled={intelLoading||!intelText.trim()}
-                  style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:7,padding:'10px 24px',background:intelLoading||!intelText.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8,#2563eb)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:intelLoading||!intelText.trim()?'not-allowed':'pointer',minWidth:160,justifyContent:'center'}}>
-                  {intelLoading?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'ilSpin 0.7s linear infinite'}}/>Processing…</>:<><Zap size={14}/>Process with AI</>}
-                </button>
-              </div>
+              )}
+              {intelError&&!wsFileIsDirectType&&<div style={{fontSize:12,color:S.red,flex:1}}>{intelError}</div>}
+              {!intelError&&(wsRetryStatus||intelStatus)&&<div style={{fontSize:12,color:S.muted,flex:1}}>{wsRetryStatus||intelStatus}</div>}
+              <button onClick={handleWsProcess} disabled={intelLoading||(wsFileIsDirectType?!wsPendingFile:!intelText.trim())}
+                style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:7,padding:'10px 24px',background:intelLoading||(wsFileIsDirectType?!wsPendingFile:!intelText.trim())?'#94a3b8':'linear-gradient(135deg,#1d4ed8,#2563eb)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:intelLoading||(wsFileIsDirectType?!wsPendingFile:!intelText.trim())?'not-allowed':'pointer',minWidth:180,justifyContent:'center',whiteSpace:'nowrap'}}>
+                {intelLoading?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'ilSpin 0.7s linear infinite'}}/>Processing…</>:wsFileIsDirectType?<><Zap size={14}/>Analyze Document with AI</>:<><Zap size={14}/>Process with AI</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DATE CONFIRMATION MODAL for whitespace file uploads */}
+      {wsShowDate&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1100,padding:20}} onClick={()=>setWsShowDate(false)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:24,width:'100%',maxWidth:380,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:6}}>{wsDateModalIsFile?'When did this document originate?':'Confirm document date'}</div>
+            <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>{wsDateModalIsFile?'When was this document created or the event it describes occurred?':'Is the date in this document correct?'}</p>
+            {wsCustomDate&&<div style={{fontSize:12,color:'#15803d',padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:12}}>Date detected: <strong>{fmtDate(wsCustomDate)}</strong></div>}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Custom date (leave blank for today)</div>
+              <input type='date' value={wsCustomDate} onChange={e=>setWsCustomDate(e.target.value)}
+                style={{width:'100%',boxSizing:'border-box',fontSize:13,padding:'8px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,outline:'none'}}/>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>{const d=new Date().toISOString().split('T')[0];setWsShowDate(false);wsDateModalIsFile?processFileIntel(d):processIntel(d)}}
+                style={{flex:1,padding:'9px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Use Today</button>
+              <button onClick={()=>{if(wsCustomDate){setWsShowDate(false);wsDateModalIsFile?processFileIntel(wsCustomDate):processIntel(wsCustomDate)}}}
+                style={{flex:1,padding:'9px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,fontSize:13,cursor:'pointer',opacity:wsCustomDate?1:0.4}}>
+                {wsCustomDate?`Use ${fmtDate(wsCustomDate)}`:'Use Custom Date'}
+              </button>
             </div>
           </div>
         </div>
