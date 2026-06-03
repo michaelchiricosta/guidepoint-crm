@@ -6653,10 +6653,21 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
   const [editForm, setEditForm] = useState({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})
   const [addingNote, setAddingNote] = useState(false)
   const [noteText, setNoteText] = useState('')
+  // contact state
   const [addingContact, setAddingContact] = useState(false)
   const [contactForm, setContactForm] = useState({name:'',title:'',notes:''})
+  const [editingCId, setEditingCId] = useState(null)
+  const [editCForm, setEditCForm] = useState({name:'',title:'',notes:''})
+  const [hoveredCId, setHoveredCId] = useState(null)
+  const [expandedCNotes, setExpandedCNotes] = useState(new Set())
+  // tech state
   const [addingTech, setAddingTech] = useState(false)
   const [techForm, setTechForm] = useState({name:'',status:'Unknown',notes:''})
+  const [editingTId, setEditingTId] = useState(null)
+  const [editTForm, setEditTForm] = useState({name:'',status:'Unknown',notes:''})
+  const [hoveredTId, setHoveredTId] = useState(null)
+  const [expandedTNotes, setExpandedTNotes] = useState(new Set())
+
   useEffect(()=>{setEditForm({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})},[acct.id])
   const inBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.05)'
   const inBdr = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'
@@ -6667,16 +6678,30 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
   const contacts = acct.contacts || []
   const technologies = acct.technologies || []
   const extractedContacts = parseContactsFromEntries(allEntries)
-  const manualContacts = contacts.filter(c=>c.addedManually)
   const extractedTech = parseTechFromEntries(allEntries)
-  const manualTech = technologies.filter(t=>t.addedManually)
   const TECH_SC = {Customer:{c:'#15803d',bg:'#dcfce7'},Evaluating:{c:'#1d4ed8',bg:'#dbeafe'},Replacing:{c:'#c2410c',bg:'#ffedd5'},Considering:{c:'#7c3aed',bg:'#ede9fe'},Unknown:{c:'#64748b',bg:'#f1f5f9'}}
-  const sHdr = (icon,label) => (
+
+  const sHdr = (icon,label,count) => (
     <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:10}}>
       <span style={{color:'#94a3b8',display:'flex'}}>{icon}</span>
       <span style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>{label}</span>
+      {count>0&&<span style={{fontSize:9,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'1px 6px',marginLeft:2}}>{count}</span>}
     </div>
   )
+  const toggleCNote = id => setExpandedCNotes(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s})
+  const toggleTNote = id => setExpandedTNotes(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s})
+  const startEditC = c => {setEditingCId(c.id);setEditCForm({name:c.name||'',title:c.title||'',notes:c.notes||''});setAddingContact(false)}
+  const saveEditC = () => {if(!editCForm.name.trim())return;updateAccount(acct.id,{contacts:contacts.map(c=>c.id===editingCId?{...c,...editCForm}:c)});setEditingCId(null)}
+  const deleteC = id => {if(!window.confirm('Remove this contact?'))return;updateAccount(acct.id,{contacts:contacts.filter(c=>c.id!==id)})}
+  const startEditT = t => {setEditingTId(t.id);setEditTForm({name:t.name||'',status:t.status||'Unknown',notes:t.notes||''});setAddingTech(false)}
+  const saveEditT = () => {if(!editTForm.name.trim())return;updateAccount(acct.id,{technologies:technologies.map(t=>t.id===editingTId?{...t,...editTForm}:t)});setEditingTId(null)}
+  const deleteT = id => {if(!window.confirm('Remove this technology?'))return;updateAccount(acct.id,{technologies:technologies.filter(t=>t.id!==id)})}
+
+  const frmBg = '#f0f9ff'; const frmBdr = '#bfdbfe'
+  const frmStyle = {background:frmBg,border:`1px solid ${frmBdr}`,borderRadius:8,padding:12,marginBottom:4}
+  const inp = {width:'100%',fontSize:12,padding:'5px 8px',background:'#ffffff',border:'1px solid #bfdbfe',borderRadius:5,color:'#0f172a',boxSizing:'border-box',outline:'none'}
+  const lbl = {fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3,display:'block'}
+
   return (
     <div style={{padding:'16px 24px 20px',background:isLight?'#f0f9ff':'rgba(37,99,235,0.04)',borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`}}>
       {/* Top row: Account Details + Notes & Intel */}
@@ -6725,10 +6750,8 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
                     </div>
                     <div style={{fontSize:12,color:S.txt,lineHeight:1.6}}>{n.text}</div>
                   </div>
-                  <button onClick={()=>{
-                    if(n._src==='intel'){updateAccount(acct.id,{intelLog:(acct.intelLog||[]).filter(x=>x.id!==n.id)})}
-                    else{updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}
-                  }} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
+                  <button onClick={()=>{if(n._src==='intel'){updateAccount(acct.id,{intelLog:(acct.intelLog||[]).filter(x=>x.id!==n.id)})}else{updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}}}
+                    style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
                     onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
                 </div>
               </div>
@@ -6737,139 +6760,176 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
         </div>
       </div>
 
-      {/* Bottom sections: Contacts + Technology stacked */}
+      {/* Bottom sections stacked */}
       <div style={{borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.15)'}`,paddingTop:16,display:'flex',flexDirection:'column',gap:16}}>
-        {/* CONTACTS MENTIONED */}
+
+        {/* CONTACTS */}
         <div style={{background:isLight?'rgba(37,99,235,0.04)':'rgba(255,255,255,0.02)',border:`1px solid ${isLight?'#dbeafe':'rgba(255,255,255,0.08)'}`,borderRadius:8,padding:'12px 14px'}}>
-          {sHdr(<User size={11}/>, `Contacts Mentioned${(extractedContacts.length+manualContacts.length)>0?' ('+( extractedContacts.length+manualContacts.length)+')':''}`)}
-          {extractedContacts.length===0&&manualContacts.length===0&&!addingContact&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No contacts detected yet.</div>}
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
-            {extractedContacts.map((c,ci)=>(
-              <div key={ci} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
-                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                  <User size={12} style={{color:'#94a3b8',marginTop:1,flexShrink:0}}/>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
-                      <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{c.name}</span>
-                      {c.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{c.mentions}</span>}
+          {sHdr(<User size={11}/>, 'Contacts Mentioned', contacts.length + extractedContacts.filter(ec=>!contacts.some(c=>c.name.toLowerCase()===ec.name.toLowerCase())).length)}
+          {contacts.length===0&&extractedContacts.length===0&&!addingContact&&<div style={{fontSize:12,color:S.muted,marginBottom:8}}>No contacts added yet. Add a contact or process intel to extract mentions.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:6}}>
+            {/* Saved contacts — fully editable */}
+            {contacts.map(c=>(
+              <div key={c.id}>
+                {editingCId===c.id?(
+                  <div style={frmStyle}>
+                    <div style={{marginBottom:8}}><span style={lbl}>Name *</span><input value={editCForm.name} onChange={e=>setEditCForm(p=>({...p,name:e.target.value}))} autoFocus style={inp}/></div>
+                    <div style={{marginBottom:8}}><span style={lbl}>Title</span><input value={editCForm.title} onChange={e=>setEditCForm(p=>({...p,title:e.target.value}))} style={inp}/></div>
+                    <div style={{marginBottom:10}}><span style={lbl}>Notes</span><textarea value={editCForm.notes} onChange={e=>setEditCForm(p=>({...p,notes:e.target.value}))} rows={2} style={{...inp,resize:'none',fontFamily:'inherit',lineHeight:1.5}}/></div>
+                    <div style={{display:'flex',justifyContent:'flex-end',gap:6}}>
+                      <button onClick={()=>setEditingCId(null)} style={{padding:'4px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:'#64748b',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                      <button onClick={saveEditC} style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
                     </div>
-                    {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
-                    {c.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2,lineHeight:1.4}}>{c.contexts[0].slice(0,100)}{c.contexts[0].length>100?'…':''}</div>}
                   </div>
-                </div>
+                ):(
+                  <div onMouseEnter={()=>setHoveredCId(c.id)} onMouseLeave={()=>setHoveredCId(null)}
+                    style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                    <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                      <User size={12} style={{color:'#94a3b8',marginTop:2,flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginBottom:1}}>
+                          <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{c.name}</span>
+                          {c.addedManually&&<span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>}
+                        </div>
+                        {c.title&&<div style={{fontSize:11,color:S.muted,marginBottom:2}}>{c.title}</div>}
+                        {c.notes?(
+                          <div style={{fontSize:11,color:S.muted,fontStyle:'italic',lineHeight:1.4}}>
+                            {expandedCNotes.has(c.id)?c.notes:c.notes.slice(0,80)}
+                            {c.notes.length>80&&<button onClick={e=>{e.stopPropagation();toggleCNote(c.id)}} style={{fontSize:10,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:'0 0 0 4px',fontStyle:'normal'}}>{expandedCNotes.has(c.id)?'less':'more'}</button>}
+                          </div>
+                        ):<div style={{fontSize:11,color:'#cbd5e1',fontStyle:'italic'}}>No notes</div>}
+                      </div>
+                      <div style={{display:'flex',gap:3,flexShrink:0,opacity:hoveredCId===c.id?1:0,transition:'opacity 0.15s'}}>
+                        <button onClick={()=>startEditC(c)} title='Edit' style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}} onMouseEnter={e=>e.currentTarget.style.color='#2563eb'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Pencil size={12}/></button>
+                        <button onClick={()=>deleteC(c.id)} title='Delete' style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px 2px 2px 0',display:'flex',alignItems:'center',fontSize:14,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
-            {manualContacts.map(c=>(
-              <div key={c.id} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+            {/* AI-extracted contacts (read-only, deduped) */}
+            {extractedContacts.filter(ec=>!contacts.some(c=>c.name.toLowerCase()===ec.name.toLowerCase())).map((c,ci)=>(
+              <div key={'xc'+ci} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
                 <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                  <User size={12} style={{color:'#94a3b8',marginTop:1,flexShrink:0}}/>
+                  <User size={12} style={{color:'#94a3b8',marginTop:2,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginBottom:1}}>
                       <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{c.name}</span>
-                      <span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>
+                      <span style={{fontSize:9,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px',fontWeight:600}}>AI</span>
+                      {c.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{c.mentions}</span>}
                     </div>
-                    {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
-                    {c.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{c.notes.slice(0,100)}</div>}
+                    {c.title&&<div style={{fontSize:11,color:S.muted,marginBottom:1}}>{c.title}</div>}
+                    {c.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',lineHeight:1.4}}>{c.contexts[0].slice(0,80)}{c.contexts[0].length>80?'…':''}</div>}
                   </div>
-                  <button onClick={()=>updateAccount(acct.id,{contacts:contacts.filter(x=>x.id!==c.id)})}
-                    style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
-                    onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
                 </div>
               </div>
             ))}
           </div>
           {addingContact?(
-            <div style={{background:inBg,border:`1px solid ${inBdr}`,borderRadius:7,padding:10}}>
-              {[{label:'Name *',k:'name'},{label:'Title',k:'title'},{label:'Notes',k:'notes'}].map(f=>(
-                <div key={f.k} style={{marginBottom:6}}>
-                  <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
-                  <input value={contactForm[f.k]||''} onChange={e=>setContactForm(p=>({...p,[f.k]:e.target.value}))} autoFocus={f.k==='name'}
-                    style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
-                </div>
-              ))}
-              <div style={{display:'flex',gap:6,marginTop:4}}>
-                <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...contacts,{id:uid(),...contactForm,addedManually:true}]});setContactForm({name:'',title:'',notes:''});setAddingContact(false)}}
-                  style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
-                <button onClick={()=>setAddingContact(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
+            <div style={frmStyle}>
+              <div style={{marginBottom:8}}><span style={lbl}>Name *</span><input value={contactForm.name} onChange={e=>setContactForm(p=>({...p,name:e.target.value}))} autoFocus style={inp}/></div>
+              <div style={{marginBottom:8}}><span style={lbl}>Title</span><input value={contactForm.title} onChange={e=>setContactForm(p=>({...p,title:e.target.value}))} style={inp}/></div>
+              <div style={{marginBottom:10}}><span style={lbl}>Notes</span><textarea value={contactForm.notes} onChange={e=>setContactForm(p=>({...p,notes:e.target.value}))} rows={2} style={{...inp,resize:'none',fontFamily:'inherit',lineHeight:1.5}}/></div>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:6}}>
+                <button onClick={()=>{setAddingContact(false);setContactForm({name:'',title:'',notes:''})}} style={{padding:'4px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:'#64748b',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...contacts,{id:uid(),...contactForm,addedManually:true}]});setContactForm({name:'',title:'',notes:''});setAddingContact(false)}} style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
               </div>
             </div>
           ):(
-            <button onClick={()=>setAddingContact(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Contact</button>
+            <button onClick={()=>{setAddingContact(true);setEditingCId(null)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Contact</button>
           )}
         </div>
 
         {/* TECHNOLOGY */}
         <div style={{background:isLight?'rgba(37,99,235,0.04)':'rgba(255,255,255,0.02)',border:`1px solid ${isLight?'#dbeafe':'rgba(255,255,255,0.08)'}`,borderRadius:8,padding:'12px 14px'}}>
-          {sHdr(<Cpu size={11}/>, `Technology${(extractedTech.length+manualTech.length)>0?' ('+(extractedTech.length+manualTech.length)+')':''}`)}
-          {extractedTech.length===0&&manualTech.length===0&&!addingTech&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:8}}>No technology detected yet.</div>}
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:8}}>
-            {extractedTech.map((t,ti)=>{
+          {sHdr(<Cpu size={11}/>, 'Technology', technologies.length + extractedTech.filter(et=>!technologies.some(t=>t.name.toLowerCase()===et.name.toLowerCase())).length)}
+          {technologies.length===0&&extractedTech.length===0&&!addingTech&&<div style={{fontSize:12,color:S.muted,marginBottom:8}}>No technology added yet. Add a vendor or process intel to extract mentions.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:6}}>
+            {/* Saved technologies — fully editable */}
+            {technologies.map(t=>{
               const sc=TECH_SC[t.status]||TECH_SC.Unknown
               return (
-                <div key={ti} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
-                  <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:sc.c,flexShrink:0,marginTop:3}}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
-                        <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{t.name}</span>
-                        <span style={{fontSize:9,fontWeight:700,color:sc.c,background:sc.bg,borderRadius:4,padding:'1px 6px'}}>{t.status}</span>
-                        {t.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{t.mentions}</span>}
+                <div key={t.id}>
+                  {editingTId===t.id?(
+                    <div style={frmStyle}>
+                      <div style={{marginBottom:8}}><span style={lbl}>Vendor / Technology *</span><input value={editTForm.name} onChange={e=>setEditTForm(p=>({...p,name:e.target.value}))} autoFocus style={inp}/></div>
+                      <div style={{marginBottom:8}}><span style={lbl}>Status</span>
+                        <select value={editTForm.status} onChange={e=>setEditTForm(p=>({...p,status:e.target.value}))} style={{...inp,padding:'5px 6px'}}>
+                          {['Customer','Evaluating','Replacing','Considering','Unknown'].map(s=><option key={s}>{s}</option>)}
+                        </select>
                       </div>
-                      {t.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2,lineHeight:1.4}}>{t.contexts[0].slice(0,80)}{t.contexts[0].length>80?'…':''}</div>}
+                      <div style={{marginBottom:10}}><span style={lbl}>Notes</span><textarea value={editTForm.notes} onChange={e=>setEditTForm(p=>({...p,notes:e.target.value}))} rows={2} style={{...inp,resize:'none',fontFamily:'inherit',lineHeight:1.5}}/></div>
+                      <div style={{display:'flex',justifyContent:'flex-end',gap:6}}>
+                        <button onClick={()=>setEditingTId(null)} style={{padding:'4px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:'#64748b',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                        <button onClick={saveEditT} style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+                      </div>
                     </div>
-                  </div>
+                  ):(
+                    <div onMouseEnter={()=>setHoveredTId(t.id)} onMouseLeave={()=>setHoveredTId(null)}
+                      style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                      <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:sc.c,flexShrink:0,marginTop:3}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginBottom:1}}>
+                            <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{t.name}</span>
+                            <span style={{fontSize:9,fontWeight:700,color:sc.c,background:sc.bg,borderRadius:4,padding:'1px 6px'}}>{t.status}</span>
+                            {t.addedManually&&<span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>}
+                          </div>
+                          {t.notes?(
+                            <div style={{fontSize:11,color:S.muted,fontStyle:'italic',lineHeight:1.4}}>
+                              {expandedTNotes.has(t.id)?t.notes:t.notes.slice(0,80)}
+                              {t.notes.length>80&&<button onClick={e=>{e.stopPropagation();toggleTNote(t.id)}} style={{fontSize:10,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:'0 0 0 4px',fontStyle:'normal'}}>{expandedTNotes.has(t.id)?'less':'more'}</button>}
+                            </div>
+                          ):<div style={{fontSize:11,color:'#cbd5e1',fontStyle:'italic'}}>No notes</div>}
+                        </div>
+                        <div style={{display:'flex',gap:3,flexShrink:0,opacity:hoveredTId===t.id?1:0,transition:'opacity 0.15s'}}>
+                          <button onClick={()=>startEditT(t)} title='Edit' style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}} onMouseEnter={e=>e.currentTarget.style.color='#2563eb'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Pencil size={12}/></button>
+                          <button onClick={()=>deleteT(t.id)} title='Delete' style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px 2px 2px 0',display:'flex',alignItems:'center',fontSize:14,lineHeight:1}} onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
-            {manualTech.map(t=>{
+            {/* AI-extracted tech (read-only, deduped) */}
+            {extractedTech.filter(et=>!technologies.some(t=>t.name.toLowerCase()===et.name.toLowerCase())).map((t,ti)=>{
               const sc=TECH_SC[t.status]||TECH_SC.Unknown
               return (
-                <div key={t.id} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
+                <div key={'xt'+ti} style={{padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6}}>
                   <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
                     <div style={{width:8,height:8,borderRadius:'50%',background:sc.c,flexShrink:0,marginTop:3}}/>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',marginBottom:1}}>
                         <span style={{fontSize:13,fontWeight:600,color:isLight?'#0f172a':S.txt}}>{t.name}</span>
                         <span style={{fontSize:9,fontWeight:700,color:sc.c,background:sc.bg,borderRadius:4,padding:'1px 6px'}}>{t.status}</span>
-                        <span style={{fontSize:9,fontWeight:700,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px'}}>Manual</span>
+                        <span style={{fontSize:9,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px',fontWeight:600}}>AI</span>
+                        {t.mentions>1&&<span style={{fontSize:9,color:'#64748b',background:'#f1f5f9',borderRadius:4,padding:'1px 5px',fontWeight:600}}>×{t.mentions}</span>}
                       </div>
-                      {t.notes&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginTop:2}}>{t.notes.slice(0,80)}</div>}
+                      {t.contexts[0]&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',lineHeight:1.4}}>{t.contexts[0].slice(0,80)}{t.contexts[0].length>80?'…':''}</div>}
                     </div>
-                    <button onClick={()=>updateAccount(acct.id,{technologies:technologies.filter(x=>x.id!==t.id)})}
-                      style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
-                      onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
                   </div>
                 </div>
               )
             })}
           </div>
           {addingTech?(
-            <div style={{background:inBg,border:`1px solid ${inBdr}`,borderRadius:7,padding:10}}>
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Vendor / Technology *</div>
-                <input value={techForm.name||''} onChange={e=>setTechForm(p=>({...p,name:e.target.value}))} autoFocus
-                  style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
-              </div>
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Status</div>
-                <select value={techForm.status||'Unknown'} onChange={e=>setTechForm(p=>({...p,status:e.target.value}))}
-                  style={{width:'100%',fontSize:12,padding:'4px 6px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt}}>
+            <div style={frmStyle}>
+              <div style={{marginBottom:8}}><span style={lbl}>Vendor / Technology *</span><input value={techForm.name} onChange={e=>setTechForm(p=>({...p,name:e.target.value}))} autoFocus style={inp}/></div>
+              <div style={{marginBottom:8}}><span style={lbl}>Status</span>
+                <select value={techForm.status} onChange={e=>setTechForm(p=>({...p,status:e.target.value}))} style={{...inp,padding:'5px 6px'}}>
                   {['Customer','Evaluating','Replacing','Considering','Unknown'].map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Notes</div>
-                <input value={techForm.notes||''} onChange={e=>setTechForm(p=>({...p,notes:e.target.value}))}
-                  style={{width:'100%',fontSize:12,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
-              </div>
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>{if(!techForm.name.trim())return;updateAccount(acct.id,{technologies:[...technologies,{id:uid(),...techForm,addedManually:true}]});setTechForm({name:'',status:'Unknown',notes:''});setAddingTech(false)}}
-                  style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
-                <button onClick={()=>setAddingTech(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
+              <div style={{marginBottom:10}}><span style={lbl}>Notes</span><textarea value={techForm.notes} onChange={e=>setTechForm(p=>({...p,notes:e.target.value}))} rows={2} style={{...inp,resize:'none',fontFamily:'inherit',lineHeight:1.5}}/></div>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:6}}>
+                <button onClick={()=>{setAddingTech(false);setTechForm({name:'',status:'Unknown',notes:''})}} style={{padding:'4px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:'#64748b',fontSize:11,cursor:'pointer'}}>Cancel</button>
+                <button onClick={()=>{if(!techForm.name.trim())return;updateAccount(acct.id,{technologies:[...technologies,{id:uid(),...techForm,addedManually:true}]});setTechForm({name:'',status:'Unknown',notes:''});setAddingTech(false)}} style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
               </div>
             </div>
           ):(
-            <button onClick={()=>setAddingTech(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Technology</button>
+            <button onClick={()=>{setAddingTech(true);setEditingTId(null)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>+ Add Technology</button>
           )}
         </div>
       </div>
