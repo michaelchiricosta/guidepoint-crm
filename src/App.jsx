@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -6579,15 +6579,17 @@ function Admin({acct,setAcct}) {
 
 function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
   const [editForm, setEditForm] = useState({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})
-  const [addingContact, setAddingContact] = useState(false)
-  const [contactForm, setContactForm] = useState({name:'',title:'',source:'',notes:''})
   const [addingNote, setAddingNote] = useState(false)
   const [noteText, setNoteText] = useState('')
   useEffect(()=>{setEditForm({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})},[acct.id])
   const inBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.05)'
   const inBdr = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'
+  const allEntries = [
+    ...(acct.notes||[]).map(n=>({...n,_src:'note'})),
+    ...(acct.intelLog||[]).map(n=>({...n,_src:'intel'}))
+  ].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
   return (
-    <div style={{padding:'16px 24px 20px',background:isLight?'#f0f9ff':'rgba(37,99,235,0.04)',borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:24}}>
+    <div style={{padding:'16px 24px 20px',background:isLight?'#f0f9ff':'rgba(37,99,235,0.04)',borderTop:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,display:'grid',gridTemplateColumns:'1fr 1.8fr',gap:28}}>
       <div>
         <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Account Details</div>
         {[{label:'Name',key:'name'},{label:'HQ',key:'hq'},{label:'Industry',key:'industry'},{label:'Employees',key:'employees'},{label:'Revenue',key:'revenue'}].map(f=>(
@@ -6607,49 +6609,12 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
       </div>
       <div>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Contacts</div>
-          <button onClick={()=>setAddingContact(v=>!v)} style={{fontSize:11,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>+ Add</button>
-        </div>
-        {addingContact&&(
-          <div style={{background:inBg,border:`1px solid ${inBdr}`,borderRadius:7,padding:10,marginBottom:10}}>
-            {[{label:'Name *',k:'name'},{label:'Title',k:'title'},{label:'Source',k:'source'},{label:'Notes',k:'notes'}].map(f=>(
-              <div key={f.k} style={{marginBottom:6}}>
-                <div style={{fontSize:9,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
-                <input value={contactForm[f.k]||''} onChange={e=>setContactForm(p=>({...p,[f.k]:e.target.value}))}
-                  style={{width:'100%',fontSize:11,padding:'4px 7px',background:isLight?'#f8fafc':'rgba(255,255,255,0.07)',border:`1px solid ${inBdr}`,borderRadius:4,color:S.txt,boxSizing:'border-box',outline:'none'}}/>
-              </div>
-            ))}
-            <div style={{display:'flex',gap:6,marginTop:4}}>
-              <button onClick={()=>{if(!contactForm.name.trim())return;updateAccount(acct.id,{contacts:[...(acct.contacts||[]),{id:uid(),...contactForm}]});setContactForm({name:'',title:'',source:'',notes:''});setAddingContact(false)}} style={{padding:'4px 12px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
-              <button onClick={()=>setAddingContact(false)} style={{padding:'4px 8px',background:'transparent',border:`1px solid ${inBdr}`,borderRadius:5,color:S.muted,fontSize:11,cursor:'pointer'}}>Cancel</button>
-            </div>
-          </div>
-        )}
-        {(acct.contacts||[]).length===0&&!addingContact&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic'}}>No contacts yet.</div>}
-        {(acct.contacts||[]).map(c=>(
-          <div key={c.id} style={{marginBottom:8,padding:'8px 10px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:7}}>
-            <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:S.txt}}>{c.name}</div>
-                {c.title&&<div style={{fontSize:11,color:S.muted}}>{c.title}</div>}
-                {c.source&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>Via: {c.source}</div>}
-                {c.notes&&<div style={{fontSize:11,color:S.muted,marginTop:3,lineHeight:1.5}}>{c.notes}</div>}
-              </div>
-              <button onClick={()=>updateAccount(acct.id,{contacts:(acct.contacts||[]).filter(x=>x.id!==c.id)})}
-                style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
-                onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Notes</div>
-          <button onClick={()=>setAddingNote(v=>!v)} style={{fontSize:11,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>+ Add</button>
+          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Notes & Intel</div>
+          <button onClick={()=>setAddingNote(v=>!v)} style={{fontSize:11,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:5,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>+ Add Note</button>
         </div>
         {addingNote&&(
-          <div style={{marginBottom:10}}>
-            <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3} placeholder='Add a note...'
+          <div style={{marginBottom:12}}>
+            <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3} placeholder='Add a note...' autoFocus
               style={{width:'100%',fontSize:12,padding:'7px 9px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:6,color:S.txt,boxSizing:'border-box',resize:'none',fontFamily:'inherit',lineHeight:1.5,outline:'none'}}/>
             <div style={{display:'flex',gap:6,marginTop:6}}>
               <button onClick={()=>{if(!noteText.trim())return;updateAccount(acct.id,{notes:[{id:uid(),text:noteText,date:new Date().toISOString().split('T')[0],addedBy:''},...(acct.notes||[])]});setNoteText('');setAddingNote(false)}} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save</button>
@@ -6657,20 +6622,27 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
             </div>
           </div>
         )}
-        {(acct.notes||[]).length===0&&!addingNote&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic'}}>No notes yet.</div>}
-        {[...(acct.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(n=>(
-          <div key={n.id} style={{marginBottom:8,padding:'8px 10px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:7}}>
-            <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,color:'#94a3b8',marginBottom:3}}>{fmtDate(n.date)}</div>
-                <div style={{fontSize:12,color:S.txt,lineHeight:1.6}}>{n.text}</div>
+        {allEntries.length===0&&!addingNote&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic'}}>No notes yet.</div>}
+        <div style={{maxHeight:300,overflowY:'auto',display:'flex',flexDirection:'column',gap:7}}>
+          {allEntries.map(n=>(
+            <div key={n.id} style={{padding:'8px 10px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:7}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                    <span style={{fontSize:10,color:'#94a3b8'}}>{fmtDate(n.date)}</span>
+                    {n._src==='intel'&&<span style={{fontSize:9,fontWeight:700,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px',lineHeight:1.4}}>AI</span>}
+                  </div>
+                  <div style={{fontSize:12,color:S.txt,lineHeight:1.6}}>{n.text}</div>
+                </div>
+                <button onClick={()=>{
+                  if(n._src==='intel'){updateAccount(acct.id,{intelLog:(acct.intelLog||[]).filter(x=>x.id!==n.id)})}
+                  else{updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}
+                }} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
+                  onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
               </div>
-              <button onClick={()=>updateAccount(acct.id,{notes:(acct.notes||[]).filter(x=>x.id!==n.id)})}
-                style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:13,padding:'0 2px',flexShrink:0,lineHeight:1}}
-                onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>✕</button>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -6684,9 +6656,17 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
   const [hoveredId, setHoveredId] = useState(null)
+  const [showIntel, setShowIntel] = useState(false)
+  const [intelText, setIntelText] = useState('')
+  const [intelDate, setIntelDate] = useState('')
+  const [intelLoading, setIntelLoading] = useState(false)
+  const [intelError, setIntelError] = useState('')
+  const [pendingIntel, setPendingIntel] = useState(null)
+  const [selectedIntel, setSelectedIntel] = useState(new Set())
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
+  const effectiveKey = data.apiKey || ''
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
   const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue']
@@ -6729,6 +6709,63 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setData(prev=>({...prev,whitespaceAccounts:[...(prev.whitespaceAccounts||[]),newA]}))
     setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
     setShowAdd(false)
+  }
+
+  const openIntel = () => {
+    const detected = detectDate(intelText)
+    setIntelDate(detected || new Date().toISOString().split('T')[0])
+    setIntelError('')
+    setShowIntel(true)
+  }
+
+  const processIntel = async () => {
+    if (!effectiveKey) { setIntelError('Add your Anthropic API key in Settings first.'); return }
+    if (!intelText.trim()) { setIntelError('Please paste some text first.'); return }
+    const date = intelDate || new Date().toISOString().split('T')[0]
+    setIntelLoading(true); setIntelError('')
+    try {
+      const {data: resp} = await callClaudeWithRetry({
+        model:'claude-sonnet-4-6', max_tokens:4000,
+        system:'You are an account intelligence analyst for a cybersecurity sales rep. Extract prospect company intelligence from vendor calls and notes. Keep it simple — just company names and notes about what was discussed.',
+        messages:[{role:'user',content:`Extract whitespace account intelligence. Return ONLY valid JSON:\n{\n  "accounts": [\n    {\n      "name": "company name",\n      "hq": "city state if mentioned or empty",\n      "industry": "industry if mentioned or empty",\n      "employees": "employee count if mentioned or empty",\n      "note": "2-3 sentence summary of everything mentioned about this company including any contact names, what they are evaluating, budget, timeline, anything relevant"\n    }\n  ]\n}\nInclude ALL prospect companies mentioned. Put contact names and all details into the note field. Do not create separate contact objects. Return empty accounts array if no prospects found.\n\nInput: ${intelText}`}]
+      }, effectiveKey, null)
+      if (resp.error) throw new Error(resp.error.message||'API error')
+      const raw = (resp.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
+      const parsed = JSON.parse(raw)
+      if (!parsed.accounts || parsed.accounts.length===0) { setIntelError('No prospect companies found in the text.'); setIntelLoading(false); return }
+      const sel = new Set()
+      parsed.accounts.forEach((a,i)=>{
+        const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
+        if (!inCRM) sel.add(i)
+      })
+      setPendingIntel({accounts:parsed.accounts, date})
+      setSelectedIntel(sel)
+      setShowIntel(false)
+    } catch(e) {
+      setIntelError('Processing failed: '+(e.message||'Unknown error'))
+    }
+    setIntelLoading(false)
+  }
+
+  const saveIntel = () => {
+    if (!pendingIntel) return
+    const {accounts, date} = pendingIntel
+    const now = new Date().toISOString()
+    setData(prev=>{
+      let wsList = [...(prev.whitespaceAccounts||[])]
+      accounts.forEach((a,i)=>{
+        if (!selectedIntel.has(i)) return
+        const noteEntry = {id:uid(), text:a.note, date, addedBy:'ai'}
+        const existIdx = wsList.findIndex(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
+        if (existIdx>=0) {
+          wsList[existIdx] = {...wsList[existIdx], intelLog:[noteEntry,...(wsList[existIdx].intelLog||[])], updatedAt:now}
+        } else {
+          wsList.push({id:uid(),name:a.name,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
+        }
+      })
+      return {...prev, whitespaceAccounts:wsList}
+    })
+    setPendingIntel(null); setSelectedIntel(new Set()); setIntelText(''); setIntelDate('')
   }
 
   const SM = S.sideMuted; const ST = S.sideTxt; const SB = S.sideBdr
@@ -6811,7 +6848,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'3px 12px'}}>{ws.length}</span>
-              <button onClick={()=>setShowAdd(true)} style={{padding:'9px 18px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>+ Add Account</button>
+              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setShowIntel(true)}}
+                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
+                <Zap size={14}/>Add Intelligence
+              </button>
+              <button onClick={()=>setShowAdd(true)} style={{padding:'9px 18px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
             </div>
           </div>
         </div>
@@ -6834,8 +6875,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 <div style={{flex:'1 1 140px',cursor:'pointer'}} onClick={()=>setSort('Industry')}>Industry{sort==='Industry'?' ↑':''}</div>
                 <div style={{flex:'0 0 90px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Employees')}>Employees{sort==='Employees'?' ↓':''}</div>
                 <div style={{flex:'0 0 110px',textAlign:'right',paddingRight:16,cursor:'pointer'}} onClick={()=>setSort('Revenue')}>Revenue{sort==='Revenue'?' ↓':''}</div>
-                <div style={{flex:'0 0 80px',textAlign:'center'}}>Contacts</div>
-                <div style={{flex:'0 0 55px',textAlign:'center'}}>Notes</div>
+                <div style={{flex:'0 0 70px',textAlign:'center'}}>Intel</div>
                 <div style={{flex:'0 0 90px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Recently Updated')}>Updated{sort==='Recently Updated'?' ↓':''}</div>
                 <div style={{flex:'0 0 130px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Status')}>Status{sort==='Status'?' ↑':''}</div>
                 <div style={{width:44,flexShrink:0}}/>
@@ -6844,6 +6884,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 const isExp = expandedId===acct.id
                 const sc = STATUS_COLORS[acct.status]||'#64748b'
                 const isHov = hoveredId===acct.id
+                const intelCount = (acct.notes||[]).length + (acct.intelLog||[]).length
                 return (
                   <div key={acct.id} style={{borderBottom:`1px solid ${isLight?'#f1f5f9':'rgba(255,255,255,0.05)'}`,background:isExp?(isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):i%2===0?(isLight?'#ffffff':'transparent'):(isLight?'#f8fafc':'rgba(255,255,255,0.015)')}}>
                     <div style={{display:'flex',alignItems:'center',padding:'12px 16px',cursor:'pointer'}}
@@ -6856,11 +6897,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       <div style={{flex:'1 1 140px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.industry||''}</div>
                       <div style={{flex:'0 0 90px',textAlign:'right',fontSize:12,color:'#64748b'}}>{acct.employees||''}</div>
                       <div style={{flex:'0 0 110px',textAlign:'right',fontSize:12,color:'#64748b',paddingRight:16}}>{acct.revenue||''}</div>
-                      <div style={{flex:'0 0 80px',textAlign:'center'}}>
-                        {(acct.contacts||[]).length>0&&<span style={{fontSize:11,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',borderRadius:999,padding:'2px 7px'}}>{acct.contacts.length}</span>}
-                      </div>
-                      <div style={{flex:'0 0 55px',textAlign:'center'}}>
-                        {(acct.notes||[]).length>0&&<span style={{fontSize:11,fontWeight:600,color:'#64748b',background:'#f1f5f9',borderRadius:999,padding:'2px 6px'}}>{acct.notes.length}</span>}
+                      <div style={{flex:'0 0 70px',textAlign:'center'}}>
+                        {intelCount>0&&<span style={{fontSize:11,fontWeight:600,color:'#7c3aed',background:'#ede9fe',borderRadius:999,padding:'2px 7px'}}>{intelCount}</span>}
                       </div>
                       <div style={{flex:'0 0 90px',textAlign:'right',fontSize:11,color:'#94a3b8'}}>{fmtRel(acct.updatedAt||acct.addedAt)}</div>
                       <div style={{flex:'0 0 130px',textAlign:'right'}}>
@@ -6880,6 +6918,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         </div>
       </div>
 
+      {/* ADD ACCOUNT MODAL */}
       {showAdd&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setShowAdd(false)}>
           <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:28,width:'100%',maxWidth:480,boxShadow:'0 20px 60px rgba(0,0,0,0.4)',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
@@ -6906,6 +6945,102 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             <div style={{display:'flex',gap:10}}>
               <button onClick={addAccount} style={{flex:1,padding:'11px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Account</button>
               <button onClick={()=>{setShowAdd(false);setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})}} style={{padding:'11px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD INTELLIGENCE MODAL */}
+      {showIntel&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setShowIntel(false)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'65vw',maxWidth:900,height:'70vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:4}}>Add Whitespace Intelligence</div>
+                  <div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>Paste a vendor call transcript or note. AI extracts account names and notes and maps them to your whitespace tracker.</div>
+                </div>
+                <button onClick={()=>setShowIntel(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
+              </div>
+            </div>
+            <div style={{flex:1,padding:'16px 24px',display:'flex',flexDirection:'column',gap:12,overflow:'hidden'}}>
+              <div style={{flex:1,position:'relative'}}>
+                <textarea
+                  value={intelText}
+                  onChange={e=>setIntelText(e.target.value)}
+                  placeholder={`Paste a vendor call or quick note here...\n\nExample: 'On a call with CrowdStrike today. They mentioned Waters Corporation is actively evaluating EDR — no incumbent, budget confirmed Q3. Also Watts Water is looking at SIEM. Sarah Chen is the IT contact at Waters.'`}
+                  style={{width:'100%',height:'100%',fontSize:13,padding:'12px 14px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.txt,boxSizing:'border-box',resize:'none',fontFamily:'inherit',lineHeight:1.6,outline:'none'}}
+                />
+                <div style={{position:'absolute',bottom:8,right:12,fontSize:11,color:S.muted,pointerEvents:'none'}}>{intelText.length.toLocaleString()} / 40,000</div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:12,color:S.muted,fontWeight:500}}>Date:</span>
+                  <input type='date' value={intelDate} onChange={e=>setIntelDate(e.target.value)}
+                    style={{fontSize:12,padding:'5px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,outline:'none'}}/>
+                </div>
+                {intelError&&<div style={{fontSize:12,color:S.red,flex:1}}>{intelError}</div>}
+                <button onClick={processIntel} disabled={intelLoading||!intelText.trim()}
+                  style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:7,padding:'10px 24px',background:intelLoading||!intelText.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8,#2563eb)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:intelLoading||!intelText.trim()?'not-allowed':'pointer',minWidth:160,justifyContent:'center'}}>
+                  {intelLoading?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'ilSpin 0.7s linear infinite'}}/>Processing…</>:<><Zap size={14}/>Process with AI</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL */}
+      {pendingIntel&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setPendingIntel(null)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'60vw',maxWidth:780,maxHeight:'80vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:3}}>Review Extracted Accounts</div>
+                  <div style={{fontSize:12,color:S.muted}}>Select accounts to add or update in your whitespace tracker.</div>
+                </div>
+                <button onClick={()=>setPendingIntel(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:12,marginTop:10}}>
+                <button onClick={()=>setSelectedIntel(new Set(pendingIntel.accounts.map((_,i)=>i)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>Select All</button>
+                <span style={{fontSize:12,color:S.muted}}>·</span>
+                <button onClick={()=>setSelectedIntel(new Set())} style={{fontSize:12,color:S.muted,background:'none',border:'none',cursor:'pointer',padding:0}}>Deselect All</button>
+                <span style={{fontSize:12,color:S.muted,marginLeft:'auto'}}>{selectedIntel.size} of {pendingIntel.accounts.length} selected</span>
+              </div>
+            </div>
+            <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+              {pendingIntel.accounts.map((a,i)=>{
+                const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
+                const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
+                const isChecked = selectedIntel.has(i)
+                return (
+                  <div key={i} onClick={()=>{if(inCRM)return;setSelectedIntel(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})}}
+                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:inCRM?'default':'pointer',opacity:inCRM?0.5:1,background:isChecked&&!inCRM?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
+                    onMouseEnter={e=>{if(!inCRM)e.currentTarget.style.background=S.surf2}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=isChecked&&!inCRM?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}>
+                    <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${isChecked&&!inCRM?'#2563eb':S.bdr}`,background:isChecked&&!inCRM?'#2563eb':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {isChecked&&!inCRM&&<svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 4,7 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                        <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{a.name}</span>
+                        {inWS&&<span style={{fontSize:10,fontWeight:700,color:'#a16207',background:'#fef9c3',borderRadius:4,padding:'1px 7px'}}>Update</span>}
+                        {inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#64748b',background:S.surf2,borderRadius:4,padding:'1px 7px',border:`1px solid ${S.bdr}`}}>In CRM</span>}
+                      </div>
+                      {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:4}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
+                      {a.note&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',lineHeight:1.5}}>{a.note.slice(0,120)}{a.note.length>120?'…':''}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{padding:'14px 24px',borderTop:`1px solid ${S.bdr}`,display:'flex',gap:10,flexShrink:0}}>
+              <button onClick={saveIntel} disabled={selectedIntel.size===0}
+                style={{flex:1,padding:'11px',background:selectedIntel.size===0?'#94a3b8':'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:selectedIntel.size===0?'not-allowed':'pointer'}}>
+                Add Selected ({selectedIntel.size})
+              </button>
+              <button onClick={()=>setPendingIntel(null)} style={{padding:'11px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
             </div>
           </div>
         </div>
