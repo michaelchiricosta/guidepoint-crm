@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -6665,6 +6665,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [intelError, setIntelError] = useState('')
   const [pendingIntel, setPendingIntel] = useState(null)
   const [selectedIntel, setSelectedIntel] = useState(new Set())
+  const [editingNameIdx, setEditingNameIdx] = useState(null)
+  const [editingNameDraft, setEditingNameDraft] = useState('')
+  const [pendingNames, setPendingNames] = useState({})
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -6758,18 +6761,21 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       let wsList = [...(prev.whitespaceAccounts||[])]
       accounts.forEach((a,i)=>{
         if (!selectedIntel.has(i)) return
+        const finalName = (pendingNames[i]||'').trim() || a.name
         const noteEntry = {id:uid(), text:a.note, date, addedBy:'ai'}
-        const existIdx = wsList.findIndex(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
+        const existIdx = wsList.findIndex(w=>(w.name||'').toLowerCase()===(finalName||'').toLowerCase())
         if (existIdx>=0) {
           wsList[existIdx] = {...wsList[existIdx], intelLog:[noteEntry,...(wsList[existIdx].intelLog||[])], updatedAt:now}
         } else {
-          wsList.push({id:uid(),name:a.name,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
+          wsList.push({id:uid(),name:finalName,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
         }
       })
       return {...prev, whitespaceAccounts:wsList}
     })
-    setPendingIntel(null); setSelectedIntel(new Set()); setIntelText(''); setIntelDate('')
+    setPendingIntel(null); setSelectedIntel(new Set()); setIntelText(''); setIntelDate(''); setPendingNames({}); setEditingNameIdx(null); setEditingNameDraft('')
   }
+
+  const closeIntelModal = () => { setPendingIntel(null); setPendingNames({}); setEditingNameIdx(null); setEditingNameDraft('') }
 
   const SM = S.sideMuted; const ST = S.sideTxt; const SB = S.sideBdr
 
@@ -7022,16 +7028,18 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         const blockedCount = pendingIntel.accounts.filter(a=>isBlockedAccount(a.name)).length
         const availableCount = totalFound - blockedCount
         const allBlocked = blockedCount === totalFound
+        const confirmName = i => { if((editingNameDraft||'').trim())setPendingNames(p=>({...p,[i]:editingNameDraft.trim()})); setEditingNameIdx(null); setEditingNameDraft('') }
+        const cancelName = () => { setEditingNameIdx(null); setEditingNameDraft('') }
         return (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setPendingIntel(null)}>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={closeIntelModal}>
           <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'60vw',maxWidth:780,maxHeight:'80vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:3}}>Review Extracted Accounts</div>
-                  <div style={{fontSize:12,color:S.muted}}>Select accounts to add or update in your whitespace tracker.</div>
+                  <div style={{fontSize:12,color:S.muted}}>Select accounts to add or update in your whitespace tracker. Click the pencil to correct a name.</div>
                 </div>
-                <button onClick={()=>setPendingIntel(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+                <button onClick={closeIntelModal} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:10,marginTop:10,flexWrap:'wrap'}}>
                 <span style={{fontSize:12,color:S.muted}}>{totalFound} found</span>
@@ -7052,24 +7060,50 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 </div>
               ):(
                 pendingIntel.accounts.map((a,i)=>{
-                  const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(a.name||'').toLowerCase())
-                  const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
-                  const blocked = isBlockedAccount(a.name)
-                  const openNamed = !blocked && isOpenNamedAccount(a.name)
-                  const owner = getAccountOwner(a.name)
+                  const displayName = pendingNames[i] || a.name
+                  const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(displayName||'').toLowerCase())
+                  const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(displayName||'').toLowerCase().slice(0,8))
+                  const blocked = isBlockedAccount(displayName)
+                  const openNamed = !blocked && isOpenNamedAccount(displayName)
+                  const owner = getAccountOwner(displayName)
                   const isChecked = selectedIntel.has(i)
                   const dimmed = inCRM
+                  const isEditingThis = editingNameIdx === i
                   return (
-                    <div key={i} onClick={()=>{if(dimmed)return;setSelectedIntel(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})}}
-                      style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:dimmed?'default':'pointer',opacity:dimmed?0.45:1,background:isChecked&&!dimmed?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
-                      onMouseEnter={e=>{if(!dimmed)e.currentTarget.style.background=S.surf2}}
+                    <div key={i} onClick={()=>{if(dimmed||isEditingThis)return;setSelectedIntel(prev=>{const ns=new Set(prev);if(ns.has(i))ns.delete(i);else ns.add(i);return ns})}}
+                      style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:dimmed||isEditingThis?'default':'pointer',opacity:dimmed?0.45:1,background:isChecked&&!dimmed?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
+                      onMouseEnter={e=>{if(!dimmed&&!isEditingThis)e.currentTarget.style.background=S.surf2}}
                       onMouseLeave={e=>{e.currentTarget.style.background=isChecked&&!dimmed?(S.isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}>
                       <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${isChecked&&!dimmed?'#2563eb':S.bdr}`,background:isChecked&&!dimmed?'#2563eb':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center'}}>
                         {isChecked&&!dimmed&&<svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 4,7 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
                       </div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:3,flexWrap:'wrap'}}>
-                          <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{a.name}</span>
+                          {isEditingThis ? (
+                            <div style={{display:'flex',alignItems:'center',gap:5}} onClick={e=>e.stopPropagation()}>
+                              <input
+                                autoFocus
+                                value={editingNameDraft}
+                                onChange={e=>setEditingNameDraft(e.target.value)}
+                                onKeyDown={e=>{if(e.key==='Enter')confirmName(i);else if(e.key==='Escape')cancelName()}}
+                                style={{fontSize:13,fontWeight:600,padding:'3px 8px',background:'#ffffff',border:'1px solid #2563eb',borderRadius:4,color:'#0f172a',outline:'none',minWidth:180}}
+                              />
+                              <button onClick={()=>confirmName(i)} title='Save' style={{background:'transparent',border:'none',cursor:'pointer',color:'#16a34a',padding:'2px',display:'flex',alignItems:'center'}}>
+                                <svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 6,11 12,3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              </button>
+                              <button onClick={cancelName} title='Cancel' style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center',fontSize:15,lineHeight:1}}>×</button>
+                            </div>
+                          ) : (
+                            <>
+                              <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{displayName}</span>
+                              <button onClick={e=>{e.stopPropagation();setEditingNameIdx(i);setEditingNameDraft(displayName)}} title='Edit name'
+                                style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'1px 2px',display:'flex',alignItems:'center',lineHeight:1,marginLeft:2}}
+                                onMouseEnter={e=>e.currentTarget.style.color='#2563eb'}
+                                onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+                                <Pencil size={12}/>
+                              </button>
+                            </>
+                          )}
                           {blocked&&<span style={{fontSize:10,fontWeight:700,color:'#dc2626',background:'#fee2e2',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Named — {owner||'Other rep'}</span>}
                           {openNamed&&<span style={{fontSize:10,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Open ({owner})</span>}
                           {!blocked&&!openNamed&&!inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#15803d',background:'#dcfce7',borderRadius:4,padding:'1px 7px'}}>Available</span>}
@@ -7089,7 +7123,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 style={{flex:1,padding:'11px',background:selectedIntel.size===0?'#94a3b8':'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:selectedIntel.size===0?'not-allowed':'pointer'}}>
                 Add Selected ({selectedIntel.size})
               </button>
-              <button onClick={()=>setPendingIntel(null)} style={{padding:'11px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button onClick={closeIntelModal} style={{padding:'11px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
             </div>
           </div>
         </div>
