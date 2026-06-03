@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -7012,6 +7012,42 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
   )
 }
 
+const fuzzyMatchAccount = (name1, name2) => {
+  if (!name1 || !name2) return false
+  const clean = s => s.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\b(inc|llc|ltd|corp|co|the|and|or|of|go to|goto)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const a = clean(name1)
+  const b = clean(name2)
+  if (a === b) return true
+  if (a.includes(b) || b.includes(a)) return true
+  const bigrams = s => { const bg=new Set(); for(let i=0;i<s.length-1;i++) bg.add(s.slice(i,i+2)); return bg }
+  const bg1=bigrams(a), bg2=bigrams(b)
+  let matches=0; bg2.forEach(bg=>{if(bg1.has(bg))matches++})
+  const similarity = (2*matches)/(bg1.size+bg2.size)
+  if (similarity > 0.7) return true
+  const words1=a.split(' ').filter(w=>w.length>2)
+  const words2=b.split(' ').filter(w=>w.length>2)
+  const sharedWords=words1.filter(w=>words2.includes(w))
+  if (sharedWords.length>0 && (sharedWords.length/Math.min(words1.length||1,words2.length||1))>0.6) return true
+  return false
+}
+
+const fuzzyBigramScore = (name1, name2) => {
+  if (!name1 || !name2) return 0
+  const clean = s => s.toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\b(inc|llc|ltd|corp|co|the|and|or|of|go to|goto)\b/g,'').replace(/\s+/g,' ').trim()
+  const a=clean(name1), b=clean(name2)
+  if (a===b) return 1
+  if (a.includes(b)||b.includes(a)) return 0.85
+  const bigrams = s => { const bg=new Set(); for(let i=0;i<s.length-1;i++) bg.add(s.slice(i,i+2)); return bg }
+  const bg1=bigrams(a), bg2=bigrams(b)
+  if (!bg1.size&&!bg2.size) return 0
+  let matches=0; bg2.forEach(bg=>{if(bg1.has(bg))matches++})
+  return (2*matches)/(bg1.size+bg2.size)
+}
+
 function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('Recently Added')
@@ -7050,9 +7086,24 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [wsFileCharCount, setWsFileCharCount] = useState(0)
   const [wsDateModalIsFile, setWsDateModalIsFile] = useState(false)
 
+  // Merge & dedup state
+  const [showMerge, setShowMerge] = useState(false)
+  const [mergeStep, setMergeStep] = useState(1)
+  const [mergeSelected, setMergeSelected] = useState(new Set())
+  const [mergePrimary, setMergePrimary] = useState(null)
+  const [mergeSearch, setMergeSearch] = useState('')
+  const [showDupeReview, setShowDupeReview] = useState(false)
+  const [dupeDismissed, setDupeDismissed] = useState(false)
+  const [addDupeWarning, setAddDupeWarning] = useState(null)
+  const [mergeToast, setMergeToast] = useState('')
+
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
   const effectiveKey = data.apiKey || ''
+
+  // Detect duplicate pairs among existing accounts
+  const dupePairs = []
+  for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
   const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue']
@@ -7090,11 +7141,50 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   }
   const addAccount = () => {
     if(!addForm.name.trim())return
+    if (!addDupeWarning) {
+      const match = (data.whitespaceAccounts||[]).find(a=>fuzzyMatchAccount(addForm.name, a.name))
+      if (match) { setAddDupeWarning({match}); return }
+    }
     const now = new Date().toISOString()
     const newA = {id:uid(),name:addForm.name,hq:addForm.hq,industry:addForm.industry,employees:addForm.employees,revenue:addForm.revenue,status:addForm.status,contacts:[],technologies:[],notes:addForm.notes?[{id:uid(),text:addForm.notes,date:new Date().toISOString().split('T')[0],addedBy:''}]:[],intelLog:[],addedAt:now,updatedAt:now}
     setData(prev=>({...prev,whitespaceAccounts:[...(prev.whitespaceAccounts||[]),newA]}))
     setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
     setShowAdd(false)
+    setAddDupeWarning(null)
+  }
+
+  const executeMerge = () => {
+    if (mergeSelected.size < 2 || !mergePrimary) return
+    const primary = ws.find(a=>a.id===mergePrimary)
+    if (!primary) return
+    const others = ws.filter(a=>mergeSelected.has(a.id)&&a.id!==mergePrimary)
+    const allNotes = [...(primary.notes||[]),...others.flatMap(a=>a.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    const allIntelLog = [...(primary.intelLog||[]),...others.flatMap(a=>a.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    const contactMap = new Map()
+    ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase();if(!contactMap.has(k))contactMap.set(k,c)})
+    const techMap = new Map()
+    ;[...(primary.technologies||[]),...others.flatMap(a=>a.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase();if(!techMap.has(k))techMap.set(k,t)})
+    const merged = {...primary,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
+    const otherIds = new Set(others.map(a=>a.id))
+    setData(prev=>({...prev,whitespaceAccounts:prev.whitespaceAccounts.filter(a=>!otherIds.has(a.id)).map(a=>a.id===mergePrimary?merged:a)}))
+    const msg = `${mergeSelected.size} accounts merged into "${primary.name}"`
+    setMergeToast(msg); setTimeout(()=>setMergeToast(''),4000)
+    setShowMerge(false); setMergeSelected(new Set()); setMergePrimary(null); setMergeStep(1); setMergeSearch('')
+  }
+
+  const handleDupeAction = (action, pairA, pairB) => {
+    if (action==='keepA') {
+      setData(prev=>({...prev,whitespaceAccounts:prev.whitespaceAccounts.filter(a=>a.id!==pairB.id)}))
+    } else if (action==='keepB') {
+      setData(prev=>({...prev,whitespaceAccounts:prev.whitespaceAccounts.filter(a=>a.id!==pairA.id)}))
+    } else if (action==='merge') {
+      const allNotes=[...(pairA.notes||[]),...(pairB.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+      const allIntelLog=[...(pairA.intelLog||[]),...(pairB.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+      const contactMap=new Map(); [...(pairA.contacts||[]),...(pairB.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase();if(!contactMap.has(k))contactMap.set(k,c)})
+      const techMap=new Map(); [...(pairA.technologies||[]),...(pairB.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase();if(!techMap.has(k))techMap.set(k,t)})
+      const merged={...pairA,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
+      setData(prev=>({...prev,whitespaceAccounts:prev.whitespaceAccounts.filter(a=>a.id!==pairB.id).map(a=>a.id===pairA.id?merged:a)}))
+    }
   }
 
   const WS_FILE_CHAR_LIMIT = 100000
@@ -7293,6 +7383,14 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
       setIntelStatus('')
       if (allAccounts.length === 0) { setIntelError('No prospect companies found in the document.'); setIntelLoading(false); return }
+      // Fuzzy dedup within batch
+      const dedupedDoc = []
+      allAccounts.forEach(a => {
+        const existIdx = dedupedDoc.findIndex(b=>fuzzyMatchAccount(a.name,b.name))
+        if (existIdx>=0) { if(a.note&&a.note.trim()) dedupedDoc[existIdx]={...dedupedDoc[existIdx],note:[dedupedDoc[existIdx].note,a.note].filter(Boolean).join(' | ')} }
+        else dedupedDoc.push(a)
+      })
+      allAccounts = dedupedDoc
       const sel = new Set()
       allAccounts.forEach((a,i) => {
         const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
@@ -7379,13 +7477,14 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           const chunk_accounts = await runChunk(chunks[i], i, chunks.length)
           allAccounts.push(...chunk_accounts)
         }
-        // Deduplicate by lowercased name
-        const seen = new Set()
-        allAccounts = allAccounts.filter(a => {
-          const k = (a.name||'').toLowerCase().trim()
-          if (!k || seen.has(k)) return false
-          seen.add(k); return true
+        // Fuzzy dedup within batch — merge notes for similar names
+        const deduped = []
+        allAccounts.forEach(a => {
+          const existIdx = deduped.findIndex(b=>fuzzyMatchAccount(a.name,b.name))
+          if (existIdx>=0) { if(a.note&&a.note.trim()) deduped[existIdx]={...deduped[existIdx],note:[deduped[existIdx].note,a.note].filter(Boolean).join(' | ')} }
+          else deduped.push(a)
         })
+        allAccounts = deduped
       }
 
       setIntelStatus('')
@@ -7419,7 +7518,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         if (!selectedIntel.has(i)) return
         const finalName = (pendingNames[i]||'').trim() || a.name
         const noteEntry = {id:uid(), text:a.note, date, addedBy:'ai'}
-        const existIdx = wsList.findIndex(w=>(w.name||'').toLowerCase()===(finalName||'').toLowerCase())
+        const existIdx = wsList.findIndex(w=>fuzzyMatchAccount(finalName, w.name))
         if (existIdx>=0) {
           wsList[existIdx] = {...wsList[existIdx], intelLog:[noteEntry,...(wsList[existIdx].intelLog||[])], updatedAt:now}
         } else {
@@ -7520,6 +7619,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
                 <Zap size={14}/>Add Intelligence
               </button>
+              <button onClick={()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('')}}
+                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                <GitMerge size={14}/>Merge
+              </button>
               <button onClick={()=>setShowAdd(true)} style={{padding:'9px 18px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
             </div>
           </div>
@@ -7544,6 +7647,18 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
           )}
         </div>
+        {mergeToast&&(
+          <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:8}}>
+            <span style={{color:'#4ade80'}}>✓</span>{mergeToast}
+          </div>
+        )}
+        {!dupeDismissed&&dupePairs.length>0&&(
+          <div style={{background:isLight?'#fffbeb':'rgba(234,179,8,0.08)',borderBottom:`1px solid ${isLight?'#fde68a':'rgba(234,179,8,0.25)'}`,padding:'8px 20px',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+            <span style={{fontSize:13,color:'#92400e',fontWeight:600}}>⚠ {dupePairs.length} possible duplicate{dupePairs.length!==1?'s':''} found</span>
+            <button onClick={()=>setShowDupeReview(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Review →</button>
+            <button onClick={()=>setDupeDismissed(true)} style={{fontSize:12,color:S.muted,background:'none',border:'none',cursor:'pointer',padding:0,marginLeft:'auto'}}>Dismiss</button>
+          </div>
+        )}
         <div style={{flex:1,overflowY:'auto'}}>
           {ws.length===0?(
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,padding:40}}>
@@ -7630,9 +7745,18 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               <textarea value={addForm.notes||''} onChange={e=>setAddForm(p=>({...p,notes:e.target.value}))} rows={3} placeholder='What do you know about this account so far?'
                 style={{width:'100%',fontSize:13,padding:'8px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,boxSizing:'border-box',resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
             </div>
+            {addDupeWarning&&(
+              <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'12px 14px',marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:600,color:'#92400e',marginBottom:8}}>⚠ Similar account already exists: <strong>{addDupeWarning.match.name}</strong></div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>{setShowAdd(false);setAddDupeWarning(null);setExpandedId(addDupeWarning.match.id)}} style={{flex:1,padding:'8px',background:'#2563eb',border:'none',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Update Existing</button>
+                  <button onClick={addAccount} style={{flex:1,padding:'8px',background:'transparent',border:'1px solid #fde68a',borderRadius:7,color:'#92400e',fontSize:12,fontWeight:600,cursor:'pointer'}}>Create Anyway</button>
+                </div>
+              </div>
+            )}
             <div style={{display:'flex',gap:10}}>
               <button onClick={addAccount} style={{flex:1,padding:'11px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Account</button>
-              <button onClick={()=>{setShowAdd(false);setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})}} style={{padding:'11px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button onClick={()=>{setShowAdd(false);setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''});setAddDupeWarning(null)}} style={{padding:'11px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -7781,6 +7905,173 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         </div>
       )}
 
+      {/* MERGE ACCOUNTS MODAL */}
+      {showMerge&&(()=>{
+        const mergeFiltered = ws.filter(a=>!mergeSearch.trim()||(a.name||'').toLowerCase().includes(mergeSearch.toLowerCase()))
+        const mergeSelectedAccts = ws.filter(a=>mergeSelected.has(a.id))
+        const primaryAcct = ws.find(a=>a.id===mergePrimary)
+        // Preview counts for step 2
+        const previewNotes = mergeSelectedAccts.reduce((sum,a)=>sum+(a.notes||[]).length,0)
+        const previewIntel = mergeSelectedAccts.reduce((sum,a)=>sum+(a.intelLog||[]).length,0)
+        const contactNames = new Set(); mergeSelectedAccts.forEach(a=>(a.contacts||[]).forEach(c=>contactNames.add((c.name||'').toLowerCase())))
+        const techNames = new Set(); mergeSelectedAccts.forEach(a=>(a.technologies||[]).forEach(t=>techNames.add((t.vendor||'').toLowerCase())))
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setShowMerge(false)}>
+            <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'65vw',maxWidth:860,maxHeight:'75vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+              {/* Header */}
+              <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:3}}>{mergeStep===1?'Merge Accounts':'Configure Merge'}</div>
+                  <div style={{fontSize:12,color:S.muted}}>{mergeStep===1?'Select 2 or more accounts to merge into one':'Choose the primary account to keep as the base'}</div>
+                </div>
+                <button onClick={()=>setShowMerge(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+              </div>
+              {/* Step 1: Select accounts */}
+              {mergeStep===1&&(
+                <>
+                  <div style={{padding:'12px 24px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
+                    <input value={mergeSearch} onChange={e=>setMergeSearch(e.target.value)} placeholder='Search accounts…'
+                      style={{width:'100%',boxSizing:'border-box',fontSize:13,padding:'8px 12px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,outline:'none'}}/>
+                  </div>
+                  <div style={{flex:1,overflowY:'auto'}}>
+                    {mergeFiltered.map(a=>{
+                      const checked = mergeSelected.has(a.id)
+                      const intelCnt = (a.notes||[]).length+(a.intelLog||[]).length
+                      return (
+                        <div key={a.id} onClick={()=>{setMergeSelected(prev=>{const ns=new Set(prev);if(ns.has(a.id))ns.delete(a.id);else ns.add(a.id);return ns})}}
+                          style={{display:'flex',alignItems:'center',gap:12,padding:'11px 24px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',background:checked?(isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}
+                          onMouseEnter={e=>{if(!checked)e.currentTarget.style.background=S.surf2}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=checked?(isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):'transparent'}}>
+                          <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?'#2563eb':S.bdr}`,background:checked?'#2563eb':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            {checked&&<svg width="10" height="8" viewBox="0 0 10 8"><polyline points="1,4 4,7 9,1" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:14,fontWeight:700,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.name}</div>
+                            {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
+                          </div>
+                          <div style={{display:'flex',gap:8,flexShrink:0,fontSize:11,color:S.muted}}>
+                            {intelCnt>0&&<span style={{color:'#7c3aed',fontWeight:600}}>{intelCnt} intel</span>}
+                            {(a.contacts||[]).length>0&&<span>{(a.contacts||[]).length} contacts</span>}
+                            {(a.technologies||[]).length>0&&<span>{(a.technologies||[]).length} tech</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{padding:'14px 24px',borderTop:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+                    <span style={{fontSize:12,color:S.muted}}>{mergeSelected.size} account{mergeSelected.size!==1?'s':''} selected</span>
+                    <button onClick={()=>{if(mergeSelected.size>=2){const ids=[...mergeSelected];setMergePrimary(ids[0]);setMergeStep(2)}}} disabled={mergeSelected.size<2}
+                      style={{marginLeft:'auto',padding:'10px 24px',background:mergeSelected.size<2?'#94a3b8':'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:mergeSelected.size<2?'not-allowed':'pointer'}}>
+                      Next →
+                    </button>
+                  </div>
+                </>
+              )}
+              {/* Step 2: Configure merge */}
+              {mergeStep===2&&(
+                <>
+                  <div style={{flex:1,overflowY:'auto',padding:'16px 24px',display:'flex',flexDirection:'column',gap:16}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:10}}>Primary Account (keep this name &amp; details)</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                        {mergeSelectedAccts.map(a=>(
+                          <label key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:mergePrimary===a.id?(isLight?'#eff6ff':'rgba(37,99,235,0.1)'):S.surf2,border:`2px solid ${mergePrimary===a.id?'#2563eb':S.bdr}`,borderRadius:8,cursor:'pointer',transition:'all 0.12s'}}>
+                            <input type='radio' checked={mergePrimary===a.id} onChange={()=>setMergePrimary(a.id)} style={{accentColor:'#2563eb',width:16,height:16,flexShrink:0}}/>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>{a.name}</div>
+                              {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{background:S.surf2,borderRadius:10,padding:'14px 16px'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:10}}>Merge Preview</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                        {[
+                          {label:'Notes',value:previewNotes},
+                          {label:'Intel entries',value:previewIntel},
+                          {label:'Contacts',value:contactNames.size,suffix:' (duplicates removed)'},
+                          {label:'Technologies',value:techNames.size,suffix:' (duplicates removed)'},
+                        ].map(r=>(
+                          <div key={r.label} style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:13}}>
+                            <span style={{color:S.muted}}>{r.label}</span>
+                            <span style={{fontWeight:700,color:S.txt}}>{r.value}{r.suffix||''}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{marginTop:10,fontSize:12,color:S.muted,lineHeight:1.5}}>
+                        Primary account name, HQ, industry, employees, revenue, and status will be kept. All intel, contacts, and technologies from all selected accounts will be combined.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{padding:'14px 24px',borderTop:`1px solid ${S.bdr}`,display:'flex',gap:10,flexShrink:0}}>
+                    <button onClick={()=>setMergeStep(1)} style={{padding:'10px 18px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>← Back</button>
+                    <button onClick={executeMerge} disabled={!mergePrimary}
+                      style={{flex:1,padding:'10px',background:!mergePrimary?'#94a3b8':'linear-gradient(135deg,#1d4ed8,#2563eb)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!mergePrimary?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7}}>
+                      <GitMerge size={14}/>Merge Accounts
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* DUPLICATE REVIEW MODAL */}
+      {showDupeReview&&(()=>{
+        // Filter to only pairs still present (after merges/deletes)
+        const livePairs = dupePairs.filter(([a,b])=>ws.some(w=>w.id===a.id)&&ws.some(w=>w.id===b.id))
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={()=>setShowDupeReview(false)}>
+            <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,width:'70vw',maxWidth:900,maxHeight:'80vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.5)'}} onClick={e=>e.stopPropagation()}>
+              <div style={{padding:'20px 24px 14px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:S.txt,marginBottom:3}}>Review Possible Duplicates</div>
+                  <div style={{fontSize:12,color:S.muted}}>{livePairs.length} pair{livePairs.length!==1?'s':''} detected. Review each and choose how to handle them.</div>
+                </div>
+                <button onClick={()=>setShowDupeReview(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+              </div>
+              <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+                {livePairs.length===0?(
+                  <div style={{padding:'40px',textAlign:'center',color:S.muted,fontSize:13}}>No duplicates remaining. All good!</div>
+                ):livePairs.map(([a,b],pi)=>{
+                  const aIntel=(a.notes||[]).length+(a.intelLog||[]).length
+                  const bIntel=(b.notes||[]).length+(b.intelLog||[]).length
+                  return (
+                    <div key={pi} style={{padding:'16px 24px',borderBottom:`1px solid ${S.bdr}`}}>
+                      <div style={{display:'flex',gap:16,marginBottom:12}}>
+                        {[{acct:a,intel:aIntel},{acct:b,intel:bIntel}].map(({acct,intel},si)=>(
+                          <div key={si} style={{flex:1,background:S.surf2,borderRadius:8,padding:'12px 14px'}}>
+                            <div style={{fontSize:14,fontWeight:700,color:S.txt,marginBottom:3}}>{acct.name}</div>
+                            {(acct.hq||acct.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:5}}>{[acct.hq,acct.industry].filter(Boolean).join(' · ')}</div>}
+                            <div style={{display:'flex',gap:10,fontSize:11,color:S.muted,flexWrap:'wrap'}}>
+                              {intel>0&&<span style={{color:'#7c3aed',fontWeight:600}}>{intel} intel</span>}
+                              {(acct.contacts||[]).length>0&&<span>{(acct.contacts||[]).length} contacts</span>}
+                              {(acct.technologies||[]).length>0&&<span>{(acct.technologies||[]).length} tech</span>}
+                              <span style={{fontSize:10,color:'#64748b',background:S.bdr,borderRadius:4,padding:'1px 6px'}}>{acct.status||'Prospect'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={()=>handleDupeAction('keepA',a,b)} style={{flex:1,padding:'8px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer'}}>Keep "{a.name.slice(0,22)}{a.name.length>22?'…':''}"</button>
+                        <button onClick={()=>{handleDupeAction('merge',a,b);if(livePairs.length<=1)setShowDupeReview(false)}} style={{flex:1,padding:'8px',background:'#2563eb',border:'none',borderRadius:7,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}><GitMerge size={12}/>Merge</button>
+                        <button onClick={()=>handleDupeAction('keepB',a,b)} style={{flex:1,padding:'8px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer'}}>Keep "{b.name.slice(0,22)}{b.name.length>22?'…':''}"</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{padding:'14px 24px',borderTop:`1px solid ${S.bdr}`,display:'flex',justifyContent:'flex-end',flexShrink:0}}>
+                <button onClick={()=>{setShowDupeReview(false);setDupeDismissed(true)}} style={{padding:'10px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Done</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* CONFIRMATION MODAL */}
       {pendingIntel&&(()=>{
         const totalFound = pendingIntel.accounts.length
@@ -7820,7 +8111,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               ):(
                 pendingIntel.accounts.map((a,i)=>{
                   const displayName = pendingNames[i] || a.name
-                  const inWS = (data.whitespaceAccounts||[]).find(w=>(w.name||'').toLowerCase()===(displayName||'').toLowerCase())
+                  const inWS = (data.whitespaceAccounts||[]).find(w=>fuzzyMatchAccount(displayName, w.name))
+                  const possibleWS = !inWS && (data.whitespaceAccounts||[]).find(w=>{ const s=fuzzyBigramScore(displayName,w.name); return s>=0.5&&s<0.7 })
                   const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(displayName||'').toLowerCase().slice(0,8))
                   const blocked = isBlockedAccount(displayName)
                   const openNamed = !blocked && isOpenNamedAccount(displayName)
@@ -7865,8 +8157,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                           )}
                           {blocked&&<span style={{fontSize:10,fontWeight:700,color:'#dc2626',background:'#fee2e2',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Named — {owner||'Other rep'}</span>}
                           {openNamed&&<span style={{fontSize:10,fontWeight:700,color:'#1d4ed8',background:'#dbeafe',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Open ({owner})</span>}
-                          {!blocked&&!openNamed&&!inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#15803d',background:'#dcfce7',borderRadius:4,padding:'1px 7px'}}>Available</span>}
-                          {inWS&&<span style={{fontSize:10,fontWeight:700,color:'#a16207',background:'#fef9c3',borderRadius:4,padding:'1px 7px'}}>Update</span>}
+                          {!blocked&&!openNamed&&!inCRM&&!inWS&&!possibleWS&&<span style={{fontSize:10,fontWeight:700,color:'#15803d',background:'#dcfce7',borderRadius:4,padding:'1px 7px'}}>New</span>}
+                          {inWS&&<span style={{fontSize:10,fontWeight:700,color:'#a16207',background:'#fef9c3',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis'}}>Update existing{inWS.name.toLowerCase()!==displayName.toLowerCase()?` · Matches: ${inWS.name}`:''}</span>}
+                          {possibleWS&&<span style={{fontSize:10,fontWeight:700,color:'#d97706',background:'#fef3c7',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Possible match? · {possibleWS.name}</span>}
                           {inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#64748b',background:S.surf2,borderRadius:4,padding:'1px 7px',border:`1px solid ${S.bdr}`}}>In CRM</span>}
                         </div>
                         {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:4}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
