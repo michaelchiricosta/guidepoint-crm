@@ -6970,6 +6970,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [intelDate, setIntelDate] = useState('')
   const [intelLoading, setIntelLoading] = useState(false)
   const [intelError, setIntelError] = useState('')
+  const [intelStatus, setIntelStatus] = useState('')
   const [pendingIntel, setPendingIntel] = useState(null)
   const [selectedIntel, setSelectedIntel] = useState(new Set())
   const [editingNameIdx, setEditingNameIdx] = useState(null)
@@ -7026,7 +7027,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const openIntel = () => {
     const detected = detectDate(intelText)
     setIntelDate(detected || new Date().toISOString().split('T')[0])
-    setIntelError('')
+    setIntelError(''); setIntelStatus('')
     setShowIntel(true)
   }
 
@@ -7034,29 +7035,79 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     if (!effectiveKey) { setIntelError('Add your Anthropic API key in Settings first.'); return }
     if (!intelText.trim()) { setIntelError('Please paste some text first.'); return }
     const date = intelDate || new Date().toISOString().split('T')[0]
-    setIntelLoading(true); setIntelError('')
-    try {
+    setIntelLoading(true); setIntelError(''); setIntelStatus('')
+
+    const SYS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
+    const buildPrompt = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"City, State or empty","industry":"industry or empty","note":"1-2 sentence summary of intel including source, what they need, any contacts mentioned","status":"Prospect"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 1-2 sentences max per account\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+
+    const runChunk = async (txt, idx, total) => {
+      if (total > 1) setIntelStatus(`Processing chunk ${idx+1} of ${total}…`)
       const {data: resp} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:4000,
-        system:'You are an account intelligence analyst for a cybersecurity sales rep. Extract prospect company intelligence from vendor calls and notes. Keep it simple — just company names and notes about what was discussed. CRITICAL: Return ONLY a valid JSON object. No markdown, no code blocks, no explanation before or after. Start your response with { and end with }. Every string must use double quotes. No trailing commas.',
-        messages:[{role:'user',content:`Extract whitespace account intelligence. Return ONLY valid JSON:\n{\n  "accounts": [\n    {\n      "name": "company name",\n      "hq": "city state if mentioned or empty",\n      "industry": "industry if mentioned or empty",\n      "employees": "employee count if mentioned or empty",\n      "note": "Summary of what was discussed. For each person mentioned include a line: Contact: Full Name, Title — context. For each technology or vendor mentioned include a line: Technology: Vendor Name — Customer/Evaluating/Replacing/Considering/Unknown — context."\n    }\n  ]\n}\nInclude ALL prospect companies mentioned. Return empty accounts array if no prospects found.\n\nInput: ${intelText}`}]
+        model:'claude-sonnet-4-6', max_tokens:8000,
+        system:SYS,
+        messages:[{role:'user',content:buildPrompt(txt)}]
       }, effectiveKey, null)
       if (resp.error) throw new Error(resp.error.message||'API error')
       const raw = resp.content?.[0]?.text||''
-      console.log('Whitespace AI raw response:', raw)
-      const parsed = extractJSON(raw)
-      if (!parsed) { setIntelError('Could not parse AI response. Please try again or simplify your input.'); setIntelLoading(false); return }
-      if (!parsed.accounts || parsed.accounts.length===0) { setIntelError('No prospect companies found in the text.'); setIntelLoading(false); return }
+      console.log(`Whitespace AI raw (chunk ${idx+1}/${total}):`, raw)
+      let parsed = extractJSON(raw)
+      if (!parsed) {
+        // Fallback: ask Claude to fix the malformed JSON
+        try {
+          const {data: fix} = await callClaudeWithRetry({
+            model:'claude-sonnet-4-6', max_tokens:4000,
+            messages:[{role:'user',content:`This JSON is malformed. Fix it and return ONLY valid JSON, nothing else:\n${raw}`}]
+          }, effectiveKey, null)
+          parsed = extractJSON(fix.content?.[0]?.text||'')
+        } catch {}
+      }
+      return parsed?.accounts || []
+    }
+
+    try {
+      const CHUNK = 6000
+      let allAccounts = []
+
+      if (intelText.length <= CHUNK) {
+        allAccounts = await runChunk(intelText, 0, 1)
+      } else {
+        // Split on double-newlines into chunks of max CHUNK chars
+        const chunks = []
+        let cur = ''
+        for (const para of intelText.split(/\n\n+/)) {
+          if (cur && (cur + '\n\n' + para).length > CHUNK) { chunks.push(cur.trim()); cur = para }
+          else { cur = cur ? cur + '\n\n' + para : para }
+        }
+        if (cur.trim()) chunks.push(cur.trim())
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk_accounts = await runChunk(chunks[i], i, chunks.length)
+          allAccounts.push(...chunk_accounts)
+        }
+        // Deduplicate by lowercased name
+        const seen = new Set()
+        allAccounts = allAccounts.filter(a => {
+          const k = (a.name||'').toLowerCase().trim()
+          if (!k || seen.has(k)) return false
+          seen.add(k); return true
+        })
+      }
+
+      setIntelStatus('')
+      if (allAccounts.length === 0) {
+        setIntelError('No prospect companies found in the text.')
+        setIntelLoading(false); return
+      }
       const sel = new Set()
-      parsed.accounts.forEach((a,i)=>{
+      allAccounts.forEach((a,i) => {
         const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
         const blocked = isBlockedAccount(a.name)
         if (!inCRM && !blocked) sel.add(i)
       })
-      setPendingIntel({accounts:parsed.accounts, date})
+      setPendingIntel({accounts:allAccounts, date})
       setSelectedIntel(sel)
       setShowIntel(false)
     } catch(e) {
+      setIntelStatus('')
       setIntelError('Processing failed: '+(e.message||'Unknown error'))
     }
     setIntelLoading(false)
@@ -7169,7 +7220,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'3px 12px'}}>{ws.length}</span>
-              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setShowIntel(true)}}
+              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');setShowIntel(true)}}
                 style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
                 <Zap size={14}/>Add Intelligence
               </button>
@@ -7321,6 +7372,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                     style={{fontSize:12,padding:'5px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,outline:'none'}}/>
                 </div>
                 {intelError&&<div style={{fontSize:12,color:S.red,flex:1}}>{intelError}</div>}
+                {!intelError&&intelStatus&&<div style={{fontSize:12,color:S.muted,flex:1}}>{intelStatus}</div>}
                 <button onClick={processIntel} disabled={intelLoading||!intelText.trim()}
                   style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:7,padding:'10px 24px',background:intelLoading||!intelText.trim()?'#94a3b8':'linear-gradient(135deg,#1d4ed8,#2563eb)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:intelLoading||!intelText.trim()?'not-allowed':'pointer',minWidth:160,justifyContent:'center'}}>
                   {intelLoading?<><span style={{display:'inline-block',width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTopColor:'#fff',borderRadius:'50%',animation:'ilSpin 0.7s linear infinite'}}/>Processing…</>:<><Zap size={14}/>Process with AI</>}
