@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2 } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -5401,6 +5401,75 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
+function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModal, statDefs, setStatModal}) {
+  const statusDotColor = {Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
+  const accounts = data.accounts.slice(0,10)
+  const navActions = [
+    {id:'tasks',label:"Today's Tasks",icon:<Calendar size={14}/>,action:()=>setTodayModal(true)},
+    {id:'critical',label:'Critical Items',icon:<AlertTriangle size={14}/>,action:()=>setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
+    {id:'renewals',label:'Renewals',icon:<RefreshCw size={14}/>,action:()=>setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
+    {id:'projects',label:'Active Projects',icon:<Target size={14}/>,action:()=>setStatModal({...statDefs[3],items:statDefs[3].buildData()})},
+  ]
+  return (
+    <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
+      <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+          <svg width="18" height="18" viewBox="0 0 28 28" style={{flexShrink:0}}>
+            <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/>
+            <circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/>
+            <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
+          </svg>
+          <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+        </div>
+        <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>Account Intelligence</div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+        <div style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',display:'flex',alignItems:'center',gap:8,background:'rgba(37,99,235,0.15)',borderLeft:'3px solid #2563eb',color:'#ffffff',fontSize:12,fontWeight:500,boxSizing:'border-box'}}>
+          <Home size={14} style={{opacity:0.75}}/>
+          Home
+        </div>
+        <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Overview</div>
+        {navActions.map(item=>(
+          <div key={item.id} onClick={item.action}
+            onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}
+            style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,borderLeft:'3px solid transparent',boxSizing:'border-box'}}>
+            <span style={{opacity:0.75,display:'flex'}}>{item.icon}</span>
+            {item.label}
+          </div>
+        ))}
+        <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Accounts</div>
+        {accounts.map(acct=>{
+          const hs=calcHealthScore(acct)
+          const hc=hs>=70?'#22c55e':hs>=40?'#ea580c':'#ef4444'
+          const sc=statusDotColor[acct.status]||'#64748b'
+          return (
+            <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
+              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';const n=e.currentTarget.querySelector('.lp-sn');if(n)n.style.color='#ffffff'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';const n=e.currentTarget.querySelector('.lp-sn');if(n)n.style.color='#94a3b8'}}
+              style={{padding:'6px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,boxSizing:'border-box'}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:sc,flexShrink:0}}/>
+              <span className="lp-sn" style={{fontSize:12,color:'#94a3b8',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.short||acct.name}</span>
+              <span style={{fontSize:10,fontWeight:700,color:hc,background:hc+'22',borderRadius:999,padding:'1px 6px',flexShrink:0,border:`1px solid ${hc}33`}}>{hs}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:'10px 14px',flexShrink:0}}>
+        <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
+          {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
+            <button key={v} onClick={()=>setTheme(v)}
+              style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+              {icon}
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:10,color:'#475569'}}>Saved just now</div>
+      </div>
+    </div>
+  )
+}
+
 function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, theme, setTheme}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
@@ -5525,7 +5594,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   }
 
   return (
-    <div style={{height:'100vh',background:S.bg,color:S.txt,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+    <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} onEnterAccount={onEnterAccount} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal}/>}
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* TOP NAV BAR */}
       <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:mob?'0 16px':'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -6127,6 +6198,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </div>
         </div>
       )}
+
+      </div>
     </div>
   )
 }
