@@ -28,6 +28,17 @@ const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selec
 const PROJ_STATS = ['Not Started','In Discussion','In Flight','Stalled','Won','Lost']
 
 const uid = () => Math.random().toString(36).slice(2,9)
+const extractJSON = text => {
+  if (!text) return null
+  try { return JSON.parse(text) } catch {}
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (codeBlock) { try { return JSON.parse(codeBlock[1].trim()) } catch {} }
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) { try { return JSON.parse(jsonMatch[0]) } catch {} }
+  const arrayMatch = text.match(/"accounts"\s*:\s*(\[[\s\S]*?\])\s*[,}]/)
+  if (arrayMatch) { try { return { accounts: JSON.parse(arrayMatch[1]) } } catch {} }
+  return null
+}
 const _autoSummaryGenerated = new Set()
 const fmtDate = d => { if (!d) return ''; try { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) } catch { return d } }
 const daysUntil = d => { if (!d) return null; return Math.ceil((new Date(d+'T12:00:00') - new Date()) / 86400000) }
@@ -4093,8 +4104,10 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       }, effectiveKey, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
-      const raw2 = (d2.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-      return JSON.parse(raw2)
+      const raw2 = d2.content?.[0]?.text||''
+      const parsed2 = extractJSON(raw2)
+      if (!parsed2) throw new Error('Could not parse AI response. Please try again or simplify your input.')
+      return parsed2
     }
 
     const pdfTextFallback = async () => {
@@ -4140,8 +4153,10 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
         console.log('[Image] Error details:', data.error)
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
-        const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-        finalizeResult(JSON.parse(raw), 'Direct image')
+        const rawImg = data.content?.[0]?.text||''
+        const parsedImg = extractJSON(rawImg)
+        if (!parsedImg) throw new Error('Could not parse AI response. Please try again or simplify your input.')
+        finalizeResult(parsedImg, 'Direct image')
       } else if (ext === 'pdf') {
         if (forceFallback) {
           // Retry: skip direct API, go straight to text extraction
@@ -4165,8 +4180,10 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             console.log('[Direct PDF] Error details:', data.error)
             if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
             else {
-              const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-              finalizeResult(JSON.parse(raw), 'Direct PDF')
+              const rawPdf = data.content?.[0]?.text||''
+              const parsedPdf = extractJSON(rawPdf)
+              if (!parsedPdf) { directFailed = true; console.log('[Direct PDF] Could not parse response') }
+              else finalizeResult(parsedPdf, 'Direct PDF')
             }
           } catch(e1) { directFailed = true; console.log('[Direct PDF] Falling back — exception:', e1.message) }
           // Fallback chain if direct failed
@@ -4235,8 +4252,10 @@ INPUT:
 ${inputText}`}]
       }, effectiveKey, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
       if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
-      const raw = (data.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-      const parsed = JSON.parse(raw)
+      const raw = data.content?.[0]?.text||''
+      console.log('Intel Log AI raw response:', raw)
+      const parsed = extractJSON(raw)
+      if (!parsed) throw new Error('Could not parse AI response. Please try again or simplify your input.')
       if (parsed.newFollowUps?.length) {
         const fuWithIds=parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
         setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
@@ -7019,12 +7038,14 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     try {
       const {data: resp} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:4000,
-        system:'You are an account intelligence analyst for a cybersecurity sales rep. Extract prospect company intelligence from vendor calls and notes. Keep it simple — just company names and notes about what was discussed.',
+        system:'You are an account intelligence analyst for a cybersecurity sales rep. Extract prospect company intelligence from vendor calls and notes. Keep it simple — just company names and notes about what was discussed. CRITICAL: Return ONLY a valid JSON object. No markdown, no code blocks, no explanation before or after. Start your response with { and end with }. Every string must use double quotes. No trailing commas.',
         messages:[{role:'user',content:`Extract whitespace account intelligence. Return ONLY valid JSON:\n{\n  "accounts": [\n    {\n      "name": "company name",\n      "hq": "city state if mentioned or empty",\n      "industry": "industry if mentioned or empty",\n      "employees": "employee count if mentioned or empty",\n      "note": "Summary of what was discussed. For each person mentioned include a line: Contact: Full Name, Title — context. For each technology or vendor mentioned include a line: Technology: Vendor Name — Customer/Evaluating/Replacing/Considering/Unknown — context."\n    }\n  ]\n}\nInclude ALL prospect companies mentioned. Return empty accounts array if no prospects found.\n\nInput: ${intelText}`}]
       }, effectiveKey, null)
       if (resp.error) throw new Error(resp.error.message||'API error')
-      const raw = (resp.content?.[0]?.text||'').replace(/```json|```/g,'').trim()
-      const parsed = JSON.parse(raw)
+      const raw = resp.content?.[0]?.text||''
+      console.log('Whitespace AI raw response:', raw)
+      const parsed = extractJSON(raw)
+      if (!parsed) { setIntelError('Could not parse AI response. Please try again or simplify your input.'); setIntelLoading(false); return }
       if (!parsed.accounts || parsed.accounts.length===0) { setIntelError('No prospect companies found in the text.'); setIntelLoading(false); return }
       const sel = new Set()
       parsed.accounts.forEach((a,i)=>{
