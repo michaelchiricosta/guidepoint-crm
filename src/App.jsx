@@ -645,8 +645,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
       if (attnC.length>0) { ctx+=`\nCONTACTS NEEDING ATTENTION:\n`; attnC.forEach(c=>{ctx+=`- ${c.name} (${c.title||'N/A'})\n`}) }
       if (acct.lastContact) ctx+=`\nLAST CONTACT: ${fmtDate(acct.lastContact)}\n`
       if (critAlerts.length>0) { ctx+=`\nCRITICAL ALERTS:\n`; critAlerts.forEach(a=>{ctx+=`- ${a.text}\n`}) }
-      const sys = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. Generate a concise, actionable account briefing based on the data provided. Write in second person (you/your). Be direct and specific — no filler language. Focus on what matters RIGHT NOW for a client manager to know before engaging with this account.`
-      const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response EXACTLY like this:\n\n**SUMMARY**\n[3 sentences max. Sentence 1: current relationship state and most recent activity. Sentence 2: biggest active opportunity or risk. Sentence 3: most important upcoming item or deadline. Be specific, use names and dates.]\n\n**WHAT'S HAPPENING NOW**\n[2 bullet points max, one sentence each]\n\n**WHAT'S COMING UP**\n[2 bullet points max, one sentence each]\n\n**WATCH LIST**\n[2 bullet points max, one sentence each]\n\n**MOMENTUM ITEMS**\n[2 bullet points max, one sentence each]\n\n**RECOMMENDED NEXT MOVE**\n[1 sentence. The single most important action. Start with a verb.]\n\nNo preamble, no filler.`
+      const sys = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. Generate a concise, actionable account briefing. CRITICAL RULES: Only report on the relationship between GuidePoint and THIS specific account. If intel mentions frustrations with OTHER vendors, competitors, or internal politics at the client — interpret those as OPPORTUNITIES or CONTEXT, never as problems with the GuidePoint relationship. For example: if a client is frustrated with CrowdStrike, that is an opportunity for GuidePoint, not a relationship problem. If contacts are complaining about internal budget issues, that is context, not a relationship risk. Never use words like 'fractured', 'damaged', or 'strained' to describe the GuidePoint relationship unless there is explicit direct evidence of dissatisfaction with GuidePoint specifically. Write in second person (you/your). Be direct and specific. No filler language.`
+      const usr = `Generate a structured account briefing for ${acct.name} based on this data:\n${ctx}\nFormat your response EXACTLY like this:\n\n**SUMMARY**\n[3 sentences max. Sentence 1: current relationship state and most recent activity. Sentence 2: biggest active opportunity or risk. Sentence 3: most important upcoming item or deadline. Be specific, use names and dates.]\n\n**WHAT'S HAPPENING NOW**\n[2 bullet points max, one sentence each. Focus only on recent activity between GuidePoint and this account. Competitor mentions or third-party context should only appear if relevant to an active GuidePoint opportunity.]\n\n**WHAT'S COMING UP**\n[2 bullet points max, one sentence each]\n\n**WATCH LIST**\n[2 bullet points max, one sentence each. Only include items that are direct risks to the GuidePoint relationship or deal — things like an unanswered follow-up, a stalled project, a contact who went cold ON US, or a hard deadline we might miss. Do NOT include competitor problems, vendor frustrations, or client internal politics as watch list items unless they directly threaten a GuidePoint deal.]\n\n**MOMENTUM ITEMS**\n[2 bullet points max, one sentence each]\n\n**RECOMMENDED NEXT MOVE**\n[1 sentence. The single most important action. Start with a verb.]\n\nNo preamble, no filler.`
       const {data:json} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:usr}]}, effectiveKey, null)
       if (json.error) throw new Error('api')
       const content = json.content?.[0]?.text||''
@@ -3982,6 +3982,27 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [retryStatus, setRetryStatus] = useState('')
   const [detectedCompanies, setDetectedCompanies] = useState([])
   const dismissedCompaniesRef = useRef(new Set())
+  const [pendingTechSuggestions, setPendingTechSuggestions] = useState(null)
+  const [techSugSelections, setTechSugSelections] = useState(new Set())
+
+  const maybeShowTechSuggestions = (parsed) => {
+    const raw = (parsed.techStackSuggestions || []).filter(s =>
+      s.confidence !== 'low' && s.vendor &&
+      !s.vendor.toLowerCase().includes('guidepoint')
+    )
+    if (!raw.length) return
+    const withIds = raw.map(s => ({...s, _id: uid()}))
+    const defaultSel = new Set()
+    withIds.forEach(s => {
+      const alreadyExists = (acct.techStack||[]).some(t =>
+        t.vendor.toLowerCase().includes(s.vendor.toLowerCase()) ||
+        s.vendor.toLowerCase().includes(t.vendor.toLowerCase())
+      )
+      if (s.confidence === 'high' && !alreadyExists) defaultSel.add(s._id)
+    })
+    setPendingTechSuggestions({suggestions: withIds})
+    setTechSugSelections(defaultSel)
+  }
 
   const detectCompanyMentions = (text) => {
     if (!text || !appData) return []
@@ -4120,7 +4141,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     }
   }
 
-  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],\n  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}]\n}`
+  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],\n  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.`
 
   const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
@@ -4138,6 +4159,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       } else {
         commitSave(parsed,date,new Set())
         setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+        maybeShowTechSuggestions(parsed)
       }
       const _det = detectCompanyMentions(`${parsed?.intelEntry?.participants||''} ${parsed?.intelEntry?.summary||''}`)
       if (_det.length > 0) setDetectedCompanies(prev=>[...new Set([...prev,..._det])])
@@ -4295,8 +4317,11 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Write each task like a 
   "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},
   "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],
   "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],
-  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}]
+  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}],
+  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]
 }
+
+For techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.
 
 INPUT:
 ${inputText}`}]
@@ -4313,6 +4338,7 @@ ${inputText}`}]
       } else {
         commitSave(parsed,date,new Set())
         setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+        maybeShowTechSuggestions(parsed)
       }
       setText('')
       setUploadedFile(null)
@@ -4662,12 +4688,12 @@ ${inputText}`}]
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Cancel</button>
                 <button
-                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});setPendingParsed(null);setFuSelections(new Set())}}
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
                   style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>
                   Skip All
                 </button>
                 <button
-                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});setPendingParsed(null);setFuSelections(new Set())}}
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
                   disabled={fuSelections.size===0}
                   style={{padding:'8px 16px',background:fuSelections.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:fuSelections.size===0?'not-allowed':'pointer'}}>
                   Add Selected Follow-Ups
@@ -4677,6 +4703,87 @@ ${inputText}`}]
           </div>
         </div>
       )}
+
+      {pendingTechSuggestions&&!pendingParsed&&(()=>{
+        const handleAddTech = () => {
+          setAcct(prev=>{
+            let ts=[...(prev.techStack||[])]
+            pendingTechSuggestions.suggestions.forEach(s=>{
+              if(!techSugSelections.has(s._id))return
+              const idx=ts.findIndex(t=>t.vendor.toLowerCase().includes(s.vendor.toLowerCase())||s.vendor.toLowerCase().includes(t.vendor.toLowerCase()))
+              if(idx>=0){
+                ts[idx]={...ts[idx],status:s.status==='Active'?'Current':s.status,notes:(ts[idx].notes?ts[idx].notes+' | ':'')+s.context}
+              } else {
+                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:''})
+              }
+            })
+            return{...prev,techStack:ts}
+          })
+          setPendingTechSuggestions(null);setTechSugSelections(new Set())
+        }
+        const allIds=pendingTechSuggestions.suggestions.map(s=>s._id)
+        const statusColor={Active:'#16a34a',Evaluating:'#2563eb',Replacing:'#ea580c'}
+        const statusBg={Active:'#dcfce7',Evaluating:'#dbeafe',Replacing:'#ffedd5'}
+        return(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div style={{width:'70vw',maxWidth:740,maxHeight:'82vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+              {/* Header */}
+              <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                  <span style={{fontSize:16,fontWeight:700,color:'#0f172a',flex:1}}>Tech Stack Mentions Detected</span>
+                  <span style={{fontSize:11,fontWeight:600,color:'#7c3aed',background:'#ede9fe',borderRadius:999,padding:'2px 8px'}}>{pendingTechSuggestions.suggestions.length} found</span>
+                  <button onClick={()=>{setPendingTechSuggestions(null);setTechSugSelections(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
+                </div>
+                <p style={{fontSize:12,color:'#64748b',margin:'0 0 10px'}}>AI found these technologies mentioned in your intel. Add them to the tech stack?</p>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <button onClick={()=>setTechSugSelections(new Set(allIds))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
+                  <button onClick={()=>setTechSugSelections(new Set())} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Deselect All</button>
+                  <span style={{fontSize:12,color:'#94a3b8',marginLeft:'auto'}}>{techSugSelections.size} of {pendingTechSuggestions.suggestions.length} selected</span>
+                </div>
+              </div>
+              {/* Rows */}
+              <div style={{overflowY:'auto',flex:1}}>
+                {pendingTechSuggestions.suggestions.map(s=>{
+                  const sel=techSugSelections.has(s._id)
+                  const alreadyExists=(acct.techStack||[]).some(t=>t.vendor.toLowerCase().includes(s.vendor.toLowerCase())||s.vendor.toLowerCase().includes(t.vendor.toLowerCase()))
+                  const toggle=()=>setTechSugSelections(prev=>{const ns=new Set(prev);if(ns.has(s._id))ns.delete(s._id);else ns.add(s._id);return ns})
+                  return(
+                    <div key={s._id} onClick={toggle}
+                      style={{padding:'12px 16px',cursor:'pointer',display:'flex',alignItems:'flex-start',gap:12,background:sel?'rgba(124,58,237,0.04)':'transparent',opacity:sel?1:0.6,borderBottom:'1px solid #f1f5f9',transition:'all 0.12s'}}>
+                      <input type='checkbox' checked={sel} onChange={()=>{}} onClick={e=>e.stopPropagation()}
+                        style={{marginTop:3,flexShrink:0,accentColor:'#7c3aed',cursor:'pointer',width:18,height:18}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                          <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{s.vendor}</span>
+                          {s.products&&<span style={{fontSize:12,color:'#64748b'}}>{s.products}</span>}
+                          {s.category&&<span style={{fontSize:10,fontWeight:600,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 7px'}}>{s.category}</span>}
+                          {s.status&&<span style={{fontSize:10,fontWeight:600,color:statusColor[s.status]||'#475569',background:statusBg[s.status]||'#f1f5f9',borderRadius:999,padding:'2px 7px'}}>{s.status}</span>}
+                          {alreadyExists
+                            ?<span style={{fontSize:10,fontWeight:600,color:'#92400e',background:'#fef3c7',borderRadius:999,padding:'2px 7px'}}>Already in stack — Update?</span>
+                            :<span style={{fontSize:10,fontWeight:600,color:'#15803d',background:'#dcfce7',borderRadius:999,padding:'2px 7px'}}>New</span>}
+                        </div>
+                        {s.context&&<div style={{fontSize:12,color:'#64748b',fontStyle:'italic',lineHeight:1.5}}>"{s.context}"</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Footer */}
+              <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',flexShrink:0}}>
+                <span style={{fontSize:12,color:'#94a3b8'}}>{techSugSelections.size} item{techSugSelections.size!==1?'s':''} will be added or updated</span>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>{setPendingTechSuggestions(null);setTechSugSelections(new Set())}}
+                    style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
+                  <button onClick={handleAddTech} disabled={techSugSelections.size===0}
+                    style={{padding:'8px 16px',background:techSugSelections.size===0?'#94a3b8':'#7c3aed',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:techSugSelections.size===0?'not-allowed':'pointer'}}>
+                    Add Selected
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {showDate&&<Modal title={dateModalIsFile?'When did this document originate?':'Date this entry'} onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>{dateModalIsFile?'When was this document created or the event it describes occurred?':'Is this a new entry from today, or are you uploading an older transcript or note?'}</p>
