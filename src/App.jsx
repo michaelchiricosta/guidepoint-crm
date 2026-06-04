@@ -106,6 +106,34 @@ const calcDetailedHealthScore = acct => {
   }
 }
 const calcHealthScore = acct => calcDetailedHealthScore(acct).total
+const getHealthColor = score => {
+  if (score===null||score===undefined||isNaN(score)) return '#94a3b8'
+  const s=Math.max(0,Math.min(100,score))
+  const stops=[
+    {at:0,  color:[220,38, 38]},
+    {at:7,  color:[225,55, 35]},
+    {at:14, color:[230,75, 30]},
+    {at:21, color:[234,100,25]},
+    {at:28, color:[238,125,20]},
+    {at:35, color:[240,150,15]},
+    {at:42, color:[242,170,10]},
+    {at:50, color:[234,179,8]},
+    {at:57, color:[200,185,10]},
+    {at:64, color:[160,185,15]},
+    {at:71, color:[100,180,20]},
+    {at:78, color:[60, 175,30]},
+    {at:85, color:[34, 168,50]},
+    {at:92, color:[22, 160,60]},
+    {at:100,color:[15, 150,70]},
+  ]
+  let lower=stops[0],upper=stops[stops.length-1]
+  for(let i=0;i<stops.length-1;i++){if(s>=stops[i].at&&s<=stops[i+1].at){lower=stops[i];upper=stops[i+1];break}}
+  const range=upper.at-lower.at,t=range===0?0:(s-lower.at)/range
+  const r=Math.round(lower.color[0]+t*(upper.color[0]-lower.color[0]))
+  const g=Math.round(lower.color[1]+t*(upper.color[1]-lower.color[1]))
+  const b=Math.round(lower.color[2]+t*(upper.color[2]-lower.color[2]))
+  return `rgb(${r},${g},${b})`
+}
 const getQuickWin = acct => { const overdue=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&daysUntil(f.dueDate)<0).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate)); if(overdue.length>0){const fu=overdue[0];const days=Math.abs(daysUntil(fu.dueDate));return{title:fu.task,meta:`Overdue by ${days} day${days!==1?'s':''}`,cta:'Go to Follow-Ups',tab:'followups',color:S.red}} const renew=(acct.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).sort((a,b)=>daysUntil(a.renewalDate)-daysUntil(b.renewalDate)); if(renew.length>0){const t=renew[0];const d=daysUntil(t.renewalDate);return{title:`${t.vendor} renewal in ${d} day${d!==1?'s':''}`,meta:fmtDate(t.renewalDate)+(t.notes?' — '+t.notes.slice(0,70):''),cta:'Go to Tech Stack',tab:'stack',color:S.orange}} const stalled=(acct.projects||[]).filter(p=>p.status==='Stalled'); if(stalled.length>0){const p=stalled[0];return{title:p.name,meta:`Stalled project${p.waitingOn?' — Waiting on: '+p.waitingOn:' — no next action defined'}`,cta:'Go to Projects',tab:'projects',color:S.yellow}} return null }
 const sendToAppleReminders = (followUp, accountName) => {
   const title = followUp.task || ''
@@ -274,7 +302,7 @@ function HealthScoreModal({acct, setAcct, onClose}) {
 
   const ds = calcDetailedHealthScore(acct)
   const {total:score, isManualOverride, components, helping, hurting, intelCount} = ds
-  const hc = score>=70?S.green:score>=40?S.orange:S.red
+  const hc = getHealthColor(score)
   const tier = score>=70?'Healthy':score>=40?'At Risk':'Critical'
   const history = (acct.healthScoreHistory||[]).slice(-7)
   const r=26, circ=2*Math.PI*r, prog=(score/100)*circ
@@ -683,8 +711,8 @@ function Overview({acct,setAcct,setTab,apiKey}) {
         {/* Health Score card — second */}
         {(()=>{
           const hs=calcHealthScore(acct)
-          const hc=hs>=70?'#16a34a':hs>=40?'#ea580c':'#dc2626'
-          const hg=hs>=70?'linear-gradient(135deg,#14532d 0%,#16a34a 50%,#4ade80 100%)':hs>=40?'linear-gradient(135deg,#7c2d12 0%,#ea580c 50%,#fb923c 100%)':'linear-gradient(135deg,#7f1d1d 0%,#dc2626 50%,#f87171 100%)'
+          const hc=getHealthColor(hs)
+          const hg=`linear-gradient(135deg,#0a1628 0%,${hc} 100%)`
           return (
             <div onClick={()=>setShowHealthModal(true)}
               style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:`3px solid ${hc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}:{background:hg,border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,padding:'16px 20px',cursor:'pointer',transition:'filter 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}
@@ -5744,7 +5772,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 8px':'0 8px'}}>
         {data.accounts.map(a=>{
           const hs=calcHealthScore(a)
-          const hc=hs>=70?'#16a34a':hs>=40?'#ea580c':'#dc2626'
+          const hc=getHealthColor(hs)
           const isActive=activeId===a.id
           return (
           collapsed
@@ -5854,7 +5882,7 @@ function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModa
         <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Accounts</div>
         {accounts.map(acct=>{
           const hs=calcHealthScore(acct)
-          const hc=hs>=70?'#22c55e':hs>=40?'#ea580c':'#ef4444'
+          const hc=getHealthColor(hs)
           const sc=statusDotColor[acct.status]||'#64748b'
           return (
             <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
@@ -5992,18 +6020,19 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   ).sort((a,b)=>(a.closeDate||'9999').localeCompare(b.closeDate||'9999'))
 
   const STAT_DEFS = [
-    {label:'HIGH / CRITICAL',value:highCriticalFUs,color:'#2563eb',type:'followups',tab:'followups',buildData:()=>buildFUData('hc'),ctx:`${hcDueTodayOrOverdue} due today or overdue`},
+    {label:'HIGH / CRITICAL',value:highCriticalFUs,color:'#2563eb',iconColor:S.isLight?'#000000':'#1c1c1e',type:'followups',tab:'followups',buildData:()=>buildFUData('hc'),ctx:`${hcDueTodayOrOverdue} due today or overdue`},
     {label:'Critical Items',value:criticalItems,color:'#dc2626',type:'critical',tab:'followups',buildData:()=>buildFUData('critical3d'),ctx:'due within 3 days'},
     {label:'Renewals (90d)',value:renewals90,color:'#ea580c',type:'renewals',tab:'stack',buildData:buildRenewalData,ctx:'need attention'},
-    {label:'Active Projects',value:activeProjects,color:'#16a34a',type:'projects',tab:'projects',buildData:buildProjectData,ctx:'in flight'},
+    {label:'Active Projects',value:activeProjects,color:'#16a34a',iconColor:'rgba(22,163,74,0.5)',type:'projects',tab:'projects',buildData:buildProjectData,ctx:'in flight'},
   ]
 
-  const StatIconLg = ({type,color}) => {
+  const StatIconLg = ({type,color,iconColor}) => {
+    const ic = iconColor||color
     const s = {width:20,height:20}
-    if (type==='followups') return <svg {...s} viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="3" fill="none" stroke={color} strokeWidth="1.6"/><line x1="5" y1="7" x2="15" y2="7" stroke={color} strokeWidth="1.5" strokeLinecap="round"/><line x1="5" y1="10.5" x2="15" y2="10.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/><line x1="5" y1="14" x2="10" y2="14" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></svg>
-    if (type==='critical') return <svg {...s} viewBox="0 0 20 20"><path d="M10 2 L18 18 L2 18 Z" fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round"/><line x1="10" y1="8" x2="10" y2="12.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/><circle cx="10" cy="15" r="0.9" fill={color}/></svg>
-    if (type==='renewals') return <svg {...s} viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke={color} strokeWidth="1.6"/><line x1="10" y1="5.5" x2="10" y2="10" stroke={color} strokeWidth="1.6" strokeLinecap="round"/><line x1="10" y1="10" x2="13.5" y2="12.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
-    if (type==='projects') return <svg {...s} viewBox="0 0 20 20"><path d="M10 2 L12 7.5 L18 8.5 L13.5 13 L14.5 19 L10 16.5 L5.5 19 L6.5 13 L2 8.5 L8 7.5 Z" fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round"/></svg>
+    if (type==='followups') return <svg {...s} viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="3" fill="none" stroke={ic} strokeWidth="1.6"/><line x1="5" y1="7" x2="15" y2="7" stroke={ic} strokeWidth="1.5" strokeLinecap="round"/><line x1="5" y1="10.5" x2="15" y2="10.5" stroke={ic} strokeWidth="1.5" strokeLinecap="round"/><line x1="5" y1="14" x2="10" y2="14" stroke={ic} strokeWidth="1.5" strokeLinecap="round"/></svg>
+    if (type==='critical') return <svg {...s} viewBox="0 0 20 20"><path d="M10 2 L18 18 L2 18 Z" fill="none" stroke={ic} strokeWidth="1.6" strokeLinejoin="round"/><line x1="10" y1="8" x2="10" y2="12.5" stroke={ic} strokeWidth="1.6" strokeLinecap="round"/><circle cx="10" cy="15" r="0.9" fill={ic}/></svg>
+    if (type==='renewals') return <svg {...s} viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke={ic} strokeWidth="1.6"/><line x1="10" y1="5.5" x2="10" y2="10" stroke={ic} strokeWidth="1.6" strokeLinecap="round"/><line x1="10" y1="10" x2="13.5" y2="12.5" stroke={ic} strokeWidth="1.6" strokeLinecap="round"/></svg>
+    if (type==='projects') return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     return null
   }
 
@@ -6092,7 +6121,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <span style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
               <div style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <svg width="16" height="16" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(255,255,255,0.9)" strokeWidth="1.2"/></svg>
+                <svg width="16" height="16" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(220,38,38,0.5)" strokeWidth="1.2"/></svg>
               </div>
             </div>
             <div>
@@ -6127,7 +6156,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                     <div style={{width:36,height:36,borderRadius:10,background:stat.color+'15',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                      <StatIconLg type={stat.type} color={stat.color}/>
+                      <StatIconLg type={stat.type} color={stat.color} iconColor={stat.iconColor}/>
                     </div>
                   </div>
                   <div>
@@ -6140,7 +6169,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
                     <div style={{width:36,height:36,borderRadius:10,background:stat.color+'20',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                      <StatIconLg type={stat.type} color={stat.color}/>
+                      <StatIconLg type={stat.type} color={stat.color} iconColor={stat.iconColor}/>
                     </div>
                   </div>
                   <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
@@ -6175,8 +6204,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:12}}>
               {data.accounts.map(acct=>{
                 const hs=calcHealthScore(acct)
-                const hc=hs>=70?'#16a34a':hs>=40?'#ea580c':'#dc2626'
-                const tier=hs>=70?'Healthy':hs>=40?'At Risk':'Critical'
+                const hc=getHealthColor(hs)
                 const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
                 const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
                 const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
@@ -6230,7 +6258,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                               strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
                             <text x="26" y="30" textAnchor="middle" fontSize={15} fontWeight="800" fill={hc}>{hs}</text>
                           </svg>
-                          <div style={{fontSize:9,fontWeight:700,color:hc,marginTop:1,letterSpacing:'0.04em'}}>{tier}</div>
                         </div>
                       </div>
                       {/* Divider */}
@@ -9233,7 +9260,7 @@ function AllProjectsPage({data, setData, onBack}) {
           {view==='timeline'&&filtered.length>0&&(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               {grouped.map(({a:acct,projs})=>{
-                const isCol=collapsed.has(acct.id);const hs=calcHealthScore(acct);const hc=hs>=70?S.green:hs>=40?S.orange:S.red
+                const isCol=collapsed.has(acct.id);const hs=calcHealthScore(acct);const hc=getHealthColor(hs)
                 return(
                   <div key={acct.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'visible',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
                     {/* Account section header */}
