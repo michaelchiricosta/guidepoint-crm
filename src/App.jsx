@@ -1468,6 +1468,8 @@ function Contacts({acct,setAcct}) {
   const [hoveredPhoto,setHoveredPhoto] = useState(null)
   const [photoTarget,setPhotoTarget] = useState(null)
   const photoInputRef = useRef(null)
+  const [editingNotes,setEditingNotes] = useState(null)
+  const [notesText,setNotesText] = useState('')
 
   useEffect(()=>{
     if(!photoPopover)return
@@ -1557,8 +1559,36 @@ function Contacts({acct,setAcct}) {
     setPhotoPopover(null)
   }
   const dismissMention=id=>setAcct(p=>({...p,unknownMentions:(p.unknownMentions||[]).filter(m=>m.id!==id)}))
-  const dismissSuggestion=id=>setAcct(p=>({...p,relSuggestions:(p.relSuggestions||[]).filter(s=>s.id!==id)}))
-  const applySuggestion=s=>{setAcct(p=>({...p,contacts:p.contacts.map(c=>{const fn=s.contactName.split(' ')[0].toLowerCase();return c.name.toLowerCase().includes(fn)?{...c,relStatus:s.suggestedStatus}:c}),relSuggestions:(p.relSuggestions||[]).filter(sg=>sg.id!==s.id)}))}
+  const dismissSuggestion=id=>setAcct(p=>({...p,contactSuggestions:(p.contactSuggestions||[]).filter(s=>s.id!==id)}))
+  const applySuggestion=s=>{
+    setAcct(p=>({
+      ...p,
+      contacts:p.contacts.map(c=>{
+        const fn=s.contactName.split(' ')[0].toLowerCase()
+        if(!c.name.toLowerCase().includes(fn))return c
+        let u={...c}
+        if(s.suggestedRole&&s.suggestedRole!==c.title)u.title=s.suggestedRole
+        if(s.suggestedInfluence)u.influence=s.suggestedInfluence
+        return u
+      }),
+      contactSuggestions:(p.contactSuggestions||[]).filter(sg=>sg.id!==s.id)
+    }))
+  }
+  const acceptAllSuggestions=()=>{
+    const sugs=acct.contactSuggestions||[]
+    setAcct(p=>({
+      ...p,
+      contacts:p.contacts.map(c=>{
+        const matchSug=sugs.find(s=>{const fn=s.contactName.split(' ')[0].toLowerCase();return c.name.toLowerCase().includes(fn)})
+        if(!matchSug)return c
+        let u={...c}
+        if(matchSug.suggestedRole&&matchSug.suggestedRole!==c.title)u.title=matchSug.suggestedRole
+        if(matchSug.suggestedInfluence)u.influence=matchSug.suggestedInfluence
+        return u
+      }),
+      contactSuggestions:[]
+    }))
+  }
   const logMeeting=internalId=>{
     if(!meetingForm.date)return
     setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===internalId?{...c,internalMeetings:[...(c.internalMeetings||[]),{id:uid(),...meetingForm}]}:c)}))
@@ -1666,13 +1696,34 @@ function Contacts({acct,setAcct}) {
               <div style={{fontSize:12,color:S.muted}}>{c.title}{c.dept?` · ${c.dept}`:''}</div>
             </div>
           </div>
+          {/* Notes — prominent, always visible, editable */}
+          <div style={{marginBottom:12}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Notes</div>
+              {editingNotes!==c.id&&<button onClick={e=>{e.stopPropagation();setEditingNotes(c.id);setNotesText(c.notes||'')}} style={{background:'transparent',border:'none',cursor:'pointer',color:S.dim,padding:'2px 4px',fontSize:13,lineHeight:1}} title='Edit notes'>✏️</button>}
+            </div>
+            {editingNotes===c.id?(
+              <div>
+                <textarea value={notesText} onChange={e=>setNotesText(e.target.value)} rows={3} autoFocus
+                  style={{width:'100%',fontSize:12,padding:'6px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,resize:'vertical',fontFamily:'inherit',lineHeight:1.5,boxSizing:'border-box'}}/>
+                <div style={{display:'flex',gap:5,marginTop:5}}>
+                  <Btn variant='primary' onClick={()=>{setAcct(p=>({...p,contacts:p.contacts.map(ct=>ct.id===c.id?{...ct,notes:notesText}:ct)}));setEditingNotes(null)}} style={{fontSize:11,padding:'3px 10px'}}>Save</Btn>
+                  <Btn onClick={()=>setEditingNotes(null)} style={{fontSize:11,padding:'3px 8px'}}>Cancel</Btn>
+                </div>
+              </div>
+            ):(
+              <div style={{fontSize:12,color:c.notes?S.secondary:S.dim,lineHeight:1.6,whiteSpace:'pre-wrap',fontStyle:c.notes?'normal':'italic'}}>
+                {c.notes||'No notes yet'}
+              </div>
+            )}
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',marginBottom:10,fontSize:12}}>
             {[['Email',c.email],['Cell',c.cell],['Location',c.location]].map(([l,v])=><div key={l}><span style={{color:S.muted}}>{l}: </span><span style={{color:S.txt}}>{v||'—'}</span></div>)}
             <div><span style={{color:S.muted}}>LinkedIn: </span>{c.linkedin?<a href={c.linkedin} target='_blank' rel='noopener noreferrer' onClick={e=>e.stopPropagation()} style={{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3}}><span style={{fontSize:10,fontWeight:700,color:'#fff',background:'#0a66c2',padding:'1px 6px',borderRadius:3,lineHeight:'16px'}}>in</span></a>:<span style={{color:S.txt}}>—</span>}</div>
           </div>
           {isVendor&&c.vendorCompany&&<div style={{fontSize:12,color:S.secondary,marginBottom:8}}><span style={{color:S.muted}}>Company: </span>{c.vendorCompany}</div>}
           {c.lastInteracted&&<div style={{fontSize:11,color:S.muted,marginBottom:8}}>Last interacted: {fmtDate(c.lastInteracted)}</div>}
-          {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Notes',c.notes],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:S.secondary,lineHeight:1.6}}>{v}</div></div>:null)}
+          {[['Tools / Tech Owned',c.toolsOwn],['Key Goals',c.goals],['Key Pains',c.pains],['Personal Notes',c.personalNotes]].map(([l,v])=>v?<div key={l} style={{marginBottom:8}}><div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>{l}</div><div style={{fontSize:12,color:S.secondary,lineHeight:1.6}}>{v}</div></div>:null)}
           {isInternal&&(
             <div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:10}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
@@ -1991,17 +2042,33 @@ function Contacts({acct,setAcct}) {
           ))}
         </div>
       </div>}
-      {(acct.relSuggestions||[]).length>0&&<div style={{marginBottom:12,display:'flex',flexDirection:'column',gap:5}}>
-        {(acct.relSuggestions||[]).map(s=>(
-          <div key={s.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 12px',background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:7,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,color:S.blue}}>AI suggests: Mark <strong>{s.contactName}</strong> as <strong>{s.suggestedStatus}</strong> — {s.reason}</span>
-            <div style={{display:'flex',gap:5,flexShrink:0}}>
-              <Btn variant='primary' onClick={()=>applySuggestion(s)} style={{fontSize:11,padding:'4px 10px'}}>Apply</Btn>
-              <Btn onClick={()=>dismissSuggestion(s.id)} style={{fontSize:11,padding:'4px 8px'}}>Dismiss</Btn>
+      {(acct.contactSuggestions||[]).length>0&&(
+        <div style={{marginBottom:12,background:S.isLight?'rgba(59,130,246,0.04)':'rgba(59,130,246,0.08)',border:`1px solid ${S.isLight?'rgba(59,130,246,0.2)':'rgba(59,130,246,0.3)'}`,borderRadius:8,overflow:'hidden'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',borderBottom:`1px solid ${S.bdr}`,background:S.isLight?'rgba(59,130,246,0.06)':'rgba(59,130,246,0.1)'}}>
+            <span style={{fontSize:12,fontWeight:700,color:S.blue}}>AI Contact Suggestions <span style={{fontWeight:400,opacity:0.7}}>({(acct.contactSuggestions||[]).length})</span></span>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={acceptAllSuggestions} style={{fontSize:11,color:'#fff',background:S.blue,border:'none',borderRadius:5,padding:'3px 10px',cursor:'pointer',fontWeight:600}}>Accept All</button>
+              <button onClick={()=>setAcct(p=>({...p,contactSuggestions:[]}))} style={{fontSize:11,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 10px',cursor:'pointer'}}>Dismiss All</button>
             </div>
           </div>
-        ))}
-      </div>}
+          {(acct.contactSuggestions||[]).map(s=>(
+            <div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderBottom:`1px solid ${S.bdr}`,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                  <span style={{fontSize:12,fontWeight:700,color:S.txt}}>{s.contactName}</span>
+                  {s.suggestedRole&&<span style={{fontSize:12,color:S.muted}}>→ Title: <strong style={{color:S.txt}}>{s.suggestedRole}</strong></span>}
+                  {s.suggestedInfluence&&<span style={{fontSize:12,color:S.muted}}>· Influence: <strong style={{color:S.txt}}>{s.suggestedInfluence}</strong></span>}
+                </div>
+                {s.context&&<div style={{fontSize:11,color:S.muted,marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.context.slice(0,60)}{s.context.length>60?'…':''}</div>}
+              </div>
+              <div style={{display:'flex',gap:5,flexShrink:0}}>
+                <Btn variant='primary' onClick={()=>applySuggestion(s)} style={{fontSize:11,padding:'4px 10px'}}>Accept</Btn>
+                <Btn onClick={()=>dismissSuggestion(s.id)} style={{fontSize:11,padding:'4px 8px'}}>Dismiss</Btn>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Top bar: view toggle + add button */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
@@ -2083,6 +2150,7 @@ function Contacts({acct,setAcct}) {
                       {c.relStatus}
                     </span>}
                   </div>
+                  {c.notes&&<div style={{fontSize:11,color:S.muted,marginTop:7,lineHeight:1.5,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{c.notes.slice(0,80)}{c.notes.length>80?'…':''}</div>}
                 </div>
               )
             })}
@@ -4233,7 +4301,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     }
   }
 
-  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],\n  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.`
+  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.`
 
   const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
@@ -4250,7 +4318,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
       } else {
         commitSave(parsed,date,new Set())
-        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(parsed)})
         maybeShowTechSuggestions(parsed)
       }
       const _det = detectCompanyMentions(`${parsed?.intelEntry?.participants||''} ${parsed?.intelEntry?.summary||''}`)
@@ -4365,6 +4433,14 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     setLoading(false)
   }
 
+  const countNotesUpdated = (parsed) => {
+    if (!parsed.contactUpdates?.length) return 0
+    return parsed.contactUpdates.filter(u=>
+      u.noteToAppend && u.name &&
+      (acct.contacts||[]).some(c=>c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()))
+    ).length
+  }
+
   const commitSave = (parsed, date, selectedFuTempIds) => {
     setAcct(prev=>{
       let next={...prev}
@@ -4383,12 +4459,28 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         if(toAdd.length) next.followUps=[...(prev.followUps||[]),...toAdd]
       }
       if (parsed.contactUpdates?.length) {
-        next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes||'')+' | ['+date+'] '+u.noteToAppend:c.notes}:c})
+        next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes?c.notes+' | ['+date+']: '+u.noteToAppend:'['+date+']: '+u.noteToAppend):c.notes}:c})
         const existFn=(prev.contacts||[]).map(c=>c.name.split(' ')[0].toLowerCase())
         const newUnknowns=parsed.contactUpdates.filter(u=>u.name&&!existFn.some(fn=>u.name.toLowerCase().includes(fn))).map(u=>({id:uid(),name:u.name,mentionedDate:date,context:''})).filter(u=>!(prev.unknownMentions||[]).some(m=>m.name.toLowerCase()===u.name.toLowerCase()))
         if(newUnknowns.length) next.unknownMentions=[...(prev.unknownMentions||[]),...newUnknowns]
+        // Upsert contactSuggestions — one per contact, always most recent
+        const existSugs=[...(prev.contactSuggestions||[])]
+        parsed.contactUpdates.forEach(u=>{
+          if(!u.suggestedRole&&!u.suggestedInfluence)return
+          const fn=u.name?.split(' ')[0]?.toLowerCase()
+          if(!fn)return
+          const existIdx=existSugs.findIndex(s=>s.contactName.toLowerCase().includes(fn)||fn.includes(s.contactName.split(' ')[0].toLowerCase()))
+          const newSug={id:uid(),contactName:u.name,suggestedRole:u.suggestedRole||'',suggestedInfluence:u.suggestedInfluence||'',context:u.context||'',lastUpdated:date}
+          if(existIdx>=0){
+            const ex=existSugs[existIdx]
+            const ctx=u.context?(ex.context?(ex.context+' | '+u.context).slice(0,200):u.context):ex.context
+            existSugs[existIdx]={...newSug,id:ex.id,context:ctx}
+          } else {
+            existSugs.push(newSug)
+          }
+        })
+        next.contactSuggestions=existSugs
       }
-      if (parsed.relationshipSuggestions?.length) next.relSuggestions=[...(prev.relSuggestions||[]),...parsed.relationshipSuggestions.map(s=>({...s,id:uid()}))]
       return next
     })
   }
@@ -4408,8 +4500,7 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Write each task like a 
 {
   "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},
   "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],
-  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"new info only"}],
-  "relationshipSuggestions":[{"contactName":"string","suggestedStatus":"Strong|Building|Needs Attention","reason":"one line explanation"}],
+  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],
   "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]
 }
 
@@ -4429,7 +4520,7 @@ ${inputText}`}]
         setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
       } else {
         commitSave(parsed,date,new Set())
-        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true})
+        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(parsed)})
         maybeShowTechSuggestions(parsed)
       }
       setText('')
@@ -4632,6 +4723,7 @@ ${inputText}`}]
               <div style={{fontSize:12,color:'#15803d'}}>
                 {result.selectedMode?`Added ${result.followUps} follow-up${result.followUps!==1?'s':''} to your account`:result.skipAll?'Intel logged. No follow-ups added.':result.noFollowUps?'Intel logged successfully — no follow-ups suggested.':`Done — ${result.entry?'logged 1 intel entry, ':''}added ${result.followUps} follow-up${result.followUps!==1?'s':''},updated ${result.contacts} contact${result.contacts!==1?'s':''}`}
               </div>
+              {result.notesUpdated>0&&<div style={{fontSize:11,color:'#16a34a',marginTop:3}}>Notes updated for {result.notesUpdated} contact{result.notesUpdated!==1?'s':''}</div>}
               {pdfAnalysisMethod&&<div style={{fontSize:11,color:'#86efac',marginTop:2}}>Analyzed via: {pdfAnalysisMethod}</div>}
             </div>
           </div>
@@ -4780,12 +4872,12 @@ ${inputText}`}]
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 <button onClick={()=>{setPendingParsed(null);setFuSelections(new Set())}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Cancel</button>
                 <button
-                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,new Set());setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,skipAll:true,notesUpdated:countNotesUpdated(parsed)});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
                   style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>
                   Skip All
                 </button>
                 <button
-                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
+                  onClick={()=>{const{parsed,date}=pendingParsed;commitSave(parsed,date,fuSelections);const cnt=fuSelections.size;setResult({followUps:cnt,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,selectedMode:true,notesUpdated:countNotesUpdated(parsed)});maybeShowTechSuggestions(parsed);setPendingParsed(null);setFuSelections(new Set())}}
                   disabled={fuSelections.size===0}
                   style={{padding:'8px 16px',background:fuSelections.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:fuSelections.size===0?'not-allowed':'pointer'}}>
                   Add Selected Follow-Ups
@@ -5565,7 +5657,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     return()=>window.removeEventListener('resize',check)
   },[])
 
-  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
+  const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],contactSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
   const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
@@ -5872,7 +5964,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const addAccount = () => {
     if (!newName.trim()) return
     const id = uid()
-    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}}
+    const blank = {id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],contactSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}}
     setData(p=>({...p,accounts:[...p.accounts,blank]}))
     onEnterAccount(id)
     setShowAdd(false)
