@@ -6235,15 +6235,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     }}
                   >
                     <div style={{padding:S.isLight?'12px 12px 10px':'14px',flex:1}}>
-                      {/* Status pill (light mode) or dot (dark mode) */}
-                      {S.isLight?(
+                      {/* Status dot (dark mode only — no text label) */}
+                      {!S.isLight&&(
                         <div style={{marginBottom:6}}>
-                          <span style={{fontSize:10,fontWeight:700,color:statusPillColor.c,background:statusPillColor.b,borderRadius:999,padding:'2px 8px'}}>{acct.status||'Active'}</span>
-                        </div>
-                      ):(
-                        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6}}>
-                          <div style={{width:6,height:6,borderRadius:'50%',background:sc,flexShrink:0}}/>
-                          <span style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>{acct.status||'Active'}</span>
+                          <div style={{width:6,height:6,borderRadius:'50%',background:sc}}/>
                         </div>
                       )}
                       {/* Name + health gauge */}
@@ -6263,18 +6258,37 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       {/* Divider */}
                       <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:10}}/>
                       {/* Stat chips */}
-                      <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                        {[
-                          {icon:'📅',label:lastC===null?'No contact':`${lastC}d ago`,c:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'},
-                          {icon:'🎯',label:`${activePjs} project${activePjs!==1?'s':''}`,c:S.isLight?'#475569':'rgba(255,255,255,0.55)'},
-                          {icon:'☐',label:`${openFUs} open`,c:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')},
-                        ].map(chip=>(
-                          <div key={chip.label} style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                            <span style={{fontSize:10}}>{chip.icon}</span>
-                            <span style={{fontSize:11,fontWeight:600,color:chip.c}}>{chip.label}</span>
+                      {(()=>{
+                        const chip=style=>({display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px',...style})
+                        return(
+                        <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                          <div style={chip()}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                              <rect x="7" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
+                              <rect x="11" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
+                              <rect x="15" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
+                              <rect x="7" y="17" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
+                              <rect x="11" y="17" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
+                            </svg>
+                            <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
                           </div>
-                        ))}
-                      </div>
+                          <div style={chip()}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
+                          </div>
+                          <div style={chip()}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1c1c1e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                              <polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>
+                            </svg>
+                            <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
+                          </div>
+                        </div>
+                        )
+                      })()}
                     </div>
                     {/* Alert strip at bottom for critical items (light mode) */}
                     {S.isLight&&critFUs>0&&(
