@@ -162,14 +162,14 @@ const SAMPLE = {
     relationship:'6+ years', lastContact:'2026-05-19',
     notes:'Glass-box philosophy — they want to own licenses not rent platforms. Anti-AI-hype. Cost-conscious. Rudy is the north star.',
     contacts:[
-      {id:'c1',contactType:'Client',name:'Jamie Jervey',title:'CISO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Executive Sponsor',sentiment:'positive',relStatus:'Strong',toolsOwn:'Overall security portfolio',goals:'Strategic security partner. Modern transparent SOC.',pains:'Too many vendor voices. No clean decision framework. Overloaded.',notes:'Ultimate decision authority. Values trusted partners. Target for ORBIE Award Boston.',personalNotes:'Loves executive networking and camera presence. High-value intimate experiences over golf outings.',lastInteracted:'2026-03-13',vendorCompany:'',internalMeetings:[]},
-      {id:'c2',contactType:'Client',name:'Rudy Montoya',title:'AVP, Information Security',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Technical Gatekeeper',sentiment:'positive',relStatus:'Strong',toolsOwn:'Entire security stack — runs day-to-day InfoSec',goals:'Defensible transparent architecture. No fake procurement.',pains:'10X delivery issues. QRadar migration complexity. Team asking approval on everything.',notes:'PRIMARY RELATIONSHIP. Candid, long memory, hates buzzwords and black-box. If Rudy respects you the account opens.',personalNotes:'Avid photographer (Leica D-Lux 7, black and white). 3D printing (Bamboo printer). Firearms enthusiast. Recently traveled to Italy.',lastInteracted:'2026-05-19',vendorCompany:'',internalMeetings:[]},
-      {id:'c3',contactType:'Client',name:'Marc Wood',title:'CIO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT',influence:'Financial Gatekeeper',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'IT strategy and all technology investments',goals:'Data-driven governance. Strict ROI.',pains:'Vendors who cannot justify spend clearly.',notes:'Hardball negotiator. Does not do favors for vendors. Build through Rudy and Jamie — do not approach directly.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
-      {id:'c4',contactType:'Client',name:'Dave Bresnahan',title:'COO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Executive',influence:'Final Approval',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'Strategic veto on major vendor decisions',goals:'Operational risk management. Clean decision process.',pains:'Availability due to international travel.',notes:'Final sign-off and approval bottleneck. Frame all material as risk decision not feature comparison.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
-      {id:'c5',contactType:'Client',name:'Jamie Dennis',title:'QA / Compliance',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT Compliance',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'Compliance processes and infrastructure alignment',goals:'Clean infrastructure deployments.',pains:'Not kept in loop by vendors and internal teams.',notes:'Critical for infrastructure buy-in. Pinged Mike 5/19 on Saviynt contract. Without his alignment deployments stall.',personalNotes:'',lastInteracted:'2026-05-19',vendorCompany:'',internalMeetings:[]},
-      {id:'c6',contactType:'Client',name:'Bill Randall',title:'Future BHSI SOC Director',email:'',cell:'',linkedin:'',location:'Rhode Island (military deployment)',dept:'GuidePoint to BHSI',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'FIDO2 analysis and secure browser evaluation',goals:'Join BHSI as SOC Director. Build modern SOC.',pains:'Currently on military deployment — transition in progress.',notes:'Deeply trusted by Rudy. Expected to join BHSI as SOC Director May 2026. FIDO2 and browser work must be documented before GuidePoint departure.',personalNotes:'Military deployment Guam/Rhode Island.',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
-      {id:'c7',contactType:'Client',name:'Jake (SOC)',title:'SOC Engineer',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Risk Factor',sentiment:'negative',relStatus:'Needs Attention',toolsOwn:'Internal SOC engineering — moved team to 1Password unilaterally',goals:'Modern SOC tooling his way.',pains:'Feels ignored by security leadership.',notes:'Favors ReliaQuest and 10X internally. Slowed CyberArk WPM eval. Do NOT rely as champion. Rudy is frustrated with him.',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]},
-      {id:'c8',contactType:'Internal',name:'Mike Chiricosta',title:'Enterprise Client Manager',email:'',cell:'',linkedin:'',location:'',dept:'GuidePoint Security',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'',goals:'',pains:'',notes:'Account owner',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]}
+      {id:'c1',contactType:'Client',name:'Jamie Jervey',title:'CISO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Executive Sponsor',sentiment:'positive',relStatus:'Strong',toolsOwn:'Overall security portfolio',goals:'Strategic security partner. Modern transparent SOC.',pains:'Too many vendor voices. No clean decision framework. Overloaded.',notes:'Ultimate decision authority. Values trusted partners. Target for ORBIE Award Boston.',personalNotes:'Loves executive networking and camera presence. High-value intimate experiences over golf outings.',lastInteracted:'2026-03-13',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c2',contactType:'Client',name:'Rudy Montoya',title:'AVP, Information Security',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Technical Gatekeeper',sentiment:'positive',relStatus:'Strong',toolsOwn:'Entire security stack — runs day-to-day InfoSec',goals:'Defensible transparent architecture. No fake procurement.',pains:'10X delivery issues. QRadar migration complexity. Team asking approval on everything.',notes:'PRIMARY RELATIONSHIP. Candid, long memory, hates buzzwords and black-box. If Rudy respects you the account opens.',personalNotes:'Avid photographer (Leica D-Lux 7, black and white). 3D printing (Bamboo printer). Firearms enthusiast. Recently traveled to Italy.',lastInteracted:'2026-05-19',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c3',contactType:'Client',name:'Marc Wood',title:'CIO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT',influence:'Financial Gatekeeper',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'IT strategy and all technology investments',goals:'Data-driven governance. Strict ROI.',pains:'Vendors who cannot justify spend clearly.',notes:'Hardball negotiator. Does not do favors for vendors. Build through Rudy and Jamie — do not approach directly.',personalNotes:'',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c4',contactType:'Client',name:'Dave Bresnahan',title:'COO',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Executive',influence:'Final Approval',sentiment:'neutral',relStatus:'Needs Attention',toolsOwn:'Strategic veto on major vendor decisions',goals:'Operational risk management. Clean decision process.',pains:'Availability due to international travel.',notes:'Final sign-off and approval bottleneck. Frame all material as risk decision not feature comparison.',personalNotes:'',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c5',contactType:'Client',name:'Jamie Dennis',title:'QA / Compliance',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'IT Compliance',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'Compliance processes and infrastructure alignment',goals:'Clean infrastructure deployments.',pains:'Not kept in loop by vendors and internal teams.',notes:'Critical for infrastructure buy-in. Pinged Mike 5/19 on Saviynt contract. Without his alignment deployments stall.',personalNotes:'',lastInteracted:'2026-05-19',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c6',contactType:'Client',name:'Bill Randall',title:'Future BHSI SOC Director',email:'',cell:'',linkedin:'',location:'Rhode Island (military deployment)',dept:'GuidePoint to BHSI',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'FIDO2 analysis and secure browser evaluation',goals:'Join BHSI as SOC Director. Build modern SOC.',pains:'Currently on military deployment — transition in progress.',notes:'Deeply trusted by Rudy. Expected to join BHSI as SOC Director May 2026. FIDO2 and browser work must be documented before GuidePoint departure.',personalNotes:'Military deployment Guam/Rhode Island.',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c7',contactType:'Client',name:'Jake (SOC)',title:'SOC Engineer',email:'',cell:'',linkedin:'',location:'Boston, MA',dept:'Information Security',influence:'Risk Factor',sentiment:'negative',relStatus:'Needs Attention',toolsOwn:'Internal SOC engineering — moved team to 1Password unilaterally',goals:'Modern SOC tooling his way.',pains:'Feels ignored by security leadership.',notes:'Favors ReliaQuest and 10X internally. Slowed CyberArk WPM eval. Do NOT rely as champion. Rudy is frustrated with him.',personalNotes:'',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]},
+      {id:'c8',contactType:'Internal',name:'Mike Chiricosta',title:'Enterprise Client Manager',email:'',cell:'',linkedin:'',location:'',dept:'GuidePoint Security',influence:'Ally',sentiment:'positive',relStatus:'Strong',toolsOwn:'',goals:'',pains:'',notes:'Account owner',personalNotes:'',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]}
     ],
     techStack:[
       {id:'t1',vendor:'QRadar / QROC',products:'Co-managed SIEM',category:'SIEM / SOC',status:'Replacing',renewalDate:'2026-04-01',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'Rudy Montoya',replacementOptions:'',notes:'EOL April 2026. WinCollect agents crashing on Exchange and GIS servers. 15-20TB log migration to AWS S3 needed.'},
@@ -1354,7 +1354,7 @@ function Overview({acct,setAcct,setTab,apiKey}) {
                       style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,cursor:'pointer',transition:'background 0.1s'}}
                       onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
                       onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
-                      <div style={{width:34,height:34,borderRadius:'50%',background:'rgba(249,115,22,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.orange,flexShrink:0}}>{initials(c.name)}</div>
+                      <div style={{width:34,height:34,borderRadius:'50%',background:'rgba(249,115,22,0.12)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:S.orange,flexShrink:0,overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</div>
                         <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.title}</div>
@@ -1464,6 +1464,17 @@ function Contacts({acct,setAcct}) {
   const nodeDragRef = useRef(null)
   const [liveDragPos,setLiveDragPos] = useState(null)
   const justDraggedRef = useRef(false)
+  const [photoPopover,setPhotoPopover] = useState(null)
+  const [hoveredPhoto,setHoveredPhoto] = useState(null)
+  const [photoTarget,setPhotoTarget] = useState(null)
+  const photoInputRef = useRef(null)
+
+  useEffect(()=>{
+    if(!photoPopover)return
+    const h=()=>setPhotoPopover(null)
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[photoPopover])
 
   useEffect(()=>{
     if(!canvasRef.current||contactView!=='orgchart')return
@@ -1516,12 +1527,35 @@ function Contacts({acct,setAcct}) {
     return()=>window.removeEventListener('keydown',h)
   },[contactView])
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',internalMeetings:[]}
+  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',contactPhoto:'',internalMeetings:[]}
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{if(window.confirm('Delete contact?'))setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}))}
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
   const relC={Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
   const saveNote=c=>{if(!noteText.trim()){setNoteTarget(null);return};const stamp=`[${new Date().toISOString().split('T')[0]}] ${noteText.trim()}`;setAcct(p=>({...p,contacts:p.contacts.map(ct=>ct.id===c.id?{...ct,notes:(ct.notes?ct.notes+' | ':'')+stamp}:ct)}));setNoteTarget(null);setNoteText('')}
+  const compressImage = (file) => new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    const img = new Image()
+    img.onload = () => {
+      const maxSize = 200
+      let w = img.width, h = img.height
+      if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize } }
+      else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.8))
+    }
+    img.src = URL.createObjectURL(file)
+  })
+  const savePhoto = async (contactId, file) => {
+    const b64 = await compressImage(file)
+    setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===contactId?{...c,contactPhoto:b64}:c)}))
+    setPhotoPopover(null)
+  }
+  const removePhoto = (contactId) => {
+    setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===contactId?{...c,contactPhoto:''}:c)}))
+    setPhotoPopover(null)
+  }
   const dismissMention=id=>setAcct(p=>({...p,unknownMentions:(p.unknownMentions||[]).filter(m=>m.id!==id)}))
   const dismissSuggestion=id=>setAcct(p=>({...p,relSuggestions:(p.relSuggestions||[]).filter(s=>s.id!==id)}))
   const applySuggestion=s=>{setAcct(p=>({...p,contacts:p.contacts.map(c=>{const fn=s.contactName.split(' ')[0].toLowerCase();return c.name.toLowerCase().includes(fn)?{...c,relStatus:s.suggestedStatus}:c}),relSuggestions:(p.relSuggestions||[]).filter(sg=>sg.id!==s.id)}))}
@@ -1576,7 +1610,7 @@ function Contacts({acct,setAcct}) {
       <Card key={c.id}>
         <div onClick={()=>setExp(isOpen?null:c.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
           <div style={{width:36,height:36,borderRadius:'50%',background:avatarBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:avatarColor,flexShrink:0,position:'relative'}}>
-            {initials(c.name)}
+            {c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:initials(c.name)}
             {isInternal&&<span style={{position:'absolute',bottom:-2,right:-2,width:12,height:12,borderRadius:'50%',background:S.blue,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',border:`1px solid ${S.surf}`}}>G</span>}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -1600,6 +1634,38 @@ function Contacts({acct,setAcct}) {
           <div style={{display:'flex',gap:6}}><Btn variant='primary' onClick={()=>saveNote(c)} style={{fontSize:11,padding:'4px 10px'}}>Save</Btn><Btn onClick={()=>{setNoteTarget(null);setNoteText('')}} style={{fontSize:11,padding:'4px 8px'}}>Cancel</Btn></div>
         </div>}
         {isOpen&&<div style={{padding:'12px 14px 16px',borderTop:`1px solid ${S.bdr}`}}>
+          {/* Photo upload section */}
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}} onClick={e=>e.stopPropagation()}>
+            <div style={{position:'relative'}}
+              onMouseEnter={()=>setHoveredPhoto(c.id)}
+              onMouseLeave={()=>setHoveredPhoto(null)}>
+              <div
+                onClick={e=>{e.stopPropagation();setPhotoPopover(photoPopover===c.id?null:c.id)}}
+                style={{width:52,height:52,borderRadius:'50%',background:avatarBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,fontWeight:700,color:avatarColor,cursor:'pointer',position:'relative',overflow:'hidden'}}>
+                {c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span>{initials(c.name)}</span>}
+                {hoveredPhoto===c.id&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.42)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,pointerEvents:'none'}}>📷</div>}
+              </div>
+              {photoPopover===c.id&&(
+                <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}
+                  style={{position:'absolute',left:58,top:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.18)',minWidth:148,overflow:'hidden',whiteSpace:'nowrap'}}>
+                  <button
+                    onClick={()=>{setPhotoTarget(c.id);photoInputRef.current?.click();setPhotoPopover(null)}}
+                    style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,color:S.txt,fontSize:12,cursor:'pointer',textAlign:'left'}}>
+                    📷 Upload Photo
+                  </button>
+                  {c.contactPhoto&&<button
+                    onClick={()=>removePhoto(c.id)}
+                    style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',color:S.red,fontSize:12,cursor:'pointer',textAlign:'left'}}>
+                    Remove Photo
+                  </button>}
+                </div>
+              )}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,color:S.txt,marginBottom:1}}>{c.name}</div>
+              <div style={{fontSize:12,color:S.muted}}>{c.title}{c.dept?` · ${c.dept}`:''}</div>
+            </div>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',marginBottom:10,fontSize:12}}>
             {[['Email',c.email],['Cell',c.cell],['Location',c.location]].map(([l,v])=><div key={l}><span style={{color:S.muted}}>{l}: </span><span style={{color:S.txt}}>{v||'—'}</span></div>)}
             <div><span style={{color:S.muted}}>LinkedIn: </span>{c.linkedin?<a href={c.linkedin} target='_blank' rel='noopener noreferrer' onClick={e=>e.stopPropagation()} style={{textDecoration:'none',display:'inline-flex',alignItems:'center',gap:3}}><span style={{fontSize:10,fontWeight:700,color:'#fff',background:'#0a66c2',padding:'1px 6px',borderRadius:3,lineHeight:'16px'}}>in</span></a>:<span style={{color:S.txt}}>—</span>}</div>
@@ -1980,10 +2046,34 @@ function Contacts({acct,setAcct}) {
               return (
                 <div key={c.id}
                   onClick={()=>{setContactView('list');setExp(c.id)}}
-                  style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,padding:'16px',cursor:'pointer',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s'}}
+                  style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,padding:'16px',cursor:'pointer',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s',position:'relative'}}
                   onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-1px)'}}
                   onMouseLeave={e=>{e.currentTarget.style.boxShadow=S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none';e.currentTarget.style.transform='translateY(0)'}}>
-                  <div style={{width:40,height:40,borderRadius:'50%',background:inf.b,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:inf.c,marginBottom:10}}>{initials(c.name)}</div>
+                  <div style={{position:'relative',display:'inline-block',marginBottom:10}}
+                    onMouseEnter={()=>setHoveredPhoto(c.id)}
+                    onMouseLeave={()=>setHoveredPhoto(null)}>
+                    <div
+                      onClick={e=>{e.stopPropagation();setPhotoPopover(photoPopover===c.id?null:c.id)}}
+                      style={{width:48,height:48,borderRadius:'50%',background:inf.b,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:inf.c,cursor:'pointer',position:'relative',overflow:'hidden'}}>
+                      {c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}
+                      {hoveredPhoto===c.id&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.42)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,pointerEvents:'none'}}>📷</div>}
+                    </div>
+                    {photoPopover===c.id&&(
+                      <div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}
+                        style={{position:'absolute',left:54,top:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.18)',minWidth:148,overflow:'hidden',whiteSpace:'nowrap'}}>
+                        <button
+                          onClick={()=>{setPhotoTarget(c.id);photoInputRef.current?.click();setPhotoPopover(null)}}
+                          style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,color:S.txt,fontSize:12,cursor:'pointer',textAlign:'left'}}>
+                          📷 Upload Photo
+                        </button>
+                        {c.contactPhoto&&<button
+                          onClick={()=>removePhoto(c.id)}
+                          style={{display:'block',width:'100%',padding:'9px 14px',background:'transparent',border:'none',color:S.red,fontSize:12,cursor:'pointer',textAlign:'left'}}>
+                          Remove Photo
+                        </button>}
+                      </div>
+                    )}
+                  </div>
                   <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:2}}>{c.name}</div>
                   <div style={{fontSize:11,color:S.muted,marginBottom:8}}>{c.title}</div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
@@ -2094,7 +2184,7 @@ function Contacts({acct,setAcct}) {
                       transition:isLive?'none':'box-shadow 0.15s, transform 0.15s',
                       transform:isOver?'scale(1.05)':'scale(1)',
                       userSelect:'none',zIndex:isLive?20:openDetailNode===n.contactId?15:isOver?10:1}}>
-                    <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px'}}>{initials(c.name)}</div>
+                    <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                     <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
                     <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
                     {isRoot&&<div style={{fontSize:8,color:'#fde68a',textAlign:'center',marginTop:3,fontWeight:600}}>★ Primary</div>}
@@ -2180,7 +2270,7 @@ function Contacts({acct,setAcct}) {
                       style={{flexShrink:0,width:80,borderRadius:10,background:grad.gradient,padding:'8px 6px',cursor:'grab',boxShadow:`0 2px 8px ${grad.shadow}`,userSelect:'none',transition:'transform 0.15s'}}
                       onMouseEnter={e=>e.currentTarget.style.transform='scale(1.06)'}
                       onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
-                      <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#3c90ff',margin:'0 auto 4px'}}>{initials(c.name)}</div>
+                      <div style={{width:26,height:26,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800,color:'#3c90ff',margin:'0 auto 4px',overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                       <div style={{fontSize:9,fontWeight:700,color:'#fff',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name.split(' ')[0]}</div>
                     </div>
                   )
@@ -2339,7 +2429,7 @@ function Contacts({acct,setAcct}) {
                     <button
                       disabled={importSelections.size===0}
                       onClick={()=>{
-                        const toAdd=[...importSelections].map(i=>importRows[i]).map(r=>({id:uid(),contactType:'Client',name:r.name,title:r.title,email:r.email,linkedin:r.linkedin,notes:r.notes,influence:'Stakeholder',sentiment:'neutral',relStatus:'Unknown',cell:'',location:'',dept:'',toolsOwn:'',goals:'',pains:'',personalNotes:'',lastInteracted:'',vendorCompany:'',internalMeetings:[]}))
+                        const toAdd=[...importSelections].map(i=>importRows[i]).map(r=>({id:uid(),contactType:'Client',name:r.name,title:r.title,email:r.email,linkedin:r.linkedin,notes:r.notes,influence:'Stakeholder',sentiment:'neutral',relStatus:'Unknown',cell:'',location:'',dept:'',toolsOwn:'',goals:'',pains:'',personalNotes:'',lastInteracted:'',vendorCompany:'',contactPhoto:'',internalMeetings:[]}))
                         setAcct(p=>({...p,contacts:[...p.contacts,...toAdd]}))
                         setImportSuccess(`${toAdd.length} contact${toAdd.length!==1?'s':''} imported successfully`)
                         setImportRows([]);setImportSelections(new Set())
@@ -2361,6 +2451,8 @@ function Contacts({acct,setAcct}) {
           </div>
         </div>
       )}
+      <input ref={photoInputRef} type='file' accept='image/*' style={{display:'none'}}
+        onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)savePhoto(photoTarget,file);e.target.value=''}}/>
     </div>
   )
 }
@@ -8840,7 +8932,7 @@ function ClientView({acct, setAcct, onClose}) {
                       const nodeX=n.x/100*CANVAS_W, nodeY=n.y/100*CANVAS_H
                       return (
                         <div key={n.contactId} style={{position:'absolute',left:`${nodeX}px`,top:`${nodeY}px`,width:NODE_W,background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',boxShadow:`0 4px 16px ${grad.shadow}`,userSelect:'none'}}>
-                          <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px'}}>{initials(c.name)}</div>
+                          <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                           <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
                           <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
                         </div>
@@ -8858,7 +8950,7 @@ function ClientView({acct, setAcct, onClose}) {
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
                 {clientContacts.map(c=>(
                   <div key={c.id} style={{background:'#f8fafc',borderRadius:10,border:'1px solid #e2e8f0',padding:'14px 16px'}}>
-                    <div style={{width:36,height:36,borderRadius:'50%',background:'#eff6ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#2563eb',marginBottom:10}}>{initials(c.name)}</div>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:'#eff6ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#2563eb',marginBottom:10,overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                     <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.3,marginBottom:3}}>{c.name}</div>
                     <div style={{fontSize:12,color:'#64748b',lineHeight:1.4}}>{c.title}</div>
                   </div>
