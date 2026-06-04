@@ -5806,14 +5806,14 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModal, statDefs, setStatModal, onGoWhitespace}) {
+function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects}) {
   const statusDotColor = {Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const accounts = data.accounts.slice(0,10)
   const navActions = [
     {id:'tasks',label:"Today's Tasks",icon:<Calendar size={14}/>,action:()=>setTodayModal(true)},
     {id:'critical',label:'Critical Items',icon:<AlertTriangle size={14}/>,action:()=>setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals',label:'Renewals',icon:<RefreshCw size={14}/>,action:()=>setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
-    {id:'projects',label:'Active Projects',icon:<Target size={14}/>,action:()=>setStatModal({...statDefs[3],items:statDefs[3].buildData()})},
+    {id:'projects',label:'All Projects',icon:<Target size={14}/>,action:()=>onGoAllProjects&&onGoAllProjects()},
   ]
   return (
     <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
@@ -5883,7 +5883,7 @@ function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModa
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, theme, setTheme}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, theme, setTheme}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -6010,7 +6010,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} onEnterAccount={onEnterAccount} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} onEnterAccount={onEnterAccount} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* TOP NAV BAR */}
       <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:mob?'0 16px':'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
@@ -6102,7 +6102,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </button>
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
-              onClick={()=>setStatModal({...stat,items:stat.buildData()})}
+              onClick={()=>stat.type==='projects'&&onGoAllProjects?onGoAllProjects():setStatModal({...stat,items:stat.buildData()})}
               onMouseEnter={()=>setHoveredStat(stat.label)}
               onMouseLeave={()=>setHoveredStat(null)}
               style={S.isLight?{
@@ -9068,6 +9068,379 @@ function ClientView({acct, setAcct, onClose}) {
   )
 }
 
+function AllProjectsPage({data, setData, onBack}) {
+  const projBlank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
+  const [view,setView] = useState('timeline')
+  const [search,setSearch] = useState('')
+  const [statusFilter,setStatusFilter] = useState(new Set(PROJ_STATS))
+  const [accountFilter,setAccountFilter] = useState(()=>new Set(data.accounts.map(a=>a.id)))
+  const [vendorSearch,setVendorSearch] = useState('')
+  const [sort,setSort] = useState('Account')
+  const [collapsed,setCollapsed] = useState(new Set())
+  const [editModal,setEditModal] = useState(null)
+  const [editForm,setEditForm] = useState({})
+  const [moveMenu,setMoveMenu] = useState(null)
+  const [statusMenus,setStatusMenus] = useState(null)
+  const [notePopover,setNotePopover] = useState(null)
+  const [noteText,setNoteText] = useState('')
+  const [addModal,setAddModal] = useState(false)
+  const [addForm,setAddForm] = useState({})
+  const [addAcctId,setAddAcctId] = useState(data.accounts[0]?.id||'')
+
+  const allWithAcct = data.accounts.flatMap(a=>(a.projects||[]).map(p=>({...p,_aid:a.id,_aname:a.short||a.name})))
+
+  const filtered = allWithAcct.filter(p=>{
+    if(!accountFilter.has(p._aid))return false
+    if(!statusFilter.has(p.status))return false
+    if(vendorSearch&&!(p.vendor||'').toLowerCase().includes(vendorSearch.toLowerCase()))return false
+    if(search){const q=search.toLowerCase();if(!p.name.toLowerCase().includes(q)&&!(p.vendor||'').toLowerCase().includes(q)&&!p._aname.toLowerCase().includes(q))return false}
+    return true
+  })
+
+  const sorted = [...filtered].sort((a,b)=>{
+    if(sort==='Account')return a._aname.localeCompare(b._aname)||a.name.localeCompare(b.name)
+    if(sort==='Status')return PROJ_STATS.indexOf(a.status)-PROJ_STATS.indexOf(b.status)
+    if(sort==='Close Date')return(a.closeDate||'9999').localeCompare(b.closeDate||'9999')
+    return 0
+  })
+
+  const grouped = data.accounts.filter(a=>accountFilter.has(a.id)).map(a=>({a,projs:sorted.filter(p=>p._aid===a.id)})).filter(g=>g.projs.length>0)
+
+  const updateProj = (aid,pid,upd) => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===aid?{...a,projects:(a.projects||[]).map(p=>p.id===pid?{...p,...upd}:p)}:a)}))
+  const moveStatus = (aid,pid,ns) => {updateProj(aid,pid,{status:ns});setMoveMenu(null);setStatusMenus(null)}
+  const saveEdit = () => {
+    if(!editForm.name)return
+    const{_aid,_aname,...proj}=editForm
+    if(proj.id){updateProj(editModal.aid,proj.id,proj)}
+    else setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===editModal.aid?{...a,projects:[...(a.projects||[]),{...proj,id:uid()}]}:a)}))
+    setEditModal(null)
+  }
+  const saveAdd = () => {
+    if(!addForm.name||!addAcctId)return
+    setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===addAcctId?{...a,projects:[...(a.projects||[]),{...projBlank,...addForm,id:uid()}]}:a)}))
+    setAddModal(false);setAddForm({})
+  }
+  const addNote = (aid,pid) => {
+    if(!noteText.trim()){setNotePopover(null);return}
+    const today=new Date().toISOString().split('T')[0]
+    const proj=(data.accounts.find(a=>a.id===aid)?.projects||[]).find(p=>p.id===pid)
+    updateProj(aid,pid,{notes:proj?.notes?proj.notes+' | ['+today+']: '+noteText.trim():'['+today+']: '+noteText.trim()})
+    setNotePopover(null);setNoteText('')
+  }
+
+  const SW={'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
+  const totalActive=allWithAcct.filter(p=>p.status==='In Flight'||p.status==='In Discussion').length
+  const totalWeighted=allWithAcct.filter(p=>p.status!=='Lost'&&p.estimatedRevenue).reduce((s,p)=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage;return s+rev*(SW[cs]??0.10)},0)
+  const stalledCount=allWithAcct.filter(p=>p.status==='Stalled').length
+  const acctColors=data.accounts.reduce((acc,a,i)=>{acc[a.id]=`hsl(${(i*57+200)%360},60%,48%)`;return acc},{})
+
+  useEffect(()=>{
+    const h=()=>{setMoveMenu(null);setStatusMenus(null);setNotePopover(null)}
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[])
+
+  const sideStyle={padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,userSelect:'none'}
+  const ff=k=>v=>setEditForm(p=>({...p,[k]:v}))
+  const fa=k=>v=>setAddForm(p=>({...p,[k]:v}))
+
+  return(
+    <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
+      {/* ── SIDEBAR ── */}
+      <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
+        <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+            <svg width="18" height="18" viewBox="0 0 28 28"><path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/><circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/><circle cx="14" cy="15" r="1.8" fill="#2563eb"/></svg>
+            <span style={{fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+          </div>
+          <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>All Projects</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+          <button onClick={onBack} style={{...sideStyle,background:'transparent',border:'none',width:'100%',textAlign:'left',marginBottom:4}}>
+            <ArrowLeft size={13}/> Back to Accounts
+          </button>
+          {/* Account filter */}
+          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 5px',fontWeight:600}}>Accounts</div>
+          {data.accounts.map(a=>(
+            <label key={a.id} style={{...sideStyle,cursor:'pointer'}}>
+              <input type='checkbox' checked={accountFilter.has(a.id)}
+                onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
+                style={{accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.short||a.name}</span>
+            </label>
+          ))}
+          {/* Status filter */}
+          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Status</div>
+          {PROJ_STATS.map(s=>{const sc=PSC[s]||'#64748b';const act=statusFilter.has(s);return(
+            <button key={s} onClick={()=>setStatusFilter(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})}
+              style={{display:'block',width:'calc(100% - 12px)',margin:'2px 6px',padding:'4px 10px',borderRadius:5,border:`1px solid ${act?sc+'44':'transparent'}`,background:act?sc+'18':'transparent',color:act?sc:'#475569',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>
+              {s}
+            </button>
+          )})}
+          {/* Vendor filter */}
+          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Vendor</div>
+          <div style={{padding:'2px 10px 8px'}}>
+            <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder='Filter by vendor...'
+              style={{width:'100%',fontSize:11,padding:'5px 8px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:5,color:'#e2e8f0',boxSizing:'border-box'}}/>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MAIN ── */}
+      <div style={{flex:1,overflowY:'auto',background:S.isLight?'#f1f5f9':S.bg}}>
+        {/* Header bar */}
+        <div style={{background:S.surf,borderBottom:`1px solid ${S.bdr}`,padding:'14px 24px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flexWrap:'wrap'}}>
+          <h1 style={{fontSize:20,fontWeight:800,color:S.txt,margin:0,flex:1,minWidth:120}}>All Projects</h1>
+          <span style={{fontSize:12,fontWeight:600,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 10px'}}>{filtered.length}</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search...'
+            style={{fontSize:12,padding:'6px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,width:160}}/>
+          <select value={sort} onChange={e=>setSort(e.target.value)} style={{fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
+            {['Account','Status','Close Date'].map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,border:`1px solid ${S.bdr}`}}>
+            {[{v:'timeline',l:'Timeline'},{v:'pipeline',l:'Pipeline'}].map(({v,l})=>(
+              <button key={v} onClick={()=>setView(v)} style={{padding:'4px 12px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{l}</button>
+            ))}
+          </div>
+          <button onClick={()=>{setAddForm({...projBlank,status:'Not Started'});setAddModal(true)}}
+            style={{padding:'6px 14px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>+ Add Project</button>
+        </div>
+
+        <div style={{padding:'16px 24px'}}>
+          {/* Stats row */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}}>
+            {[
+              {label:'Active Projects',value:totalActive,color:'#16a34a',sub:'In Flight + In Discussion'},
+              {label:'Weighted Pipeline',value:formatCompactCurrency(totalWeighted),color:'#0891b2',sub:'stage-weighted revenue'},
+              {label:'Stalled',value:stalledCount,color:stalledCount>0?S.orange:S.muted,sub:'need attention'},
+              {label:'Total Projects',value:allWithAcct.length,color:S.blue,sub:'across all accounts'},
+            ].map(st=>(
+              <div key={st.label} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'12px 16px',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>{st.label}</div>
+                <div style={{fontSize:26,fontWeight:800,color:st.color,lineHeight:1,marginBottom:2}}>{st.value}</div>
+                <div style={{fontSize:11,color:S.dim}}>{st.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {filtered.length===0&&(
+            <div style={{textAlign:'center',padding:'48px 20px',color:S.muted,fontSize:14,background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`}}>
+              No projects found. Adjust your filters or add a project.
+            </div>
+          )}
+
+          {/* ── TIMELINE VIEW ── */}
+          {view==='timeline'&&filtered.length>0&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              {grouped.map(({a:acct,projs})=>{
+                const isCol=collapsed.has(acct.id);const hs=calcHealthScore(acct);const hc=hs>=70?S.green:hs>=40?S.orange:S.red
+                return(
+                  <div key={acct.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'visible',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                    {/* Account section header */}
+                    <div onClick={()=>setCollapsed(prev=>{const n=new Set(prev);n.has(acct.id)?n.delete(acct.id):n.add(acct.id);return n})}
+                      style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',cursor:'pointer',background:S.isLight?'#f8fafc':S.surf2,borderBottom:isCol?'none':`1px solid ${S.bdr}`,borderRadius:isCol?12:'12px 12px 0 0'}}>
+                      <span style={{fontSize:10,color:S.dim,transform:`rotate(${isCol?'-90deg':'0deg'})`,transition:'transform 0.15s',display:'inline-block',lineHeight:1}}>▼</span>
+                      <span style={{fontSize:13,fontWeight:700,color:S.txt,flex:1}}>{acct.short||acct.name}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:hc,background:hc+'22',borderRadius:999,padding:'2px 8px'}}>{hs}</span>
+                      <span style={{fontSize:10,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 8px'}}>{projs.length} project{projs.length!==1?'s':''}</span>
+                    </div>
+                    {!isCol&&projs.map(p=>{
+                      const sc=PSC[p.status]||S.muted
+                      return(
+                        <div key={p.id} style={{padding:'10px 16px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',gap:12,transition:'background 0.1s'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2+'80'}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          {/* Left label col */}
+                          <div style={{width:190,flexShrink:0}}>
+                            <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:2,lineHeight:1.3}}>{p.name}</div>
+                            {p.vendor&&<div style={{fontSize:10,color:S.muted,marginBottom:3}}>{p.vendor}</div>}
+                            <span style={{fontSize:9,fontWeight:700,color:sc,background:sc+'18',borderRadius:999,padding:'1px 6px'}}>{p.status}</span>
+                          </div>
+                          {/* Timeline bar */}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:'flex',gap:2,marginBottom:3}}>
+                              {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#e2e8f0';return<div key={i} style={{flex:1,height:6,background:c,borderRadius:2}} title={stage.stage+(stage.date?' — '+fmtDate(stage.date):'')}/>})}
+                            </div>
+                            <div style={{display:'grid',gridTemplateColumns:`repeat(${p.timeline.length},1fr)`,gap:1,marginBottom:4}}>
+                              {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#94a3b8';return<div key={i} style={{textAlign:'center',fontSize:7,color:c,fontWeight:stage.status!=='pending'?700:400,lineHeight:1.2,overflow:'hidden',wordBreak:'break-all'}}>{stage.stage.split(' ').slice(0,2).join(' ')}{stage.status==='completed'?'✓':stage.status==='current'?'●':''}</div>})}
+                            </div>
+                            {(p.closeDate||p.estimatedRevenue)&&<div style={{display:'flex',gap:10,fontSize:10,color:S.muted}}>
+                              {p.closeDate&&<span>Close: {fmtDate(p.closeDate)}</span>}
+                              {p.estimatedRevenue&&<span style={{color:S.blue}}>Rev: {p.estimatedRevenue}</span>}
+                            </div>}
+                          </div>
+                          {/* Action buttons */}
+                          <div style={{display:'flex',gap:3,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                            <button title='Edit' onClick={()=>{setEditModal({aid:p._aid});setEditForm({...projBlank,...p})}}
+                              style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'4px 6px',borderRadius:4,fontSize:12}}>✏</button>
+                            <div style={{position:'relative'}}>
+                              <button title='Move status' onClick={()=>setMoveMenu(moveMenu===p.id?null:p.id)}
+                                style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'4px 6px',borderRadius:4,fontSize:12}}>⬆</button>
+                              {moveMenu===p.id&&(
+                                <div style={{position:'absolute',right:0,top:'calc(100% + 2px)',zIndex:300,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,boxShadow:'0 4px 20px rgba(0,0,0,0.2)',minWidth:150,overflow:'hidden'}}>
+                                  {PROJ_STATS.filter(s=>s!==p.status).map(s=>(
+                                    <button key={s} onClick={()=>moveStatus(p._aid,p.id,s)}
+                                      style={{display:'block',width:'100%',textAlign:'left',padding:'7px 12px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,fontSize:11,color:PSC[s]||S.txt,cursor:'pointer',fontWeight:600}}>→ {s}</button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{position:'relative'}}>
+                              <button title='Add note' onClick={()=>{setNotePopover(notePopover===p.id?null:p.id);setNoteText('')}}
+                                style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'4px 6px',borderRadius:4,fontSize:12}}>💬</button>
+                              {notePopover===p.id&&(
+                                <div style={{position:'absolute',right:0,top:'calc(100% + 2px)',zIndex:300,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.18)',padding:10,width:230}}>
+                                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Quick Note</div>
+                                  <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={3} autoFocus placeholder='Add a note...'
+                                    style={{width:'100%',fontSize:12,padding:'6px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,resize:'none',fontFamily:'inherit',boxSizing:'border-box'}}/>
+                                  <div style={{display:'flex',gap:6,marginTop:6}}>
+                                    <button onClick={()=>addNote(p._aid,p.id)} style={{flex:1,padding:'5px',background:S.blue,color:'#fff',border:'none',borderRadius:5,fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+                                    <button onClick={()=>setNotePopover(null)} style={{padding:'5px 10px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:5,fontSize:11,cursor:'pointer'}}>Cancel</button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── PIPELINE VIEW ── */}
+          {view==='pipeline'&&filtered.length>0&&(
+            <div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:12}}>
+                {['In Flight','In Discussion','Not Started','Stalled'].map(status=>{
+                  const projs=sorted.filter(p=>p.status===status);const sc=PSC[status]||S.muted
+                  return(
+                    <div key={status} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:10}}>
+                      <div style={{fontSize:11,fontWeight:700,color:sc,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.08em',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        {status}<span style={{background:sc+'22',borderRadius:999,padding:'1px 7px'}}>{projs.length}</span>
+                      </div>
+                      {projs.length===0&&<div style={{fontSize:11,color:S.dim,textAlign:'center',padding:'14px 6px',border:`1px dashed ${S.bdr}`,borderRadius:6}}>No projects</div>}
+                      {projs.map(p=>{
+                        const comp=p.timeline.filter(s=>s.status==='completed').length;const acol=acctColors[p._aid]
+                        return(
+                          <div key={p.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'9px 11px',marginBottom:6,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                            <div style={{display:'flex',alignItems:'flex-start',gap:4,marginBottom:4}}>
+                              <div style={{fontSize:12,fontWeight:700,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
+                              <button onClick={()=>{setEditModal({aid:p._aid});setEditForm({...projBlank,...p})}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'1px 4px',fontSize:12}}>✏</button>
+                            </div>
+                            <span style={{display:'inline-block',fontSize:9,fontWeight:700,color:'#fff',background:acol,borderRadius:999,padding:'1px 6px',marginBottom:4}}>{p._aname}</span>
+                            {p.vendor&&<div style={{fontSize:11,color:S.muted,marginBottom:3}}>{p.vendor}</div>}
+                            {p.estimatedRevenue&&<div style={{fontSize:11,color:S.blue,marginBottom:3}}>Rev: {p.estimatedRevenue}</div>}
+                            <div style={{height:3,background:S.bdr,borderRadius:2,overflow:'hidden',marginBottom:3}}>
+                              <div style={{height:'100%',width:`${(comp/STAGES.length)*100}%`,background:sc}}/>
+                            </div>
+                            <div style={{fontSize:10,color:S.muted,marginBottom:5}}>{comp}/{STAGES.length} stages</div>
+                            <div style={{position:'relative'}} onClick={e=>e.stopPropagation()}>
+                              <button onClick={()=>setStatusMenus(sm=>sm===p.id?null:p.id)}
+                                style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 0',cursor:'pointer',width:'100%',textAlign:'center',fontWeight:600}}>
+                                Move to… ↕
+                              </button>
+                              {statusMenus===p.id&&(
+                                <div style={{position:'absolute',bottom:'calc(100% + 3px)',left:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:7,boxShadow:'0 -4px 20px rgba(0,0,0,0.2)',minWidth:'100%',overflow:'hidden'}}>
+                                  {PROJ_STATS.filter(s=>s!==p.status).map(s=>(
+                                    <button key={s} onClick={()=>moveStatus(p._aid,p.id,s)}
+                                      style={{display:'block',width:'100%',textAlign:'left',padding:'7px 12px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,fontSize:11,color:PSC[s]||S.txt,cursor:'pointer',fontWeight:600}}>→ {s}</button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+              {['Won','Lost'].map(status=>{
+                const projs=sorted.filter(p=>p.status===status);if(!projs.length)return null;const sc=PSC[status]||S.muted
+                return(
+                  <div key={status} style={{marginTop:10,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:10,opacity:0.75}}>
+                    <div style={{fontSize:11,fontWeight:700,color:sc,marginBottom:8,textTransform:'uppercase',letterSpacing:'0.08em'}}>{status} <span style={{background:sc+'22',borderRadius:999,padding:'1px 7px'}}>{projs.length}</span></div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8}}>
+                      {projs.map(p=>(
+                        <div key={p.id} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'7px 9px'}}>
+                          <div style={{fontSize:11,fontWeight:600,color:S.secondary,marginBottom:2}}>{p.name}</div>
+                          <div style={{fontSize:10,color:S.muted}}>{p._aname}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── EDIT MODAL ── */}
+      {editModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:S.surf,borderRadius:12,width:'100%',maxWidth:660,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)',border:`1px solid ${S.bdr}`}}>
+            <div style={{padding:'14px 20px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:15,fontWeight:700,color:S.txt}}>Edit Project — <span style={{color:S.muted,fontWeight:400}}>{data.accounts.find(a=>a.id===editModal.aid)?.short||''}</span></span>
+              <button onClick={()=>setEditModal(null)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:20,lineHeight:1}}>×</button>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <Field label='Project Name' value={editForm.name||''} onChange={ff('name')} style={{gridColumn:'span 2'}}/>
+                <Field label='Vendor' value={editForm.vendor||''} onChange={ff('vendor')}/>
+                <Field label='Status' value={editForm.status||''} onChange={ff('status')} options={PROJ_STATS}/>
+                <Field label='Primary Contact' value={editForm.primaryContact||''} onChange={ff('primaryContact')}/>
+                <Field label='Close Date' value={editForm.closeDate||''} onChange={ff('closeDate')} type='date'/>
+                <Field label='Est. Revenue' value={editForm.estimatedRevenue||''} onChange={ff('estimatedRevenue')} placeholder='e.g. $50k'/>
+                <Field label='Est. Gross Profit' value={editForm.estimatedGrossProfit||''} onChange={ff('estimatedGrossProfit')} placeholder='e.g. $15k'/>
+                <Field label='Next Action' value={editForm.nextAction||''} onChange={ff('nextAction')} style={{gridColumn:'span 2'}}/>
+                <Field label='Waiting On' value={editForm.waitingOn||''} onChange={ff('waitingOn')} style={{gridColumn:'span 2'}}/>
+                <Field label='Notes' value={editForm.notes||''} onChange={ff('notes')} multiline style={{gridColumn:'span 2'}}/>
+              </div>
+              <div style={{display:'flex',gap:8,marginTop:12}}>
+                <button onClick={saveEdit} style={{padding:'8px 20px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+                <button onClick={()=>setEditModal(null)} style={{padding:'8px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD PROJECT MODAL ── */}
+      {addModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:S.surf,borderRadius:12,width:'100%',maxWidth:520,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)',border:`1px solid ${S.bdr}`}}>
+            <div style={{padding:'14px 20px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:15,fontWeight:700,color:S.txt}}>Add Project</span>
+              <button onClick={()=>setAddModal(false)} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:20,lineHeight:1}}>×</button>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Account</div>
+                <select value={addAcctId} onChange={e=>setAddAcctId(e.target.value)} style={{width:'100%',fontSize:13,padding:'7px 10px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
+                  {data.accounts.map(a=><option key={a.id} value={a.id}>{a.short||a.name}</option>)}
+                </select>
+              </div>
+              <Field label='Project Name' value={addForm.name||''} onChange={fa('name')}/>
+              <Field label='Vendor' value={addForm.vendor||''} onChange={fa('vendor')}/>
+              <Field label='Status' value={addForm.status||'Not Started'} onChange={fa('status')} options={PROJ_STATS}/>
+              <Field label='Close Date' value={addForm.closeDate||''} onChange={fa('closeDate')} type='date'/>
+              <Field label='Est. Revenue' value={addForm.estimatedRevenue||''} onChange={fa('estimatedRevenue')} placeholder='e.g. $50k'/>
+              <div style={{display:'flex',gap:8,marginTop:4}}>
+                <button onClick={saveAdd} style={{padding:'8px 20px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Project</button>
+                <button onClick={()=>setAddModal(false)} style={{padding:'8px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const [data,setData] = useState(null)
   const [storageReady,setStorageReady] = useState(false)
@@ -9078,6 +9451,7 @@ export default function App() {
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [isLandingPage,setIsLandingPage] = useState(true)
   const [showWhitespace,setShowWhitespace] = useState(false)
+  const [showAllProjects,setShowAllProjects] = useState(false)
   const [showClientView,setShowClientView] = useState(false)
   const [theme,setTheme] = useState(()=>{
     const t = localStorage.getItem('gp-theme')||'light'
@@ -9163,6 +9537,14 @@ export default function App() {
     />
   )
 
+  if (showAllProjects) return (
+    <AllProjectsPage
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowAllProjects(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (isLandingPage) return (
     <LandingPage
       data={data}
@@ -9171,6 +9553,7 @@ export default function App() {
       onNavigateTo={(id,t)=>{setActiveId(id);setTab(t);setIsLandingPage(false)}}
       onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
+      onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       theme={theme}
       setTheme={handleSetTheme}
     />
