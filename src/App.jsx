@@ -9190,6 +9190,7 @@ function AllProjectsPage({data, setData, onBack}) {
 
   return(
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
+      <style>{`.projects-sidebar-label { color: #e2e8f0 !important; }`}</style>
       {/* ── SIDEBAR ── */}
       <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
         <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
@@ -9207,15 +9208,13 @@ function AllProjectsPage({data, setData, onBack}) {
           <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 5px',fontWeight:600}}>Accounts</div>
           {data.accounts.map(a=>(
             <label key={a.id}
-              style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderRadius:6,cursor:'pointer',margin:'1px 6px',boxSizing:'border-box',transition:'background 0.1s'}}
+              style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 8px',borderRadius:'6px',cursor:'pointer',color:'#e2e8f0',margin:'1px 6px',boxSizing:'border-box',transition:'background 0.1s'}}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <input type='checkbox' checked={accountFilter.has(a.id)}
                 onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
                 style={{accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12,
-                color:accountFilter.has(a.id)?'#ffffff':'#94a3b8',
-                fontWeight:accountFilter.has(a.id)?600:500}}>{a.short||a.name}</span>
+              <span className='projects-sidebar-label' style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'#e2e8f0',fontWeight:'500'}}>{a.short||a.name}</span>
             </label>
           ))}
           {/* Status filter */}
