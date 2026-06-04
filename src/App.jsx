@@ -9113,7 +9113,7 @@ function AllProjectsPage({data, setData, onBack}) {
   const projBlank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [view,setView] = useState('timeline')
   const [search,setSearch] = useState('')
-  const [statusFilter,setStatusFilter] = useState(new Set(PROJ_STATS))
+  const [statusFilter,setStatusFilter] = useState(new Set(['In Flight']))
   const [accountFilter,setAccountFilter] = useState(()=>new Set(data.accounts.map(a=>a.id)))
   const [vendorSearch,setVendorSearch] = useState('')
   const [sort,setSort] = useState('Account')
@@ -9168,6 +9168,9 @@ function AllProjectsPage({data, setData, onBack}) {
     updateProj(aid,pid,{notes:proj?.notes?proj.notes+' | ['+today+']: '+noteText.trim():'['+today+']: '+noteText.trim()})
     setNotePopover(null);setNoteText('')
   }
+  const updateProjectStage = (aid,pid,stageIdx,newStatus) => {
+    setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===aid?{...a,projects:(a.projects||[]).map(proj=>proj.id===pid?{...proj,timeline:proj.timeline.map((stage,idx)=>idx===stageIdx?{...stage,status:newStatus,date:newStatus==='pending'?'':new Date().toISOString().split('T')[0]}:stage)}:proj)}:a)}))
+  }
 
   const SW={'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
   const totalActive=allWithAcct.filter(p=>p.status==='In Flight'||p.status==='In Discussion').length
@@ -9203,21 +9206,37 @@ function AllProjectsPage({data, setData, onBack}) {
           {/* Account filter */}
           <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 5px',fontWeight:600}}>Accounts</div>
           {data.accounts.map(a=>(
-            <label key={a.id} style={{...sideStyle,cursor:'pointer'}}>
+            <label key={a.id}
+              style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',borderRadius:6,cursor:'pointer',margin:'1px 6px',boxSizing:'border-box',transition:'background 0.1s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <input type='checkbox' checked={accountFilter.has(a.id)}
                 onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
                 style={{accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.short||a.name}</span>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12,
+                color:accountFilter.has(a.id)?'#ffffff':'#94a3b8',
+                fontWeight:accountFilter.has(a.id)?600:500}}>{a.short||a.name}</span>
             </label>
           ))}
           {/* Status filter */}
           <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Status</div>
-          {PROJ_STATS.map(s=>{const sc=PSC[s]||'#64748b';const act=statusFilter.has(s);return(
-            <button key={s} onClick={()=>setStatusFilter(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})}
-              style={{display:'block',width:'calc(100% - 12px)',margin:'2px 6px',padding:'4px 10px',borderRadius:5,border:`1px solid ${act?sc+'44':'transparent'}`,background:act?sc+'18':'transparent',color:act?sc:'#475569',fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left'}}>
-              {s}
-            </button>
-          )})}
+          {(()=>{
+            const PCOL={'In Flight':'#2563eb','In Discussion':'#7c3aed','Not Started':'#64748b','Stalled':'#ea580c','Won':'#0ebc5f','Lost':'#dc2626'}
+            return PROJ_STATS.map(s=>{
+              const sc=PCOL[s]||'#64748b';const act=statusFilter.has(s)
+              return(
+                <button key={s}
+                  onClick={()=>setStatusFilter(prev=>{const n=new Set(prev);if(n.has(s)){if(n.size>1)n.delete(s)}else n.add(s);return n})}
+                  style={{display:'block',width:'calc(100% - 12px)',margin:'2px 6px',padding:'5px 10px',borderRadius:5,
+                    border:`1px solid ${act?sc:'rgba(255,255,255,0.1)'}`,
+                    background:act?sc:'rgba(255,255,255,0.04)',
+                    color:act?'#ffffff':'#64748b',
+                    fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left',transition:'all 0.12s'}}>
+                  {s}
+                </button>
+              )
+            })
+          })()}
           {/* Vendor filter */}
           <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Vendor</div>
           <div style={{padding:'2px 10px 8px'}}>
@@ -9274,7 +9293,7 @@ function AllProjectsPage({data, setData, onBack}) {
           {view==='timeline'&&filtered.length>0&&(
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               {grouped.map(({a:acct,projs})=>{
-                const isCol=collapsed.has(acct.id);const hs=calcHealthScore(acct);const hc=getHealthColor(hs)
+                const isCol=collapsed.has(acct.id)
                 return(
                   <div key={acct.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'visible',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
                     {/* Account section header */}
@@ -9282,7 +9301,6 @@ function AllProjectsPage({data, setData, onBack}) {
                       style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',cursor:'pointer',background:S.isLight?'#f8fafc':S.surf2,borderBottom:isCol?'none':`1px solid ${S.bdr}`,borderRadius:isCol?12:'12px 12px 0 0'}}>
                       <span style={{fontSize:10,color:S.dim,transform:`rotate(${isCol?'-90deg':'0deg'})`,transition:'transform 0.15s',display:'inline-block',lineHeight:1}}>▼</span>
                       <span style={{fontSize:13,fontWeight:700,color:S.txt,flex:1}}>{acct.short||acct.name}</span>
-                      <span style={{fontSize:11,fontWeight:700,color:hc,background:hc+'22',borderRadius:999,padding:'2px 8px'}}>{hs}</span>
                       <span style={{fontSize:10,color:S.muted,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'2px 8px'}}>{projs.length} project{projs.length!==1?'s':''}</span>
                     </div>
                     {!isCol&&projs.map(p=>{
@@ -9294,16 +9312,33 @@ function AllProjectsPage({data, setData, onBack}) {
                           {/* Left label col */}
                           <div style={{width:190,flexShrink:0}}>
                             <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:2,lineHeight:1.3}}>{p.name}</div>
-                            {p.vendor&&<div style={{fontSize:10,color:S.muted,marginBottom:3}}>{p.vendor}</div>}
+                            {p.vendor&&<div style={{fontSize:10,color:S.muted,marginBottom:2}}>{p.vendor}</div>}
                             <span style={{fontSize:9,fontWeight:700,color:sc,background:sc+'18',borderRadius:999,padding:'1px 6px'}}>{p.status}</span>
+                            {p.waitingOn&&<div style={{fontSize:10,color:'#ea580c',background:'rgba(234,88,12,0.1)',borderRadius:999,padding:'1px 7px',marginTop:3,display:'inline-flex',alignItems:'center',gap:3,maxWidth:'100%'}}>
+                              <span style={{flexShrink:0}}>⏳</span>
+                              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.waitingOn.length>35?p.waitingOn.slice(0,35)+'…':p.waitingOn}</span>
+                            </div>}
                           </div>
-                          {/* Timeline bar */}
+                          {/* Timeline bar — clickable stages */}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:'flex',gap:2,marginBottom:3}}>
-                              {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#e2e8f0';return<div key={i} style={{flex:1,height:6,background:c,borderRadius:2}} title={stage.stage+(stage.date?' — '+fmtDate(stage.date):'')}/>})}
+                              {p.timeline.map((stage,i)=>{
+                                const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#e2e8f0'
+                                const next=stage.status==='pending'?'current':stage.status==='current'?'completed':'pending'
+                                return<div key={i} onClick={e=>{e.stopPropagation();updateProjectStage(p._aid,p.id,i,next)}}
+                                  style={{flex:1,height:6,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.15s'}}
+                                  title={`${stage.stage} — click to set ${next}`+(stage.date?' ['+fmtDate(stage.date)+']':'')}/>
+                              })}
                             </div>
                             <div style={{display:'grid',gridTemplateColumns:`repeat(${p.timeline.length},1fr)`,gap:1,marginBottom:4}}>
-                              {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#94a3b8';return<div key={i} style={{textAlign:'center',fontSize:7,color:c,fontWeight:stage.status!=='pending'?700:400,lineHeight:1.2,overflow:'hidden',wordBreak:'break-all'}}>{stage.stage.split(' ').slice(0,2).join(' ')}{stage.status==='completed'?'✓':stage.status==='current'?'●':''}</div>})}
+                              {p.timeline.map((stage,i)=>{
+                                const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#94a3b8'
+                                const next=stage.status==='pending'?'current':stage.status==='current'?'completed':'pending'
+                                return<div key={i} onClick={e=>{e.stopPropagation();updateProjectStage(p._aid,p.id,i,next)}}
+                                  style={{textAlign:'center',fontSize:7,color:c,fontWeight:stage.status!=='pending'?700:400,lineHeight:1.2,overflow:'hidden',wordBreak:'break-all',cursor:'pointer'}}>
+                                  {stage.stage.split(' ').slice(0,2).join(' ')}{stage.status==='completed'?'✓':stage.status==='current'?'●':''}
+                                </div>
+                              })}
                             </div>
                             {(p.closeDate||p.estimatedRevenue)&&<div style={{display:'flex',gap:10,fontSize:10,color:S.muted}}>
                               {p.closeDate&&<span>Close: {fmtDate(p.closeDate)}</span>}
