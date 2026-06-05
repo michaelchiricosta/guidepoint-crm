@@ -5789,7 +5789,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       )}
       {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:'#475569',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>}
       <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 8px':'0 8px'}}>
-        {data.accounts.map(a=>{
+        {[...data.accounts].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
           const hs=calcHealthScore(a)
           const hc=getHealthColor(hs)
           const isActive=activeId===a.id
@@ -6211,7 +6211,11 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const handleLogoUpload = async (acctId, file) => {
     if (!file) return
     const b64 = await compressLogo(file)
-    setData(prev => ({...prev, accounts: prev.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)}))
+    setData(prev => {
+      const name = prev.accounts.find(a => a.id === acctId)?.name
+      console.log('Logo saved for account:', name)
+      return {...prev, accounts: prev.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)}
+    })
   }
 
   const hour = new Date().getHours()
@@ -6518,7 +6522,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               </div>
               <div style={{fontSize:12,color:S.muted,marginBottom:18}}>Click any logo circle to upload a company logo — it will appear across your dashboard automatically</div>
               <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14}}>
-                {data.accounts.map((acct,acctIdx)=>{
+                {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
                   const hs=calcHealthScore(acct)
                   const hc=getHealthColor(hs)
                   const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
@@ -10039,7 +10043,6 @@ export default function App() {
               </div>
             </div>
             {!mob&&<div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
-              {[acct.industry,acct.hq].filter(Boolean).map(t=><span key={t} style={{fontSize:11,color:S.isLight?'#475569':S.muted,background:S.isLight?'#f8fafc':S.surf,border:`1px solid ${S.bdr}`,borderRadius:999,padding:'3px 10px'}}>{t}</span>)}
               {acct.lastContact&&<span style={{fontSize:11,color:S.muted}}>Last contact: {fmtDate(acct.lastContact)}</span>}
             </div>}
             <button onClick={()=>setShowClientView(true)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,color:'#374151',cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 14px',flexShrink:0,boxShadow:'0 1px 2px rgba(0,0,0,0.06)',whiteSpace:'nowrap'}}
