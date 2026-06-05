@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -243,7 +243,8 @@ const SAMPLE = {
     endpoints:'',
     orgChart:{nodes:[]}
   }],
-  whitespaceAccounts:[]
+  whitespaceAccounts:[],
+  quotaTarget: 0
 }
 
 const Badge = ({label,color,bg,size=11}) => <span style={{fontSize:size,fontWeight:600,color,background:bg,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap',display:'inline-block',lineHeight:'18px'}}>{label}</span>
@@ -5834,18 +5835,37 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects}) {
-  const statusDotColor = {Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
-  const accounts = data.accounts.slice(0,10)
-  const navActions = [
-    {id:'tasks',label:"Today's Tasks",icon:<Calendar size={14}/>,action:()=>setTodayModal(true)},
-    {id:'critical',label:'Critical Items',icon:<AlertTriangle size={14}/>,action:()=>setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
-    {id:'renewals',label:'Renewals',icon:<RefreshCw size={14}/>,action:()=>setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
-    {id:'projects',label:'All Projects',icon:<Target size={14}/>,action:()=>onGoAllProjects&&onGoAllProjects()},
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, showAccounts, setShowAccounts}) {
+  const navTop = [
+    {id:'dashboard', label:'Dashboard', icon:<Home size={14}/>, action:()=>setShowAccounts(false)},
+    {id:'accounts',  label:'Accounts',  icon:<Building2 size={14}/>, action:()=>setShowAccounts(true)},
+    {id:'allprojects',label:'All Projects',icon:<Folder size={14}/>, action:()=>onGoAllProjects&&onGoAllProjects()},
+    {id:'whitespace',label:'Whitespace', icon:<Map size={14}/>, action:()=>onGoWhitespace&&onGoWhitespace()},
   ]
+  const navBottom = [
+    {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={14}/>,     action:()=>setTodayModal(true)},
+    {id:'critical', label:'Critical Items', icon:<AlertTriangle size={14}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
+    {id:'renewals', label:'Renewals',       icon:<RefreshCw size={14}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
+  ]
+  const activeId = showAccounts ? 'accounts' : 'dashboard'
+
+  const navItem = (item, isActive) => (
+    <div key={item.id} onClick={item.action}
+      onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}}
+      onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}}
+      style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,
+        color:isActive?'#ffffff':'#94a3b8',fontSize:12,fontWeight:isActive?600:500,
+        borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',
+        background:isActive?'rgba(37,99,235,0.15)':'transparent',
+        boxSizing:'border-box',transition:'all 0.1s'}}>
+      <span style={{opacity:0.75,display:'flex'}}>{item.icon}</span>
+      {item.label}
+    </div>
+  )
+
   return (
     <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-      <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+      <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
           <svg width="18" height="18" viewBox="0 0 28 28" style={{flexShrink:0}}>
             <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/>
@@ -5857,44 +5877,9 @@ function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModa
         <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>Account Intelligence</div>
       </div>
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
-        <div style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',display:'flex',alignItems:'center',gap:8,background:'rgba(37,99,235,0.15)',borderLeft:'3px solid #2563eb',color:'#ffffff',fontSize:12,fontWeight:500,boxSizing:'border-box'}}>
-          <Home size={14} style={{opacity:0.75}}/>
-          Home
-        </div>
-        <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Overview</div>
-        {navActions.map(item=>(
-          <div key={item.id} onClick={item.action}
-            onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}
-            onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}
-            style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,borderLeft:'3px solid transparent',boxSizing:'border-box'}}>
-            <span style={{opacity:0.75,display:'flex'}}>{item.icon}</span>
-            {item.label}
-          </div>
-        ))}
-        <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Explore</div>
-        <div onClick={onGoWhitespace}
-          onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}
-          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}
-          style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,borderLeft:'3px solid transparent',boxSizing:'border-box'}}>
-          <span style={{opacity:0.75,display:'flex'}}><Map size={14}/></span>
-          Whitespace
-        </div>
-        <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 3px',marginTop:6}}>Accounts</div>
-        {accounts.map(acct=>{
-          const hs=calcHealthScore(acct)
-          const hc=getHealthColor(hs)
-          const sc=statusDotColor[acct.status]||'#64748b'
-          return (
-            <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
-              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';const n=e.currentTarget.querySelector('.lp-sn');if(n)n.style.color='#ffffff'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='transparent';const n=e.currentTarget.querySelector('.lp-sn');if(n)n.style.color='#94a3b8'}}
-              style={{padding:'6px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,boxSizing:'border-box'}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:sc,flexShrink:0}}/>
-              <span className="lp-sn" style={{fontSize:12,color:'#94a3b8',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.short||acct.name}</span>
-              <span style={{fontSize:10,fontWeight:700,color:hc,background:hc+'22',borderRadius:999,padding:'1px 6px',flexShrink:0,border:`1px solid ${hc}33`}}>{hs}</span>
-            </div>
-          )
-        })}
+        {navTop.map(item=>navItem(item, activeId===item.id))}
+        <div style={{height:1,background:'rgba(255,255,255,0.06)',margin:'8px 10px'}}/>
+        {navBottom.map(item=>navItem(item, false))}
       </div>
       <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:'10px 14px',flexShrink:0}}>
         <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
@@ -5911,12 +5896,232 @@ function LandingPageSidebar({data, theme, setTheme, onEnterAccount, setTodayModa
   )
 }
 
+const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2']
+
+function BarChartCard({data}) {
+  const [view, setView] = useState('projects')
+
+  const chartData = (data.accounts||[]).map((acct, idx) => {
+    const inFlight = (acct.projects||[]).filter(p=>p.status==='In Flight').length
+    const inDiscussion = (acct.projects||[]).filter(p=>p.status==='In Discussion').length
+    const gp = (acct.techStack||[]).reduce((s,t)=>s+parseCost(t.grossProfit||''),0) +
+               (acct.projects||[]).reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0)
+    return {
+      name: acct.short||acct.name,
+      acctId: acct.id,
+      logoImage: acct.logoImage||'',
+      logoColor: LOGO_COLORS[idx%LOGO_COLORS.length],
+      initial: (acct.short||acct.name||'?')[0].toUpperCase(),
+      'In Flight': inFlight,
+      'In Discussion': inDiscussion,
+      gp,
+    }
+  })
+
+  const totalInFlight = chartData.reduce((s,d)=>s+d['In Flight'],0)
+  const totalInDiscussion = chartData.reduce((s,d)=>s+d['In Discussion'],0)
+  const totalGP = chartData.reduce((s,d)=>s+d.gp,0)
+
+  const CustomXTick = ({x, y, payload}) => {
+    const row = chartData.find(d=>d.name===payload.value)
+    if (!row) return null
+    return (
+      <g>
+        <text x={x} y={y+12} textAnchor="middle" fontSize={11} fill="#94a3b8">{payload.value}</text>
+        {row.logoImage ? (
+          <foreignObject x={x-12} y={y+16} width={24} height={24} style={{overflow:'visible'}}>
+            <img src={row.logoImage} style={{width:'24px',height:'24px',borderRadius:'50%',objectFit:'cover',display:'block'}}/>
+          </foreignObject>
+        ) : (
+          <g>
+            <circle cx={x} cy={y+28} r={12} fill={row.logoColor}/>
+            <text x={x} y={y+32} textAnchor="middle" fontSize={9} fontWeight="700" fill="#fff">{row.initial}</text>
+          </g>
+        )}
+      </g>
+    )
+  }
+
+  const CustomTooltip = ({active, payload, label}) => {
+    if (!active||!payload||!payload.length) return null
+    return (
+      <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.12)',padding:'10px 14px',minWidth:140}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:5}}>{label}</div>
+        {payload.map((p,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+            <div style={{width:8,height:8,borderRadius:2,background:p.fill,flexShrink:0}}/>
+            <span style={{fontSize:11,color:'#64748b'}}>{p.name}:</span>
+            <span style={{fontSize:11,fontWeight:700,color:'#0f172a'}}>{view==='gp'?formatCompactCurrency(Number(p.value)):p.value}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+        <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
+        <div style={{display:'flex',gap:4}}>
+          {['projects','gp'].map(v=>(
+            <button key={v} onClick={()=>setView(v)}
+              style={{padding:'4px 12px',borderRadius:20,border:'1px solid',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+                background:view===v?'#2563eb':'#fff',color:view===v?'#fff':'#64748b',borderColor:view===v?'#2563eb':'#e2e8f0'}}>
+              {v==='projects'?'Projects':'Gross Profit'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:20,marginBottom:10}}>
+        {view==='projects' ? (
+          <>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{width:10,height:10,borderRadius:2,background:'#2563eb',flexShrink:0}}/>
+              <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
+              <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{width:10,height:10,borderRadius:2,background:'#7c3aed',flexShrink:0}}/>
+              <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
+              <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
+            </div>
+          </>
+        ) : (
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
+            <span style={{fontSize:12,color:'#64748b'}}>Gross Profit</span>
+            <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{formatCompactCurrency(totalGP)}</span>
+          </div>
+        )}
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
+          <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXTick/>} interval={0}/>
+          <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
+          <RechartsTooltip content={<CustomTooltip/>}/>
+          {view==='projects' ? (
+            <>
+              <Bar dataKey="In Flight"    fill="#2563eb" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+              <Bar dataKey="In Discussion" fill="#7c3aed" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            </>
+          ) : (
+            <Bar dataKey="gp" name="Gross Profit" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
+          )}
+        </BarChart>
+      </ResponsiveContainer>
+      <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
+        {view==='projects' ? (
+          <>
+            <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}/>In Flight</span>
+            <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#7c3aed',display:'inline-block'}}/>In Discussion</span>
+          </>
+        ) : (
+          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>Gross Profit</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
+  const quotaTarget = data.quotaTarget || 0
+  const [quotaInput, setQuotaInput] = useState(quotaTarget>0?formatCompactCurrency(quotaTarget):'')
+  const [editing, setEditing] = useState(false)
+
+  const STAGE_WEIGHTS = {'Awareness':0.1,'NDA':0.1,'Intro Call':0.15,'Demo':0.2,'POC':0.3,'Scoping':0.4,'Pricing':0.6,'Legal':0.9,'Procurement':0.9,'PO Received':1.0,'Deployed':1.0}
+
+  const attainedGP = (data.accounts||[]).reduce((sum,acct)=>
+    sum+(acct.projects||[]).filter(p=>p.status==='Won').reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0),0)
+
+  const inProgressGP = (data.accounts||[]).reduce((sum,acct)=>
+    sum+(acct.projects||[]).filter(p=>p.status==='In Flight'||p.status==='In Discussion').reduce((s,p)=>{
+      const cur=[...(p.timeline||[])].reverse().find(s2=>s2.status==='current')?.stage
+      return s+parseCost(p.estimatedGrossProfit||'')*(STAGE_WEIGHTS[cur]||0.2)
+    },0),0)
+
+  const pct = quotaTarget>0?Math.min(100,Math.round((attainedGP/quotaTarget)*100)):0
+
+  const CIRC = 2*Math.PI*80
+  const HALF = CIRC/2
+  const aPct = quotaTarget>0?Math.min(1,attainedGP/quotaTarget):0
+  const iPct = quotaTarget>0?Math.min(1-aPct,inProgressGP/quotaTarget):0
+
+  const totalProj = (data.accounts||[]).reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status!=='Lost').length,0)
+  const wonProj   = (data.accounts||[]).reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status==='Won').length,0)
+  const thirtyAgo = new Date(); thirtyAgo.setDate(thirtyAgo.getDate()-30)
+  const activeAcc = (data.accounts||[]).filter(a=>a.lastContact&&new Date(a.lastContact+'T12:00:00')>=thirtyAgo).length
+  const totalCrit    = (data.accounts||[]).reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.priority==='Critical').length,0)
+  const clearedCrit  = (data.accounts||[]).reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.priority==='Critical'&&f.status==='Done').length,0)
+
+  const handleBlur = () => {
+    const raw = quotaInput.trim()
+    let v = 0
+    if (raw) {
+      const num = parseFloat(raw.replace(/[$,]/g,''))
+      v = /k$/i.test(raw)?num*1000:/m$/i.test(raw)?num*1000000:num
+    }
+    setData(prev=>({...prev,quotaTarget:v||0}))
+    setQuotaInput(v>0?formatCompactCurrency(v):'')
+    setEditing(false)
+  }
+
+  return (
+    <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+        <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
+        <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
+      </div>
+      <svg viewBox="0 0 200 110" width="100%" style={{display:'block',maxWidth:260,margin:'0 auto'}}>
+        <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={18}
+          strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)"/>
+        {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={18}
+          strokeDasharray={`${aPct*HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>}
+        {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={18}
+          strokeDasharray={`${iPct*HALF} ${CIRC}`} transform={`rotate(${180+aPct*180} 100 100)`} strokeLinecap="round"/>}
+        <text x={100} y={88} textAnchor="middle" fontSize={28} fontWeight={800} fill="#0f172a">{pct}%</text>
+        <text x={100} y={103} textAnchor="middle" fontSize={13} fill="#64748b">of quota</text>
+      </svg>
+      <div style={{textAlign:'center',marginTop:4,marginBottom:12}}>
+        <span style={{fontSize:11,color:'#64748b',marginRight:6}}>Quota Target:</span>
+        <input
+          value={editing?quotaInput:(quotaTarget>0?formatCompactCurrency(quotaTarget):'')}
+          onFocus={()=>{setEditing(true);setQuotaInput(quotaTarget>0?String(quotaTarget):'')} }
+          onChange={e=>setQuotaInput(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="Set quota target"
+          style={{fontSize:12,fontWeight:600,color:'#0f172a',border:'1px solid #e2e8f0',borderRadius:6,padding:'3px 8px',width:130,textAlign:'center',background:'#f8fafc',outline:'none'}}
+        />
+      </div>
+      <div style={{borderTop:'1px solid #f1f5f9',paddingTop:8}}>
+        {[
+          {c:'#0ebc5f',label:'Won Projects',           val:`${wonProj} / ${totalProj}`,   ok:wonProj>0},
+          {c:'#2563eb',label:'Active Accounts (30d)',   val:`${activeAcc} / ${(data.accounts||[]).length}`, ok:activeAcc>0},
+          {c:'#ea580c',label:'Critical Follow-Ups Cleared', val:`${clearedCrit} / ${Math.max(totalCrit,clearedCrit)}`, ok:clearedCrit>0},
+        ].map((m,i)=>(
+          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'0.5px solid #f1f5f9',fontSize:13}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{width:7,height:7,borderRadius:'50%',background:m.c,flexShrink:0}}/>
+              <span style={{color:'#475569'}}>{m.label}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:5}}>
+              <span style={{fontWeight:700,color:'#0f172a'}}>{m.val}</span>
+              {m.ok&&<span style={{color:'#0ebc5f',fontSize:12}}>✓</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, theme, setTheme}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
   const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
+  const [showAccounts, setShowAccounts] = useState(false)
   const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   const hour = new Date().getHours()
@@ -5940,6 +6145,30 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const renewals90 = data.accounts.reduce((s,a)=>s+(a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).length, 0)
   const activeProjects = data.accounts.reduce((s,a)=>s+(a.projects||[]).filter(p=>p.status==='In Flight').length, 0)
   const todayTasksCount = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=lpTodayStr).length, 0)
+
+  // Insight card data
+  const healthyCount  = data.accounts.filter(a=>calcHealthScore(a)>=70).length
+  const atRiskCount   = data.accounts.filter(a=>{const s=calcHealthScore(a);return s>=40&&s<70}).length
+  const criticalHSCount = data.accounts.filter(a=>calcHealthScore(a)<40).length
+  const allOverdueFUs = data.accounts.flatMap(a=>(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<lpTodayStr))
+  const overdueCritFUs = allOverdueFUs.filter(f=>f.priority==='Critical').length
+  const overdueHighFUs = allOverdueFUs.filter(f=>f.priority==='High').length
+  const oldestOverdueDays = allOverdueFUs.length>0?Math.max(...allOverdueFUs.map(f=>daysSince(f.dueDate)||0)):0
+  const renewalsList = data.accounts.flatMap(a=>(a.techStack||[]).filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=90}).map(t=>({...t,acctName:a.short||a.name,daysLeft:daysUntil(t.renewalDate)||999})))
+  renewalsList.sort((a,b)=>a.daysLeft-b.daysLeft)
+  const renewalValue = renewalsList.reduce((s,t)=>s+parseCost(t.cost||''),0)
+  const nextRenewal = renewalsList[0]||null
+  const stalledProjects = data.accounts.flatMap(a=>(a.projects||[]).filter(p=>p.status==='Stalled').map(p=>({...p,acctName:a.short||a.name,lastDate:[...(p.timeline||[])].reverse().find(s2=>s2.status==='current')?.date||null})))
+  const avgStalledDays = stalledProjects.length>0?Math.round(stalledProjects.reduce((s,p)=>s+(p.lastDate?daysSince(p.lastDate)||0:0),0)/stalledProjects.length):0
+  const wsAccts = data.whitespaceAccounts||[]
+  const wsTotal = wsAccts.reduce((s,a)=>s+(a.intelLog||[]).length,0)
+  const wsMonthStr = (()=>{const d=new Date();d.setDate(1);return d.toISOString().split('T')[0]})()
+  const wsNew = wsAccts.reduce((s,a)=>s+(a.intelLog||[]).filter(e=>e.date&&e.date>=wsMonthStr).length,0)
+  const WS_STATUSES = ['Prospect','Researching','Reached Out','Active']
+  const wsStatusCounts = WS_STATUSES.map(st=>wsAccts.filter(a=>a.status===st).length)
+  const wsStatusTotal = wsStatusCounts.reduce((s,n)=>s+n,0)
+  const wsStatusColors = ['#64748b','#2563eb','#ea580c','#0ebc5f']
+
   const todayGrouped = data.accounts
     .map(a=>({account:a,tasks:(a.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=lpTodayStr).sort((a,b)=>{const ao=a.dueDate<lpTodayStr,bo=b.dueDate<lpTodayStr;if(ao&&!bo)return -1;if(!ao&&bo)return 1;if(ao&&bo)return a.dueDate.localeCompare(b.dueDate);return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)})}))
     .filter(g=>g.tasks.length>0)
@@ -6039,7 +6268,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} onEnterAccount={onEnterAccount} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* TOP NAV BAR */}
       <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:mob?'0 16px':'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
@@ -6180,157 +6409,158 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         </div>
 
 
-        {/* Empty state */}
-        {data.accounts.length === 0 ? (
-          <div style={{textAlign:'center',padding:'70px 20px'}}>
-            <svg width="60" height="60" viewBox="0 0 60 60" style={{margin:'0 auto 20px',display:'block',opacity:0.4}}>
-              <path d="M30 4 L52 13 L52 30 C52 43.5 42 53.5 30 57 C18 53.5 8 43.5 8 30 L8 13 Z" fill="none" stroke={GP_LIGHT} strokeWidth="2.5" strokeLinejoin="round"/>
-              <circle cx="30" cy="32" r="9" fill="none" stroke={GP_LIGHT} strokeWidth="2"/>
-              <circle cx="30" cy="32" r="3.5" fill={GP_LIGHT}/>
-            </svg>
-            <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>Welcome to Account Intelligence</div>
-            <div style={{fontSize:14,color:S.muted,marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
-            <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:GP_BLUE,border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:'0.01em'}}>+ Add Your First Account</button>
-          </div>
-        ) : (
-          <div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <span style={{fontSize:16,fontWeight:800,color:S.txt}}>Your Accounts</span>
-                <span style={{fontSize:12,fontWeight:700,color:S.isLight?'#2563eb':'#3b82f6',background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 10px'}}>{data.accounts.length}</span>
-              </div>
-              <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:S.isLight?'#2563eb':'#3b82f6',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
+        {showAccounts ? (
+          // === ACCOUNTS PAGE ===
+          data.accounts.length===0 ? (
+            <div style={{textAlign:'center',padding:'70px 20px'}}>
+              <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>No Accounts Yet</div>
+              <div style={{fontSize:14,color:S.muted,marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
+              <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>+ Add Your First Account</button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:12}}>
-              {data.accounts.map(acct=>{
-                const hs=calcHealthScore(acct)
-                const hc=getHealthColor(hs)
-                const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
-                const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
-                const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
-                const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
-                const lastC=acct.lastContact?daysSince(acct.lastContact):null
-                const isHov=hoveredId===acct.id
-                const r=20, circ=2*Math.PI*r, progress=(hs/100)*circ
-                const sc=statusColor[acct.status]||S.muted
-                const statusPillColor={Strategic:{c:'#7c3aed',b:'#ede9fe'},Active:{c:'#15803d',b:'#dcfce7'},Prospect:{c:'#1d4ed8',b:'#dbeafe'},'At Risk':{c:'#dc2626',b:'#fee2e2'}}[acct.status]||{c:'#475569',b:'#f1f5f9'}
-                return (
-                  <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
-                    onMouseEnter={()=>setHoveredId(acct.id)}
-                    onMouseLeave={()=>setHoveredId(null)}
-                    style={S.isLight?{
-                      background:'#ffffff',
-                      border:'1px solid #e2e8f0',
-                      borderRadius:10,cursor:'pointer',
-                      transform:isHov?'translateY(-3px)':'translateY(0)',
-                      boxShadow:isHov?'0 12px 32px rgba(0,0,0,0.12)':'0 2px 8px rgba(0,0,0,0.06)',
-                      transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
-                    }:{
-                      background:'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',
-                      border:`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,
-                      borderRadius:10,cursor:'pointer',
-                      transform:isHov?'translateY(-2px)':'translateY(0)',
-                      boxShadow:isHov?'0 8px 32px rgba(59,130,246,0.15),0 4px 24px rgba(0,0,0,0.4)':'0 4px 24px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.05)',
-                      transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
-                    }}
-                  >
-                    <div style={{padding:S.isLight?'12px 12px 10px':'14px',flex:1}}>
-                      {/* Status dot (dark mode only — no text label) */}
-                      {!S.isLight&&(
-                        <div style={{marginBottom:6}}>
-                          <div style={{width:6,height:6,borderRadius:'50%',background:sc}}/>
-                        </div>
-                      )}
-                      {/* Name + health gauge */}
-                      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:22,fontWeight:900,color:S.isLight?'#0f172a':'#fff',lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
-                        </div>
-                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
-                          <svg width={52} height={52} viewBox="0 0 52 52">
-                            <circle cx="26" cy="26" r={r} fill="none" stroke={S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'} strokeWidth="4"/>
-                            <circle cx="26" cy="26" r={r} fill="none" stroke={hc} strokeWidth="4"
-                              strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
-                            <text x="26" y="30" textAnchor="middle" fontSize={15} fontWeight="800" fill={hc}>{hs}</text>
-                          </svg>
-                        </div>
-                      </div>
-                      {/* Divider */}
-                      <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:10}}/>
-                      {/* Stat chips */}
-                      {(()=>{
-                        const chip=style=>({display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px',...style})
-                        return(
-                        <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                          <div style={chip()}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                              <rect x="7" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
-                              <rect x="11" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
-                              <rect x="15" y="13" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
-                              <rect x="7" y="17" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
-                              <rect x="11" y="17" width="2" height="2" rx="0.3" fill="rgba(220,38,38,0.6)" stroke="none"/>
-                            </svg>
-                            <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
-                          </div>
-                          <div style={chip()}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                            </svg>
-                            <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
-                          </div>
-                          <div style={chip()}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1c1c1e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                              <polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/>
-                            </svg>
-                            <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
-                          </div>
-                        </div>
-                        )
-                      })()}
-                    </div>
-                    {/* Alert strip at bottom for critical items (light mode) */}
-                    {S.isLight&&critFUs>0&&(
-                      <div style={{padding:'4px 12px',background:'#fef2f2',borderTop:'1px solid #fecaca',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
-                        <span style={{color:'#dc2626',fontSize:11}}>⚠</span>
-                        <span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span>
-                      </div>
-                    )}
-                    {/* Bottom strip in dark mode */}
-                    {!S.isLight&&<div style={{height:3,background:critFUs>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)',borderRadius:'0 0 10px 10px'}}/>}
-                  </div>
-                )
-              })}
-              <div onClick={()=>setShowAdd(true)}
-                onMouseEnter={e=>{
-                  e.currentTarget.style.background=S.isLight?'#f0f9ff':S.surf2
-                  e.currentTarget.style.borderColor=S.isLight?'#93c5fd':S.bdr2
-                  const icon=e.currentTarget.querySelector('.add-icon-circle')
-                  const txt=e.currentTarget.querySelector('.add-icon-text')
-                  const label=e.currentTarget.querySelector('.add-label')
-                  if(icon){icon.style.background='#dbeafe';icon.style.borderColor='#93c5fd'}
-                  if(txt){txt.style.color='#2563eb'}
-                  if(label){label.style.color='#2563eb'}
-                }}
-                onMouseLeave={e=>{
-                  e.currentTarget.style.background=S.isLight?'#ffffff':'transparent'
-                  e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':S.bdr
-                  const icon=e.currentTarget.querySelector('.add-icon-circle')
-                  const txt=e.currentTarget.querySelector('.add-icon-text')
-                  const label=e.currentTarget.querySelector('.add-label')
-                  if(icon){icon.style.background=S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)';icon.style.borderColor=S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}
-                  if(txt){txt.style.color='#94a3b8'}
-                  if(label){label.style.color='#64748b'}
-                }}
-                style={{background:S.isLight?'#ffffff':'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':S.bdr}`,borderRadius:10,padding:14,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:160,transition:'all 0.2s'}}>
-                <div className="add-icon-circle" style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}>
-                  <span className="add-icon-text" style={{fontSize:22,color:'#94a3b8',lineHeight:1,transition:'color 0.2s'}}>+</span>
+          ) : (
+            <div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <span style={{fontSize:20,fontWeight:800,color:S.txt}}>Your Accounts</span>
+                  <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 10px'}}>{data.accounts.length}</span>
                 </div>
-                <div className="add-label" style={{fontSize:13,fontWeight:600,color:'#64748b',transition:'color 0.2s'}}>Add Account</div>
+                <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:16}}>
+                {data.accounts.map((acct)=>{
+                  const hs=calcHealthScore(acct)
+                  const hc=getHealthColor(hs)
+                  const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
+                  const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
+                  const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
+                  const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
+                  const lastC=acct.lastContact?daysSince(acct.lastContact):null
+                  const isHov=hoveredId===acct.id
+                  const r=20,circ=2*Math.PI*r,progress=(hs/100)*circ
+                  const sc=statusColor[acct.status]||S.muted
+                  return (
+                    <div key={acct.id} style={{position:'relative'}}>
+                      <div onClick={()=>onEnterAccount(acct.id)}
+                        onMouseEnter={()=>setHoveredId(acct.id)}
+                        onMouseLeave={()=>setHoveredId(null)}
+                        style={S.isLight?{
+                          background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer',
+                          transform:isHov?'translateY(-3px)':'translateY(0)',
+                          boxShadow:isHov?'0 12px 32px rgba(0,0,0,0.12)':'0 2px 8px rgba(0,0,0,0.06)',
+                          transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
+                        }:{
+                          background:'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',
+                          border:`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,
+                          borderRadius:10,cursor:'pointer',
+                          transform:isHov?'translateY(-2px)':'translateY(0)',
+                          boxShadow:isHov?'0 8px 32px rgba(59,130,246,0.15)':'0 4px 24px rgba(0,0,0,0.4)',
+                          transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
+                        }}>
+                        <div style={{padding:S.isLight?'12px 12px 10px':'14px',flex:1}}>
+                          {!S.isLight&&<div style={{marginBottom:6}}><div style={{width:6,height:6,borderRadius:'50%',background:sc}}/></div>}
+                          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:22,fontWeight:900,color:S.isLight?'#0f172a':'#fff',lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
+                            </div>
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
+                              <svg width={52} height={52} viewBox="0 0 52 52">
+                                <circle cx="26" cy="26" r={r} fill="none" stroke={S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'} strokeWidth="4"/>
+                                <circle cx="26" cy="26" r={r} fill="none" stroke={hc} strokeWidth="4"
+                                  strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
+                                <text x="26" y="30" textAnchor="middle" fontSize={15} fontWeight="800" fill={hc}>{hs}</text>
+                              </svg>
+                            </div>
+                          </div>
+                          <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:10}}/>
+                          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                              <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
+                            </div>
+                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                              <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
+                            </div>
+                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                              <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
+                            </div>
+                          </div>
+                        </div>
+                        {S.isLight&&critFUs>0&&<div style={{padding:'4px 12px',background:'#fef2f2',borderTop:'1px solid #fecaca',display:'flex',alignItems:'center',gap:6,flexShrink:0}}><span style={{color:'#dc2626',fontSize:11}}>⚠</span><span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span></div>}
+                        {!S.isLight&&<div style={{height:3,background:critFUs>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)',borderRadius:'0 0 10px 10px'}}/>}
+                      </div>
+                      {acct.logoImage&&<div style={{position:'absolute',top:-6,right:-6,width:32,height:32,borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',boxShadow:'0 2px 6px rgba(0,0,0,0.15)',zIndex:2,pointerEvents:'none'}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
+                    </div>
+                  )
+                })}
+                <div onClick={()=>setShowAdd(true)}
+                  onMouseEnter={e=>{e.currentTarget.style.background=S.isLight?'#f0f9ff':'rgba(255,255,255,0.02)';e.currentTarget.style.borderColor=S.isLight?'#93c5fd':'rgba(255,255,255,0.12)'}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}}
+                  style={{background:'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:14,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:160,transition:'all 0.2s'}}>
+                  <div style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <span style={{fontSize:22,color:'#94a3b8',lineHeight:1}}>+</span>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:600,color:'#64748b'}}>Add Account</div>
+                </div>
               </div>
             </div>
-          </div>
+          )
+        ) : (
+          // === DASHBOARD ===
+          data.accounts.length===0 ? (
+            <div style={{textAlign:'center',padding:'70px 20px'}}>
+              <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>Welcome to Account Intelligence</div>
+              <div style={{fontSize:14,color:S.muted,marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
+              <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>+ Add Your First Account</button>
+            </div>
+          ) : (
+            <div>
+              {/* CHART ROW */}
+              <div style={{display:'flex',gap:16,marginBottom:20,alignItems:'flex-start',flexWrap:'wrap'}}>
+                <BarChartCard data={data}/>
+                <PerformanceGaugeCard data={data} setData={setData} onGoAllProjects={onGoAllProjects}/>
+              </div>
+              {/* INSIGHT CARDS */}
+              <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:12}}>
+                <div onClick={()=>setShowAccounts(true)} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #2563eb',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Relationship Health</div>
+                  <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{data.accounts.length}</div>
+                  <div style={{height:4,borderRadius:2,overflow:'hidden',background:'#f1f5f9',marginBottom:6,display:'flex'}}>
+                    {data.accounts.length>0&&<div style={{flex:healthyCount,background:'#0ebc5f',height:'100%'}}/>}
+                    {data.accounts.length>0&&<div style={{flex:atRiskCount,background:'#f59e0b',height:'100%'}}/>}
+                    {data.accounts.length>0&&<div style={{flex:criticalHSCount,background:'#dc2626',height:'100%'}}/>}
+                  </div>
+                  <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}><span style={{color:'#0ebc5f',fontWeight:600}}>{healthyCount} Healthy</span> · <span style={{color:'#f59e0b',fontWeight:600}}>{atRiskCount} At Risk</span> · <span style={{color:'#dc2626',fontWeight:600}}>{criticalHSCount} Critical</span></div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>accounts total</div>
+                </div>
+                <div onClick={()=>setTodayModal(true)} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #dc2626',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Overdue Follow-Ups</div>
+                  <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{allOverdueFUs.length}</div>
+                  <div style={{fontSize:12,color:'#64748b'}}><span style={{color:'#dc2626',fontWeight:600}}>{overdueCritFUs} Critical</span> · <span style={{color:'#ea580c',fontWeight:600}}>{overdueHighFUs} High</span></div>
+                  <div style={{fontSize:11,color:oldestOverdueDays>0?'#dc2626':'#94a3b8',marginTop:4}}>{oldestOverdueDays>0?`Oldest: ${oldestOverdueDays} days ago`:'No overdue items'}</div>
+                </div>
+                <div onClick={()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #ea580c',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Renewal Radar</div>
+                  <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{renewals90}</div>
+                  <div style={{fontSize:12,color:'#64748b'}}>{renewalValue>0?formatCompactCurrency(renewalValue)+' at risk':'renewals within 90d'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nextRenewal?`Next: ${(nextRenewal.vendor||nextRenewal.acctName)||'—'} in ${nextRenewal.daysLeft}d`:'No upcoming renewals'}</div>
+                </div>
+                <div onClick={()=>onGoAllProjects&&onGoAllProjects()} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #f59e0b',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Stalled Projects</div>
+                  <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{stalledProjects.length}</div>
+                  <div style={{fontSize:12,color:stalledProjects.length>0?'#f59e0b':'#64748b'}}>{stalledProjects.length>0?`Avg ${avgStalledDays} days stalled`:'No stalled projects'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{stalledProjects.slice(0,2).map(p=>p.acctName||p.name).join(', ')||'—'}</div>
+                </div>
+                <div onClick={()=>onGoWhitespace&&onGoWhitespace()} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #7c3aed',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Whitespace Intel</div>
+                  <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{wsTotal}</div>
+                  <div style={{fontSize:12,color:'#64748b'}}>{wsAccts.length} accounts tracked</div>
+                  <div style={{fontSize:11,color:wsNew>0?'#7c3aed':'#94a3b8',marginTop:2}}>{wsNew>0?`${wsNew} new this month`:'No new entries'}</div>
+                  {wsStatusTotal>0&&<div style={{height:4,borderRadius:2,overflow:'hidden',background:'#f1f5f9',marginTop:6,display:'flex'}}>{WS_STATUSES.map((st,i)=>wsStatusCounts[i]>0?<div key={st} style={{flex:wsStatusCounts[i],background:wsStatusColors[i],height:'100%'}}/>:null)}</div>}
+                </div>
+              </div>
+            </div>
+          )
         )}
       </div>
 
@@ -9662,15 +9892,18 @@ export default function App() {
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <button onClick={()=>setIsLandingPage(true)} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.isLight?'#2563eb':S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
-              <div>
-                {S.isLight?(
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#eff6ff',borderRadius:999,padding:'2px 10px'}}>{acct.status}</span>
-                  </div>
-                ):(
-                  <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
-                )}
-                <div style={{fontSize:S.isLight?20:17,fontWeight:800,color:S.txt,marginTop:S.isLight?2:0,lineHeight:1.2}}>{acct.name}</div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                {acct.logoImage&&<div style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:'1px solid #e2e8f0'}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
+                <div>
+                  {S.isLight?(
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#eff6ff',borderRadius:999,padding:'2px 10px'}}>{acct.status}</span>
+                    </div>
+                  ):(
+                    <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
+                  )}
+                  <div style={{fontSize:S.isLight?20:17,fontWeight:800,color:S.txt,marginTop:S.isLight?2:0,lineHeight:1.2}}>{acct.name}</div>
+                </div>
               </div>
             </div>
             {!mob&&<div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
