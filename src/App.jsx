@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
@@ -5918,12 +5918,21 @@ const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2']
 
 function BarChartCard({data}) {
   const [view, setView] = useState('projects')
+  const [showExpanded, setShowExpanded] = useState(false)
+
+  const getAccountGP = (acct) => (acct.projects||[])
+    .filter(p=>p.status==='Won')
+    .reduce((sum,p)=>{
+      const raw = p.estimatedGrossProfit||p.grossProfit||''
+      const num = parseFloat(String(raw).replace(/[$,kKmM]/g,'').trim())
+      const multiplier = /k/i.test(raw)?1000:/m/i.test(raw)?1000000:1
+      return sum+(isNaN(num)?0:num*multiplier)
+    },0)
 
   const chartData = (data.accounts||[]).map((acct, idx) => {
     const inFlight = (acct.projects||[]).filter(p=>p.status==='In Flight').length
     const inDiscussion = (acct.projects||[]).filter(p=>p.status==='In Discussion').length
-    const gp = (acct.techStack||[]).reduce((s,t)=>s+parseCost(t.grossProfit||''),0) +
-               (acct.projects||[]).reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0)
+    const gp = getAccountGP(acct)
     return {
       name: acct.short||acct.name,
       acctId: acct.id,
@@ -5976,69 +5985,111 @@ function BarChartCard({data}) {
     )
   }
 
-  return (
-    <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-        <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
-        <div style={{display:'flex',gap:4}}>
-          {['projects','gp'].map(v=>(
-            <button key={v} onClick={()=>setView(v)}
-              style={{padding:'4px 12px',borderRadius:20,border:'1px solid',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
-                background:view===v?'#2563eb':'#fff',color:view===v?'#fff':'#64748b',borderColor:view===v?'#2563eb':'#e2e8f0'}}>
-              {v==='projects'?'Projects':'Gross Profit'}
-            </button>
-          ))}
-        </div>
+  const SummaryRow = () => view==='projects' ? (
+    <div style={{display:'flex',gap:20,marginBottom:10}}>
+      <div style={{display:'flex',alignItems:'center',gap:6}}>
+        <div style={{width:10,height:10,borderRadius:2,background:'#2563eb',flexShrink:0}}/>
+        <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
+        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
       </div>
-      <div style={{display:'flex',gap:20,marginBottom:10}}>
-        {view==='projects' ? (
-          <>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <div style={{width:10,height:10,borderRadius:2,background:'#2563eb',flexShrink:0}}/>
-              <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
-              <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <div style={{width:10,height:10,borderRadius:2,background:'#7c3aed',flexShrink:0}}/>
-              <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
-              <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
-            </div>
-          </>
-        ) : (
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
-            <span style={{fontSize:12,color:'#64748b'}}>Gross Profit</span>
-            <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{formatCompactCurrency(totalGP)}</span>
-          </div>
-        )}
-      </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
-          <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
-          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXTick/>} interval={0}/>
-          <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
-          <RechartsTooltip content={<CustomTooltip/>}/>
-          {view==='projects' ? (
-            <>
-              <Bar dataKey="In Flight"    fill="#2563eb" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
-              <Bar dataKey="In Discussion" fill="#7c3aed" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
-            </>
-          ) : (
-            <Bar dataKey="gp" name="Gross Profit" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
-          )}
-        </BarChart>
-      </ResponsiveContainer>
-      <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
-        {view==='projects' ? (
-          <>
-            <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}/>In Flight</span>
-            <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#7c3aed',display:'inline-block'}}/>In Discussion</span>
-          </>
-        ) : (
-          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>Gross Profit</span>
-        )}
+      <div style={{display:'flex',alignItems:'center',gap:6}}>
+        <div style={{width:10,height:10,borderRadius:2,background:'#7c3aed',flexShrink:0}}/>
+        <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
+        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
       </div>
     </div>
+  ) : (
+    <div style={{display:'flex',gap:20,marginBottom:10}}>
+      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+        <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
+        <span style={{fontSize:12,color:'#64748b'}}>Closed Won GP</span>
+        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{formatCompactCurrency(totalGP)}</span>
+        <span style={{fontSize:10,color:'#94a3b8'}}>(Won projects only)</span>
+      </div>
+    </div>
+  )
+
+  const ChartBody = ({height=220}) => (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
+        <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
+        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXTick/>} interval={0}/>
+        <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
+        <RechartsTooltip content={<CustomTooltip/>}/>
+        {view==='projects' ? (
+          <>
+            <Bar dataKey="In Flight"    fill="#2563eb" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Discussion" fill="#7c3aed" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+          </>
+        ) : (
+          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
+        )}
+      </BarChart>
+    </ResponsiveContainer>
+  )
+
+  const Legend = () => view==='projects' ? (
+    <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}/>In Flight</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#7c3aed',display:'inline-block'}}/>In Discussion</span>
+    </div>
+  ) : (
+    <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>Closed Won GP</span>
+    </div>
+  )
+
+  const TogglePills = () => (
+    <div style={{display:'flex',gap:4}}>
+      {['projects','gp'].map(v=>(
+        <button key={v} onClick={()=>setView(v)}
+          style={{padding:'4px 12px',borderRadius:20,border:'1px solid',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+            background:view===v?'#2563eb':'#fff',color:view===v?'#fff':'#64748b',borderColor:view===v?'#2563eb':'#e2e8f0'}}>
+          {v==='projects'?'Projects':'Gross Profit'}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <>
+      {showExpanded&&(
+        <div onClick={()=>setShowExpanded(false)} style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.6)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:28,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',width:'90vw',height:'85vh',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexShrink:0}}>
+              <div style={{fontSize:17,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <TogglePills/>
+                <button onClick={()=>setShowExpanded(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}}
+                  onMouseEnter={e=>e.currentTarget.style.color='#0f172a'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+                  <X size={18}/>
+                </button>
+              </div>
+            </div>
+            <div style={{flexShrink:0}}><SummaryRow/></div>
+            <div style={{flex:1,minHeight:0}}>
+              <ChartBody height={400}/>
+            </div>
+            <div style={{flexShrink:0}}><Legend/></div>
+          </div>
+        </div>
+      )}
+      <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <TogglePills/>
+            <button onClick={()=>setShowExpanded(true)} title="Expand" style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#2563eb'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+              <Maximize2 size={16}/>
+            </button>
+          </div>
+        </div>
+        <SummaryRow/>
+        <ChartBody height={220}/>
+        <Legend/>
+      </div>
+    </>
   )
 }
 
@@ -6510,24 +6561,23 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                           <input id={`logo-input-${acct.id}`} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{if(e.target.files[0])handleLogoUpload(acct.id,e.target.files[0]);e.target.value=''}}/>
                         </div>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:16,fontWeight:700,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}>{acct.name}</div>
-                          <div style={{fontSize:12,color:'#64748b',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.industry||acct.hq||''}</div>
+                          <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,marginBottom:8}}>{acct.name}</div>
+                          <div style={{fontSize:12,color:'#64748b',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.industry||acct.hq||''}</div>
                         </div>
                         <span style={{fontSize:10,fontWeight:700,color:scBadge.c,background:scBadge.bg,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{acct.status||'Active'}</span>
                       </div>
-                      {/* STAT CHIPS */}
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                          <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
+                      {/* STAT ROW */}
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)'}`,paddingTop:8,marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:4}}>
+                          {(()=>{const cc=lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a';return(<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={cc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span style={{fontSize:12,color:cc}}>{lastC===null?'—':lastC>30?'30d+':lastC+'d'}</span></>)})()}
                         </div>
-                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.75)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                          <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
+                        <div style={{display:'flex',alignItems:'center',gap:4}}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span style={{fontSize:12,color:'#64748b'}}>{activePjs}</span>
                         </div>
-                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={critFUs>0?'rgba(234,88,12,0.8)':'rgba(100,116,139,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                          <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
+                        <div style={{display:'flex',alignItems:'center',gap:4}}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={critFUs>0?'#fc413d':'#1c1c1e'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                          <span style={{fontSize:12,color:critFUs>0?'#fc413d':'#64748b'}}>{openFUs}</span>
                         </div>
                       </div>
                       {/* HEALTH BAR */}
