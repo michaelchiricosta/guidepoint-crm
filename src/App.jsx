@@ -6561,7 +6561,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,marginBottom:8}}>{acct.name}</div>
-                          <div style={{fontSize:12,color:'#64748b',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.industry||acct.hq||''}</div>
                         </div>
                       </div>
                       {/* STAT ROW */}
