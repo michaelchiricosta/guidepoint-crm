@@ -3738,7 +3738,25 @@ function AIChatModal({acct, setAcct, effectiveKey, onClose, initialMessages=[], 
 
   useEffect(()=>{messagesEndRef.current?.scrollIntoView({behavior:'smooth'})},[messages,loading])
 
-  const SYSTEM_PROMPT = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. You have been given detailed information about a specific account. Answer questions ONLY based on the information provided about this account. Do not use outside knowledge about vendors, companies, or cybersecurity beyond what is in the account data. Be concise, direct, and actionable. If the answer is not in the account data, say so clearly. Format responses cleanly — use bullet points for lists, bold for key names. Never make up information not present in the account context.`
+  const SYSTEM_PROMPT = `You are an account intelligence assistant for a cybersecurity sales rep at GuidePoint Security. You have been given detailed information about a specific account. Answer questions ONLY based on the information provided about this account. Do not use outside knowledge about vendors, companies, or cybersecurity beyond what is in the account data. Be concise, direct, and actionable. If the answer is not in the account data, say so clearly. Never make up information not present in the account context.
+
+Format every response as follows — NO EXCEPTIONS:
+
+First: A concise written explanation, maximum 6 sentences, written in natural prose (no bullet points in this section). This should directly answer the question with context, nuance, and narrative flow. Write it as a trusted advisor would explain something to a colleague.
+
+Then: A blank line separator.
+
+Then: Key information as bullet points. Each bullet should be a single crisp fact, data point, name, date, or action item. Maximum 8 bullets. Start each bullet with a relevant emoji that matches the content type:
+📅 for dates and deadlines
+👤 for people and contacts
+💰 for revenue, pricing, deals
+⚠️ for risks and concerns
+✅ for completed items or wins
+🎯 for opportunities and next steps
+🔄 for renewals and recurring items
+📋 for projects and initiatives
+
+Do not use headers. Do not use bold text. Do not start the prose section with 'I' or 'Based on'. Write the prose section first, bullets second, nothing else.`
 
   const SUGGESTED = [
     "What are the biggest risks in this account right now?",
@@ -7848,7 +7866,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setWsPendingDate(date)
 
     const SYS_WS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
-    const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"City, State or empty","industry":"industry or empty","note":"1-2 sentence summary of intel including source, what they need, any contacts mentioned","status":"Prospect"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 1-2 sentences max per account\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+    const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const onStatus = msg => { if(msg) setWsRetryStatus(msg); else setWsRetryStatus('') }
 
@@ -7994,7 +8012,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setIntelLoading(true); setIntelError(''); setIntelStatus('')
 
     const SYS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
-    const buildPrompt = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"City, State or empty","industry":"industry or empty","note":"1-2 sentence summary of intel including source, what they need, any contacts mentioned","status":"Prospect"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 1-2 sentences max per account\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+    const buildPrompt = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const runChunk = async (txt, idx, total) => {
       if (total > 1) setIntelStatus(`Processing chunk ${idx+1} of ${total}…`)
@@ -8082,9 +8100,16 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         const noteEntry = {id:uid(), text:a.note, date, addedBy:'ai'}
         const existIdx = wsList.findIndex(w=>fuzzyMatchAccount(finalName, w.name))
         if (existIdx>=0) {
-          wsList[existIdx] = {...wsList[existIdx], intelLog:[noteEntry,...(wsList[existIdx].intelLog||[])], updatedAt:now}
+          const ex = {...wsList[existIdx]}
+          if (!ex.hq && a.hq) ex.hq = a.hq
+          if (!ex.industry && a.industry) ex.industry = a.industry
+          if (!ex.employees && a.employees) ex.employees = a.employees
+          if (!ex.revenue && a.revenue) ex.revenue = a.revenue
+          ex.intelLog = [noteEntry, ...(ex.intelLog||[])]
+          ex.updatedAt = now
+          wsList[existIdx] = ex
         } else {
-          wsList.push({id:uid(),name:finalName,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:'',status:'Prospect',contacts:[],technologies:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
+          wsList.push({id:uid(),name:finalName,hq:a.hq||'',industry:a.industry||'',employees:a.employees||'',revenue:a.revenue||'',status:a.status||'Prospect',contacts:[],technologies:[],notes:[],intelLog:[noteEntry],addedAt:now,updatedAt:now})
         }
       })
       return {...prev, whitespaceAccounts:wsList}
@@ -8724,7 +8749,14 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                           {possibleWS&&<span style={{fontSize:10,fontWeight:700,color:'#d97706',background:'#fef3c7',borderRadius:4,padding:'1px 7px',whiteSpace:'nowrap'}}>Possible match? · {possibleWS.name}</span>}
                           {inCRM&&<span style={{fontSize:10,fontWeight:700,color:'#64748b',background:S.surf2,borderRadius:4,padding:'1px 7px',border:`1px solid ${S.bdr}`}}>In CRM</span>}
                         </div>
-                        {(a.hq||a.industry)&&<div style={{fontSize:11,color:S.muted,marginBottom:4}}>{[a.hq,a.industry].filter(Boolean).join(' · ')}</div>}
+                        {(a.hq||a.industry||a.employees||a.revenue)&&(
+                          <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:5}}>
+                            {a.hq&&<span style={{fontSize:10,color:'#64748b',background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'1px 8px',whiteSpace:'nowrap'}}>HQ: {a.hq}</span>}
+                            {a.employees&&<span style={{fontSize:10,color:'#64748b',background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'1px 8px',whiteSpace:'nowrap'}}>Employees: {a.employees}</span>}
+                            {a.revenue&&<span style={{fontSize:10,color:'#64748b',background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'1px 8px',whiteSpace:'nowrap'}}>Revenue: {a.revenue}</span>}
+                            {a.industry&&<span style={{fontSize:10,color:'#64748b',background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:12,padding:'1px 8px',whiteSpace:'nowrap'}}>Industry: {a.industry}</span>}
+                          </div>
+                        )}
                         {a.note&&<div style={{fontSize:12,color:S.muted,fontStyle:'italic',lineHeight:1.5}}>{a.note.slice(0,120)}{a.note.length>120?'…':''}</div>}
                       </div>
                     </div>
