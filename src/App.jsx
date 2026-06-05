@@ -5172,7 +5172,7 @@ function AIHistory({acct, setAcct, apiKey}) {
   )
 }
 
-function Settings({data,setData,acct,setAcct,theme,setTheme}) {
+function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime}) {
   const [key,setKey] = useState(data.apiKey||'')
   const [saved,setSaved] = useState(false)
   const [logoStatus,setLogoStatus] = useState(null)
@@ -5198,6 +5198,8 @@ function Settings({data,setData,acct,setAcct,theme,setTheme}) {
     img.src = URL.createObjectURL(file)
   })
   const handleLogoSave = async (compressed) => {
+    saveInProgress.current = true
+    lastSaveTime.current = Date.now()
     const updatedAccounts = (data.accounts||[]).map(a => a.id===acct.id ? {...a,logoImage:compressed} : a)
     const updatedData = {...data, accounts:updatedAccounts}
     setData(updatedData)
@@ -5207,24 +5209,27 @@ function Settings({data,setData,acct,setAcct,theme,setTheme}) {
       const {error} = await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
       if (error) throw error
       console.log('Logo saved to Supabase for:', acct.name)
-      window._lastLogoSave = Date.now()
       setLogoStatus('saved')
       setTimeout(()=>setLogoStatus(null),2000)
     } catch(err) {
       console.error('Logo save failed:', err)
       setLogoStatus(null)
       alert('Logo save failed. Please try again.')
+    } finally {
+      setTimeout(()=>{ saveInProgress.current = false }, 3000)
     }
   }
   const handleRemoveLogo = async () => {
+    saveInProgress.current = true
+    lastSaveTime.current = Date.now()
     const updatedAccounts = (data.accounts||[]).map(a => a.id===acct.id ? {...a,logoImage:''} : a)
     const updatedData = {...data, accounts:updatedAccounts}
     setData(updatedData)
     setAcct(p=>({...p,logoImage:''}))
     try {
       await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
-      window._lastLogoSave = Date.now()
     } catch(err) { console.error('Logo remove failed:', err) }
+    finally { setTimeout(()=>{ saveInProgress.current = false }, 3000) }
   }
   return (
     <div style={{maxWidth:520}}>
@@ -5239,7 +5244,7 @@ function Settings({data,setData,acct,setAcct,theme,setTheme}) {
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>logoInputRef.current?.click()} style={{padding:'6px 14px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Upload Logo</button>
+              <button onClick={()=>{saveInProgress.current=true;lastSaveTime.current=Date.now();logoInputRef.current?.click()}} style={{padding:'6px 14px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Upload Logo</button>
               {acct.logoImage&&acct.logoImage.length>10&&<button onClick={handleRemoveLogo} style={{padding:'6px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>Remove Logo</button>}
             </div>
             {logoStatus&&<span style={{fontSize:12,color:logoStatus==='saving'?S.muted:'#16a34a'}}>{logoStatus==='saving'?'Saving…':'Saved!'}</span>}
@@ -9912,6 +9917,8 @@ export default function App() {
   const [activeId,setActiveId] = useState('bhsi')
   const [tab,setTab] = useState('overview')
   const searchRef = useRef(null)
+  const saveInProgress = useRef(false)
+  const lastSaveTime = useRef(0)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [isLandingPage,setIsLandingPage] = useState(true)
   const [showWhitespace,setShowWhitespace] = useState(false)
@@ -9951,6 +9958,17 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ loadData().then(applyLoad) },[])
 
+  const safeLoadData = async () => {
+    console.log('safeLoadData called, inProgress:', saveInProgress.current, 'lastSave:', lastSaveTime.current)
+    if (saveInProgress.current) { console.log('Skipping reload — save in progress'); return }
+    if (Date.now() - lastSaveTime.current < 5000) { console.log('Skipping reload — recent save'); return }
+    const savedData = await loadData()
+    if (saveInProgress.current) { console.log('Skipping reload — save started during load'); return }
+    if (Date.now() - lastSaveTime.current < 5000) { console.log('Skipping reload — save completed during load'); return }
+    if (savedData) applyLoad(savedData)
+    else setStorageReady(true)
+  }
+
   const handleRefresh = () => {
     setStorageReady(false)
     loadData().then(applyLoad)
@@ -9958,24 +9976,27 @@ export default function App() {
 
   useEffect(()=>{
     if(!data || !initialLoadDone || !storageReady) return
-    setSaveStatus('saving')
-    const saved = new Date()
+    console.log('Auto-save triggered')
     let iv
-    saveData(data).then(({error})=>{
-      if(error){
-        setSaveStatus('error')
-      } else {
-        setSaveStatus('saved')
-        setLastSavedLabel('just now')
-        iv = setInterval(()=>{
-          const mins=Math.floor((new Date()-saved)/60000)
-          if(mins<1)setLastSavedLabel('just now')
-          else if(mins===1)setLastSavedLabel('1 min ago')
-          else setLastSavedLabel(`${mins} mins ago`)
-        },30000)
-      }
-    })
-    return()=>clearInterval(iv)
+    const timer = setTimeout(()=>{
+      setSaveStatus('saving')
+      const saved = new Date()
+      saveData(data).then(({error})=>{
+        if(error){
+          setSaveStatus('error')
+        } else {
+          setSaveStatus('saved')
+          setLastSavedLabel('just now')
+          iv = setInterval(()=>{
+            const mins=Math.floor((new Date()-saved)/60000)
+            if(mins<1)setLastSavedLabel('just now')
+            else if(mins===1)setLastSavedLabel('1 min ago')
+            else setLastSavedLabel(`${mins} mins ago`)
+          },30000)
+        }
+      })
+    }, 2000)
+    return()=>{clearTimeout(timer);clearInterval(iv)}
   },[data,initialLoadDone,storageReady])
 
   useEffect(()=>{
@@ -9992,12 +10013,8 @@ export default function App() {
 
   useEffect(()=>{
     const handleFocus = () => {
-      if (Date.now() - (window._lastLogoSave || 0) < 5000) return
-      setStorageReady(false)
-      loadData().then(savedData => {
-        if (savedData) applyLoad(savedData)
-        else setStorageReady(true)
-      })
+      console.log('Focus triggered reload at:', Date.now(), 'lastSave:', lastSaveTime.current)
+      safeLoadData()
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
@@ -10114,7 +10131,7 @@ export default function App() {
           {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
           {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
           {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
-          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme}/>}
+          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime}/>}
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
