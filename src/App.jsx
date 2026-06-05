@@ -5949,22 +5949,24 @@ function BarChartCard({data}) {
   const totalInDiscussion = chartData.reduce((s,d)=>s+d['In Discussion'],0)
   const totalGP = chartData.reduce((s,d)=>s+d.gp,0)
 
-  const CustomXTick = ({x, y, payload}) => {
-    const row = chartData.find(d=>d.name===payload.value)
-    if (!row) return null
+  const CustomXAxisTick = ({x, y, payload}) => {
+    const acct = (data.accounts||[]).find(a=>a.short===payload.value||a.name===payload.value||(a.short||'').toLowerCase()===payload.value?.toLowerCase())
+    const logoImage = acct?.logoImage||''
+    const initial = acct?.name?.[0]?.toUpperCase()||payload.value?.[0]?.toUpperCase()||'?'
+    const colors = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
+    const idx = (data.accounts||[]).findIndex(a=>a.id===acct?.id)
+    const bgColor = colors[Math.max(0,idx)%colors.length]
     return (
-      <g>
-        <text x={x} y={y+12} textAnchor="middle" fontSize={11} fill="#94a3b8">{payload.value}</text>
-        {row.logoImage ? (
-          <foreignObject x={x-12} y={y+16} width={24} height={24} style={{overflow:'visible'}}>
-            <img src={row.logoImage} style={{width:'24px',height:'24px',borderRadius:'50%',objectFit:'cover',display:'block'}}/>
-          </foreignObject>
-        ) : (
-          <g>
-            <circle cx={x} cy={y+28} r={12} fill={row.logoColor}/>
-            <text x={x} y={y+32} textAnchor="middle" fontSize={9} fontWeight="700" fill="#fff">{row.initial}</text>
-          </g>
-        )}
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{payload.value}</text>
+        <foreignObject x={-16} y={18} width={32} height={32}>
+          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:32,height:32,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            {logoImage&&logoImage.length>10
+              ?<img src={logoImage} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%',display:'block'}}/>
+              :<span style={{color:'white',fontSize:13,fontWeight:700,lineHeight:1}}>{initial}</span>
+            }
+          </div>
+        </foreignObject>
       </g>
     )
   }
@@ -5988,12 +5990,12 @@ function BarChartCard({data}) {
   const SummaryRow = () => view==='projects' ? (
     <div style={{display:'flex',gap:20,marginBottom:10}}>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#2563eb',flexShrink:0}}/>
+        <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
         <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
         <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#7c3aed',flexShrink:0}}/>
+        <div style={{width:10,height:10,borderRadius:2,background:'#fec700',flexShrink:0}}/>
         <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
         <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
       </div>
@@ -6013,13 +6015,13 @@ function BarChartCard({data}) {
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
         <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
-        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXTick/>} interval={0}/>
+        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXAxisTick/>} interval={0} height={65}/>
         <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
         <RechartsTooltip content={<CustomTooltip/>}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight"    fill="#2563eb" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
-            <Bar dataKey="In Discussion" fill="#7c3aed" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Flight"    fill="#0ebc5f" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Discussion" fill="#fec700" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
           </>
         ) : (
           <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
@@ -6030,8 +6032,8 @@ function BarChartCard({data}) {
 
   const Legend = () => view==='projects' ? (
     <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block'}}/>In Flight</span>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#7c3aed',display:'inline-block'}}/>In Discussion</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>In Flight</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#fec700',display:'inline-block'}}/>In Discussion</span>
     </div>
   ) : (
     <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
