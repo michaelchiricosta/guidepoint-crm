@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { loadData, saveData, uploadFile, getFileUrl, deleteFile } from './supabase.js'
+import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
 import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from './namedAccounts.js'
 
 const SK = 'gp-crm-v4'
@@ -5175,10 +5175,78 @@ function AIHistory({acct, setAcct, apiKey}) {
 function Settings({data,setData,acct,setAcct,theme,setTheme}) {
   const [key,setKey] = useState(data.apiKey||'')
   const [saved,setSaved] = useState(false)
+  const [logoStatus,setLogoStatus] = useState(null)
+  const logoInputRef = useRef(null)
   const saveKey=()=>{setData(p=>({...p,apiKey:key}));setSaved(true);setTimeout(()=>setSaved(false),2000)}
   const exportData=()=>{const b=new Blob([JSON.stringify(data,null,2)]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='guidepoint-crm-backup.json';a.click()}
+  const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
+  const acctIdx = (data.accounts||[]).findIndex(a=>a.id===acct.id)
+  const logoColor = LOGO_COLORS[Math.max(0,acctIdx)%LOGO_COLORS.length]
+  const logoInitial = (acct.name||'?')[0].toUpperCase()
+  const compressImage = (file) => new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    const img = new Image()
+    img.onload = () => {
+      const maxSize = 200
+      let w = img.width, h = img.height
+      if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize } }
+      else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.src = URL.createObjectURL(file)
+  })
+  const handleLogoSave = async (compressed) => {
+    const updatedAccounts = (data.accounts||[]).map(a => a.id===acct.id ? {...a,logoImage:compressed} : a)
+    const updatedData = {...data, accounts:updatedAccounts}
+    setData(updatedData)
+    setAcct(p=>({...p,logoImage:compressed}))
+    setLogoStatus('saving')
+    try {
+      const {error} = await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
+      if (error) throw error
+      console.log('Logo saved to Supabase for:', acct.name)
+      window._lastLogoSave = Date.now()
+      setLogoStatus('saved')
+      setTimeout(()=>setLogoStatus(null),2000)
+    } catch(err) {
+      console.error('Logo save failed:', err)
+      setLogoStatus(null)
+      alert('Logo save failed. Please try again.')
+    }
+  }
+  const handleRemoveLogo = async () => {
+    const updatedAccounts = (data.accounts||[]).map(a => a.id===acct.id ? {...a,logoImage:''} : a)
+    const updatedData = {...data, accounts:updatedAccounts}
+    setData(updatedData)
+    setAcct(p=>({...p,logoImage:''}))
+    try {
+      await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
+      window._lastLogoSave = Date.now()
+    } catch(err) { console.error('Logo remove failed:', err) }
+  }
   return (
     <div style={{maxWidth:520}}>
+      <SH>Account Logo</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <div style={{width:80,height:80,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:'1px solid #e2e8f0',background:acct.logoImage?'white':logoColor,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {acct.logoImage&&acct.logoImage.length>10
+              ?<img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+              :<span style={{color:'white',fontSize:28,fontWeight:800}}>{logoInitial}</span>
+            }
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>logoInputRef.current?.click()} style={{padding:'6px 14px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Upload Logo</button>
+              {acct.logoImage&&acct.logoImage.length>10&&<button onClick={handleRemoveLogo} style={{padding:'6px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>Remove Logo</button>}
+            </div>
+            {logoStatus&&<span style={{fontSize:12,color:logoStatus==='saving'?S.muted:'#16a34a'}}>{logoStatus==='saving'?'Saving…':'Saved!'}</span>}
+          </div>
+        </div>
+        <input ref={logoInputRef} type='file' accept='image/*' style={{display:'none'}} onChange={async e=>{const f=e.target.files[0];if(!f)return;const c=await compressImage(f);await handleLogoSave(c);e.target.value=''}}/>
+      </Card>
       <SH>Appearance</SH>
       <Card style={{padding:'14px 16px',marginBottom:20}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -6190,36 +6258,11 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
-  const [hoveredLogoId, setHoveredLogoId] = useState(null)
   const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
   const [showAccounts, setShowAccounts] = useState(false)
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
-  const compressLogo = (file) => new Promise((resolve) => {
-    const canvas = document.createElement('canvas')
-    const img = new Image()
-    img.onload = () => {
-      const maxSize = 200
-      let w = img.width, h = img.height
-      if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize } }
-      else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', 0.85))
-    }
-    img.src = URL.createObjectURL(file)
-  })
-  const handleLogoUpload = async (acctId, file) => {
-    if (!file) return
-    const b64 = await compressLogo(file)
-    const updatedAccounts = data.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)
-    const updatedData = {...data, accounts: updatedAccounts}
-    setData(updatedData)
-    window._lastLogoSave = Date.now()
-    await saveData(updatedData)
-    console.log('Logo saved immediately for account:', acctId)
-  }
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -6523,7 +6566,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 </div>
                 <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
               </div>
-              <div style={{fontSize:12,color:S.muted,marginBottom:18}}>Click any logo circle to upload a company logo — it will appear across your dashboard automatically</div>
+              <div style={{fontSize:12,color:S.muted,marginBottom:18}}>Upload account logos from the Settings tab inside each account.</div>
               <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14}}>
                 {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
                   const hs=calcHealthScore(acct)
@@ -6534,7 +6577,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
                   const lastC=acct.lastContact?daysSince(acct.lastContact):null
                   const isHov=hoveredId===acct.id
-                  const isLogoHov=hoveredLogoId===acct.id
                   const logoColor=LOGO_COLORS[acctIdx%LOGO_COLORS.length]
                   const initial=(acct.name||'?')[0].toUpperCase()
                   return (
@@ -6550,21 +6592,13 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         transform:isHov?'translateY(-2px)':'translateY(0)',
                         transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:16
                       }}>
-                      {/* TOP ROW: logo + name + badge */}
+                      {/* TOP ROW: logo + name */}
                       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
-                        <div
-                          style={{position:'relative',flexShrink:0,width:44,height:44,cursor:'pointer'}}
-                          onClick={e=>{e.stopPropagation();document.getElementById(`logo-input-${acct.id}`).click()}}
-                          onMouseEnter={e=>{e.stopPropagation();setHoveredLogoId(acct.id)}}
-                          onMouseLeave={e=>{e.stopPropagation();setHoveredLogoId(null)}}>
-                          {acct.logoImage
+                        <div style={{flexShrink:0,width:44,height:44}}>
+                          {acct.logoImage&&acct.logoImage.length>10
                             ?<img src={acct.logoImage} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
                             :<div style={{width:44,height:44,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:700,color:'#fff'}}>{initial}</div>
                           }
-                          {isLogoHov&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                          </div>}
-                          <input id={`logo-input-${acct.id}`} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{if(e.target.files[0])handleLogoUpload(acct.id,e.target.files[0]);e.target.value=''}}/>
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,marginBottom:8}}>{acct.name}</div>
