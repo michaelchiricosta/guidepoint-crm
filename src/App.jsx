@@ -6213,11 +6213,12 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const handleLogoUpload = async (acctId, file) => {
     if (!file) return
     const b64 = await compressLogo(file)
-    setData(prev => {
-      const name = prev.accounts.find(a => a.id === acctId)?.name
-      console.log('Logo saved for account:', name)
-      return {...prev, accounts: prev.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)}
-    })
+    const updatedAccounts = data.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)
+    const updatedData = {...data, accounts: updatedAccounts}
+    setData(updatedData)
+    window._lastLogoSave = Date.now()
+    await saveData(updatedData)
+    console.log('Logo saved immediately for account:', acctId)
   }
 
   const hour = new Date().getHours()
@@ -9957,6 +9958,7 @@ export default function App() {
 
   useEffect(()=>{
     const handleFocus = () => {
+      if (Date.now() - (window._lastLogoSave || 0) < 5000) return
       setStorageReady(false)
       loadData().then(savedData => {
         if (savedData) applyLoad(savedData)
