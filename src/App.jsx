@@ -6592,10 +6592,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         borderRadius:16,
                         boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.10)':'0 2px 8px rgba(0,0,0,0.06)',
                         transform:isHov?'translateY(-2px)':'translateY(0)',
-                        transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:16,height:'100%',boxSizing:'border-box'
+                        transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:0,height:'100%',minHeight:130,boxSizing:'border-box'
                       }}>
-                      {/* TOP ROW: logo + name */}
-                      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                      {/* TOP: logo + name */}
+                      <div style={{display:'flex',alignItems:'center',gap:12,padding:'16px 16px 8px'}}>
                         <div style={{flexShrink:0,width:44,height:44}}>
                           {acct.logoImage&&acct.logoImage.length>10
                             ?<img src={acct.logoImage} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
@@ -6603,11 +6603,13 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                           }
                         </div>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,marginBottom:8}}>{acct.name}</div>
+                          <div style={{fontSize:17,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',lineHeight:1.3}}>{acct.name}</div>
                         </div>
                       </div>
-                      {/* STAT ROW */}
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)'}`,paddingTop:8,marginBottom:12}}>
+                      {/* SPACER */}
+                      <div style={{flex:1}}/>
+                      {/* STAT ROW — pinned to bottom */}
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)'}`,padding:'10px 16px'}}>
                         <div style={{display:'flex',alignItems:'center',gap:4}}>
                           {(()=>{const cc=lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a';return(<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={cc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span style={{fontSize:12,color:cc}}>{lastC===null?'—':lastC>30?'30d+':lastC+'d'}</span></>)})()}
                         </div>
@@ -6621,11 +6623,11 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         </div>
                       </div>
                       {/* ALERT STRIP */}
-                      {critFUs>0&&<div style={{margin:'10px -16px -16px',padding:'4px 16px',background:S.isLight?'#fef2f2':'rgba(220,38,38,0.12)',borderTop:`1px solid ${S.isLight?'#fecaca':'rgba(220,38,38,0.2)'}`,display:'flex',alignItems:'center',gap:6}}>
+                      {critFUs>0&&<div style={{padding:'4px 16px',background:S.isLight?'#fef2f2':'rgba(220,38,38,0.12)',borderTop:`1px solid ${S.isLight?'#fecaca':'rgba(220,38,38,0.2)'}`,display:'flex',alignItems:'center',gap:6}}>
                         <span style={{color:'#dc2626',fontSize:11}}>⚠</span>
                         <span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span>
                       </div>}
-                      {!critFUs&&highFUs>0&&<div style={{margin:'10px -16px -16px',height:3,background:'linear-gradient(90deg,#c2410c,#f97316)'}}/>}
+                      {!critFUs&&highFUs>0&&<div style={{height:3,background:'linear-gradient(90deg,#c2410c,#f97316)'}}/>}
                     </div>
                   )
                 })}
