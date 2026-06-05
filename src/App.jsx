@@ -9819,6 +9819,7 @@ function AllProjectsPage({data, setData, onBack}) {
 export default function App() {
   const [data,setData] = useState(null)
   const [storageReady,setStorageReady] = useState(false)
+  const [initialLoadDone,setInitialLoadDone] = useState(false)
   const [saveStatus,setSaveStatus] = useState('idle')
   const [activeId,setActiveId] = useState('bhsi')
   const [tab,setTab] = useState('overview')
@@ -9856,6 +9857,7 @@ export default function App() {
     })
     setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[]})
     setStorageReady(true)
+    setInitialLoadDone(true)
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9867,7 +9869,7 @@ export default function App() {
   }
 
   useEffect(()=>{
-    if(!data || !storageReady) return
+    if(!data || !initialLoadDone || !storageReady) return
     setSaveStatus('saving')
     const saved = new Date()
     let iv
@@ -9886,7 +9888,7 @@ export default function App() {
       }
     })
     return()=>clearInterval(iv)
-  },[data,storageReady])
+  },[data,initialLoadDone,storageReady])
 
   useEffect(()=>{
     const handler=e=>{
@@ -9898,6 +9900,19 @@ export default function App() {
     }
     window.addEventListener('keydown',handler)
     return()=>window.removeEventListener('keydown',handler)
+  },[])
+
+  useEffect(()=>{
+    const handleFocus = () => {
+      setStorageReady(false)
+      loadData().then(savedData => {
+        if (savedData) applyLoad(savedData)
+        else setStorageReady(true)
+      })
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>

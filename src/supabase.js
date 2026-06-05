@@ -3,21 +3,34 @@ import { createClient } from '@supabase/supabase-js'
 const SUPABASE_URL = 'https://aenlxbxkrxgylgknlcft.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_3rSqBpPP1xF2H6QWw5-xsw_YhpKuMyW'
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    }
+  }
+})
 
 export const loadData = async () => {
-  console.log('[loadData] fetching from Supabase', new Date().toISOString())
-  const { data, error } = await supabase
-    .from('accounts')
-    .select('*')
-    .eq('id', 'user-data')
-    .single()
-  if (error || !data) {
-    console.log('[loadData] no data or error:', error?.message)
+  try {
+    console.log('[loadData] fetching from Supabase', new Date().toISOString())
+    const { data } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('id', 'user-data')
+      .single()
+      .throwOnError()
+    if (!data) {
+      console.log('[loadData] no data returned')
+      return null
+    }
+    console.log('[loadData] loaded', JSON.stringify(data.data).length, 'bytes', new Date().toISOString())
+    return data.data
+  } catch (e) {
+    console.error('[loadData] error:', e.message)
     return null
   }
-  console.log('[loadData] loaded', JSON.stringify(data.data).length, 'bytes', new Date().toISOString())
-  return data.data
 }
 
 export const saveData = async (appData) => {
