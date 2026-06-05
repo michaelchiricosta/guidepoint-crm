@@ -6530,7 +6530,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   const isLogoHov=hoveredLogoId===acct.id
                   const logoColor=LOGO_COLORS[acctIdx%LOGO_COLORS.length]
                   const initial=(acct.name||'?')[0].toUpperCase()
-                  const scBadge=({Strategic:{c:'#7c3aed',bg:'#ede9fe'},Active:{c:'#16a34a',bg:'#dcfce7'},Prospect:{c:'#2563eb',bg:'#dbeafe'},'At Risk':{c:'#dc2626',bg:'#fee2e2'}})[acct.status]||{c:'#64748b',bg:'#f1f5f9'}
                   return (
                     <div key={acct.id}
                       onClick={()=>onEnterAccount(acct.id)}
@@ -6564,7 +6563,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                           <div style={{fontSize:18,fontWeight:800,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3,marginBottom:8}}>{acct.name}</div>
                           <div style={{fontSize:12,color:'#64748b',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.industry||acct.hq||''}</div>
                         </div>
-                        <span style={{fontSize:10,fontWeight:700,color:scBadge.c,background:scBadge.bg,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{acct.status||'Active'}</span>
                       </div>
                       {/* STAT ROW */}
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)'}`,paddingTop:8,marginBottom:12}}>
