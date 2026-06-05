@@ -6571,8 +6571,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 </div>
                 <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
               </div>
-              <div style={{fontSize:12,color:S.muted,marginBottom:18}}>Upload account logos from the Settings tab inside each account.</div>
-              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14}}>
+              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14,gridAutoRows:'1fr'}}>
                 {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
                   const hs=calcHealthScore(acct)
                   const hc=getHealthColor(hs)
@@ -6595,7 +6594,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         borderRadius:16,
                         boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.10)':'0 2px 8px rgba(0,0,0,0.06)',
                         transform:isHov?'translateY(-2px)':'translateY(0)',
-                        transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:16
+                        transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:16,height:'100%',boxSizing:'border-box'
                       }}>
                       {/* TOP ROW: logo + name */}
                       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
@@ -6645,7 +6644,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 <div onClick={()=>setShowAdd(true)}
                   onMouseEnter={e=>{e.currentTarget.style.background=S.isLight?'#f0f9ff':'rgba(255,255,255,0.02)';e.currentTarget.style.borderColor=S.isLight?'#93c5fd':'rgba(255,255,255,0.12)'}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}}
-                  style={{background:'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.2s'}}>
+                  style={{background:'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,height:'100%',boxSizing:'border-box',transition:'all 0.2s'}}>
                   <div style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                     <span style={{fontSize:22,color:'#94a3b8',lineHeight:1}}>+</span>
                   </div>
@@ -8425,9 +8424,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       <div style={{flex:'0 0 130px',textAlign:'right'}}>
                         <span style={{fontSize:11,fontWeight:700,color:'#fff',background:sc,borderRadius:999,padding:'3px 10px',whiteSpace:'nowrap'}}>{acct.status}</span>
                       </div>
-                      <div style={{width:44,flexShrink:0,display:'flex',justifyContent:'flex-end',opacity:isHov?1:0,transition:'opacity 0.15s'}} onClick={e=>e.stopPropagation()}>
-                        <button onClick={()=>deleteAccount(acct.id)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:14,padding:'2px 4px'}}
-                          onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>🗑</button>
+                      <div style={{width:44,flexShrink:0,display:'flex',justifyContent:'flex-end'}} onClick={e=>e.stopPropagation()}>
+                        <button onClick={()=>deleteAccount(acct.id)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:10,padding:'2px 4px',display:'flex',alignItems:'center'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Trash2 size={12}/></button>
                       </div>
                     </div>
                     {isExp&&<ExpandedWhitespaceRow key={acct.id+'-exp'} acct={acct} updateAccount={updateAccount} isLight={isLight}/>}
