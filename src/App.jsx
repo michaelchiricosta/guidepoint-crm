@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2 } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -5765,7 +5765,11 @@ function Dashboard({acct, setTab}) {
 function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
-  const [collapsed,setCollapsed] = useState(false)
+  const [collapsed,setCollapsed] = useState(()=>{
+    if(typeof window!=='undefined'&&window.innerWidth<768)return true
+    return localStorage.getItem('sidebar-collapsed')==='true'
+  })
+  const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const [searchQ,setSearchQ] = useState('')
   const [logoHovered, setLogoHovered] = useState(false)
   const [isMobile,setIsMobile] = useState(typeof window!=='undefined'&&window.innerWidth<768)
@@ -5806,7 +5810,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
                 <div style={{fontSize:11,color:SM,fontWeight:400,marginTop:1}}>Account Intel</div>
               </div>
             </button>
-            <button onClick={()=>setCollapsed(c=>!c)} title="Collapse"
+            <button onClick={()=>toggleCollapsed()} title="Collapse"
               style={{background:'transparent',border:'none',color:SM,cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color=ST}
               onMouseLeave={e=>e.currentTarget.style.color=SM}>‹</button>
@@ -5819,7 +5823,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
                 <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
               </svg>
             </button>
-            <button onClick={()=>setCollapsed(c=>!c)} title="Expand"
+            <button onClick={()=>toggleCollapsed()} title="Expand"
               style={{background:'transparent',border:'none',color:SM,cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color=ST}
               onMouseLeave={e=>e.currentTarget.style.color=SM}>›</button>
@@ -5927,20 +5931,31 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
 }
 
 function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, showAccounts, setShowAccounts}) {
+  const [collapsed, setCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
+  const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const navTop = [
-    {id:'dashboard', label:'Dashboard', icon:<Home size={14}/>, action:()=>setShowAccounts(false)},
-    {id:'accounts',  label:'Accounts',  icon:<Building2 size={14}/>, action:()=>setShowAccounts(true)},
-    {id:'allprojects',label:'All Projects',icon:<Folder size={14}/>, action:()=>onGoAllProjects&&onGoAllProjects()},
-    {id:'whitespace',label:'Whitespace', icon:<Map size={14}/>, action:()=>onGoWhitespace&&onGoWhitespace()},
+    {id:'dashboard',   label:'Dashboard',    icon:<Home size={15}/>,          action:()=>setShowAccounts(false)},
+    {id:'accounts',    label:'Accounts',     icon:<Building2 size={15}/>,     action:()=>setShowAccounts(true)},
+    {id:'allprojects', label:'All Projects', icon:<Folder size={15}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
+    {id:'whitespace',  label:'Whitespace',   icon:<Map size={15}/>,           action:()=>onGoWhitespace&&onGoWhitespace()},
   ]
   const navBottom = [
-    {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={14}/>,     action:()=>setTodayModal(true)},
-    {id:'critical', label:'Critical Items', icon:<AlertTriangle size={14}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
-    {id:'renewals', label:'Renewals',       icon:<RefreshCw size={14}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
+    {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={15}/>,     action:()=>setTodayModal(true)},
+    {id:'critical', label:'Critical Items', icon:<AlertTriangle size={15}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
+    {id:'renewals', label:'Renewals',       icon:<RefreshCw size={15}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
   const activeId = showAccounts ? 'accounts' : 'dashboard'
+  const SM = '#64748b'
 
-  const navItem = (item, isActive) => (
+  const navItem = (item, isActive) => collapsed ? (
+    <div key={item.id} onClick={item.action} title={item.label}
+      onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.08)'}
+      onMouseLeave={e=>e.currentTarget.style.background=isActive?'rgba(37,99,235,0.2)':'transparent'}
+      style={{padding:'9px 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'2px 8px',
+        background:isActive?'rgba(37,99,235,0.2)':'transparent',color:isActive?'#93c5fd':'#94a3b8',transition:'all 0.1s'}}>
+      {item.icon}
+    </div>
+  ) : (
     <div key={item.id} onClick={item.action}
       onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}}
       onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}}
@@ -5955,33 +5970,67 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   )
 
   return (
-    <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-      <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-          <svg width="18" height="18" viewBox="0 0 28 28" style={{flexShrink:0}}>
+    <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
+      {collapsed ? (
+        <div style={{padding:'16px 0 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+          <svg width="18" height="18" viewBox="0 0 28 28">
             <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/>
-            <circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/>
             <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
           </svg>
-          <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+          <button onClick={toggleCollapsed} title="Expand sidebar"
+            style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color=SM}>
+            <ChevronRight size={15}/>
+          </button>
         </div>
-        <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>Account Intelligence</div>
-      </div>
+      ) : (
+        <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <svg width="18" height="18" viewBox="0 0 28 28" style={{flexShrink:0}}>
+                <path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/>
+                <circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/>
+                <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
+              </svg>
+              <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+            </div>
+            <button onClick={toggleCollapsed} title="Collapse sidebar"
+              style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color=SM}>
+              <ChevronLeft size={15}/>
+            </button>
+          </div>
+          <div style={{fontSize:10,color:'#475569',paddingLeft:26}}>Account Intelligence</div>
+        </div>
+      )}
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
         {navTop.map(item=>navItem(item, activeId===item.id))}
         <div style={{height:1,background:'rgba(255,255,255,0.06)',margin:'8px 10px'}}/>
         {navBottom.map(item=>navItem(item, false))}
       </div>
-      <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:'10px 14px',flexShrink:0}}>
-        <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
-          {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
-            <button key={v} onClick={()=>setTheme(v)}
-              style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
-              {icon}
-            </button>
-          ))}
-        </div>
-        <div style={{fontSize:10,color:'#475569'}}>Saved just now</div>
+      <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:collapsed?'10px 0':'10px 14px',flexShrink:0}}>
+        {collapsed ? (
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+            {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
+              <button key={v} onClick={()=>setTheme(v)} title={v+' mode'}
+                style={{padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+                {icon}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div>
+            <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
+              {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
+                <button key={v} onClick={()=>setTheme(v)}
+                  style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+                  {icon}
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:'#475569'}}>Saved just now</div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -6259,13 +6308,16 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, theme, setTheme}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, theme, setTheme, showAccounts, setShowAccounts}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
   const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
-  const [showAccounts, setShowAccounts] = useState(false)
+  const [viewMode, setViewMode] = useState(()=>localStorage.getItem('accounts-view-mode')||'grid')
+  const [listSearch, setListSearch] = useState('')
+  const [listSortKey, setListSortKey] = useState('name')
+  const [listSortDir, setListSortDir] = useState('asc')
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
 
@@ -6564,13 +6616,79 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             </div>
           ) : (
             <div>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
                   <span style={{fontSize:20,fontWeight:800,color:S.txt}}>Your Accounts</span>
                   <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 10px'}}>{data.accounts.length}</span>
                 </div>
-                <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:8,padding:2}}>
+                    <button onClick={()=>{setViewMode('grid');localStorage.setItem('accounts-view-mode','grid')}} title="Grid view"
+                      style={{padding:'5px 7px',borderRadius:6,border:'none',background:viewMode==='grid'?'#eff6ff':'transparent',color:viewMode==='grid'?'#2563eb':'#94a3b8',cursor:'pointer',display:'flex',alignItems:'center',transition:'all 0.15s'}}><LayoutGrid size={15}/></button>
+                    <button onClick={()=>{setViewMode('list');localStorage.setItem('accounts-view-mode','list')}} title="List view"
+                      style={{padding:'5px 7px',borderRadius:6,border:'none',background:viewMode==='list'?'#eff6ff':'transparent',color:viewMode==='list'?'#2563eb':'#94a3b8',cursor:'pointer',display:'flex',alignItems:'center',transition:'all 0.15s'}}><List size={15}/></button>
+                  </div>
+                  <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
+                </div>
               </div>
+              {viewMode==='list'?(
+                <div>
+                  <input value={listSearch} onChange={e=>setListSearch(e.target.value)} placeholder="Search accounts..."
+                    style={{width:'100%',padding:'8px 12px',marginBottom:12,border:`1px solid ${S.bdr}`,borderRadius:8,fontSize:13,color:S.txt,background:S.surf,outline:'none',boxSizing:'border-box'}}/>
+                  <div style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'44px 1fr 110px 110px 96px 56px 96px 72px 28px',alignItems:'center',padding:'0 16px',background:S.surf2,borderBottom:`1px solid ${S.bdr}`,height:38}}>
+                      {[{k:'',l:''},{k:'name',l:'Account'},{k:'hq',l:'HQ'},{k:'industry',l:'Industry'},{k:'status',l:'Status'},{k:'health',l:'Health'},{k:'lastContact',l:'Last Contact'},{k:'followUps',l:'Follow-Ups'},{k:'',l:''}].map(({k,l},i)=>(
+                        <div key={i} onClick={()=>{if(!k)return;if(listSortKey===k)setListSortDir(d=>d==='asc'?'desc':'asc');else{setListSortKey(k);setListSortDir('asc')}}}
+                          style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',cursor:k?'pointer':'default',userSelect:'none',display:'flex',alignItems:'center',gap:2,whiteSpace:'nowrap'}}>
+                          {l}{k&&<span style={{color:listSortKey===k?'#2563eb':'#cbd5e1',fontSize:10}}>{listSortKey===k?(listSortDir==='asc'?'↑':'↓'):'↕'}</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {(()=>{
+                      const sc2={Strategic:'#7c3aed',Active:'#16a34a',Prospect:'#2563eb','At Risk':'#dc2626'}
+                      const sorted=[...(data.accounts||[])].filter(a=>!listSearch||a.name.toLowerCase().includes(listSearch.toLowerCase())).sort((a,b)=>{
+                        let va,vb
+                        if(listSortKey==='health'){va=calcHealthScore(a);vb=calcHealthScore(b)}
+                        else if(listSortKey==='lastContact'){va=a.lastContact?daysSince(a.lastContact):9999;vb=b.lastContact?daysSince(b.lastContact):9999}
+                        else if(listSortKey==='followUps'){va=(a.followUps||[]).filter(f=>f.status==='Open').length;vb=(b.followUps||[]).filter(f=>f.status==='Open').length}
+                        else{va=(a[listSortKey]||'').toString().toLowerCase();vb=(b[listSortKey]||'').toString().toLowerCase()}
+                        const cmp=typeof va==='string'?va.localeCompare(vb):va-vb
+                        return listSortDir==='asc'?cmp:-cmp
+                      })
+                      if(sorted.length===0)return <div style={{padding:'32px',textAlign:'center',color:S.muted,fontSize:13}}>No accounts match "{listSearch}"</div>
+                      return sorted.map((acct,idx)=>{
+                        const hs=calcHealthScore(acct)
+                        const hc=getHealthColor(hs)
+                        const lastC=acct.lastContact?daysSince(acct.lastContact):null
+                        const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
+                        const logoColor=LOGO_COLORS[(data.accounts||[]).indexOf(acct)%LOGO_COLORS.length]
+                        const initial=(acct.name||'?')[0].toUpperCase()
+                        return (
+                          <div key={acct.id} onClick={()=>onEnterAccount(acct.id)}
+                            onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)'}
+                            onMouseLeave={e=>e.currentTarget.style.background=idx%2===0?(S.isLight?'#ffffff':S.surf):(S.isLight?'#f8fafc':S.surf2)}
+                            style={{display:'grid',gridTemplateColumns:'44px 1fr 110px 110px 96px 56px 96px 72px 28px',alignItems:'center',padding:'0 16px',height:52,cursor:'pointer',background:idx%2===0?(S.isLight?'#ffffff':S.surf):(S.isLight?'#f8fafc':S.surf2),borderBottom:idx<sorted.length-1?`1px solid ${S.bdr}`:'none',transition:'background 0.1s'}}>
+                            <div>
+                              {acct.logoImage&&acct.logoImage.length>10
+                                ?<img src={acct.logoImage} style={{width:32,height:32,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
+                                :<div style={{width:32,height:32,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#fff'}}>{initial}</div>
+                              }
+                            </div>
+                            <div style={{fontWeight:600,fontSize:13,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:8}}>{acct.name}</div>
+                            <div style={{fontSize:12,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.hq||'—'}</div>
+                            <div style={{fontSize:12,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.industry||'—'}</div>
+                            <div><span style={{fontSize:11,fontWeight:600,color:sc2[acct.status]||'#64748b',background:(sc2[acct.status]||'#64748b')+'18',borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap'}}>{acct.status||'—'}</span></div>
+                            <div style={{fontWeight:700,fontSize:13,color:hc}}>{hs}</div>
+                            <div style={{fontSize:12,color:lastC===null?S.muted:lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'—':lastC>30?'30d+':lastC+'d'}</div>
+                            <div style={{fontSize:12,color:openFUs>0?'#dc2626':S.muted,fontWeight:openFUs>0?700:400}}>{openFUs}</div>
+                            <div style={{fontSize:16,color:S.dim,textAlign:'center'}}>›</div>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              ):(
               <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14,gridAutoRows:'1fr'}}>
                 {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
                   const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
@@ -6641,6 +6759,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   <div style={{fontSize:13,fontWeight:600,color:'#64748b'}}>Add Account</div>
                 </div>
               </div>
+              )}
             </div>
           )
         ) : (
@@ -9910,6 +10029,7 @@ export default function App() {
   const lastSaveTime = useRef(0)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [isLandingPage,setIsLandingPage] = useState(true)
+  const [showAccounts,setShowAccounts] = useState(false)
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showClientView,setShowClientView] = useState(false)
@@ -10041,6 +10161,8 @@ export default function App() {
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       theme={theme}
       setTheme={handleSetTheme}
+      showAccounts={showAccounts}
+      setShowAccounts={setShowAccounts}
     />
   )
 
@@ -10071,7 +10193,7 @@ export default function App() {
         <div style={{background:S.isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,padding:mob?'10px 14px 0':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <button onClick={()=>setIsLandingPage(true)} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.isLight?'#2563eb':S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
+              <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.isLight?'#2563eb':S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 {acct.logoImage&&<div style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:'1px solid #e2e8f0'}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
                 <div>
