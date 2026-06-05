@@ -5882,7 +5882,6 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
               style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',background:isActive?SA:'transparent',textAlign:'left',cursor:'pointer',marginBottom:1,transition:'all 0.1s'}}
               onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=SH2}}
               onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background='transparent'}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:sc[a.status]||'#64748b',flexShrink:0}}/>
               <div style={{minWidth:0,flex:1}}>
                 <div style={{fontSize:13,fontWeight:600,color:isActive?'#ffffff':ST,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
               </div>
@@ -6112,12 +6111,12 @@ function BarChartCard({data}) {
   const SummaryRow = () => view==='projects' ? (
     <div style={{display:'flex',gap:20,marginBottom:10}}>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
+        <div style={{width:10,height:10,borderRadius:2,background:'#1a56db',flexShrink:0}}/>
         <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
         <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#fec700',flexShrink:0}}/>
+        <div style={{width:10,height:10,borderRadius:2,background:'#74b5ff',flexShrink:0}}/>
         <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
         <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
       </div>
@@ -6142,8 +6141,8 @@ function BarChartCard({data}) {
         <RechartsTooltip content={<CustomTooltip/>}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight"    fill="#0ebc5f" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
-            <Bar dataKey="In Discussion" fill="#fec700" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
           </>
         ) : (
           <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
@@ -6154,8 +6153,8 @@ function BarChartCard({data}) {
 
   const Legend = () => view==='projects' ? (
     <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>In Flight</span>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#fec700',display:'inline-block'}}/>In Discussion</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#1a56db',display:'inline-block'}}/>In Flight</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#74b5ff',display:'inline-block'}}/>In Discussion</span>
     </div>
   ) : (
     <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
@@ -10197,14 +10196,7 @@ export default function App() {
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 {acct.logoImage&&<div style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:'1px solid #e2e8f0'}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
                 <div>
-                  {S.isLight?(
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#eff6ff',borderRadius:999,padding:'2px 10px'}}>{acct.status}</span>
-                    </div>
-                  ):(
-                    <div style={{fontSize:10,color:S.blue,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:2}}>{acct.status}</div>
-                  )}
-                  <div style={{fontSize:S.isLight?20:17,fontWeight:800,color:S.txt,marginTop:S.isLight?2:0,lineHeight:1.2}}>{acct.name}</div>
+                  <div style={{fontSize:S.isLight?20:17,fontWeight:800,color:S.txt,lineHeight:1.2}}>{acct.name}</div>
                 </div>
               </div>
             </div>
