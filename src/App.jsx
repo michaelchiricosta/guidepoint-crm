@@ -6573,8 +6573,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               </div>
               <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14,gridAutoRows:'1fr'}}>
                 {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
-                  const hs=calcHealthScore(acct)
-                  const hc=getHealthColor(hs)
                   const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
                   const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
                   const highFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='High').length
@@ -6620,16 +6618,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         <div style={{display:'flex',alignItems:'center',gap:4}}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={critFUs>0?'#fc413d':'#1c1c1e'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                           <span style={{fontSize:12,color:critFUs>0?'#fc413d':'#64748b'}}>{openFUs}</span>
-                        </div>
-                      </div>
-                      {/* HEALTH BAR */}
-                      <div style={{marginTop:'auto'}}>
-                        <div style={{height:6,borderRadius:3,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',overflow:'hidden',marginBottom:4}}>
-                          <div style={{height:'100%',width:`${hs}%`,background:hc,borderRadius:3,transition:'width 0.4s ease'}}/>
-                        </div>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                          <span style={{fontSize:10,color:'#94a3b8'}}>Health Score</span>
-                          <span style={{fontSize:11,fontWeight:700,color:hc}}>{hs}</span>
                         </div>
                       </div>
                       {/* ALERT STRIP */}
