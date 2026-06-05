@@ -6137,10 +6137,31 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
+  const [hoveredLogoId, setHoveredLogoId] = useState(null)
   const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
   const [showAccounts, setShowAccounts] = useState(false)
   const mob = typeof window!=='undefined'&&window.innerWidth<768
+  const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
+  const compressLogo = (file) => new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    const img = new Image()
+    img.onload = () => {
+      const maxSize = 200
+      let w = img.width, h = img.height
+      if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize } }
+      else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.src = URL.createObjectURL(file)
+  })
+  const handleLogoUpload = async (acctId, file) => {
+    if (!file) return
+    const b64 = await compressLogo(file)
+    setData(prev => ({...prev, accounts: prev.accounts.map(a => a.id === acctId ? {...a, logoImage: b64} : a)}))
+  }
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -6437,15 +6458,16 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             </div>
           ) : (
             <div>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
                   <span style={{fontSize:20,fontWeight:800,color:S.txt}}>Your Accounts</span>
                   <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 10px'}}>{data.accounts.length}</span>
                 </div>
                 <button onClick={()=>setShowAdd(true)} style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:16}}>
-                {data.accounts.map((acct)=>{
+              <div style={{fontSize:12,color:S.muted,marginBottom:18}}>Click any logo circle to upload a company logo — it will appear across your dashboard automatically</div>
+              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14}}>
+                {data.accounts.map((acct,acctIdx)=>{
                   const hs=calcHealthScore(acct)
                   const hc=getHealthColor(hs)
                   const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
@@ -6454,67 +6476,83 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   const activePjs=(acct.projects||[]).filter(p=>p.status==='In Flight').length
                   const lastC=acct.lastContact?daysSince(acct.lastContact):null
                   const isHov=hoveredId===acct.id
-                  const r=20,circ=2*Math.PI*r,progress=(hs/100)*circ
-                  const sc=statusColor[acct.status]||S.muted
+                  const isLogoHov=hoveredLogoId===acct.id
+                  const logoColor=LOGO_COLORS[acctIdx%LOGO_COLORS.length]
+                  const initial=(acct.name||'?')[0].toUpperCase()
+                  const scBadge=({Strategic:{c:'#7c3aed',bg:'#ede9fe'},Active:{c:'#16a34a',bg:'#dcfce7'},Prospect:{c:'#2563eb',bg:'#dbeafe'},'At Risk':{c:'#dc2626',bg:'#fee2e2'}})[acct.status]||{c:'#64748b',bg:'#f1f5f9'}
                   return (
-                    <div key={acct.id} style={{position:'relative'}}>
-                      <div onClick={()=>onEnterAccount(acct.id)}
-                        onMouseEnter={()=>setHoveredId(acct.id)}
-                        onMouseLeave={()=>setHoveredId(null)}
-                        style={S.isLight?{
-                          background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:10,cursor:'pointer',
-                          transform:isHov?'translateY(-3px)':'translateY(0)',
-                          boxShadow:isHov?'0 12px 32px rgba(0,0,0,0.12)':'0 2px 8px rgba(0,0,0,0.06)',
-                          transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
-                        }:{
-                          background:'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',
-                          border:`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,
-                          borderRadius:10,cursor:'pointer',
-                          transform:isHov?'translateY(-2px)':'translateY(0)',
-                          boxShadow:isHov?'0 8px 32px rgba(59,130,246,0.15)':'0 4px 24px rgba(0,0,0,0.4)',
-                          transition:'all 0.2s ease',overflow:'hidden',display:'flex',flexDirection:'column'
-                        }}>
-                        <div style={{padding:S.isLight?'12px 12px 10px':'14px',flex:1}}>
-                          {!S.isLight&&<div style={{marginBottom:6}}><div style={{width:6,height:6,borderRadius:'50%',background:sc}}/></div>}
-                          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:22,fontWeight:900,color:S.isLight?'#0f172a':'#fff',lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.short||acct.name}</div>
-                            </div>
-                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
-                              <svg width={52} height={52} viewBox="0 0 52 52">
-                                <circle cx="26" cy="26" r={r} fill="none" stroke={S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'} strokeWidth="4"/>
-                                <circle cx="26" cy="26" r={r} fill="none" stroke={hc} strokeWidth="4"
-                                  strokeDasharray={`${progress} ${circ}`} strokeLinecap="round" transform="rotate(-90 26 26)"/>
-                                <text x="26" y="30" textAnchor="middle" fontSize={15} fontWeight="800" fill={hc}>{hs}</text>
-                              </svg>
-                            </div>
-                          </div>
-                          <div style={{height:1,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',marginBottom:10}}/>
-                          <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                              <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
-                            </div>
-                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                              <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
-                            </div>
-                            <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
-                              <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
-                            </div>
-                          </div>
+                    <div key={acct.id}
+                      onClick={()=>onEnterAccount(acct.id)}
+                      onMouseEnter={()=>setHoveredId(acct.id)}
+                      onMouseLeave={()=>setHoveredId(null)}
+                      style={{
+                        background:S.isLight?'#ffffff':'linear-gradient(145deg,#0f1929 0%,#111827 60%,#0a1628 100%)',
+                        border:S.isLight?'1px solid #e2e8f0':`1px solid ${isHov?'rgba(59,130,246,0.4)':'rgba(59,130,246,0.15)'}`,
+                        borderRadius:16,
+                        boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.10)':'0 2px 8px rgba(0,0,0,0.06)',
+                        transform:isHov?'translateY(-2px)':'translateY(0)',
+                        transition:'all 0.2s ease',cursor:'pointer',overflow:'hidden',display:'flex',flexDirection:'column',padding:16
+                      }}>
+                      {/* TOP ROW: logo + name + badge */}
+                      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+                        <div
+                          style={{position:'relative',flexShrink:0,width:44,height:44,cursor:'pointer'}}
+                          onClick={e=>{e.stopPropagation();document.getElementById(`logo-input-${acct.id}`).click()}}
+                          onMouseEnter={e=>{e.stopPropagation();setHoveredLogoId(acct.id)}}
+                          onMouseLeave={e=>{e.stopPropagation();setHoveredLogoId(null)}}>
+                          {acct.logoImage
+                            ?<img src={acct.logoImage} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
+                            :<div style={{width:44,height:44,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:700,color:'#fff'}}>{initial}</div>
+                          }
+                          {isLogoHov&&<div style={{position:'absolute',inset:0,borderRadius:'50%',background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                          </div>}
+                          <input id={`logo-input-${acct.id}`} type="file" accept="image/*" style={{display:'none'}} onChange={e=>{if(e.target.files[0])handleLogoUpload(acct.id,e.target.files[0]);e.target.value=''}}/>
                         </div>
-                        {S.isLight&&critFUs>0&&<div style={{padding:'4px 12px',background:'#fef2f2',borderTop:'1px solid #fecaca',display:'flex',alignItems:'center',gap:6,flexShrink:0}}><span style={{color:'#dc2626',fontSize:11}}>⚠</span><span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span></div>}
-                        {!S.isLight&&<div style={{height:3,background:critFUs>0?'linear-gradient(90deg,#dc2626,#ef4444)':highFUs>0?'linear-gradient(90deg,#c2410c,#f97316)':'linear-gradient(90deg,#15803d,#22c55e)',borderRadius:'0 0 10px 10px'}}/>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:16,fontWeight:700,color:S.isLight?'#0f172a':'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.3}}>{acct.name}</div>
+                          <div style={{fontSize:12,color:'#64748b',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{acct.industry||acct.hq||''}</div>
+                        </div>
+                        <span style={{fontSize:10,fontWeight:700,color:scBadge.c,background:scBadge.bg,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{acct.status||'Active'}</span>
                       </div>
-                      {acct.logoImage&&<div style={{position:'absolute',top:-6,right:-6,width:32,height:32,borderRadius:'50%',overflow:'hidden',border:'2px solid #fff',boxShadow:'0 2px 6px rgba(0,0,0,0.15)',zIndex:2,pointerEvents:'none'}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
+                      {/* STAT CHIPS */}
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(220,38,38,0.65)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          <span style={{fontSize:11,fontWeight:600,color:lastC===null?'#94a3b8':lastC>30?'#dc2626':lastC>14?'#ea580c':'#16a34a'}}>{lastC===null?'No contact':`${lastC}d ago`}</span>
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(22,163,74,0.75)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#475569':'rgba(255,255,255,0.55)'}}>{activePjs} project{activePjs!==1?'s':''}</span>
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:4,background:S.isLight?'#f8fafc':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.08)'}`,borderRadius:999,padding:'4px 8px'}}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={critFUs>0?'rgba(234,88,12,0.8)':'rgba(100,116,139,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          <span style={{fontSize:11,fontWeight:600,color:critFUs>0?'#ea580c':(S.isLight?'#475569':'rgba(255,255,255,0.55)')}}>{openFUs} open</span>
+                        </div>
+                      </div>
+                      {/* HEALTH BAR */}
+                      <div style={{marginTop:'auto'}}>
+                        <div style={{height:6,borderRadius:3,background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.06)',overflow:'hidden',marginBottom:4}}>
+                          <div style={{height:'100%',width:`${hs}%`,background:hc,borderRadius:3,transition:'width 0.4s ease'}}/>
+                        </div>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontSize:10,color:'#94a3b8'}}>Health Score</span>
+                          <span style={{fontSize:11,fontWeight:700,color:hc}}>{hs}</span>
+                        </div>
+                      </div>
+                      {/* ALERT STRIP */}
+                      {critFUs>0&&<div style={{margin:'10px -16px -16px',padding:'4px 16px',background:S.isLight?'#fef2f2':'rgba(220,38,38,0.12)',borderTop:`1px solid ${S.isLight?'#fecaca':'rgba(220,38,38,0.2)'}`,display:'flex',alignItems:'center',gap:6}}>
+                        <span style={{color:'#dc2626',fontSize:11}}>⚠</span>
+                        <span style={{fontSize:11,color:'#dc2626',fontWeight:600}}>{critFUs} critical item{critFUs!==1?'s':''}</span>
+                      </div>}
+                      {!critFUs&&highFUs>0&&<div style={{margin:'10px -16px -16px',height:3,background:'linear-gradient(90deg,#c2410c,#f97316)'}}/>}
                     </div>
                   )
                 })}
                 <div onClick={()=>setShowAdd(true)}
                   onMouseEnter={e=>{e.currentTarget.style.background=S.isLight?'#f0f9ff':'rgba(255,255,255,0.02)';e.currentTarget.style.borderColor=S.isLight?'#93c5fd':'rgba(255,255,255,0.12)'}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor=S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}}
-                  style={{background:'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}`,borderRadius:10,padding:14,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:160,transition:'all 0.2s'}}>
+                  style={{background:'transparent',border:`2px dashed ${S.isLight?'#cbd5e1':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:16,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,minHeight:190,transition:'all 0.2s'}}>
                   <div style={{width:48,height:48,borderRadius:'50%',background:S.isLight?'#f1f5f9':'rgba(255,255,255,0.04)',border:`1px solid ${S.isLight?'#e2e8f0':'rgba(255,255,255,0.1)'}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                     <span style={{fontSize:22,color:'#94a3b8',lineHeight:1}}>+</span>
                   </div>
