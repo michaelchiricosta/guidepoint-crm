@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
 import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from './namedAccounts.js'
+import { SECURITY_FRAMEWORK, resolveVendorMapping } from './securityFramework.js'
+const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
 const DARK_THEME = { bg:'#0a0e1a', surf:'#111827', surf2:'#0f1729', bdr:'#1e2d40', bdr2:'#2d3d50', txt:'#e2e8f0', muted:'#64748b', dim:'#334155', blue:'#3b82f6', green:'#22c55e', red:'#ef4444', orange:'#f97316', yellow:'#eab308', purple:'#a855f7', secondary:'#94a3b8', sidebarBg:'#060a12', headerBg:'#0c1017', isLight:false, sideTxt:'#e2e8f0', sideMuted:'#475569', sideActive:'rgba(59,130,246,0.15)', sideBdr:'#1e2d40', sideHover:'rgba(255,255,255,0.04)' }
@@ -23,7 +25,7 @@ const INTERACTION_COLORS = { Meeting:'#3b82f6', Call:'#22c55e', Email:'#eab308',
 const INTERACTION_TYPES = ['Meeting','Call','Email','Demo','Note']
 const STAGES = ['Awareness','NDA','Intro Call','Demo','POC','Scoping','Pricing','Legal','Procurement','PO Received','Deployed']
 const INFLUENCES = ['Executive Sponsor','Technical Gatekeeper','Financial Gatekeeper','Final Approval','Stakeholder','Risk Factor','Ally']
-const TECH_CATS = ['SIEM / SOC','Endpoint','Identity / IAM','Cloud Security','Network / SASE','Email Security','AppSec','Pen Test / Red Team','Threat Intel','GRC','IT Operations','Other']
+const TECH_CATS = WHEEL_DOMAINS.flatMap(d => d.subs).sort()
 const TECH_STATS = ['Current','Evaluating','Replacing','Watch','Dropping','Selected','Current Gap']
 const PROJ_STATS = ['Not Started','In Discussion','In Flight','Stalled','Won','Lost']
 
@@ -2554,65 +2556,18 @@ function Contacts({acct,setAcct}) {
   )
 }
 
-const HEATMAP_DOMAINS = [
-  {name:'Cloud & App Security',color:'#FC413D',caps:['CNAPP/CSPM','CWPP','CIEM','CASB/SSPM','CDN/WAF','SAST','DAST/IAST','SCA','API Security','App Pen Testing']},
-  {name:'Data Protection',color:'#FEC700',caps:['Data Governance','DSPM','DLP','GenAI/LLM Security','Data Encryption','Key Management','BC/DR Backup','GRC Platform','3rd Party Risk','DFIR']},
-  {name:'Endpoint & Mail',color:'#00A9BB',caps:['Endpoint EDR','Server EDR','Endpoint Encryption','Insider Threat/DDR','MDM/EMM','Patch Management','Email Gateway','BEC/Phishing','DMARC','Email DLP']},
-  {name:'Security Operations',color:'#3186FF',caps:['SIEM/XDR','SOAR','Threat Intel','MSSP/MDR','Vulnerability Management','Pen Testing','BAS/Continuous Testing','Log Management','Brand/Dark Web','DFIR']},
-  {name:'Network Security',color:'#60D673',caps:['Firewall','IDS/IPS','URL Filtering','Sandbox','DNS Security','SASE/ZTNA','Zero Trust','NAC','NTA/NDR','FW Segmentation']},
-  {name:'Identity Security',color:'#FF63A0',caps:['Identity Store/AD','ITDR','IAM','SSO','MFA','IGA','PAM','Certificate Management','ISPM','Non-Human Identity']},
-]
-const CAP_KEYWORDS = {
-  'CNAPP/CSPM':['cspm','cnapp','cloud security posture','wiz'],'CWPP':['cwpp','cloud workload'],'CIEM':['ciem','cloud identity entitlement'],'CASB/SSPM':['casb','sspm'],'CDN/WAF':['cdn','waf','web application firewall','cloudflare'],'SAST':['sast','static analysis'],'DAST/IAST':['dast','iast'],'SCA':['sca','software composition'],'API Security':['api security'],'App Pen Testing':['app pen','application pen'],
-  'Data Governance':['data governance'],'DSPM':['dspm','data security posture'],'DLP':['dlp','data loss','purview'],'GenAI/LLM Security':['genai','llm','ai security'],'Data Encryption':['encryption','bitlocker'],'Key Management':['key management'],'BC/DR Backup':['backup','disaster recovery'],'GRC Platform':['grc','vanta','compliance'],'3rd Party Risk':['third party risk','3rd party'],'DFIR':['dfir','incident response','forensics'],
-  'Endpoint EDR':['edr','defender','crowdstrike','sentinelone'],'Server EDR':['server edr','server endpoint'],'Endpoint Encryption':['endpoint encryption','bitlocker','full disk'],'Insider Threat/DDR':['insider threat','ddr'],'MDM/EMM':['mdm','emm','intune','mobile device'],'Patch Management':['patch management','wsus'],'Email Gateway':['email','abnormal','proofpoint','mimecast','gateway'],'BEC/Phishing':['bec','phishing','abnormal','email protection'],'DMARC':['dmarc','spf','dkim'],'Email DLP':['email dlp','purview'],
-  'SIEM/XDR':['siem','xdr','chronicle','qradar','sentinel','google secops'],'SOAR':['soar','orchestration'],'Threat Intel':['threat intel','cti'],'MSSP/MDR':['mdr','mssp','managed detection','10x'],'Vulnerability Management':['vulnerability management','qualys','wiz','tenable'],'Pen Testing':['pen test','ptaas','netspy','mandiant'],'BAS/Continuous Testing':['bas','breach attack','continuous testing','horizon 3','pentera'],'Log Management':['log management','cribl'],'Brand/Dark Web':['dark web','brand monitoring'],
-  'Firewall':['firewall','palo alto','fortinet'],'IDS/IPS':['ids','ips','intrusion'],'URL Filtering':['url filtering','web filtering','zscaler','cloudflare gateway'],'Sandbox':['sandbox','detonation'],'DNS Security':['dns security','dns filter'],'SASE/ZTNA':['sase','ztna','cloudflare','zscaler','netskope'],'Zero Trust':['zero trust','ztna','cloudflare access'],'NAC':['nac','network access control'],'NTA/NDR':['nta','ndr','network detection'],'FW Segmentation':['segmentation','microsegmentation'],
-  'Identity Store/AD':['active directory','entra id','ldap'],'ITDR':['itdr','identity threat detection'],'IAM':['iam','entra','okta'],'SSO':['sso','single sign','saml'],'MFA':['mfa','multi-factor','authenticator'],'IGA':['iga','saviynt','sailpoint','identity governance'],'PAM':['pam','privileged access','cyberark','pim','delinea'],'Certificate Management':['certificate','pki','digicert'],'ISPM':['ispm','identity security posture'],'Non-Human Identity':['non-human','service account','machine identity'],
-}
 const makeArc = (cx,cy,r1,r2,a1,a2,gap=0.01) => {
   const s=a1+gap, e=a2-gap
   if(e<=s) return ''
   const lg=(e-s)>Math.PI?1:0, co=Math.cos, si=Math.sin
   return `M ${cx+r2*co(s)} ${cy+r2*si(s)} A ${r2} ${r2} 0 ${lg} 1 ${cx+r2*co(e)} ${cy+r2*si(e)} L ${cx+r1*co(e)} ${cy+r1*si(e)} A ${r1} ${r1} 0 ${lg} 0 ${cx+r1*co(s)} ${cy+r1*si(s)} Z`
 }
-// Categories that belong to each heatmap domain — used for category-aware vendor matching
-const DOMAIN_CATS = {
-  'Cloud & App Security': ['cloud security','appsec','application security','sast','dast','cspm','cnapp'],
-  'Data Protection': ['data security','grc','dlp','data governance','compliance'],
-  'Endpoint & Mail': ['endpoint','edr','email security','email gateway','email','mdm','patch management','endpoint security'],
-  'Security Operations': ['siem / soc','siem','soc','mdr','mssp','threat intel','soar','vulnerability management','pen test / red team'],
-  'Network Security': ['network','firewall','sase','network / sase','zero trust','dns','nac'],
-  'Identity Security': ['identity','identity / iam','iam','iga','pam','mfa','sso','itdr'],
-}
-
-const findVendor = (cap, techStack, domainName=null) => {
-  const kws = (CAP_KEYWORDS[cap]||[cap.toLowerCase()])
-  const allowedCats = domainName ? (DOMAIN_CATS[domainName]||[]) : []
-  // Categories that explicitly belong to OTHER domains — used to penalise cross-domain mismatches
-  const excludedCats = domainName
-    ? Object.entries(DOMAIN_CATS).filter(([d])=>d!==domainName).flatMap(([,cats])=>cats)
-    : []
-  let best=null, bestScore=0
-  for (const t of techStack) {
-    const s=`${t.vendor} ${t.products} ${t.category} ${t.notes}`.toLowerCase()
-    const catLow=(t.category||'').toLowerCase()
-    let score=kws.filter(k=>s.includes(k)).length
-    if(score===0) continue
-    if(allowedCats.length>0){
-      const catMatches=allowedCats.some(c=>catLow.includes(c)||c.includes(catLow.replace(/ \/ /g,'/')))
-      if(catMatches){
-        score+=5  // strong bonus: vendor category aligns with this domain
-      } else {
-        // Penalise if the vendor's category clearly belongs to a different domain
-        const inOtherDomain=excludedCats.some(c=>catLow.includes(c)||c.includes(catLow.replace(/ \/ /g,'/')))
-        if(inOtherDomain) score=0  // exclude cross-domain mismatches entirely
-      }
-    }
-    if(score>bestScore){best=t;bestScore=score}
-  }
-  return bestScore>0?best:null
-}
+const findVendorForSub = (sub, techStack) =>
+  techStack.find(t => resolveVendorMapping(t.vendor, t.category).primarySub === sub) || null
+const getSecondaryVendors = (sub, techStack) =>
+  techStack.filter(t => resolveVendorMapping(t.vendor, t.category).secondarySubs.includes(sub))
+const getKnownVendorsForSub = sub =>
+  Object.entries(SECURITY_FRAMEWORK.vendorMap).filter(([,v])=>v.primarySub===sub).map(([k])=>k)
 const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444','Current Gap':'#64748b'}[v.status]||S.bdr2)
 
 function TechStack({acct,setAcct}) {
@@ -2643,7 +2598,7 @@ function TechStack({acct,setAcct}) {
   }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]}
+  const blank={id:'',vendor:'',products:'',category:'SIEM',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]}
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
@@ -2660,11 +2615,10 @@ function TechStack({acct,setAcct}) {
 
   // Heatmap geometry — 680px wheel diameter, viewBox 820×820
   const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=171,HM_START=-Math.PI/2
-  const domainToCategory={'Cloud & App Security':'Cloud Security','Data Protection':'GRC','Endpoint & Mail':'Endpoint','Security Operations':'SIEM / SOC','Network Security':'Network / SASE','Identity Security':'Identity / IAM'}
-  const capToCategory={'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Threat Intel':'Threat Intel','GRC Platform':'GRC','3rd Party Risk':'GRC','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Log Management':'SIEM / SOC','SIEM/XDR':'SIEM / SOC'}
-  const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
-  const coveredCaps=allCaps.filter(cap=>{const dom=HEATMAP_DOMAINS.find(d=>d.caps.includes(cap));return findVendor(cap,acct.techStack,dom?.name)})
-  const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
+  const totalSubs=WHEEL_DOMAINS.reduce((sum,d)=>sum+d.subs.length,0)
+  const allSubs=WHEEL_DOMAINS.flatMap(d=>d.subs)
+  const coveredSubs=allSubs.filter(sub=>findVendorForSub(sub,acct.techStack))
+  const coveragePct=Math.round(coveredSubs.length/allSubs.length*100)
 
   const makeTextArcPath=(cx,cy,r,a1,a2)=>{
     const mid=(a1+a2)/2, lg=(a2-a1)>Math.PI?1:0
@@ -2674,18 +2628,20 @@ function TechStack({acct,setAcct}) {
 
   const hmSegments=[]
   let angle=HM_START
-  const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
-  HEATMAP_DOMAINS.forEach((domain,di)=>{
-    const dS=angle,dE=angle+anglePD,mid=(dS+dE)/2
-    hmSegments.push({type:'domain',di,domain,mid,
+  WHEEL_DOMAINS.forEach((domain,di)=>{
+    const domainAngle=(domain.subs.length/totalSubs)*2*Math.PI
+    const dS=angle,dE=angle+domainAngle,mid=(dS+dE)/2
+    hmSegments.push({type:'domain',di,domain,mid,dS,dE,
       path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018),
       textArcPath:makeTextArcPath(HM_CX,HM_CY,302,dS,dE)})
-    const aPC=anglePD/domain.caps.length
-    domain.caps.forEach((cap,ci)=>{
-      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack,domain.name)
+    const subAngle=domainAngle/domain.subs.length
+    domain.subs.forEach((sub,ci)=>{
+      const cS=dS+ci*subAngle,cE=cS+subAngle
+      const vendor=findVendorForSub(sub,acct.techStack)
+      const secondary=!vendor?getSecondaryVendors(sub,acct.techStack):[]
       const midA=(cS+cE)/2,midR=(HM_IR1+HM_IR2)/2
       const centX=HM_CX+midR*Math.cos(midA),centY=HM_CY+midR*Math.sin(midA)
-      hmSegments.push({type:'cap',di,ci,domain,cap,vendor,centX,centY,
+      hmSegments.push({type:'cap',di,ci,domain,cap:sub,sub,vendor,secondary,centX,centY,
         fill:capStatusFill(vendor),path:makeArc(HM_CX,HM_CY,HM_IR1,HM_IR2,cS,cE,0.01)})
     })
     angle=dE
@@ -2693,50 +2649,13 @@ function TechStack({acct,setAcct}) {
 
   const handleCapHover=(seg,e)=>{if(seg.type!=='cap'){setHoveredSeg(null);return};setHoveredSeg({...seg,x:e.clientX,y:e.clientY})}
   const handleCapMove=(seg,e)=>{if(seg.type!=='cap')return;setHoveredSeg(p=>p?{...p,x:e.clientX,y:e.clientY}:null)}
-  const capToTechCat = {
-    // Security Operations
-    'SIEM/XDR':'SIEM / SOC','SOAR':'SIEM / SOC','Log Management':'SIEM / SOC',
-    'MSSP/MDR':'SIEM / SOC','Threat Intel':'Threat Intel',
-    'Vulnerability Management':'SIEM / SOC',
-    'Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team',
-    'Brand/Dark Web':'Threat Intel',
-    // Endpoint & Mail
-    'Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint',
-    'Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint',
-    'Email Gateway':'Email Security','BEC/Phishing':'Email Security',
-    'DMARC':'Email Security','Email DLP':'Email Security',
-    // Cloud & App Security
-    'CNAPP/CSPM':'Cloud Security','CWPP':'Cloud Security','CIEM':'Cloud Security',
-    'CASB/SSPM':'Cloud Security','CDN/WAF':'Cloud Security',
-    'SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec',
-    'API Security':'AppSec','App Pen Testing':'AppSec',
-    // Data Protection
-    'Data Governance':'GRC','DSPM':'GRC','DLP':'GRC',
-    'GenAI/LLM Security':'GRC','Data Encryption':'GRC',
-    'Key Management':'GRC','BC/DR Backup':'GRC','GRC Platform':'GRC',
-    '3rd Party Risk':'GRC','DFIR':'SIEM / SOC',
-    // Network Security
-    'Firewall':'Network / SASE','IDS/IPS':'Network / SASE',
-    'URL Filtering':'Network / SASE','Sandbox':'Network / SASE',
-    'DNS Security':'Network / SASE','SASE/ZTNA':'Network / SASE',
-    'Zero Trust':'Network / SASE','NAC':'Network / SASE',
-    'NTA/NDR':'Network / SASE','FW Segmentation':'Network / SASE',
-    // Identity Security
-    'Identity Store/AD':'Identity / IAM','ITDR':'Identity / IAM',
-    'IAM':'Identity / IAM','SSO':'Identity / IAM','MFA':'Identity / IAM',
-    'IGA':'Identity / IAM','PAM':'Identity / IAM',
-    'Certificate Management':'Identity / IAM','ISPM':'Identity / IAM',
-    'Non-Human Identity':'Identity / IAM',
-  }
-
   const handleCapClick=(seg)=>{
     if(seg.type!=='cap')return
     if(seg.vendor){
       setForm({...blank,...seg.vendor})
       setShowAdd(true)
     } else {
-      const category = capToTechCat[seg.cap] || capToCategory[seg.cap] || domainToCategory[seg.domain.name] || 'Other'
-      setForm({...blank, category, products: seg.cap})
+      setForm({...blank, category: seg.sub, products: seg.sub})
       setShowAdd(true)
     }
   }
@@ -2814,13 +2733,14 @@ function TechStack({acct,setAcct}) {
             <radialGradient id="hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
             <radialGradient id="hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
             <radialGradient id="hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#555555"/><stop offset="55%" stopColor="#4a4a4a"/><stop offset="100%" stopColor="#3d3d3d"/></radialGradient>
-            {/* Domain ring linear gradients */}
-            <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff7a77"/><stop offset="100%" stopColor="#c9100d"/></linearGradient>
-            <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ffe566"/><stop offset="100%" stopColor="#c49800"/></linearGradient>
-            <linearGradient id="hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4dd4e2"/><stop offset="100%" stopColor="#007a88"/></linearGradient>
+            {/* Domain ring linear gradients — ordered to match WHEEL_DOMAINS */}
+            <linearGradient id="hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff9cc5"/><stop offset="100%" stopColor="#d42070"/></linearGradient>
+            <linearGradient id="hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff7a77"/><stop offset="100%" stopColor="#c9100d"/></linearGradient>
+            <linearGradient id="hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#96e8a4"/><stop offset="100%" stopColor="#30a048"/></linearGradient>
             <linearGradient id="hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6eaaff"/><stop offset="100%" stopColor="#1255cc"/></linearGradient>
-            <linearGradient id="hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#96e8a4"/><stop offset="100%" stopColor="#30a048"/></linearGradient>
-            <linearGradient id="hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff9cc5"/><stop offset="100%" stopColor="#d42070"/></linearGradient>
+            <linearGradient id="hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4dd4e2"/><stop offset="100%" stopColor="#007a88"/></linearGradient>
+            <linearGradient id="hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ffe566"/><stop offset="100%" stopColor="#c49800"/></linearGradient>
+            <linearGradient id="hm-dg6" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#c89be8"/><stop offset="100%" stopColor="#7d3bad"/></linearGradient>
             {/* Center circle gradient */}
             <radialGradient id="hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
             {/* Crosshatch pattern for empty segments */}
@@ -2843,10 +2763,9 @@ function TechStack({acct,setAcct}) {
           {[HM_IR1,HM_IR2,HM_OR1,HM_OR2].map(r=>(
             <circle key={r} cx={HM_CX} cy={HM_CY} r={r} fill="none" stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
           ))}
-          {Array.from({length:6},(_,i)=>{
-            const a=HM_START+i*anglePD
-            return <line key={i} x1={HM_CX} y1={HM_CY} x2={HM_CX+(HM_OR2+8)*Math.cos(a)} y2={HM_CY+(HM_OR2+8)*Math.sin(a)} stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
-          })}
+          {hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
+            <line key={i} x1={HM_CX} y1={HM_CY} x2={HM_CX+(HM_OR2+8)*Math.cos(seg.dS)} y2={HM_CY+(HM_OR2+8)*Math.sin(seg.dS)} stroke="rgba(255,255,255,0.035)" strokeWidth={0.75}/>
+          ))}
 
           {/* Rounded group: domain ring + vendor-filled caps (goo filter works on fully-opaque fills) */}
           <g filter="url(#hm-round)">
@@ -2886,6 +2805,11 @@ function TechStack({acct,setAcct}) {
                 onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
             )
           })}
+          {/* Secondary coverage glow — domain-color tint for partial coverage */}
+          {hmSegments.filter(s=>s.type==='cap'&&!s.vendor&&s.secondary?.length>0).map((seg)=>(
+            <path key={`csec-${seg.di}-${seg.ci}`} d={seg.path}
+              fill={seg.domain.color+'45'} stroke="none" style={{pointerEvents:'none'}}/>
+          ))}
 
           {/* Vendor dots — rendered above the filter group */}
           {hmSegments.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(
@@ -2895,7 +2819,7 @@ function TechStack({acct,setAcct}) {
 
           {/* Domain labels curved inside the outer ring */}
           {(()=>{
-            const abbrev=['CLOUD & APP SEC','DATA PROTECTION','ENDPOINT & MAIL','SEC OPERATIONS','NETWORK SEC','IDENTITY SEC']
+            const abbrev=['IDENTITY & ACCESS','CLOUD & APP SEC','NETWORK & INFRA','SEC OPERATIONS','DATA & ENDPOINT','RISK & COMPLY','OT / IoT']
             return hmSegments.filter(s=>s.type==='domain').map((seg,i)=>(
               <text key={`dl${i}`} fontSize={11} fontWeight={700} letterSpacing="0.05em" fill="rgba(255,255,255,0.95)">
                 <textPath href={`#hm-ta-${i}`} startOffset="50%" textAnchor="middle">{abbrev[i]}</textPath>
@@ -2973,32 +2897,32 @@ function TechStack({acct,setAcct}) {
         })()}
       </div>}
 
-      {/* Mobile heatmap — capability list by domain */}
+      {/* Mobile heatmap — sub-domain list by domain */}
       {isTouchDevice&&view==='heatmap'&&(
         <div>
           <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:8,marginBottom:14,padding:'8px 12px',background:S.surf,borderRadius:8,border:`1px solid ${S.bdr}`}}>
             <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{coveragePct}% Coverage</span>
             <span style={{fontSize:11,color:S.muted}}>·</span>
-            <span style={{fontSize:11,color:S.muted}}>{coveredCaps.length}/{allCaps.length} capabilities</span>
+            <span style={{fontSize:11,color:S.muted}}>{coveredSubs.length}/{allSubs.length} capabilities</span>
           </div>
-          {HEATMAP_DOMAINS.map(domain=>{
-            const domCaps=domain.caps.map(cap=>({cap,vendor:findVendor(cap,acct.techStack,domain.name)}))
-            const covered=domCaps.filter(c=>c.vendor).length
+          {WHEEL_DOMAINS.map(domain=>{
+            const domSubs=domain.subs.map(sub=>({sub,vendor:findVendorForSub(sub,acct.techStack)}))
+            const covered=domSubs.filter(c=>c.vendor).length
             return (
               <div key={domain.name} style={{marginBottom:12,background:S.surf,borderRadius:10,border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderBottom:`1px solid ${S.bdr}`,background:domain.color+'18'}}>
                   <span style={{fontSize:12,fontWeight:700,color:domain.color}}>{domain.name}</span>
-                  <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{covered}/{domCaps.length}</span>
+                  <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{covered}/{domSubs.length}</span>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:0}}>
-                  {domCaps.map(({cap,vendor},ci)=>{
+                  {domSubs.map(({sub,vendor},ci)=>{
                     const fill=capStatusFill(vendor)
                     return (
-                      <div key={cap} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:ci<domCaps.length-1?`1px solid ${S.bdr2}`:'none',gap:8}}
-                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:capToTechCat[cap]||capToCategory[cap]||domainToCategory[domain.name]||'Other',products:cap});setShowAdd(true)}}}>
+                      <div key={sub} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:ci<domSubs.length-1?`1px solid ${S.bdr2}`:'none',gap:8}}
+                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:sub,products:sub});setShowAdd(true)}}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
                           <div style={{width:8,height:8,borderRadius:'50%',background:fill,flexShrink:0}}/>
-                          <span style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cap}</span>
+                          <span style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</span>
                         </div>
                         {vendor
                           ?<span style={{fontSize:11,color:S.secondary,fontWeight:600,flexShrink:0}}>{vendor.vendor}</span>
@@ -3018,10 +2942,11 @@ function TechStack({acct,setAcct}) {
         const sc=hoveredSeg.vendor?capStatusFill(hoveredSeg.vendor):S.bdr2
         const tx=Math.min(hoveredSeg.x+16,window.innerWidth-270)
         const ty=Math.max(10,hoveredSeg.y-70)
+        const knownVendors=getKnownVendorsForSub(hoveredSeg.sub||hoveredSeg.cap)
         return (
           <div style={{position:'fixed',left:tx,top:ty,background:S.surf,border:`1px solid ${S.bdr}`,borderLeft:`4px solid ${sc}`,borderRadius:10,padding:'12px 16px',pointerEvents:'none',zIndex:9999,maxWidth:260,boxShadow:'0 8px 32px rgba(0,0,0,0.65)'}}>
+            <div style={{fontSize:11,color:S.muted,marginBottom:4,letterSpacing:'0.04em',textTransform:'uppercase'}}>{hoveredSeg.domain.name}</div>
             <div style={{fontSize:13,fontWeight:700,color:S.txt,marginBottom:6,lineHeight:1.3}}>{hoveredSeg.cap}</div>
-            <div style={{fontSize:11,color:S.muted,marginBottom:6,letterSpacing:'0.04em',textTransform:'uppercase'}}>{hoveredSeg.domain.name}</div>
             {hoveredSeg.vendor
               ?<>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
@@ -3035,7 +2960,8 @@ function TechStack({acct,setAcct}) {
                 <div style={{fontSize:10,color:S.dim,borderTop:`1px solid ${S.bdr}`,paddingTop:6,marginTop:2}}>Click to edit vendor</div>
               </>
               :<>
-                <div style={{fontSize:11,color:S.muted,marginBottom:8}}>No vendor mapped</div>
+                <div style={{fontSize:11,color:S.muted,marginBottom:4}}>No coverage — gap</div>
+                {knownVendors.length>0&&<div style={{fontSize:10,color:S.dim,marginBottom:8}}>Known vendors: {knownVendors.slice(0,3).join(', ')}</div>}
                 <div style={{fontSize:11,color:S.blue,fontWeight:600}}>Click to add vendor →</div>
               </>
             }
@@ -4980,7 +4906,7 @@ ${inputText}`}]
               if(idx>=0){
                 ts[idx]={...ts[idx],status:s.status==='Active'?'Current':s.status,notes:(ts[idx].notes?ts[idx].notes+' | ':'')+s.context}
               } else {
-                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]})
+                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:resolveVendorMapping(s.vendor,s.category).primarySub||s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]})
               }
             })
             return{...prev,techStack:ts}
@@ -9234,7 +9160,7 @@ function ClientView({acct, setAcct, onClose}) {
 
   const toggleTlFilter = s => setTlFilter(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
 
-  const cvCapToTechCat = {'SIEM/XDR':'SIEM / SOC','SOAR':'SIEM / SOC','Log Management':'SIEM / SOC','MSSP/MDR':'SIEM / SOC','Threat Intel':'Threat Intel','Vulnerability Management':'SIEM / SOC','Pen Testing':'Pen Test / Red Team','BAS/Continuous Testing':'Pen Test / Red Team','Brand/Dark Web':'Threat Intel','Endpoint EDR':'Endpoint','Server EDR':'Endpoint','Endpoint Encryption':'Endpoint','Insider Threat/DDR':'Endpoint','MDM/EMM':'Endpoint','Patch Management':'Endpoint','Email Gateway':'Email Security','BEC/Phishing':'Email Security','DMARC':'Email Security','Email DLP':'Email Security','CNAPP/CSPM':'Cloud Security','CWPP':'Cloud Security','CIEM':'Cloud Security','CASB/SSPM':'Cloud Security','CDN/WAF':'Cloud Security','SAST':'AppSec','DAST/IAST':'AppSec','SCA':'AppSec','API Security':'AppSec','App Pen Testing':'AppSec','Data Governance':'GRC','DSPM':'GRC','DLP':'GRC','GenAI/LLM Security':'GRC','Data Encryption':'GRC','Key Management':'GRC','BC/DR Backup':'GRC','GRC Platform':'GRC','3rd Party Risk':'GRC','DFIR':'SIEM / SOC','Firewall':'Network / SASE','IDS/IPS':'Network / SASE','URL Filtering':'Network / SASE','Sandbox':'Network / SASE','DNS Security':'Network / SASE','SASE/ZTNA':'Network / SASE','Zero Trust':'Network / SASE','NAC':'Network / SASE','NTA/NDR':'Network / SASE','FW Segmentation':'Network / SASE','Identity Store/AD':'Identity / IAM','ITDR':'Identity / IAM','IAM':'Identity / IAM','SSO':'Identity / IAM','MFA':'Identity / IAM','IGA':'Identity / IAM','PAM':'Identity / IAM','Certificate Management':'Identity / IAM','ISPM':'Identity / IAM','Non-Human Identity':'Identity / IAM'}
+  const cvCapToTechCat = {}
 
   const handleCvCapHover = (seg,e) => {
     if(seg.type!=='cap'){setCvHoveredSeg(null);return}
@@ -9250,9 +9176,8 @@ function ClientView({acct, setAcct, onClose}) {
       setCvEditForm({vendor:seg.vendor.vendor||'',products:seg.vendor.products||'',replacementOptions:seg.vendor.replacementOptions||'',contractSale:seg.vendor.contractSale||''})
       setCvEditModal({...seg})
     } else {
-      const category=cvCapToTechCat[seg.cap]||'Other'
-      setCvEditForm({vendor:'',products:seg.cap,replacementOptions:'',contractSale:''})
-      setCvEditModal({...seg,newEntry:true,category})
+      setCvEditForm({vendor:'',products:seg.sub||seg.cap,replacementOptions:'',contractSale:''})
+      setCvEditModal({...seg,newEntry:true,category:seg.sub||seg.cap})
     }
   }
   const saveCvEdit = () => {
@@ -9277,25 +9202,28 @@ function ClientView({acct, setAcct, onClose}) {
 
   // ── Heatmap geometry (interactive) ──
   const HM_CX=410,HM_CY=410,HM_OR2=330,HM_OR1=278,HM_IR2=268,HM_IR1=171,HM_START=-Math.PI/2
-  const anglePD=(2*Math.PI)/HEATMAP_DOMAINS.length
+  const cvTotalSubs=WHEEL_DOMAINS.reduce((sum,d)=>sum+d.subs.length,0)
   const hmSegs=[]
   let angle=HM_START
-  HEATMAP_DOMAINS.forEach((domain,di)=>{
-    const dS=angle,dE=angle+anglePD
-    hmSegs.push({type:'domain',di,domain,path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018)})
-    const aPC=anglePD/domain.caps.length
-    domain.caps.forEach((cap,ci)=>{
-      const cS=dS+ci*aPC,cE=cS+aPC,vendor=findVendor(cap,acct.techStack,domain.name)
+  WHEEL_DOMAINS.forEach((domain,di)=>{
+    const domainAngle=(domain.subs.length/cvTotalSubs)*2*Math.PI
+    const dS=angle,dE=angle+domainAngle
+    hmSegs.push({type:'domain',di,domain,dS,dE,path:makeArc(HM_CX,HM_CY,HM_OR1,HM_OR2,dS,dE,0.018)})
+    const subAngle=domainAngle/domain.subs.length
+    domain.subs.forEach((sub,ci)=>{
+      const cS=dS+ci*subAngle,cE=cS+subAngle
+      const vendor=findVendorForSub(sub,acct.techStack)
+      const secondary=!vendor?getSecondaryVendors(sub,acct.techStack):[]
       const midA=(cS+cE)/2,midR=(HM_IR1+HM_IR2)/2
       const centX=HM_CX+midR*Math.cos(midA),centY=HM_CY+midR*Math.sin(midA)
-      hmSegs.push({type:'cap',di,ci,domain,cap,vendor,centX,centY,
+      hmSegs.push({type:'cap',di,ci,domain,cap:sub,sub,vendor,secondary,centX,centY,
         fill:capStatusFill(vendor),path:makeArc(HM_CX,HM_CY,HM_IR1,HM_IR2,cS,cE,0.01)})
     })
     angle=dE
   })
-  const allCaps=HEATMAP_DOMAINS.flatMap(d=>d.caps)
-  const coveredCaps=allCaps.filter(cap=>{const dom=HEATMAP_DOMAINS.find(d=>d.caps.includes(cap));return findVendor(cap,acct.techStack,dom?.name)})
-  const coveragePct=Math.round(coveredCaps.length/allCaps.length*100)
+  const cvAllSubs=WHEEL_DOMAINS.flatMap(d=>d.subs)
+  const cvCoveredSubs=cvAllSubs.filter(sub=>findVendorForSub(sub,acct.techStack))
+  const coveragePct=Math.round(cvCoveredSubs.length/cvAllSubs.length*100)
   const logoUrl=acct.heatmapLogoUrl||null
 
   // ── Tech stack by category ──
@@ -9505,12 +9433,13 @@ function ClientView({acct, setAcct, onClose}) {
                     <radialGradient id="cv-hm-gw" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#fb923c"/><stop offset="55%" stopColor="#f97316"/><stop offset="100%" stopColor="#ea580c"/></radialGradient>
                     <radialGradient id="cv-hm-gr" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#f87171"/><stop offset="55%" stopColor="#ef4444"/><stop offset="100%" stopColor="#dc2626"/></radialGradient>
                     <radialGradient id="cv-hm-gn" cx="50%" cy="50%" r="70%"><stop offset="0%" stopColor="#555555"/><stop offset="55%" stopColor="#4a4a4a"/><stop offset="100%" stopColor="#3d3d3d"/></radialGradient>
-                    <linearGradient id="cv-hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff7a77"/><stop offset="100%" stopColor="#c9100d"/></linearGradient>
-                    <linearGradient id="cv-hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ffe566"/><stop offset="100%" stopColor="#c49800"/></linearGradient>
-                    <linearGradient id="cv-hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4dd4e2"/><stop offset="100%" stopColor="#007a88"/></linearGradient>
+                    <linearGradient id="cv-hm-dg0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff9cc5"/><stop offset="100%" stopColor="#d42070"/></linearGradient>
+                    <linearGradient id="cv-hm-dg1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff7a77"/><stop offset="100%" stopColor="#c9100d"/></linearGradient>
+                    <linearGradient id="cv-hm-dg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#96e8a4"/><stop offset="100%" stopColor="#30a048"/></linearGradient>
                     <linearGradient id="cv-hm-dg3" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#6eaaff"/><stop offset="100%" stopColor="#1255cc"/></linearGradient>
-                    <linearGradient id="cv-hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#96e8a4"/><stop offset="100%" stopColor="#30a048"/></linearGradient>
-                    <linearGradient id="cv-hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ff9cc5"/><stop offset="100%" stopColor="#d42070"/></linearGradient>
+                    <linearGradient id="cv-hm-dg4" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#4dd4e2"/><stop offset="100%" stopColor="#007a88"/></linearGradient>
+                    <linearGradient id="cv-hm-dg5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#ffe566"/><stop offset="100%" stopColor="#c49800"/></linearGradient>
+                    <linearGradient id="cv-hm-dg6" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#c89be8"/><stop offset="100%" stopColor="#7d3bad"/></linearGradient>
                     <radialGradient id="cv-hm-ctr" cx="50%" cy="35%" r="70%"><stop offset="0%" stopColor="#1a2a4a"/><stop offset="100%" stopColor="#08111f"/></radialGradient>
                     <filter id="cv-hm-round" x="-5%" y="-5%" width="110%" height="110%">
                       <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
@@ -9518,7 +9447,7 @@ function ClientView({acct, setAcct, onClose}) {
                       <feComposite in="SourceGraphic" in2="goo" operator="in"/>
                     </filter>
                     {hmSegs.filter(s=>s.type==='domain').map((seg,i)=>{
-                      const dS=HM_START+i*anglePD,dE=dS+anglePD,mid=(dS+dE)/2,lg=(dE-dS)>Math.PI?1:0
+                      const {dS,dE}=seg,mid=(dS+dE)/2,lg=(dE-dS)>Math.PI?1:0
                       const r=302
                       const path=Math.sin(mid)>0.1
                         ?`M ${HM_CX+r*Math.cos(dE)} ${HM_CY+r*Math.sin(dE)} A ${r} ${r} 0 ${lg} 0 ${HM_CX+r*Math.cos(dS)} ${HM_CY+r*Math.sin(dS)}`
@@ -9556,11 +9485,15 @@ function ClientView({acct, setAcct, onClose}) {
                         onMouseLeave={()=>setCvHoveredSeg(null)} onClick={()=>handleCvCapClick(seg)}/>
                     )
                   })}
+                  {hmSegs.filter(s=>s.type==='cap'&&!s.vendor&&s.secondary?.length>0).map((seg)=>(
+                    <path key={`cvsec-${seg.di}-${seg.ci}`} d={seg.path}
+                      fill={seg.domain.color+'45'} stroke="none" style={{pointerEvents:'none'}}/>
+                  ))}
                   {hmSegs.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(
                     <circle key={`cvvd-${seg.di}-${seg.ci}`} cx={seg.centX} cy={seg.centY} r={2.8} fill="rgba(255,255,255,0.88)" style={{pointerEvents:'none'}}/>
                   ))}
                   {(()=>{
-                    const abbrev=['CLOUD & APP SEC','DATA PROTECTION','ENDPOINT & MAIL','SEC OPERATIONS','NETWORK SEC','IDENTITY SEC']
+                    const abbrev=['IDENTITY & ACCESS','CLOUD & APP SEC','NETWORK & INFRA','SEC OPERATIONS','DATA & ENDPOINT','RISK & COMPLY','OT / IoT']
                     return hmSegs.filter(s=>s.type==='domain').map((seg,i)=>(
                       <text key={`cvdl${i}`} fontSize={11} fontWeight={700} letterSpacing="0.05em" fill="rgba(255,255,255,0.95)">
                         <textPath href={`#cv-hm-ta-${i}`} startOffset="50%" textAnchor="middle">{abbrev[i]}</textPath>
@@ -9590,10 +9523,11 @@ function ClientView({acct, setAcct, onClose}) {
                 const sc=cvHoveredSeg.vendor?capStatusFill(cvHoveredSeg.vendor):'#64748b'
                 const tx=Math.min(cvHoveredSeg.x+16,window.innerWidth-270)
                 const ty=Math.max(10,cvHoveredSeg.y-70)
+                const knownVendors=getKnownVendorsForSub(cvHoveredSeg.sub||cvHoveredSeg.cap)
                 return (
                   <div style={{position:'fixed',left:tx,top:ty,zIndex:3000,background:'rgba(15,23,42,0.95)',borderRadius:10,padding:'10px 14px',pointerEvents:'none',minWidth:200,maxWidth:260,boxShadow:'0 8px 24px rgba(0,0,0,0.4)',border:'1px solid rgba(255,255,255,0.08)'}}>
+                    <div style={{fontSize:11,color:'#64748b',marginBottom:4,letterSpacing:'0.04em',textTransform:'uppercase'}}>{cvHoveredSeg.domain.name}</div>
                     <div style={{fontSize:13,fontWeight:700,color:'#f1f5f9',marginBottom:6,lineHeight:1.3}}>{cvHoveredSeg.cap}</div>
-                    <div style={{fontSize:11,color:'#64748b',marginBottom:6,letterSpacing:'0.04em',textTransform:'uppercase'}}>{cvHoveredSeg.domain.name}</div>
                     {cvHoveredSeg.vendor?(
                       <>
                         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
@@ -9605,7 +9539,11 @@ function ClientView({acct, setAcct, onClose}) {
                         <div style={{fontSize:10,color:'#475569',marginTop:6}}>Click to edit</div>
                       </>
                     ):(
-                      <div style={{fontSize:11,color:'#475569'}}>No vendor assigned — click to add</div>
+                      <>
+                        <div style={{fontSize:11,color:'#475569',marginBottom:4}}>No coverage — gap</div>
+                        {knownVendors.length>0&&<div style={{fontSize:10,color:'#64748b',marginBottom:6}}>Known vendors: {knownVendors.slice(0,3).join(', ')}</div>}
+                        <div style={{fontSize:11,color:'#3b82f6',fontWeight:600}}>Click to add vendor →</div>
+                      </>
                     )}
                   </div>
                 )
