@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
@@ -6050,7 +6050,7 @@ function BarChartCard({data}) {
       return sum+(isNaN(num)?0:num*multiplier)
     },0)
 
-  const chartData = (data.accounts||[]).map((acct, idx) => {
+  const chartData = useMemo(() => (data.accounts||[]).map((acct, idx) => {
     const inFlight = (acct.projects||[]).filter(p=>p.status==='In Flight').length
     const inDiscussion = (acct.projects||[]).filter(p=>p.status==='In Discussion').length
     const gp = getAccountGP(acct)
@@ -6064,13 +6064,13 @@ function BarChartCard({data}) {
       'In Discussion': inDiscussion,
       gp,
     }
-  })
+  }), [data.accounts])
 
   const totalInFlight = chartData.reduce((s,d)=>s+d['In Flight'],0)
   const totalInDiscussion = chartData.reduce((s,d)=>s+d['In Discussion'],0)
   const totalGP = chartData.reduce((s,d)=>s+d.gp,0)
 
-  const CustomXAxisTick = ({x, y, payload}) => {
+  const CustomXAxisTick = useCallback(({x, y, payload}) => {
     const acct = (data.accounts||[]).find(a=>a.short===payload.value||a.name===payload.value||(a.short||'').toLowerCase()===payload.value?.toLowerCase())
     const logoImage = acct?.logoImage||''
     const initial = acct?.name?.[0]?.toUpperCase()||payload.value?.[0]?.toUpperCase()||'?'
@@ -6090,7 +6090,7 @@ function BarChartCard({data}) {
         </foreignObject>
       </g>
     )
-  }
+  }, [data.accounts])
 
   const CustomTooltip = ({active, payload, label}) => {
     if (!active||!payload||!payload.length) return null
@@ -6141,11 +6141,11 @@ function BarChartCard({data}) {
         <RechartsTooltip content={<CustomTooltip/>}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
-            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={20} animationDuration={400}/>
+            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={20} isAnimationActive={false}/>
+            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={20} isAnimationActive={false}/>
           </>
         ) : (
-          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} animationDuration={400}/>
+          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} isAnimationActive={false}/>
         )}
       </BarChart>
     </ResponsiveContainer>
@@ -6266,7 +6266,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
       </div>
       <svg viewBox="0 0 200 110" width="100%" style={{display:'block',maxWidth:260,margin:'0 auto'}}>
         <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={18}
-          strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)"/>
+          strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>
         {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={18}
           strokeDasharray={`${aPct*HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>}
         {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={18}
@@ -7924,7 +7924,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
-  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue']
+  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel']
   const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
@@ -7944,6 +7944,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       case 'Employees':return parseNum(b.employees)-parseNum(a.employees)
       case 'Revenue':return parseNum(b.revenue)-parseNum(a.revenue)
       case 'Recently Updated':return(b.updatedAt||'').localeCompare(a.updatedAt||'')
+      case 'Intel':return((b.intelLog||[]).length+(b.notes||[]).length)-((a.intelLog||[]).length+(a.notes||[]).length)
       default:return(b.addedAt||'').localeCompare(a.addedAt||'')
     }
   })
@@ -8503,7 +8504,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 <div style={{flex:'1 1 140px',cursor:'pointer'}} onClick={()=>setSort('Industry')}>Industry{sort==='Industry'?' ↑':''}</div>
                 <div style={{flex:'0 0 90px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Employees')}>Employees{sort==='Employees'?' ↓':''}</div>
                 <div style={{flex:'0 0 110px',textAlign:'right',paddingRight:16,cursor:'pointer'}} onClick={()=>setSort('Revenue')}>Revenue{sort==='Revenue'?' ↓':''}</div>
-                <div style={{flex:'0 0 70px',textAlign:'center'}}>Intel</div>
+                <div style={{flex:'0 0 70px',textAlign:'center',cursor:'pointer'}} onClick={()=>setSort('Intel')}>Intel{sort==='Intel'?' ↓':''}</div>
                 <div style={{flex:'0 0 90px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Recently Updated')}>Updated{sort==='Recently Updated'?' ↓':''}</div>
                 <div style={{flex:'0 0 130px',textAlign:'right',cursor:'pointer'}} onClick={()=>setSort('Status')}>Status{sort==='Status'?' ↑':''}</div>
                 <div style={{width:44,flexShrink:0}}/>
