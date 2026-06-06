@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security Heatmap Wheel</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0e1a; color: #e2e8f0; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; min-height: 100vh; }
+h1 { font-size: 18px; font-weight: 500; color: #94a3b8; margin-bottom: 32px; letter-spacing: 0.05em; }
+#wheel-wrap { position: relative; width: 700px; height: 700px; }
+#wheel-wrap svg { width: 100%; height: 100%; }
+.tooltip { position: fixed; background: #111827; border: 1px solid #1e2d40; border-radius: 10px; padding: 12px 16px; font-size: 13px; pointer-events: none; display: none; z-index: 100; max-width: 240px; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+.tooltip-title { font-weight: 600; color: #f1f5f9; font-size: 14px; margin-bottom: 2px; }
+.tooltip-domain { color: #64748b; font-size: 11px; margin-bottom: 10px; }
+.tooltip-vendor { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-size: 12px; color: #cbd5e1; }
+.tooltip-vendor:last-child { margin-bottom: 0; }
+.badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+.badge-active { background: #14532d; color: #60D673; }
+.badge-evaluating { background: #451a03; color: #FEC700; }
+.badge-expired { background: #450a0a; color: #FC413D; }
+.badge-secondary { background: #1e2d40; color: #64748b; }
+.gap-text { color: #475569; font-size: 12px; font-style: italic; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 32px; justify-content: center; }
+.leg-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #94a3b8; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.domain-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; justify-content: center; max-width: 700px; }
+.dom-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #94a3b8; }
+.dom-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.vendor-table { margin-top: 40px; width: 100%; max-width: 700px; border-collapse: collapse; font-size: 12px; }
+.vendor-table th { text-align: left; padding: 8px 12px; color: #64748b; font-weight: 500; border-bottom: 1px solid #1e2d40; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.vendor-table td { padding: 8px 12px; color: #cbd5e1; border-bottom: 1px solid #111827; vertical-align: top; }
+.vendor-table tr:hover td { background: #111827; }
+</style>
+</head>
+<body>
+
+<h1>SECURITY PROGRAM HEATMAP</h1>
+<div id="wheel-wrap">
+  <svg id="wheel" viewBox="0 0 700 700"></svg>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-dot" style="background:#60D673"></div>Active</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#FEC700"></div>Evaluating</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#FC413D"></div>Expired / Replacing</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#1e2d40"></div>Gap — no coverage</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#334155;opacity:0.5"></div>Secondary / potential coverage</div>
+</div>
+
+<div class="domain-legend" id="domain-legend"></div>
+
+<table class="vendor-table" id="vendor-table">
+  <thead><tr><th>Vendor</th><th>Primary Sub-domain</th><th>Secondary Coverage</th><th>Status</th></tr></thead>
+  <tbody id="vendor-tbody"></tbody>
+</table>
+
+<script>
+const WHEEL_DOMAINS = [
+  { name: 'Identity & Access', color: '#534AB7', subs: ['IGA','PAM','SSO / Federation','MFA / Passwordless','ITDR','Directory Services','CIAM','Secrets Management','Privileged Remote Access','Password Manager']},
+  { name: 'Cloud & App Security', color: '#185FA5', subs: ['CSPM','CNAPP','CIEM','CWPP','CASB','Container / Kubernetes','SAST','DAST','SCA','WAF','API Security','Secrets Scanning','IaC Security','Cloud Detection & Response']},
+  { name: 'Network & Infrastructure', color: '#0F6E56', subs: ['NGFW','IDS / IPS','NDR','ZTNA','DNS Security','NAC','Secure Web Gateway','DDoS Protection','Deception','PKI / Cert Management','Micro-segmentation','Remote Access / VPN']},
+  { name: 'Security Operations', color: '#BA7517', subs: ['SIEM','SOAR','Data Pipeline / Log Management','MDR','Threat Intelligence','Threat Hunting','UEBA','Attack Surface Management','VM Scanning','Pen Testing / BAS','IR Platform / Retainer','Digital Forensics','Digital Risk Protection']},
+  { name: 'Data & Endpoint', color: '#993556', subs: ['EDR / XDR','EPP','Email Security (SEG)','BEC / Phishing Protection','DLP','DSPM','Encryption / KMS','Data Classification','Cyber Backup & Recovery','Mobile / MTD','Browser Security','App Control / Whitelisting','Insider Threat']},
+  { name: 'Risk & Compliance', color: '#5F5E5A', subs: ['GRC Platform','Third-Party / Vendor Risk','Compliance Automation','Privacy & Data Governance','Security Awareness Training','Phishing Simulation','Cyber Insurance Readiness']},
+  { name: 'OT / IoT & Physical', color: '#085041', subs: ['OT / ICS Security','IoT Security','Medical Device Security','OT Network Monitoring','Asset Inventory (OT)','OT Vulnerability Management']},
+]
+
+const SAMPLE_STACK = [
+  { vendor: 'CrowdStrike', products: 'Falcon EDR, Identity Protection', primarySub: 'EDR / XDR', secondarySubs: ['ITDR','Threat Hunting','MDR'], status: 'Active' },
+  { vendor: 'Saviynt', products: 'IGA', primarySub: 'IGA', secondarySubs: [], status: 'Evaluating' },
+  { vendor: 'Palo Alto', products: 'Prisma Access, NGFW', primarySub: 'NGFW', secondarySubs: ['ZTNA','CSPM'], status: 'Active' },
+  { vendor: 'Proofpoint', products: 'Email Protection, TAP', primarySub: 'Email Security (SEG)', secondarySubs: ['BEC / Phishing Protection','Threat Intelligence'], status: 'Active' },
+  { vendor: 'Google SecOps', products: 'SIEM, SOAR, GTI', primarySub: 'SIEM', secondarySubs: ['SOAR','Threat Intelligence','Digital Risk Protection'], status: 'Active' },
+  { vendor: 'Tenable', products: 'Vulnerability Management', primarySub: 'VM Scanning', secondarySubs: ['Attack Surface Management'], status: 'Active' },
+  { vendor: 'Zscaler', products: 'ZIA, ZPA', primarySub: 'Secure Web Gateway', secondarySubs: ['ZTNA','Remote Access / VPN'], status: 'Active' },
+  { vendor: '1Password', products: 'Business', primarySub: 'Password Manager', secondarySubs: [], status: 'Active' },
+  { vendor: 'Vanta', products: 'Compliance Automation', primarySub: 'Compliance Automation', secondarySubs: [], status: 'Active' },
+]
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+const CX = 350, CY = 350
+const R_OUTER = 320, R_DOMAIN = 290, R_MID_OUT = 255, R_MID_IN = 170, R_INNER = 155, R_CENTER = 70
+const GAP_DEG = 1.5
+const TOTAL_SUBS = WHEEL_DOMAINS.reduce((a,d) => a + d.subs.length, 0)
+
+function toRad(d) { return d * Math.PI / 180 }
+function arcPath(cx, cy, r1, r2, startDeg, endDeg) {
+  const s1 = toRad(startDeg), e1 = toRad(endDeg)
+  const large = (endDeg - startDeg) > 180 ? 1 : 0
+  const x1 = cx + r2 * Math.cos(s1), y1 = cy + r2 * Math.sin(s1)
+  const x2 = cx + r2 * Math.cos(e1), y2 = cy + r2 * Math.sin(e1)
+  const x3 = cx + r1 * Math.cos(e1), y3 = cy + r1 * Math.sin(e1)
+  const x4 = cx + r1 * Math.cos(s1), y4 = cy + r1 * Math.sin(s1)
+  return `M ${x1} ${y1} A ${r2} ${r2} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r1} ${r1} 0 ${large} 0 ${x4} ${y4} Z`
+}
+
+function getStatusColor(status) {
+  if (status === 'Active') return '#60D673'
+  if (status === 'Evaluating') return '#FEC700'
+  if (status === 'Expired' || status === 'Replacing') return '#FC413D'
+  return '#60D673'
+}
+
+function getSubCoverage(subName) {
+  const primary = SAMPLE_STACK.filter(v => v.primarySub === subName)
+  const secondary = SAMPLE_STACK.filter(v => v.secondarySubs.includes(subName))
+  return { primary, secondary }
+}
+
+function statusPriority(status) {
+  if (status === 'Active') return 3
+  if (status === 'Evaluating') return 2
+  return 1
+}
+
+const svg = document.getElementById('wheel')
+const tooltip = document.getElementById('tooltip')
+
+function makeSVGEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag)
+  Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v))
+  return el
+}
+
+// Build defs for textPaths
+const defs = makeSVGEl('defs', {})
+
+// Calculate total degrees per sub (equal distribution within domain proportional to sub count)
+const DEG_PER_SUB = (360 - WHEEL_DOMAINS.length * GAP_DEG) / TOTAL_SUBS
+let currentDeg = -90
+
+WHEEL_DOMAINS.forEach((domain, di) => {
+  const domainSubCount = domain.subs.length
+  const domainSpan = domainSubCount * DEG_PER_SUB + (domainSubCount - 1) * 0
+  const domainStart = currentDeg
+  const domainEnd = currentDeg + domainSpan
+
+  // Outer domain arc
+  const domPath = makeSVGEl('path', {
+    d: arcPath(CX, CY, R_DOMAIN, R_OUTER, domainStart + 1, domainEnd - 1),
+    fill: domain.color,
+    opacity: '0.9',
+  })
+  svg.appendChild(domPath)
+
+  // Domain label via textPath
+  const midDeg = (domainStart + domainEnd) / 2
+  const labelR = (R_DOMAIN + R_OUTER) / 2
+  const arcId = `arc-${di}`
+  const arcStartDeg = midDeg - 25
+  const arcEndDeg = midDeg + 25
+  const arcPathEl = makeSVGEl('path', {
+    id: arcId,
+    d: `M ${CX + labelR * Math.cos(toRad(arcStartDeg))} ${CY + labelR * Math.sin(toRad(arcStartDeg))} A ${labelR} ${labelR} 0 0 1 ${CX + labelR * Math.cos(toRad(arcEndDeg))} ${CY + labelR * Math.sin(toRad(arcEndDeg))}`,
+    fill: 'none',
+  })
+  defs.appendChild(arcPathEl)
+
+  const textEl = makeSVGEl('text', { 'font-size': '11', 'font-weight': '600', fill: '#fff', 'letter-spacing': '0.04em' })
+  const textPath = makeSVGEl('textPath', { href: `#${arcId}`, startOffset: '50%', 'text-anchor': 'middle', 'dominant-baseline': 'central' })
+  textPath.textContent = domain.name.toUpperCase()
+  textEl.appendChild(textPath)
+  svg.appendChild(textEl)
+
+  // Sub-domain segments
+  domain.subs.forEach((sub, si) => {
+    const subStart = currentDeg
+    const subEnd = currentDeg + DEG_PER_SUB
+    const gapStart = subStart + 0.75
+    const gapEnd = subEnd - 0.75
+
+    const { primary, secondary } = getSubCoverage(sub)
+    let fillColor = '#1e2d40'
+    let fillOpacity = '1'
+
+    if (primary.length > 0) {
+      const best = primary.sort((a,b) => statusPriority(b.status) - statusPriority(a.status))[0]
+      fillColor = getStatusColor(best.status)
+      fillOpacity = '1'
+    } else if (secondary.length > 0) {
+      const best = secondary.sort((a,b) => statusPriority(b.status) - statusPriority(a.status))[0]
+      fillColor = getStatusColor(best.status)
+      fillOpacity = '0.35'
+    }
+
+    const seg = makeSVGEl('path', {
+      d: arcPath(CX, CY, R_MID_IN, R_MID_OUT, gapStart, gapEnd),
+      fill: fillColor,
+      opacity: fillOpacity,
+      style: 'cursor:pointer;transition:opacity 0.15s',
+      'data-sub': sub,
+      'data-domain': domain.name,
+      'data-color': domain.color,
+    })
+
+    seg.addEventListener('mouseenter', (e) => showTooltip(e, sub, domain.name, primary, secondary))
+    seg.addEventListener('mousemove', (e) => moveTooltip(e))
+    seg.addEventListener('mouseleave', hideTooltip)
+    svg.appendChild(seg)
+
+    currentDeg += DEG_PER_SUB
+  })
+
+  currentDeg += GAP_DEG
+})
+
+svg.appendChild(defs)
+
+// Inner separator ring
+const innerRing = makeSVGEl('circle', {
+  cx: CX, cy: CY, r: R_INNER,
+  fill: 'none', stroke: '#1e2d40', 'stroke-width': '2'
+})
+svg.appendChild(innerRing)
+
+// Mid separator ring
+const midRing = makeSVGEl('circle', {
+  cx: CX, cy: CY, r: R_MID_IN,
+  fill: 'none', stroke: '#0a0e1a', 'stroke-width': '3'
+})
+svg.appendChild(midRing)
+
+// Center circle
+const centerCircle = makeSVGEl('circle', {
+  cx: CX, cy: CY, r: R_CENTER,
+  fill: '#0a0e1a', stroke: '#1e2d40', 'stroke-width': '2'
+})
+svg.appendChild(centerCircle)
+
+// Center text
+const centerText = makeSVGEl('text', {
+  x: CX, y: CY, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+  fill: '#ffffff', 'font-size': '22', 'font-weight': '700', 'letter-spacing': '0.05em'
+})
+centerText.textContent = 'BHSI'
+svg.appendChild(centerText)
+
+const subText = makeSVGEl('text', {
+  x: CX, y: CY + 22, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+  fill: '#475569', 'font-size': '9', 'letter-spacing': '0.08em'
+})
+subText.textContent = 'SECURITY HEATMAP'
+svg.appendChild(subText)
+
+function showTooltip(e, sub, domain, primary, secondary) {
+  let html = `<div class="tooltip-title">${sub}</div>`
+  html += `<div class="tooltip-domain">${domain}</div>`
+  if (primary.length === 0 && secondary.length === 0) {
+    html += `<div class="gap-text">No coverage — gap</div>`
+  } else {
+    primary.forEach(v => {
+      const cls = v.status === 'Active' ? 'badge-active' : v.status === 'Evaluating' ? 'badge-evaluating' : 'badge-expired'
+      html += `<div class="tooltip-vendor"><span>${v.vendor}</span><span class="badge ${cls}">${v.status}</span></div>`
+    })
+    secondary.forEach(v => {
+      html += `<div class="tooltip-vendor"><span style="color:#475569">Potential: ${v.vendor}</span><span class="badge badge-secondary">Secondary</span></div>`
+    })
+  }
+  tooltip.innerHTML = html
+  tooltip.style.display = 'block'
+  moveTooltip(e)
+}
+
+function moveTooltip(e) {
+  const x = e.clientX + 16
+  const y = e.clientY - 10
+  tooltip.style.left = Math.min(x, window.innerWidth - 260) + 'px'
+  tooltip.style.top = y + 'px'
+}
+
+function hideTooltip() {
+  tooltip.style.display = 'none'
+}
+
+// Domain legend
+const dl = document.getElementById('domain-legend')
+WHEEL_DOMAINS.forEach(d => {
+  dl.innerHTML += `<div class="dom-item"><div class="dom-dot" style="background:${d.color}"></div>${d.name}</div>`
+})
+
+// Vendor table
+const tbody = document.getElementById('vendor-tbody')
+SAMPLE_STACK.forEach(v => {
+  const cls = v.status === 'Active' ? 'badge-active' : v.status === 'Evaluating' ? 'badge-evaluating' : 'badge-expired'
+  tbody.innerHTML += `<tr>
+    <td style="font-weight:500;color:#f1f5f9">${v.vendor}</td>
+    <td>${v.primarySub}</td>
+    <td style="color:#64748b">${v.secondarySubs.join(', ') || '—'}</td>
+    <td><span class="badge ${cls}">${v.status}</span></td>
+  </tr>`
+})
+</script>
+</body>
+</html>
