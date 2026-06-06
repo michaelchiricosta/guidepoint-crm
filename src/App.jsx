@@ -2643,7 +2643,7 @@ function TechStack({acct,setAcct}) {
   }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:''}
+  const blank={id:'',vendor:'',products:'',category:'SIEM / SOC',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]}
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
@@ -2783,6 +2783,7 @@ function TechStack({acct,setAcct}) {
                         {t.cost&&<span>Cost: {t.cost}</span>}
                       </div>
                       {(t.totalRevenue||t.grossProfit)&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>Rev: {t.totalRevenue||'—'} | GP: {t.grossProfit||'—'}</div>}
+                      {(t.aiNotes||'')&&(()=>{const parts=(t.aiNotes||'').split('\n\n');const prose=parts[0]||'';const bullets=parts.slice(1).join('\n').split('\n').filter(l=>l.startsWith('•'));return(<div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'9px 11px',marginTop:6,marginBottom:2}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}><div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:13}}>✨</span><span style={{fontSize:11,fontWeight:700,color:'#2563eb'}}>AI Intelligence</span></div>{t.aiNotesUpdatedAt&&<span style={{fontSize:10,color:'#94a3b8'}}>Updated {fmtDate(t.aiNotesUpdatedAt)}</span>}</div><div style={{fontSize:12,lineHeight:1.6,color:'#1e3a5f'}}>{prose}</div>{bullets.length>0&&<ul style={{margin:'4px 0 0',paddingLeft:16,fontSize:11,color:'#374151',lineHeight:1.5}}>{bullets.map((b,bi)=><li key={bi} style={{marginBottom:1}}>{b.replace(/^•\s*/,'')}</li>)}</ul>}</div>)})()}
                       {t.notes&&<div style={{fontSize:12,color:S.secondary,marginTop:4}}>{t.notes}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,flexShrink:0}}>
@@ -3112,6 +3113,14 @@ function TechStack({acct,setAcct}) {
           <Field label='Contract Sale Details' value={form.contractSaleDetails||''} onChange={f('contractSaleDetails')}/>
         </div>
         <Field label='Replacement Options' value={form.replacementOptions} onChange={f('replacementOptions')} multiline placeholder='List alternative vendors being considered'/>
+        <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'12px',marginBottom:8}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14}}>✨</span><span style={{fontSize:12,fontWeight:700,color:'#2563eb'}}>AI Intelligence</span><span style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>(read-only — auto-updated from intel)</span></div>
+            {form.aiNotesUpdatedAt&&<span style={{fontSize:10,color:'#94a3b8'}}>Updated {fmtDate(form.aiNotesUpdatedAt)}</span>}
+          </div>
+          {(form.aiNotes||'')?(()=>{const parts=(form.aiNotes||'').split('\n\n');const prose=parts[0]||'';const bullets=parts.slice(1).join('\n').split('\n').filter(l=>l.startsWith('•'));return(<><div style={{fontSize:12,lineHeight:1.6,color:'#1e3a5f',marginBottom:3}}>{prose}</div>{bullets.length>0&&<ul style={{margin:'3px 0 0',paddingLeft:16,fontSize:11,color:'#374151'}}>{bullets.map((b,bi)=><li key={bi}>{b.replace(/^•\s*/,'')}</li>)}</ul>}</>)})():<div style={{fontSize:12,color:'#94a3b8',fontStyle:'italic'}}>No AI notes yet — upload intel mentioning this vendor to auto-populate</div>}
+          {((form.aiNotesHistory)||[]).length>0&&<details style={{marginTop:8}}><summary style={{fontSize:11,color:'#2563eb',cursor:'pointer',userSelect:'none'}}>View History ({(form.aiNotesHistory||[]).length})</summary>{(form.aiNotesHistory||[]).map((h,hi)=><div key={hi} style={{marginTop:6,borderTop:'1px solid #bfdbfe',paddingTop:6,fontSize:11,color:'#475569'}}><span style={{fontWeight:600}}>{fmtDate(h.date)||'—'}</span>: {h.summary?.slice(0,120)}{(h.summary||'').length>120?'…':''}</div>)}</details>}
+        </div>
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
@@ -4191,13 +4200,15 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const dismissedCompaniesRef = useRef(new Set())
   const [pendingTechSuggestions, setPendingTechSuggestions] = useState(null)
   const [techSugSelections, setTechSugSelections] = useState(new Set())
+  const [pendingTechAiNotes, setPendingTechAiNotes] = useState(null)
+  const [techAiNotesSels, setTechAiNotesSels] = useState(new Set())
 
   const maybeShowTechSuggestions = (parsed) => {
     const raw = (parsed.techStackSuggestions || []).filter(s =>
       s.confidence !== 'low' && s.vendor &&
       !s.vendor.toLowerCase().includes('guidepoint')
     )
-    if (!raw.length) return
+    if (!raw.length) { maybeShowTechAiNotes(parsed); return }
     const withIds = raw.map(s => ({...s, _id: uid()}))
     const defaultSel = new Set()
     withIds.forEach(s => {
@@ -4207,8 +4218,24 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       )
       if (s.confidence === 'high' && !alreadyExists) defaultSel.add(s._id)
     })
-    setPendingTechSuggestions({suggestions: withIds})
+    setPendingTechSuggestions({suggestions: withIds, parsed})
     setTechSugSelections(defaultSel)
+  }
+
+  const maybeShowTechAiNotes = (parsed) => {
+    if (!parsed) return
+    const rawUpdates = (parsed.techStackUpdates || []).filter(u => u.vendor && u.aiNotesUpdate)
+    if (!rawUpdates.length) return
+    const updates = rawUpdates.map(u => {
+      const match = (acct.techStack||[]).find(t =>
+        t.vendor.toLowerCase().includes(u.vendor.toLowerCase()) ||
+        u.vendor.toLowerCase().includes(t.vendor.toLowerCase())
+      )
+      return {...u, _id: uid(), matchedEntry: match || null}
+    }).filter(u => u.matchedEntry)
+    if (!updates.length) return
+    setPendingTechAiNotes({updates})
+    setTechAiNotesSels(new Set(updates.map(u => u._id)))
   }
 
   const detectCompanyMentions = (text) => {
@@ -4348,11 +4375,12 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     }
   }
 
-  const FILE_INTEL_PROMPT = (date) => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.`
+  const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
 
   const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
     const ext = pendingFile.name.split('.').pop().toLowerCase()
+    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&t.aiNotes).map(t=>`${t.vendor}: ${t.aiNotes}`).join('\n')
     setLoading(true); setError(''); setResult(null); setProcessingLong(false)
     setPendingDate(date); setPdfAnalysisMethod('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
@@ -4379,7 +4407,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       const {data:d2} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:4000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
-        messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date)}\n\nDOCUMENT TEXT:\n${inputText}`}]
+        messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
       }, effectiveKey, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
@@ -4426,7 +4454,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
           model:'claude-sonnet-4-6', max_tokens:4000,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
-            {type:'text',text:FILE_INTEL_PROMPT(date)}
+            {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
           ]}]
         }, effectiveKey, onStatus)
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
@@ -4452,7 +4480,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
               model:'claude-sonnet-4-6', max_tokens:4000,
               messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
-                {type:'text',text:FILE_INTEL_PROMPT(date)}
+                {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
               ]}]
             }, effectiveKey, onStatus)
             console.log('[Direct PDF] Claude API response:', JSON.stringify(data, null, 2))
@@ -4534,6 +4562,7 @@ function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
   const process = async (date, textOverride) => {
     const inputText = textOverride !== undefined ? textOverride : text
+    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&t.aiNotes).map(t=>`${t.vendor}: ${t.aiNotes}`).join('\n')
     setLoading(true);setError('');setResult(null);setProcessingLong(false);setRetryStatus('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
@@ -4548,10 +4577,15 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Write each task like a 
   "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},
   "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],
   "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],
-  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}]
+  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],
+  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}]
 }
 
 For techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.
+
+For techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors with meaningful intel — not just passing mentions. Keep it factual and specific to this account.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT:\n'+vendorCtx:''
+
+}
 
 INPUT:
 ${inputText}`}]
@@ -4937,6 +4971,7 @@ ${inputText}`}]
 
       {pendingTechSuggestions&&!pendingParsed&&(()=>{
         const handleAddTech = () => {
+          const p=pendingTechSuggestions.parsed
           setAcct(prev=>{
             let ts=[...(prev.techStack||[])]
             pendingTechSuggestions.suggestions.forEach(s=>{
@@ -4945,12 +4980,13 @@ ${inputText}`}]
               if(idx>=0){
                 ts[idx]={...ts[idx],status:s.status==='Active'?'Current':s.status,notes:(ts[idx].notes?ts[idx].notes+' | ':'')+s.context}
               } else {
-                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:''})
+                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]})
               }
             })
             return{...prev,techStack:ts}
           })
           setPendingTechSuggestions(null);setTechSugSelections(new Set())
+          maybeShowTechAiNotes(p)
         }
         const allIds=pendingTechSuggestions.suggestions.map(s=>s._id)
         const statusColor={Active:'#16a34a',Evaluating:'#2563eb',Replacing:'#ea580c'}
@@ -5003,11 +5039,100 @@ ${inputText}`}]
               <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',flexShrink:0}}>
                 <span style={{fontSize:12,color:'#94a3b8'}}>{techSugSelections.size} item{techSugSelections.size!==1?'s':''} will be added or updated</span>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>{setPendingTechSuggestions(null);setTechSugSelections(new Set())}}
+                  <button onClick={()=>{const p=pendingTechSuggestions.parsed;setPendingTechSuggestions(null);setTechSugSelections(new Set());maybeShowTechAiNotes(p)}}
                     style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
                   <button onClick={handleAddTech} disabled={techSugSelections.size===0}
                     style={{padding:'8px 16px',background:techSugSelections.size===0?'#94a3b8':'#7c3aed',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:techSugSelections.size===0?'not-allowed':'pointer'}}>
                     Add Selected
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {pendingTechAiNotes&&!pendingTechSuggestions&&!pendingParsed&&(()=>{
+        const commitAiNotesUpdate = () => {
+          setAcct(prev=>{
+            const ts=[...(prev.techStack||[])]
+            pendingTechAiNotes.updates.forEach(u=>{
+              if(!techAiNotesSels.has(u._id))return
+              const idx=ts.findIndex(t=>t.id===u.matchedEntry.id)
+              if(idx<0)return
+              const existing=ts[idx]
+              const formatted=u.aiNotesUpdate+(u.bullets?.length?'\n\n'+u.bullets.map(b=>'• '+b).join('\n'):'')
+              ts[idx]={...existing,
+                aiNotes:formatted,
+                aiNotesUpdatedAt:u.date||new Date().toISOString().split('T')[0],
+                aiNotesHistory:[...(existing.aiNotesHistory||[]),...(existing.aiNotes?[{summary:existing.aiNotes,date:existing.aiNotesUpdatedAt||''}]:[])]
+              }
+            })
+            return{...prev,techStack:ts}
+          })
+          setPendingTechAiNotes(null);setTechAiNotesSels(new Set())
+        }
+        return(
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div style={{width:'72vw',maxWidth:760,maxHeight:'84vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+              <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                  <span style={{fontSize:18}}>✨</span>
+                  <span style={{fontSize:16,fontWeight:700,color:'#0f172a',flex:1}}>AI Notes for Your Tech Stack</span>
+                  <span style={{fontSize:11,fontWeight:600,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 8px'}}>{pendingTechAiNotes.updates.length} update{pendingTechAiNotes.updates.length!==1?'s':''}</span>
+                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
+                </div>
+                <p style={{fontSize:12,color:'#64748b',margin:'0 0 10px'}}>AI found updates for these technologies based on the intel you just uploaded. Review and confirm which to save.</p>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <button onClick={()=>setTechAiNotesSels(new Set(pendingTechAiNotes.updates.map(u=>u._id)))} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Select All</button>
+                  <button onClick={()=>setTechAiNotesSels(new Set())} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Deselect All</button>
+                  <span style={{fontSize:12,color:'#94a3b8',marginLeft:'auto'}}>{techAiNotesSels.size} of {pendingTechAiNotes.updates.length} selected</span>
+                </div>
+              </div>
+              <div style={{overflowY:'auto',flex:1}}>
+                {pendingTechAiNotes.updates.map(u=>{
+                  const sel=techAiNotesSels.has(u._id)
+                  const toggle=()=>setTechAiNotesSels(prev=>{const ns=new Set(prev);ns.has(u._id)?ns.delete(u._id):ns.add(u._id);return ns})
+                  const hasPrev=!!(u.matchedEntry?.aiNotes)
+                  const prevParts=(u.matchedEntry?.aiNotes||'').split('\n\n')
+                  const newParts=(u.aiNotesUpdate||'').split('\n\n')
+                  const newBullets=(u.bullets||[])
+                  return(
+                    <div key={u._id} onClick={toggle}
+                      style={{padding:'14px 16px',cursor:'pointer',background:sel?'rgba(37,99,235,0.04)':'transparent',opacity:sel?1:0.65,borderBottom:'1px solid #f1f5f9',transition:'all 0.12s'}}>
+                      <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+                        <input type='checkbox' checked={sel} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{marginTop:4,flexShrink:0,accentColor:'#2563eb',cursor:'pointer',width:16,height:16}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+                            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{u.vendor}</span>
+                            {u.matchedEntry?.category&&<span style={{fontSize:10,fontWeight:600,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 7px'}}>{u.matchedEntry.category}</span>}
+                            {u.date&&<span style={{fontSize:10,color:'#94a3b8',background:'#f1f5f9',borderRadius:999,padding:'2px 7px'}}>{fmtDate(u.date)}</span>}
+                          </div>
+                          {hasPrev&&(
+                            <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:7,padding:'8px 10px',marginBottom:8}}>
+                              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Previous Notes</div>
+                              <div style={{fontSize:11,color:'#94a3b8',fontStyle:'italic',lineHeight:1.5,maxHeight:56,overflow:'hidden'}}>{prevParts[0]}</div>
+                            </div>
+                          )}
+                          {hasPrev&&<div style={{fontSize:11,color:'#94a3b8',textAlign:'center',marginBottom:6}}>↓ Updated to</div>}
+                          <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:7,padding:'8px 10px'}}>
+                            <div style={{fontSize:10,fontWeight:700,color:'#2563eb',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>New AI Summary</div>
+                            <div style={{fontSize:12,color:'#1e3a5f',lineHeight:1.6,marginBottom:newBullets.length?4:0}}>{u.aiNotesUpdate}</div>
+                            {newBullets.length>0&&<ul style={{margin:'4px 0 0',paddingLeft:16,fontSize:11,color:'#374151'}}>{newBullets.map((b,bi)=><li key={bi}>{b}</li>)}</ul>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',flexShrink:0}}>
+                <span style={{fontSize:12,color:'#94a3b8'}}>{techAiNotesSels.size} tech stack entr{techAiNotesSels.size!==1?'ies':'y'} will be updated</span>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set())}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
+                  <button onClick={commitAiNotesUpdate} disabled={techAiNotesSels.size===0}
+                    style={{padding:'8px 16px',background:techAiNotesSels.size===0?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:techAiNotesSels.size===0?'not-allowed':'pointer'}}>
+                    Update Selected
                   </button>
                 </div>
               </div>
