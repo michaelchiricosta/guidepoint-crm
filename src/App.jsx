@@ -2602,13 +2602,19 @@ function TechStack({acct,setAcct}) {
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
-    const entry={...form,vendor:form.vendor||(isGap?'No Solution':'')}
+    const entry={...form,vendor:form.vendor||(isGap?'No Solution':''),primarySub:form.category}
     if(!entry.vendor)return
     if(entry.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===entry.id?entry:t)}))
     else setAcct(p=>({...p,techStack:[...p.techStack,{...entry,id:uid()}]}))
     setShowAdd(false);setForm(blank)
   }
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
+  const openVendorEdit=item=>{
+    const mapping=resolveVendorMapping(item.vendor||'',item.category||'')
+    const initialCategory=item.primarySub||mapping.primarySub||item.category||''
+    setForm({...blank,...item,category:initialCategory,primarySub:initialCategory})
+    setShowAdd(true)
+  }
   const filteredStack=saleFilter==='All'?acct.techStack:acct.techStack.filter(t=>saleFilter==='Not Set'?!t.contractSale:t.contractSale===saleFilter)
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=filteredStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
   const upcoming=acct.techStack.filter(t=>{const d=daysUntil(t.renewalDate);return d!==null&&d>0&&d<=150}).length
@@ -2652,10 +2658,9 @@ function TechStack({acct,setAcct}) {
   const handleCapClick=(seg)=>{
     if(seg.type!=='cap')return
     if(seg.vendor){
-      setForm({...blank,...seg.vendor})
-      setShowAdd(true)
+      openVendorEdit({...blank,...seg.vendor})
     } else {
-      setForm({...blank, category: seg.sub, products: seg.sub})
+      setForm({...blank,category:seg.sub,primarySub:seg.sub,products:seg.sub})
       setShowAdd(true)
     }
   }
@@ -2706,7 +2711,7 @@ function TechStack({acct,setAcct}) {
                       {t.notes&&<div style={{fontSize:12,color:S.secondary,marginTop:4}}>{t.notes}</div>}
                     </div>
                     <div style={{display:'flex',gap:6,flexShrink:0}}>
-                      <button onClick={()=>{setForm(t);setShowAdd(true)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
+                      <button onClick={()=>openVendorEdit({...blank,...t})} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
                       <button onClick={()=>del(t.id)} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:12}}>Del</button>
                     </div>
                   </div>
@@ -2919,7 +2924,7 @@ function TechStack({acct,setAcct}) {
                     const fill=capStatusFill(vendor)
                     return (
                       <div key={sub} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 14px',borderBottom:ci<domSubs.length-1?`1px solid ${S.bdr2}`:'none',gap:8}}
-                        onClick={()=>{if(vendor){setForm({...blank,...vendor});setShowAdd(true)}else{setForm({...blank,category:sub,products:sub});setShowAdd(true)}}}>
+                        onClick={()=>{if(vendor){openVendorEdit({...blank,...vendor})}else{setForm({...blank,category:sub,primarySub:sub,products:sub});setShowAdd(true)}}}>
                         <div style={{display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0}}>
                           <div style={{width:8,height:8,borderRadius:'50%',background:fill,flexShrink:0}}/>
                           <span style={{fontSize:12,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sub}</span>
@@ -3024,7 +3029,19 @@ function TechStack({acct,setAcct}) {
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
           <Field label='Vendor Name' value={form.vendor} onChange={f('vendor')} style={{gridColumn:'span 2'}}/>
           <Field label='Products / Features' value={form.products} onChange={f('products')} style={{gridColumn:'span 2'}}/>
-          <Field label='Category' value={form.category} onChange={f('category')} options={TECH_CATS}/>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Category</div>
+            <select value={form.category||form.primarySub||''} onChange={e=>setForm(p=>({...p,category:e.target.value,primarySub:e.target.value}))}>
+              <option value=''>Select category...</option>
+              {SECURITY_FRAMEWORK.domains.map(d=>(
+                <optgroup key={d.name} label={d.name}>
+                  {d.subs.map(sub=>(
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
           <Field label='Status' value={form.status} onChange={f('status')} options={TECH_STATS}/>
           <Field label='Contract Renewal Date' value={form.renewalDate} onChange={f('renewalDate')} type='date' style={{gridColumn:'span 2'}}/>
           <div style={{gridColumn:'span 2',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 12px'}}>
