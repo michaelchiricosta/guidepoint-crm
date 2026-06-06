@@ -6493,11 +6493,38 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       </div>
 
       {/* HERO SECTION — solid dark gradient with drop shadow */}
-      <div style={{background:S.isLight?'linear-gradient(135deg,#0f1729 0%,#1e3a5f 40%,#1d4ed8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?160:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 4px 24px rgba(15,23,42,0.25),0 1px 0 rgba(15,23,42,0.1)':undefined}}>
+      <div style={{background:S.isLight?'linear-gradient(90deg, #0f1729 0%, #1e3a5f 35%, #2563eb 70%, #3b7de8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?136:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 6px 32px rgba(15,23,42,0.35), 0 2px 0 rgba(15,23,42,0.15)':undefined}}>
         {/* Decorative rings */}
         <div style={{position:'absolute',right:-60,top:-60,width:280,height:280,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
         <div style={{position:'absolute',right:-20,top:-20,width:180,height:180,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.04)',pointerEvents:'none'}}/>
-        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
+        {/* Flowing line texture */}
+        <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0.18,pointerEvents:'none',zIndex:0}} viewBox="0 0 1200 160" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <path d="M-100,120 Q200,40 500,80 T1100,50 T1400,90" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" fill="none" strokeDasharray="2,14" strokeLinecap="round"/>
+          <path d="M-100,140 Q300,60 600,100 T1200,70 T1500,110" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" fill="none" strokeDasharray="2,18" strokeLinecap="round"/>
+          <path d="M-50,90 Q250,20 550,60 T1150,30 T1450,70" stroke="rgba(255,255,255,0.35)" strokeWidth="1" fill="none" strokeDasharray="2,22" strokeLinecap="round"/>
+          <path d="M0,150 Q400,80 700,120 T1300,90 T1600,130" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none" strokeDasharray="3,20" strokeLinecap="round"/>
+          <path d="M-200,70 Q100,10 400,50 T1000,20 T1300,60" stroke="rgba(147,197,253,0.4)" strokeWidth="1.2" fill="none" strokeDasharray="2,16" strokeLinecap="round"/>
+          <path d="M100,155 Q500,90 800,130 T1400,100" stroke="rgba(147,197,253,0.25)" strokeWidth="0.8" fill="none" strokeDasharray="2,24" strokeLinecap="round"/>
+          <circle cx="150" cy="110" r="1.5" fill="rgba(147,197,253,0.5)"/>
+          <circle cx="165" cy="105" r="1" fill="rgba(147,197,253,0.4)"/>
+          <circle cx="178" cy="112" r="1.5" fill="rgba(147,197,253,0.5)"/>
+          <circle cx="192" cy="107" r="1" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="206" cy="115" r="1.5" fill="rgba(147,197,253,0.4)"/>
+          <circle cx="450" cy="70" r="1.5" fill="rgba(147,197,253,0.4)"/>
+          <circle cx="466" cy="65" r="1" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="480" cy="73" r="1.5" fill="rgba(147,197,253,0.4)"/>
+          <circle cx="495" cy="68" r="1" fill="rgba(147,197,253,0.25)"/>
+          <circle cx="750" cy="95" r="1.5" fill="rgba(147,197,253,0.35)"/>
+          <circle cx="766" cy="89" r="1.2" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="781" cy="97" r="1.5" fill="rgba(147,197,253,0.35)"/>
+          <circle cx="796" cy="91" r="1" fill="rgba(147,197,253,0.25)"/>
+          <circle cx="811" cy="98" r="1.5" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="1050" cy="55" r="1.5" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="1066" cy="49" r="1" fill="rgba(147,197,253,0.25)"/>
+          <circle cx="1081" cy="57" r="1.5" fill="rgba(147,197,253,0.3)"/>
+          <circle cx="1096" cy="51" r="1" fill="rgba(147,197,253,0.2)"/>
+        </svg>
+        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20,position:'relative',zIndex:1}}>
           <div>
             <div style={{fontSize:mob?24:32,fontWeight:900,color:'#ffffff',marginBottom:8,lineHeight:1.1,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
             <div style={{fontSize:14,color:'rgba(255,255,255,0.7)',lineHeight:1.7}}>
