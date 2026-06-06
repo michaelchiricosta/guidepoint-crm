@@ -6141,11 +6141,11 @@ function BarChartCard({data}) {
         <RechartsTooltip content={<CustomTooltip/>}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={20} isAnimationActive={false}/>
-            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={20} isAnimationActive={false}/>
+            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={16} isAnimationActive={false}/>
+            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={16} isAnimationActive={false}/>
           </>
         ) : (
-          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={28} isAnimationActive={false}/>
+          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={22} isAnimationActive={false}/>
         )}
       </BarChart>
     </ResponsiveContainer>
@@ -6493,7 +6493,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       </div>
 
       {/* HERO SECTION — solid dark gradient with drop shadow */}
-      <div style={{background:S.isLight?'linear-gradient(90deg, #0f1729 0%, #1e3a5f 35%, #2563eb 70%, #3b7de8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?136:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 6px 32px rgba(15,23,42,0.35), 0 2px 0 rgba(15,23,42,0.15)':undefined}}>
+      <div style={{background:S.isLight?'linear-gradient(90deg, #0f1729 0%, #1e3a5f 35%, #2563eb 70%, #3b7de8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?116:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 6px 32px rgba(15,23,42,0.35), 0 2px 0 rgba(15,23,42,0.15)':undefined}}>
         {/* Decorative rings */}
         <div style={{position:'absolute',right:-60,top:-60,width:280,height:280,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
         <div style={{position:'absolute',right:-20,top:-20,width:180,height:180,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.04)',pointerEvents:'none'}}/>
@@ -9718,9 +9718,24 @@ function AllProjectsPage({data, setData, onBack}) {
 
   return(
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
-      <style>{`.projects-sidebar-label { color: #e2e8f0 !important; }`}</style>
+      <style>{`
+  .all-projects-sidebar * {
+    color: #f1f5f9 !important;
+  }
+  .all-projects-sidebar input[type="checkbox"] {
+    accent-color: #2563eb;
+    width: 14px;
+    height: 14px;
+  }
+  .all-projects-sidebar label {
+    color: #f1f5f9 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer;
+  }
+`}</style>
       {/* ── SIDEBAR ── */}
-      <div style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
+      <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
         <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
             <svg width="18" height="18" viewBox="0 0 28 28"><path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/><circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/><circle cx="14" cy="15" r="1.8" fill="#2563eb"/></svg>
@@ -9742,7 +9757,7 @@ function AllProjectsPage({data, setData, onBack}) {
               <input type='checkbox' checked={accountFilter.has(a.id)}
                 onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
                 style={{accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-              <span className='projects-sidebar-label' style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'#e2e8f0',fontWeight:'500'}}>{a.short||a.name}</span>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'#f1f5f9',fontWeight:'500'}}>{a.short||a.name}</span>
             </label>
           ))}
           {/* Status filter */}
