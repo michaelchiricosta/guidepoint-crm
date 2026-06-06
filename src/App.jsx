@@ -2573,6 +2573,7 @@ const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Eval
 function TechStack({acct,setAcct}) {
   const isTouchDevice = typeof window!=='undefined'&&('ontouchstart' in window||navigator.maxTouchPoints>0)
   const [view,setView] = useState('list')
+  const [collapsedDomains, setCollapsedDomains] = useState({})
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
   const [hoveredSeg,setHoveredSeg] = useState(null)
@@ -2684,42 +2685,58 @@ function TechStack({acct,setAcct}) {
       </div>
 
       {view==='list'&&<>
-        {Object.entries(grouped).map(([cat,tools])=>(
-          <div key={cat} style={{marginBottom:18}}>
-            <SH>{cat}</SH>
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              {tools.map(t=>{
-                const d=daysUntil(t.renewalDate);const rc=d!==null&&d<=60?S.red:d!==null&&d<=150?S.orange:null;const sc=SC[t.status]||S.muted
-                const saleBadge=t.contractSale==='GuidePoint'?{label:'GP Sale',color:'#0ebc5f',bg:'#f0fdf4'}:t.contractSale==='Direct'?{label:'Direct',color:'#2563eb',bg:'#eff6ff'}:t.contractSale==='Other VAR'?{label:'Other VAR',color:'#fc5c30',bg:'#fff7ed'}:null
-                return (<div key={t.id} style={{background:S.surf,border:`1px solid ${S.isLight&&rc?rc:rc||S.bdr}`,borderLeft:rc&&S.isLight?`4px solid ${rc}`:`1px solid ${rc||S.bdr}`,borderRadius:8,padding:'10px 14px',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
-                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
-                    <div style={{flex:1}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:3}}>
-                        <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{t.vendor}</span>
-                        <Badge label={t.status} color={sc} bg={S.isLight?sc+'22':sc+'1a'}/>
-                        {saleBadge&&<span style={{fontSize:10,fontWeight:700,color:saleBadge.color,background:saleBadge.bg,borderRadius:999,padding:'2px 7px'}}>{saleBadge.label}</span>}
-                        {t.renewalDate&&d!==null&&<Badge label={'Renews '+fmtDate(t.renewalDate)+' ('+d+'d)'} color={rc||S.green} bg={S.isLight?(rc||S.green)+'22':(rc||S.green)+'1a'}/>}
-                      </div>
-                      {t.products&&<div style={{fontSize:12,color:S.muted,marginBottom:2}}>{t.products}</div>}
-                      <div style={{fontSize:11,color:S.dim,display:'flex',gap:12,flexWrap:'wrap'}}>
-                        {t.clientOwner&&<span>Owner: {t.clientOwner}</span>}
-                        {t.vendorRep&&<span>Rep: {t.vendorRep}</span>}
-                        {t.cost&&<span>Cost: {t.cost}</span>}
-                      </div>
-                      {(t.totalRevenue||t.grossProfit)&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>Rev: {t.totalRevenue||'—'} | GP: {t.grossProfit||'—'}</div>}
-                      {(t.aiNotes||'')&&(()=>{const parts=(t.aiNotes||'').split('\n\n');const prose=parts[0]||'';const bullets=parts.slice(1).join('\n').split('\n').filter(l=>l.startsWith('•'));return(<div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'9px 11px',marginTop:6,marginBottom:2}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}><div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:13}}>✨</span><span style={{fontSize:11,fontWeight:700,color:'#2563eb'}}>AI Intelligence</span></div>{t.aiNotesUpdatedAt&&<span style={{fontSize:10,color:'#94a3b8'}}>Updated {fmtDate(t.aiNotesUpdatedAt)}</span>}</div><div style={{fontSize:12,lineHeight:1.6,color:'#1e3a5f'}}>{prose}</div>{bullets.length>0&&<ul style={{margin:'4px 0 0',paddingLeft:16,fontSize:11,color:'#374151',lineHeight:1.5}}>{bullets.map((b,bi)=><li key={bi} style={{marginBottom:1}}>{b.replace(/^•\s*/,'')}</li>)}</ul>}</div>)})()}
-                      {t.notes&&<div style={{fontSize:12,color:S.secondary,marginTop:4}}>{t.notes}</div>}
-                    </div>
-                    <div style={{display:'flex',gap:6,flexShrink:0}}>
-                      <button onClick={()=>openVendorEdit({...blank,...t})} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:12}}>Edit</button>
-                      <button onClick={()=>del(t.id)} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:12}}>Del</button>
-                    </div>
+        {(()=>{
+          const subVendorMap = {}
+          ;(acct.techStack||[]).forEach(item=>{
+            const mapping=resolveVendorMapping(item.vendor,item.category)
+            const sub=mapping.primarySub||item.primarySub||item.category
+            if(!subVendorMap[sub])subVendorMap[sub]=[]
+            subVendorMap[sub].push(item)
+          })
+          return SECURITY_FRAMEWORK.domains.map(domain=>{
+            const isCollapsed=collapsedDomains[domain.name]
+            const coveredCount=domain.subs.filter(sub=>subVendorMap[sub]&&subVendorMap[sub].length>0).length
+            return (
+              <div key={domain.name} style={{marginBottom:6}}>
+                <div onClick={()=>setCollapsedDomains(p=>({...p,[domain.name]:!p[domain.name]}))} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:S.surf,cursor:'pointer',borderLeft:`3px solid ${domain.color}`,borderRadius:isCollapsed?8:'8px 8px 0 0',border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${domain.color}`}}>
+                  <span style={{fontSize:13,fontWeight:700,color:domain.color}}>{domain.name}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:12,color:S.muted}}>{coveredCount}/{domain.subs.length}</span>
+                    <span style={{color:S.muted,fontSize:16,display:'inline-block',transform:isCollapsed?'rotate(0deg)':'rotate(90deg)',transition:'transform 0.15s',lineHeight:1}}>›</span>
                   </div>
-                </div>)
-              })}
-            </div>
-          </div>
-        ))}
+                </div>
+                {!isCollapsed&&(
+                  <div style={{border:`1px solid ${S.bdr}`,borderTop:'none',borderRadius:'0 0 8px 8px',overflow:'hidden'}}>
+                    {domain.subs.map((sub,si)=>{
+                      const items=subVendorMap[sub]||[]
+                      const primaryItem=items[0]||null
+                      const extraCount=items.length-1
+                      const covered=items.length>0
+                      return (
+                        <div key={sub} style={{display:'flex',alignItems:'center',padding:'8px 12px 8px 20px',borderBottom:si<domain.subs.length-1?`1px solid ${S.bdr}`:'none',background:S.surf,transition:'background 0.1s'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                          onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
+                          <div style={{width:7,height:7,borderRadius:'50%',background:covered?'#0ebc5f':'#94a3b8',flexShrink:0,marginRight:10}}/>
+                          <span style={{flex:1,fontSize:13,color:S.txt}}>{sub}</span>
+                          {covered?(
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span onClick={()=>openVendorEdit({...blank,...primaryItem})} style={{fontSize:13,fontWeight:600,color:S.txt,cursor:'pointer'}}
+                                onMouseEnter={e=>e.target.style.color=S.blue}
+                                onMouseLeave={e=>e.target.style.color=S.txt}>{primaryItem.vendor}</span>
+                              {extraCount>0&&<span style={{fontSize:11,color:S.muted}}>+{extraCount} more</span>}
+                            </div>
+                          ):(
+                            <span onClick={()=>{setForm({...blank,category:sub,primarySub:sub});setShowAdd(true)}} style={{fontSize:13,color:'#2563eb',cursor:'pointer',fontWeight:500}}>+ Add</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        })()}
       </>}
 
       {!isTouchDevice&&view==='heatmap'&&<div>
@@ -5830,7 +5847,7 @@ function Dashboard({acct, setTab}) {
   )
 }
 
-function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome,mobileMenuOpen,onCloseMobileMenu}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
   const [collapsed,setCollapsed] = useState(()=>{
@@ -5855,7 +5872,43 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   const grouped = {}
   searchResults.forEach(r=>{if(!grouped[r.category])grouped[r.category]=[];grouped[r.category].push(r)})
 
-  if(isMobile) return null
+  if(isMobile&&!mobileMenuOpen) return null
+  if(isMobile&&mobileMenuOpen) return (
+    <>
+      <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:150}}/>
+      <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
+        <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <svg width="24" height="24" viewBox="0 0 28 28"><path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/><circle cx="14" cy="15" r="1.8" fill="#2563eb"/></svg>
+            <div style={{fontSize:14,fontWeight:700,color:'#ffffff'}}>GuidePoint</div>
+          </div>
+          <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+        </div>
+        <div style={{height:1,background:'#1e2d40',flexShrink:0}}/>
+        <div style={{fontSize:10,fontWeight:700,color:'#475569',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>
+        <div style={{flex:1,overflowY:'auto',padding:'0 8px'}}>
+          {[...data.accounts].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
+            const hs=calcHealthScore(a)
+            const hc=getHealthColor(hs)
+            const isActive=activeId===a.id
+            return (
+              <button key={a.id} onClick={()=>setActiveId(a.id)}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',background:isActive?'rgba(37,99,235,0.15)':'transparent',textAlign:'left',cursor:'pointer',marginBottom:1}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:14,fontWeight:600,color:isActive?'#ffffff':'#e2e8f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,color:hc,background:hc+'20',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{hs}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div style={{height:1,background:'#1e2d40',flexShrink:0}}/>
+        <div style={{padding:'12px',flexShrink:0}}>
+          <button onClick={()=>{onGoHome&&onGoHome()}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'10px 12px',background:'transparent',border:'1px solid #1e2d40',borderRadius:8,color:'#94a3b8',fontSize:13,cursor:'pointer'}}>← Home</button>
+        </div>
+      </div>
+    </>
+  )
 
   // Sidebar always uses dark-on-navy tokens regardless of light/dark theme
   const ST = S.sideTxt, SM = S.sideMuted, SA = S.sideActive, SB = S.sideBdr, SH2 = S.sideHover
@@ -6200,7 +6253,10 @@ function BarChartCard({data}) {
     </div>
   )
 
+  const mobChart = typeof window!=='undefined'&&window.innerWidth<768
   const ChartBody = ({height=220}) => (
+    <div style={mobChart?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
+    <div style={mobChart?{minWidth:Math.max(600,chartData.length*80)}:{}}>
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
         <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
@@ -6217,6 +6273,8 @@ function BarChartCard({data}) {
         )}
       </BarChart>
     </ResponsiveContainer>
+    </div>
+    </div>
   )
 
   const Legend = () => view==='projects' ? (
@@ -6359,7 +6417,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
           {c:'#2563eb',label:'Active Accounts (30d)',   val:`${activeAcc} / ${(data.accounts||[]).length}`, ok:activeAcc>0},
           {c:'#ea580c',label:'Critical Follow-Ups Cleared', val:`${clearedCrit} / ${Math.max(totalCrit,clearedCrit)}`, ok:clearedCrit>0},
         ].map((m,i)=>(
-          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'0.5px solid #f1f5f9',fontSize:13}}>
+          <div key={i} style={{display:'flex',flexDirection:typeof window!=='undefined'&&window.innerWidth<768?'column':'row',justifyContent:'space-between',alignItems:typeof window!=='undefined'&&window.innerWidth<768?'flex-start':'center',gap:2,padding:'6px 0',borderBottom:'0.5px solid #f1f5f9',fontSize:13}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <div style={{width:7,height:7,borderRadius:'50%',background:m.c,flexShrink:0}}/>
               <span style={{color:'#475569'}}>{m.label}</span>
@@ -10155,6 +10213,7 @@ export default function App() {
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showClientView,setShowClientView] = useState(false)
+  const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [theme,setTheme] = useState(()=>{
     const t = localStorage.getItem('gp-theme')||'light'
     document.documentElement.setAttribute('data-theme',t)
@@ -10297,22 +10356,31 @@ export default function App() {
 
   return (
     <div style={{display:mob?'block':'flex',height:mob?'auto':'100vh',minHeight:mob?'100vh':'auto',overflow:mob?'visible':'hidden',background:S.bg}}>
+      {mob&&(
+        <button onClick={()=>setMobileMenuOpen(true)} style={{position:'fixed',top:12,left:12,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'8px 10px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
+          <div style={{width:18,height:2,background:S.txt,marginBottom:4,borderRadius:1}}/>
+          <div style={{width:18,height:2,background:S.txt,marginBottom:4,borderRadius:1}}/>
+          <div style={{width:18,height:2,background:S.txt,borderRadius:1}}/>
+        </button>
+      )}
       <Sidebar
         data={data}
         activeId={activeId}
-        setActiveId={id=>{setActiveId(id);setTab('overview')}}
+        setActiveId={id=>{setActiveId(id);setTab('overview');setMobileMenuOpen(false)}}
         setData={setData}
-        onNavigate={(id,t)=>{setActiveId(id);setTab(t)}}
+        onNavigate={(id,t)=>{setActiveId(id);setTab(t);setMobileMenuOpen(false)}}
         searchRef={searchRef}
         lastSaved={lastSavedLabel}
         saveStatus={saveStatus}
         onRefresh={handleRefresh}
         theme={theme}
         setTheme={handleSetTheme}
-        onGoHome={()=>setIsLandingPage(true)}
+        onGoHome={()=>{setIsLandingPage(true);setMobileMenuOpen(false)}}
+        mobileMenuOpen={mobileMenuOpen}
+        onCloseMobileMenu={()=>setMobileMenuOpen(false)}
       />
       <div style={{flex:mob?'none':1,display:'flex',flexDirection:'column',overflow:mob?'visible':'hidden'}}>
-        <div style={{background:S.isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,padding:mob?'10px 14px 0':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+        <div style={{background:S.isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.isLight?'#2563eb':S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
@@ -10333,12 +10401,12 @@ export default function App() {
             </button>
           </div>
           <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
-          <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch',position:'sticky',top:0,zIndex:10}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
                 onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color=S.txt}}
                 onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color=S.muted}}
-                style={{padding:'7px 14px',background:'transparent',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0,transition:'color 0.15s'}}>
+                style={{padding:mob?'10px 12px':'7px 14px',minWidth:mob?80:undefined,background:'transparent',border:'none',cursor:'pointer',fontSize:mob?13:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0,transition:'color 0.15s'}}>
                 {t.label}
                 {t.id==='followups'&&critHighCount>0&&<span style={{width:8,height:8,borderRadius:'50%',background:'#dc2626',display:'inline-block',flexShrink:0,animation:'fuPulse 1s ease-in-out infinite'}}/>}
                 {t.id==='followups'&&overdueOrTodayCount>0&&<span style={{width:7,height:7,borderRadius:'50%',background:'#fc413d',display:'inline-block',marginLeft:overdueOrTodayCount>0&&critHighCount>0?2:5,flexShrink:0,animation:'blink 1s infinite'}}/>}
