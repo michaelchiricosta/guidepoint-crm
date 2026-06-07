@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Clock, Share2, Target, Map, User, X, List } from 'lucide-react'
 import { BarChart, Bar, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { S, PC } from '../theme.js'
