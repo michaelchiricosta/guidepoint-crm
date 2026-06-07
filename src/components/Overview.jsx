@@ -477,12 +477,12 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               onMouseLeave={e=>S.isLight?(e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)',e.currentTarget.style.transform='translateY(0)'):(e.currentTarget.style.filter='brightness(1)')}>
               {S.isLight?(
                 <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Health Score</div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Health Score</div>
                   <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{hs}</div>
                 </>
               ):(
                 <>
-                  <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:600,lineHeight:1.3}}>Health Score</div>
+                  <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:500,lineHeight:1.3}}>Health Score</div>
                   <div style={{fontSize:32,fontWeight:800,color:'#fff',lineHeight:1,flexShrink:0}}>{hs}</div>
                 </>
               )}
@@ -505,12 +505,12 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:`3px solid ${m.c}`,borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(59,130,246,0.4)':S.bdr}`,borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
               {S.isLight?(
                 <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>{m.label}</div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>{m.label}</div>
                   <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{m.val}</div>
                 </>
               ):(
                 <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>{m.label}</div>
+                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>{m.label}</div>
                   <div style={{fontSize:32,fontWeight:800,color:m.c,lineHeight:1}}>{m.val}</div>
                 </>
               )}
@@ -528,12 +528,12 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:'3px solid #7c3aed',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(124,58,237,0.4)':S.bdr}`,borderTop:'3px solid #7c3aed',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
               {S.isLight?(
                 <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
                   <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
                 </>
               ):(
                 <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
+                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
                   <div style={{fontSize:22,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
                 </>
               )}
@@ -551,13 +551,13 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:'3px solid #0891b2',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(8,145,178,0.4)':S.bdr}`,borderTop:'3px solid #0891b2',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
               {S.isLight?(
                 <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
                   <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
                   {totalWeightedPipeline>0&&<div style={{fontSize:9,color:'#94a3b8',marginTop:1}}>weighted by stage</div>}
                 </>
               ):(
                 <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:600,lineHeight:1.3,maxWidth:'60%'}}>Pipeline</div>
+                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>Pipeline</div>
                   <div>
                     <div style={{fontSize:22,fontWeight:800,color:'#06b6d4',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
                     {totalWeightedPipeline>0&&<div style={{fontSize:9,color:S.muted,marginTop:2}}>weighted by stage</div>}

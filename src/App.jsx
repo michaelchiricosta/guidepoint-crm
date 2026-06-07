@@ -640,6 +640,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   const quotaTarget = data.quotaTarget || 0
   const [quotaInput, setQuotaInput] = useState(quotaTarget>0?formatCompactCurrency(quotaTarget):'')
   const [editing, setEditing] = useState(false)
+  const [gaugeHover, setGaugeHover] = useState(false)
 
   const STAGE_WEIGHTS = {'Awareness':0.1,'NDA':0.1,'Intro Call':0.15,'Demo':0.2,'POC':0.3,'Scoping':0.4,'Pricing':0.6,'Legal':0.9,'Procurement':0.9,'PO Received':1.0,'Deployed':1.0}
 
@@ -684,16 +685,26 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
         <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
         <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
       </div>
-      <svg viewBox="0 0 200 110" width="100%" style={{display:'block',maxWidth:260,margin:'0 auto'}}>
-        <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={18}
-          strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>
-        {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={18}
-          strokeDasharray={`${aPct*HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>}
-        {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={18}
-          strokeDasharray={`${iPct*HALF} ${CIRC}`} transform={`rotate(${180+aPct*180} 100 100)`} strokeLinecap="round"/>}
-        <text x={100} y={88} textAnchor="middle" fontSize={28} fontWeight={800} fill="#0f172a">{pct}%</text>
-        <text x={100} y={103} textAnchor="middle" fontSize={13} fill="#64748b">of quota</text>
-      </svg>
+      <div style={{position:'relative',display:'inline-block',width:'100%',maxWidth:260,margin:'0 auto',display:'block'}}>
+        <svg viewBox="0 0 200 110" width="100%" style={{display:'block',cursor:'default'}}
+          onMouseEnter={()=>setGaugeHover(true)}
+          onMouseLeave={()=>setGaugeHover(false)}>
+          <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={18}
+            strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>
+          {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={18}
+            strokeDasharray={`${aPct*HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>}
+          {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={18}
+            strokeDasharray={`${iPct*HALF} ${CIRC}`} transform={`rotate(${180+aPct*180} 100 100)`} strokeLinecap="round"/>}
+          <text x={100} y={88} textAnchor="middle" fontSize={28} fontWeight={800} fill="#0f172a">{pct}%</text>
+          <text x={100} y={103} textAnchor="middle" fontSize={13} fill="#64748b">of quota</text>
+        </svg>
+        {gaugeHover&&(
+          <div style={{position:'absolute',bottom:'calc(100% + 6px)',left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f1f5f9',borderRadius:8,padding:'10px 14px',fontSize:12,whiteSpace:'nowrap',boxShadow:'0 4px 16px rgba(0,0,0,0.3)',zIndex:20,pointerEvents:'none'}}>
+            <div style={{marginBottom:5}}><span style={{color:'#94a3b8'}}>Closed: </span><span style={{fontWeight:700,color:'#4ade80'}}>{attainedGP>0?formatCompactCurrency(attainedGP):'$0'} won</span></div>
+            <div><span style={{color:'#94a3b8'}}>Weighted Pipeline: </span><span style={{fontWeight:700,color:'#60a5fa'}}>{inProgressGP>0?formatCompactCurrency(inProgressGP):'$0'}</span></div>
+          </div>
+        )}
+      </div>
       <div style={{textAlign:'center',marginTop:4,marginBottom:12}}>
         <span style={{fontSize:11,color:'#64748b',marginRight:6}}>Quota Target:</span>
         <input

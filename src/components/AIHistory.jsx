@@ -36,9 +36,19 @@ export default function AIHistory({acct, setAcct, setData, apiKey}) {
 
   const deleteSession = (sessionId) => {
     if(!window.confirm('Delete this chat session?')) return
-    setData(prev=>({...prev, accounts:prev.accounts.map(a=>a.id===acct.id?{...a,aiHistory:(a.aiHistory||[]).filter(s=>s.id!==sessionId)}:a)}))
-    setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).filter(s=>s.id!==sessionId)}))
-    if(expanded===sessionId) setExpanded(null)
+    const currentHistory = acct.aiHistory || []
+    const newHistory = currentHistory.filter(s => s.id !== sessionId)
+    if(newHistory.length === currentHistory.length) {
+      console.error('[AIHistory] deleteSession: session not found:', sessionId)
+      return
+    }
+    setData(prev => ({
+      ...prev,
+      accounts: prev.accounts.map(a =>
+        a.id === acct.id ? {...a, aiHistory: newHistory} : a
+      )
+    }))
+    if(expanded === sessionId) setExpanded(null)
   }
 
   const pinMsgInHistory = (sessionId, msgId) => {
