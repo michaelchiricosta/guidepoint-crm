@@ -7,7 +7,7 @@ import { fmtDate } from '../utils.js'
 // Since AIChatModal is in App.jsx still at this point, we import it
 import AIChatModal from './AIChatModal.jsx'
 
-export default function AIHistory({acct, setAcct, apiKey}) {
+export default function AIHistory({acct, setAcct, setData, apiKey}) {
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState(null)
@@ -36,6 +36,7 @@ export default function AIHistory({acct, setAcct, apiKey}) {
 
   const deleteSession = (sessionId) => {
     if(!window.confirm('Delete this chat session?')) return
+    setData(prev=>({...prev, accounts:prev.accounts.map(a=>a.id===acct.id?{...a,aiHistory:(a.aiHistory||[]).filter(s=>s.id!==sessionId)}:a)}))
     setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).filter(s=>s.id!==sessionId)}))
     if(expanded===sessionId) setExpanded(null)
   }

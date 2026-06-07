@@ -2101,18 +2101,26 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
   const executeMerge = () => {
     if (mergeSelected.size < 2 || !mergePrimary) return
+    const selectedIds = [...mergeSelected]
+    console.log('Merging accounts:', selectedIds, 'primary:', mergePrimary)
     const primary = ws.find(a=>a.id===mergePrimary)
-    if (!primary) return
+    if (!primary) { console.warn('Primary account not found:', mergePrimary); return }
     const others = ws.filter(a=>mergeSelected.has(a.id)&&a.id!==mergePrimary)
+    const nonPrimaryIds = others.map(a=>a.id)
     const allNotes = [...(primary.notes||[]),...others.flatMap(a=>a.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const allIntelLog = [...(primary.intelLog||[]),...others.flatMap(a=>a.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const contactMap = new Map()
     ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase();if(!contactMap.has(k))contactMap.set(k,c)})
     const techMap = new Map()
     ;[...(primary.technologies||[]),...others.flatMap(a=>a.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase();if(!techMap.has(k))techMap.set(k,t)})
-    const merged = {...primary,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
-    const otherIds = new Set(others.map(a=>a.id))
-    setData(prev=>({...prev,whitespaceAccounts:prev.whitespaceAccounts.filter(a=>!otherIds.has(a.id)).map(a=>a.id===mergePrimary?merged:a)}))
+    const mergedAccount = {...primary,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
+    setData(prev=>({
+      ...prev,
+      whitespaceAccounts:[
+        ...(prev.whitespaceAccounts||[]).filter(a=>!nonPrimaryIds.includes(a.id)&&a.id!==mergePrimary),
+        mergedAccount
+      ]
+    }))
     const msg = `${mergeSelected.size} accounts merged into "${primary.name}"`
     setMergeToast(msg); setTimeout(()=>setMergeToast(''),4000)
     setShowMerge(false); setMergeSelected(new Set()); setMergePrimary(null); setMergeStep(1); setMergeSearch('')
@@ -4394,7 +4402,7 @@ export default function App() {
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
-          {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
+          {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} setData={setData} apiKey={data.apiKey}/>}
           {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
           {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
           {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)}/>}
