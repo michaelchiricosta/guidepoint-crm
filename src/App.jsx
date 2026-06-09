@@ -2146,7 +2146,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           method: 'POST',
           headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 500,
             tools: [{ type: 'web_search_20250305', name: 'web_search' }],
             messages: [{role:'user',content:`Find the approximate employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}.Return ONLY a JSON object with no other text: {"employees":"number or range as string e.g. 5000 or 1000-5000","revenue":"annual revenue as string e.g. $500M or $1.2B","source":"brief source description"}`}]
@@ -2165,8 +2165,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         }
         if (parsed) {
           const changes = {}
-          if (!account.employees && parsed.employees) changes.employees = String(parsed.employees)
-          if (!account.revenue && parsed.revenue) changes.revenue = String(parsed.revenue)
+          if (!account.employees) changes.employees = parsed.employees ? String(parsed.employees) : 'Not found'
+          if (!account.revenue) changes.revenue = parsed.revenue ? String(parsed.revenue) : 'Not found'
           if (Object.keys(changes).length > 0) { updateAccount(account.id, changes); updatedCount++ }
         }
       } catch (err) { console.error(`Auto-fill failed for ${account.name}:`, err) }
@@ -2194,7 +2194,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           method: 'POST',
           headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 2000,
             messages: [{role:'user',content:`You are cleaning up sales intelligence notes for ${account.name}. Here are all the notes and intel entries:\n\n${allNotesText}\n\nConsolidate these into clean, non-redundant notes. Rules: (1) Keep ALL unique facts, details, contacts, and intel — do not lose any real information. (2) Remove duplicate sentences and repetitive summaries. (3) Combine similar points into single clear statements. (4) Keep chronological context where relevant. (5) Return ONLY the cleaned notes as plain text, no headers, no JSON. Maximum 500 words.`}]
           })
@@ -2227,6 +2227,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const fetchRecommendations = async () => {
     if (!effectiveKey) { setRecError('Add your Anthropic API key in Settings first.'); return }
     setRecLoading(true); setRecError('')
+    const dismissed = data.dismissedWhitespaceSuggestions || []
     const context = {
       whitespaceAccounts: ws.map(a => ({
         name: a.name, status: a.status, employees: a.employees, revenue: a.revenue,
@@ -2239,15 +2240,16 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       })),
       myAccounts: (data.accounts||[]).map(a=>({name:a.name, contacts:(a.contacts||[]).map(c=>c.name)}))
     }
+    const dismissedNote = dismissed.length > 0 ? `\n\nDo NOT include these previously dismissed accounts: ${dismissed.join(', ')}` : ''
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body: JSON.stringify({
           model:'claude-sonnet-4-6',
-          max_tokens:1000,
-          system:'You are a cybersecurity sales advisor helping an Enterprise Client Manager at GuidePoint Security prioritize whitespace accounts to pursue. Analyze the accounts and identify the 3 highest priority targets.',
-          messages:[{role:'user',content:`Here is my whitespace account data and my existing named accounts:\n${JSON.stringify(context,null,2)}\n\nIdentify the TOP 3 whitespace accounts to prioritize RIGHT NOW. For each account return:\n- name: exact account name from the data\n- priority: "Hot" | "Warm" | "Watch"\n- reasons: array of exactly 3 short bullet points explaining why (mention specific signals like known contacts, intel activity, direct contracts, vendor relationships, industry urgency, employee size, revenue)\n\nReturn ONLY valid JSON:\n{"recommendations":[{"name":"...","priority":"Hot","reasons":["...","...","..."]}]}`}]
+          max_tokens:2000,
+          system:'You are a cybersecurity sales advisor helping an Enterprise Client Manager at GuidePoint Security prioritize whitespace accounts to pursue. Analyze the accounts and identify the top 10 highest priority targets.',
+          messages:[{role:'user',content:`Here is my whitespace account data and my existing named accounts:\n${JSON.stringify(context,null,2)}${dismissedNote}\n\nIdentify the TOP 10 whitespace accounts to prioritize RIGHT NOW. For each account return:\n- name: exact account name from the data\n- priority: "Hot" | "Warm" | "Watch"\n- reasons: array of exactly 3 short bullet points explaining why (mention specific signals like known contacts, intel activity, direct contracts, vendor relationships, industry urgency, employee size, revenue)\n\nReturn ONLY valid JSON:\n{"recommendations":[{"name":"...","priority":"Hot","reasons":["...","...","..."]}]}`}]
         })
       })
       const result = await resp.json()
@@ -2812,11 +2814,15 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 20px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
                 <span style={{fontSize:15}}>✦</span>
                 <span style={{fontSize:13,fontWeight:700,color:'#2563eb'}}>AI Recommendations</span>
-                <span style={{fontSize:12,color:S.muted}}>{(data.whitespaceRecommendations||[]).length>0?`${(data.whitespaceRecommendations||[]).length} accounts to prioritize`:'Click to generate'}</span>
+                <span style={{fontSize:12,color:S.muted}}>{(data.whitespaceRecommendations||[]).filter(r=>!(data.dismissedWhitespaceSuggestions||[]).includes(r.name)).length>0?`${(data.whitespaceRecommendations||[]).filter(r=>!(data.dismissedWhitespaceSuggestions||[]).includes(r.name)).length} accounts to prioritize`:'Click to generate'}</span>
                 <svg width="12" height="12" viewBox="0 0 12 12" style={{marginLeft:'auto',flexShrink:0,transform:recOpen?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s'}}><polyline points="3,2 9,6 3,10" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 {recOpen&&<button onClick={e=>{e.stopPropagation();fetchRecommendations()}}
                   style={{padding:'4px 10px',background:isLight?'#eff6ff':'rgba(37,99,235,0.12)',border:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.25)'}`,borderRadius:6,color:'#2563eb',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0}}>
                   {recLoading?'Loading…':'Refresh'}
+                </button>}
+              {recOpen&&(data.dismissedWhitespaceSuggestions||[]).length>0&&<button onClick={e=>{e.stopPropagation();setData(prev=>({...prev,dismissedWhitespaceSuggestions:[]}))}}
+                  style={{padding:'4px 10px',background:'transparent',border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:6,color:S.muted,fontSize:11,cursor:'pointer',flexShrink:0}}>
+                  Reset dismissed
                 </button>}
               </button>
               {recOpen&&(
@@ -2825,34 +2831,44 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                   {recLoading&&!(data.whitespaceRecommendations||[]).length&&(
                     <div style={{fontSize:13,color:S.muted,padding:'12px 0'}}>Analyzing your whitespace accounts…</div>
                   )}
-                  {(data.whitespaceRecommendations||[]).length>0&&(
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
-                      {(data.whitespaceRecommendations||[]).map((rec,i)=>{
-                        const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
-                        const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
-                        return (
-                          <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
-                            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:8}}>
-                              <div style={{fontSize:15,fontWeight:700,color:isLight?'#0f172a':S.txt,lineHeight:1.3}}>{rec.name}</div>
-                              <span style={{fontSize:10,fontWeight:700,color:pc,background:pb,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{rec.priority}</span>
+                  {(()=>{
+                    const dismissed=data.dismissedWhitespaceSuggestions||[]
+                    const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).slice(0,3)
+                    const dismissRec=(name)=>setData(prev=>({...prev,dismissedWhitespaceSuggestions:[...(prev.dismissedWhitespaceSuggestions||[]),name]}))
+                    return visibleRecs.length>0?(
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+                        {visibleRecs.map((rec,i)=>{
+                          const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
+                          const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
+                          return (
+                            <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:'relative'}}>
+                              <button onClick={()=>dismissRec(rec.name)}
+                                title="Dismiss"
+                                style={{position:'absolute',top:8,right:8,background:'transparent',border:'none',cursor:'pointer',color:S.muted,fontSize:14,lineHeight:1,padding:'2px 4px',borderRadius:4}}
+                                onMouseEnter={e=>e.currentTarget.style.color=isLight?'#0f172a':S.txt}
+                                onMouseLeave={e=>e.currentTarget.style.color=S.muted}>×</button>
+                              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:8,paddingRight:20}}>
+                                <div style={{fontSize:15,fontWeight:700,color:isLight?'#0f172a':S.txt,lineHeight:1.3}}>{rec.name}</div>
+                                <span style={{fontSize:10,fontWeight:700,color:pc,background:pb,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{rec.priority}</span>
+                              </div>
+                              <ul style={{margin:0,padding:'0 0 0 14px',listStyle:'disc'}}>
+                                {(rec.reasons||[]).map((r,j)=>(
+                                  <li key={j} style={{fontSize:12,color:S.muted,lineHeight:1.5,marginBottom:2}}>{r}</li>
+                                ))}
+                              </ul>
+                              {ws.find(a=>a.name===rec.name)&&(
+                                <button onClick={()=>setExpandedId(ws.find(a=>a.name===rec.name)?.id||null)}
+                                  style={{marginTop:10,fontSize:11,fontWeight:600,color:'#2563eb',background:'transparent',border:'none',cursor:'pointer',padding:0}}>
+                                  View Account →
+                                </button>
+                              )}
                             </div>
-                            <ul style={{margin:0,padding:'0 0 0 14px',listStyle:'disc'}}>
-                              {(rec.reasons||[]).map((r,j)=>(
-                                <li key={j} style={{fontSize:12,color:S.muted,lineHeight:1.5,marginBottom:2}}>{r}</li>
-                              ))}
-                            </ul>
-                            {ws.find(a=>a.name===rec.name)&&(
-                              <button onClick={()=>setExpandedId(ws.find(a=>a.name===rec.name)?.id||null)}
-                                style={{marginTop:10,fontSize:11,fontWeight:600,color:'#2563eb',background:'transparent',border:'none',cursor:'pointer',padding:0}}>
-                                View Account →
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  {!recLoading&&!(data.whitespaceRecommendations||[]).length&&!recError&&(
+                          )
+                        })}
+                      </div>
+                    ):null
+                  })()}
+                  {!recLoading&&!(data.whitespaceRecommendations||[]).filter(r=>!(data.dismissedWhitespaceSuggestions||[]).includes(r.name)).length&&!recError&&(
                     <div style={{fontSize:12,color:S.muted}}>Click Refresh to generate AI recommendations.</div>
                   )}
                 </div>
