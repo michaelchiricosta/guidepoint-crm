@@ -177,7 +177,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <svg width="24" height="24" viewBox="0 0 28 28"><path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/><circle cx="14" cy="15" r="1.8" fill="#2563eb"/></svg>
-            <div style={{fontSize:14,fontWeight:700,color:'#ffffff'}}>GuidePoint</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#ffffff'}}>Ledger.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
@@ -224,8 +224,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
                 <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
               </svg>
               <div>
-                <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>GuidePoint</div>
-                <div style={{fontSize:11,color:SM,fontWeight:400,marginTop:1}}>Account Intel</div>
+                <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledger.</div>
               </div>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Collapse"
@@ -409,7 +408,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
                 <circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/>
                 <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
               </svg>
-              <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+              <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>Ledger.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
               style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
@@ -417,7 +416,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
               <ChevronLeft size={15}/>
             </button>
           </div>
-          <div style={{fontSize:10,color:'#475569',paddingLeft:26}}>Account Intelligence</div>
+          <div style={{fontSize:10,color:'#475569',paddingLeft:26}}>Account Intelligence Platform</div>
         </div>
       )}
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
@@ -915,7 +914,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </svg>
           <div>
             <div style={{display:'flex',alignItems:'baseline',gap:8}}>
-              <span style={{fontSize:15,fontWeight:800,color:'#0f172a',letterSpacing:'-0.01em'}}>GuidePoint Account Intelligence</span>
+              <span style={{fontSize:15,fontWeight:800,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledger.</span>
               {!mob&&<span style={{fontSize:12,color:'#94a3b8',fontWeight:400}}>GuidePoint Security</span>}
             </div>
           </div>
@@ -1231,7 +1230,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           // === DASHBOARD ===
           data.accounts.length===0 ? (
             <div style={{textAlign:'center',padding:'70px 20px'}}>
-              <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>Welcome to Account Intelligence</div>
+              <div style={{fontSize:22,fontWeight:700,color:S.txt,marginBottom:10}}>Welcome to Ledger.</div>
               <div style={{fontSize:14,color:S.muted,marginBottom:30,lineHeight:1.7}}>Add your first account to start tracking contacts, projects,<br/>and tech stack intelligence.</div>
               <button onClick={()=>setShowAdd(true)} style={{padding:'12px 28px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>+ Add Your First Account</button>
             </div>
@@ -2669,7 +2668,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               <circle cx="14" cy="15" r="1.8" fill="#2563eb"/>
             </svg>
             <div>
-              <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>GuidePoint</div>
+              <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledger.</div>
               <div style={{fontSize:11,color:SM,marginTop:1}}>Whitespace Tracker</div>
             </div>
           </div>
@@ -4145,7 +4144,7 @@ function AllProjectsPage({data, setData, onBack}) {
         <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
             <svg width="18" height="18" viewBox="0 0 28 28"><path d="M14 2 L24 6 L24 14 C24 20 19.5 25.5 14 27 C8.5 25.5 4 20 4 14 L4 6 Z" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round"/><circle cx="14" cy="15" r="4.5" fill="none" stroke="#2563eb" strokeWidth="1.3" opacity="0.7"/><circle cx="14" cy="15" r="1.8" fill="#2563eb"/></svg>
-            <span style={{fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'-0.01em'}}>GuidePoint</span>
+            <span style={{fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'-0.01em'}}>Ledger.</span>
           </div>
           <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>All Projects</div>
         </div>
