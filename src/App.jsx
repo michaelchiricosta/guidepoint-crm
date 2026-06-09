@@ -174,10 +174,10 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     <>
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:150}}/>
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
-        <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6}}/>
-            <div style={{fontSize:14,fontWeight:700,color:'#ffffff'}}>Ledgr.</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Ledgr.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
@@ -213,21 +213,20 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   return (
     <div style={{width:collapsed?60:240,background:S.sidebarBg,borderRight:'none',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
       {/* Logo area */}
-      <div style={{padding:collapsed?'20px 0 16px':'20px 16px 16px',flexShrink:0}}>
+      <div style={{padding:collapsed?'20px 0 16px':'20px 16px 16px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
         {!collapsed?(
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
               style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:10}}>
               <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <div>
-                <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledgr.</div>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:1}}>Your book of business, organized.</div>
+                <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.2}}>Ledgr.</div>
               </div>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Collapse"
-              style={{background:'transparent',border:'none',color:SM,cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color=ST}
-              onMouseLeave={e=>e.currentTarget.style.color=SM}>‹</button>
+              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#475569'}
+              onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>‹</button>
           </div>
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
@@ -235,9 +234,9 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
               <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6,display:'block'}}/>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Expand"
-              style={{background:'transparent',border:'none',color:SM,cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color=ST}
-              onMouseLeave={e=>e.currentTarget.style.color=SM}>›</button>
+              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#475569'}
+              onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>›</button>
           </div>
         )}
       </div>
@@ -382,28 +381,27 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   return (
     <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
-        <div style={{padding:'16px 0 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+        <div style={{padding:'16px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
-            style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-            onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color=SM}>
+            style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
             <ChevronRight size={15}/>
           </button>
         </div>
       ) : (
-        <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+        <div style={{padding:'18px 14px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-              <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>Ledgr.</span>
+              <span style={{fontSize:14,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
-              style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color=SM}>
+              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
               <ChevronLeft size={15}/>
             </button>
           </div>
-          <div style={{fontSize:10,color:'#475569',paddingLeft:36}}>Your book of business, organized.</div>
         </div>
       )}
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
@@ -891,23 +889,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
-      {/* TOP NAV BAR */}
-      <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:mob?'0 16px':'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:60,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <img src="/letterl.png" alt="Ledgr." style={{width:32,height:32,objectFit:'contain',borderRadius:8,flexShrink:0}}/>
-          <span style={{fontSize:15,fontWeight:800,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          {!mob&&<span style={{fontSize:12,color:'#94a3b8'}}>{dateStr}</span>}
-          <div style={{display:'flex',gap:1,background:'#f1f5f9',borderRadius:8,padding:2,border:'1px solid #e2e8f0'}}>
-            {[{v:'light',icon:'☀'},{v:'dark',icon:'☾'}].map(({v,icon})=>(
-              <button key={v} onClick={()=>setTheme(v)} style={{padding:'4px 10px',borderRadius:6,border:'none',background:theme===v?'#ffffff':'transparent',color:theme===v?'#2563eb':'#94a3b8',cursor:'pointer',fontSize:13,transition:'all 0.15s',boxShadow:theme===v?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>{icon}</button>
-            ))}
-          </div>
-          <button onClick={onOpenSettings} title='Settings' style={{background:'transparent',border:'1px solid #e2e8f0',borderRadius:8,color:'#64748b',cursor:'pointer',padding:'6px 10px',fontSize:14,lineHeight:1}}>⚙</button>
-        </div>
-      </div>
-
       {/* HERO SECTION — solid dark gradient with drop shadow */}
       <div style={{background:S.isLight?'linear-gradient(90deg, #0f1729 0%, #1e3a5f 35%, #2563eb 70%, #3b7de8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?116:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 6px 32px rgba(15,23,42,0.35), 0 2px 0 rgba(15,23,42,0.15)':undefined}}>
         {/* Decorative rings */}
@@ -2638,16 +2619,15 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:isLight?'#f1f5f9':S.bg}}>
       {/* SIDEBAR */}
       <div style={{width:240,flexShrink:0,background:S.sidebarBg,display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
-        <div style={{padding:'20px 16px 16px',flexShrink:0}}>
+        <div style={{padding:'20px 16px 16px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
-              <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledgr.</div>
-              <div style={{fontSize:11,color:SM,marginTop:1}}>Whitespace Tracker</div>
+              <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.2}}>Ledgr.</div>
+              <div style={{fontSize:11,color:'#64748b',marginTop:1}}>Whitespace Tracker</div>
             </div>
           </div>
         </div>
-        <div style={{height:1,background:SB,flexShrink:0}}/>
         <div style={{padding:'12px 12px 4px',flexShrink:0}}>
           <button onClick={onBack}
             style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'all 0.15s'}}
@@ -4106,10 +4086,10 @@ function AllProjectsPage({data, setData, onBack}) {
 `}</style>
       {/* ── SIDEBAR ── */}
       <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-        <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <div style={{padding:'18px 14px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
-            <span style={{fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'-0.01em'}}>Ledgr.</span>
+            <span style={{fontSize:14,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
           </div>
           <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>All Projects</div>
         </div>
