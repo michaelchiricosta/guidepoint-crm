@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { supabase } from '../supabase.js'
 import * as XLSX from 'xlsx'
 import { ArrowLeft, List } from 'lucide-react'
 import { S, IC } from '../theme.js'
@@ -6,7 +7,7 @@ import { uid, fmtDate, daysSince, initials } from '../utils.js'
 import { INFLUENCES, INTERACTION_COLORS } from '../constants.js'
 import { Badge, Btn, Field, Modal, SH, Card } from './UI.jsx'
 
-export default function Contacts({acct,setAcct}) {
+export default function Contacts({acct,setAcct,data,setData}) {
   const [exp,setExp] = useState(null)
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
@@ -120,7 +121,7 @@ export default function Contacts({acct,setAcct}) {
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{if(window.confirm('Delete contact?'))setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}))}
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
-  const relC={Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
+  const relC={'Never Met':S.muted,Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
   const saveNote=c=>{if(!noteText.trim()){setNoteTarget(null);return};const stamp=`[${new Date().toISOString().split('T')[0]}] ${noteText.trim()}`;setAcct(p=>({...p,contacts:p.contacts.map(ct=>ct.id===c.id?{...ct,notes:(ct.notes?ct.notes+' | ':'')+stamp}:ct)}));setNoteTarget(null);setNoteText('')}
   const compressImage = (file) => new Promise((resolve) => {
     const canvas = document.createElement('canvas')
@@ -132,14 +133,36 @@ export default function Contacts({acct,setAcct}) {
       else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
       canvas.width = w; canvas.height = h
       canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', 0.8))
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
     }
     img.src = URL.createObjectURL(file)
   })
-  const savePhoto = async (contactId, file) => {
-    const b64 = await compressImage(file)
-    setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===contactId?{...c,contactPhoto:b64}:c)}))
+  const handleContactPhotoSave = async (file, contactId) => {
+    const compressed = await compressImage(file)
+    const updatedContacts = (acct.contacts || []).map(c =>
+      c.id === contactId ? {...c, contactPhoto: compressed} : c
+    )
+    const updatedAcct = {...acct, contacts: updatedContacts}
+    const updatedAccounts = (data.accounts || []).map(a =>
+      a.id === acct.id ? updatedAcct : a
+    )
+    const updatedData = {...data, accounts: updatedAccounts}
+    setAcct(p=>({...p, contacts: updatedContacts}))
+    setData(updatedData)
     setPhotoPopover(null)
+    try {
+      const { error } = await supabase
+        .from('accounts')
+        .upsert({
+          id: 'user-data',
+          data: updatedData,
+          updated_at: new Date().toISOString()
+        })
+      if (error) throw error
+      console.log('Contact photo saved for:', contactId)
+    } catch (err) {
+      console.error('Contact photo save failed:', err)
+    }
   }
   const removePhoto = (contactId) => {
     setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===contactId?{...c,contactPhoto:''}:c)}))
@@ -201,7 +224,7 @@ export default function Contacts({acct,setAcct}) {
   const applySort=(a,b)=>{
     if(clientSort==='Name')return a.name.localeCompare(b.name)
     if(clientSort==='Last Interacted'){const da=daysSince(a.lastInteracted)??999,db=daysSince(b.lastInteracted)??999;return da-db}
-    if(clientSort==='Relationship Status'){const o=['Strong','Building','Needs Attention','Unknown'];return(o.indexOf(a.relStatus)||0)-(o.indexOf(b.relStatus)||0)}
+    if(clientSort==='Relationship Status'){const o=['Strong','Building','Needs Attention','Unknown','Never Met'];return(o.indexOf(a.relStatus)||0)-(o.indexOf(b.relStatus)||0)}
     if(clientSort==='Influence Level')return(INFLUENCES.indexOf(a.influence)||0)-(INFLUENCES.indexOf(b.influence)||0)
     if(clientSort==='Days Since Contact'){const da=daysSince(a.lastInteracted)??-1,db=daysSince(b.lastInteracted)??-1;return db-da}
     return 0
@@ -230,6 +253,16 @@ export default function Contacts({acct,setAcct}) {
             {c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:initials(c.name)}
             {isInternal&&<span style={{position:'absolute',bottom:-2,right:-2,width:12,height:12,borderRadius:'50%',background:S.blue,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',border:`1px solid ${S.surf}`}}>G</span>}
           </div>
+          {c.linkedin && c.linkedin.trim() !== '' && (
+            <a
+              href={c.linkedin.startsWith('http') ? c.linkedin : 'https://' + c.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:24,height:24,borderRadius:6,background:'#0A66C2',color:'white',fontSize:12,fontWeight:700,textDecoration:'none',flexShrink:0,marginRight:6}}
+              title="Open LinkedIn profile"
+            >in</a>
+          )}
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
               <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</span>
@@ -964,7 +997,7 @@ export default function Contacts({acct,setAcct}) {
           <Field label='LinkedIn URL' value={form.linkedin} onChange={f('linkedin')} style={{gridColumn:'span 2'}}/>
           <Field label='Location' value={form.location} onChange={f('location')}/>
           <Field label='Last Interacted' value={form.lastInteracted} onChange={f('lastInteracted')} type='date'/>
-          {ftype!=='Internal'&&<><Field label='Influence Level' value={form.influence} onChange={f('influence')} options={INFLUENCES}/><Field label='Relationship Status' value={form.relStatus} onChange={f('relStatus')} options={['Strong','Building','Needs Attention','Unknown']}/><Field label='Sentiment' value={form.sentiment} onChange={f('sentiment')} options={['positive','neutral','negative']}/></>}
+          {ftype!=='Internal'&&<><Field label='Influence Level' value={form.influence} onChange={f('influence')} options={INFLUENCES}/><Field label='Relationship Status' value={form.relStatus} onChange={f('relStatus')} options={['Never Met','Strong','Building','Needs Attention','Unknown']}/><Field label='Sentiment' value={form.sentiment} onChange={f('sentiment')} options={['positive','neutral','negative']}/></>}
         </div>
         {ftype!=='Internal'&&<><Field label='Tools / Tech They Own or Work In' value={form.toolsOwn} onChange={f('toolsOwn')} multiline/><Field label='Key Goals' value={form.goals} onChange={f('goals')} multiline/><Field label='Key Pains' value={form.pains} onChange={f('pains')} multiline/></>}
         <Field label='Professional Notes' value={form.notes} onChange={f('notes')} multiline/>
@@ -1107,7 +1140,7 @@ export default function Contacts({acct,setAcct}) {
         </div>
       )}
       <input ref={photoInputRef} type='file' accept='image/*' style={{display:'none'}}
-        onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)savePhoto(photoTarget,file);e.target.value=''}}/>
+        onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)handleContactPhotoSave(file,photoTarget);e.target.value=''}}/>
     </div>
   )
 }

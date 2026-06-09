@@ -685,25 +685,30 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
         <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
         <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
       </div>
-      <div style={{position:'relative',display:'inline-block',width:'100%',maxWidth:260,margin:'0 auto',display:'block'}}>
-        <svg viewBox="0 0 200 110" width="100%" style={{display:'block',cursor:'default'}}
+      <div style={{position:'relative',display:'block',width:'100%',maxWidth:260,margin:'0 auto'}}>
+        <svg viewBox="0 0 200 110" width="100%" style={{display:'block',cursor:'pointer'}}
           onMouseEnter={()=>setGaugeHover(true)}
           onMouseLeave={()=>setGaugeHover(false)}>
-          <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={18}
+          <circle cx={100} cy={100} r={80} fill="none" stroke="#e2e8f0" strokeWidth={11}
             strokeDasharray={`${HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>
-          {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={18}
+          {aPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#0ebc5f" strokeWidth={11}
             strokeDasharray={`${aPct*HALF} ${CIRC}`} transform="rotate(180 100 100)" strokeLinecap="round"/>}
-          {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={18}
+          {iPct>0&&<circle cx={100} cy={100} r={80} fill="none" stroke="#2563eb" strokeWidth={11}
             strokeDasharray={`${iPct*HALF} ${CIRC}`} transform={`rotate(${180+aPct*180} 100 100)`} strokeLinecap="round"/>}
-          <text x={100} y={88} textAnchor="middle" fontSize={28} fontWeight={800} fill="#0f172a">{pct}%</text>
-          <text x={100} y={103} textAnchor="middle" fontSize={13} fill="#64748b">of quota</text>
+          {!gaugeHover ? (
+            <>
+              <text x={100} y={88} textAnchor="middle" fontSize={28} fontWeight={800} fill="#0f172a">{pct}%</text>
+              <text x={100} y={103} textAnchor="middle" fontSize={13} fill="#64748b">of quota</text>
+            </>
+          ) : (
+            <>
+              <text x={100} y={50} textAnchor="middle" fontSize={10} fill="#94a3b8">Closed (Won)</text>
+              <text x={100} y={64} textAnchor="middle" fontSize={15} fontWeight={700} fill="#0ebc5f">{attainedGP>0?formatCompactCurrency(attainedGP):'$0'}</text>
+              <text x={100} y={81} textAnchor="middle" fontSize={10} fill="#94a3b8">Weighted Pipeline</text>
+              <text x={100} y={97} textAnchor="middle" fontSize={15} fontWeight={700} fill="#2563eb">{inProgressGP>0?formatCompactCurrency(inProgressGP):'$0'}</text>
+            </>
+          )}
         </svg>
-        {gaugeHover&&(
-          <div style={{position:'absolute',bottom:'calc(100% + 6px)',left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f1f5f9',borderRadius:8,padding:'10px 14px',fontSize:12,whiteSpace:'nowrap',boxShadow:'0 4px 16px rgba(0,0,0,0.3)',zIndex:20,pointerEvents:'none'}}>
-            <div style={{marginBottom:5}}><span style={{color:'#94a3b8'}}>Closed: </span><span style={{fontWeight:700,color:'#4ade80'}}>{attainedGP>0?formatCompactCurrency(attainedGP):'$0'} won</span></div>
-            <div><span style={{color:'#94a3b8'}}>Weighted Pipeline: </span><span style={{fontWeight:700,color:'#60a5fa'}}>{inProgressGP>0?formatCompactCurrency(inProgressGP):'$0'}</span></div>
-          </div>
-        )}
       </div>
       <div style={{textAlign:'center',marginTop:4,marginBottom:12}}>
         <span style={{fontSize:11,color:'#64748b',marginRight:6}}>Quota Target:</span>
@@ -2052,6 +2057,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [dupeDismissed, setDupeDismissed] = useState(false)
   const [addDupeWarning, setAddDupeWarning] = useState(null)
   const [mergeToast, setMergeToast] = useState('')
+  const [showAutoFillModal, setShowAutoFillModal] = useState(false)
+  const [showCleanNotesModal, setShowCleanNotesModal] = useState(false)
+  const [aiOpRunning, setAiOpRunning] = useState(false)
+  const [aiOpProgress, setAiOpProgress] = useState('')
+  const [aiOpSummary, setAiOpSummary] = useState('')
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2108,6 +2118,92 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setAddForm({name:'',hq:'',industry:'',employees:'',revenue:'',status:'Prospect',notes:''})
     setShowAdd(false)
     setAddDupeWarning(null)
+  }
+
+  const handleAutoFill = async () => {
+    if (!effectiveKey) { alert('Add your Anthropic API key in Settings first.'); return }
+    const missing = ws.filter(a => !a.employees || !a.revenue)
+    if (missing.length === 0) { alert('All accounts already have employee and revenue data!'); return }
+    setShowAutoFillModal(false)
+    setAiOpRunning(true); setAiOpSummary(''); setAiOpProgress('')
+    let updatedCount = 0
+    for (let i = 0; i < missing.length; i++) {
+      const account = missing[i]
+      setAiOpProgress(`Processing ${i+1} of ${missing.length}: ${account.name}…`)
+      try {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+            messages: [{role:'user',content:`Find the approximate employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}.Return ONLY a JSON object with no other text: {"employees":"number or range as string e.g. 5000 or 1000-5000","revenue":"annual revenue as string e.g. $500M or $1.2B","source":"brief source description"}`}]
+          })
+        })
+        const result = await resp.json()
+        let parsed = null
+        for (const block of (result.content || [])) {
+          if (block.type === 'text') {
+            try { parsed = JSON.parse(block.text) } catch {
+              const m = block.text.match(/\{[\s\S]*?\}/)
+              if (m) try { parsed = JSON.parse(m[0]) } catch {}
+            }
+            if (parsed) break
+          }
+        }
+        if (parsed) {
+          const changes = {}
+          if (!account.employees && parsed.employees) changes.employees = String(parsed.employees)
+          if (!account.revenue && parsed.revenue) changes.revenue = String(parsed.revenue)
+          if (Object.keys(changes).length > 0) { updateAccount(account.id, changes); updatedCount++ }
+        }
+      } catch (err) { console.error(`Auto-fill failed for ${account.name}:`, err) }
+    }
+    setAiOpRunning(false); setAiOpProgress('')
+    setAiOpSummary(`Updated ${updatedCount} of ${missing.length} accounts with employee and revenue data`)
+  }
+
+  const handleCleanNotes = async () => {
+    if (!effectiveKey) { alert('Add your Anthropic API key in Settings first.'); return }
+    const accts = ws.filter(a => ((a.intelLog||[]).length + (a.notes||[]).length) > 2)
+    if (accts.length === 0) { alert('No accounts with more than 2 notes entries found.'); return }
+    setShowCleanNotesModal(false)
+    setAiOpRunning(true); setAiOpSummary(''); setAiOpProgress('')
+    let updatedCount = 0
+    for (let i = 0; i < accts.length; i++) {
+      const account = accts[i]
+      setAiOpProgress(`Cleaning notes for ${i+1} of ${accts.length}: ${account.name}…`)
+      const allNotesText = [
+        ...(account.notes||[]).map(n => `[${n.date||''}] ${n.text||''}`),
+        ...(account.intelLog||[]).map(n => `[${n.date||''}] ${n.summary||n.text||''}`)
+      ].join('\n\n')
+      try {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{role:'user',content:`You are cleaning up sales intelligence notes for ${account.name}. Here are all the notes and intel entries:\n\n${allNotesText}\n\nConsolidate these into clean, non-redundant notes. Rules: (1) Keep ALL unique facts, details, contacts, and intel — do not lose any real information. (2) Remove duplicate sentences and repetitive summaries. (3) Combine similar points into single clear statements. (4) Keep chronological context where relevant. (5) Return ONLY the cleaned notes as plain text, no headers, no JSON. Maximum 500 words.`}]
+          })
+        })
+        const result = await resp.json()
+        const text = (result.content||[]).find(b=>b.type==='text')?.text
+        if (text) {
+          const today = new Date().toISOString().split('T')[0]
+          const cleanedEntry = { id: uid(), text: text.trim(), date: today, addedBy: 'AI Dedup' }
+          updateAccount(account.id, {
+            notes: [cleanedEntry],
+            intelLog: [],
+            intelArchive: [...(account.intelLog||[]), ...(account.notes||[])]
+          })
+          updatedCount++
+        }
+      } catch (err) { console.error(`Note clean failed for ${account.name}:`, err) }
+    }
+    setAiOpRunning(false); setAiOpProgress('')
+    setAiOpSummary(`Cleaned and consolidated notes for ${updatedCount} of ${accts.length} accounts`)
   }
 
   const executeMerge = () => {
@@ -2590,6 +2686,14 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
                 style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
                 <Zap size={14}/>Add Intelligence
+              </button>
+              <button onClick={()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');return}setAiOpSummary('');setShowAutoFillModal(true)}}
+                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#f0fdf4':'rgba(14,188,95,0.1)',border:`1px solid ${isLight?'#bbf7d0':'rgba(14,188,95,0.25)'}`,borderRadius:8,color:isLight?'#15803d':'#4ade80',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                Auto-fill Missing Data
+              </button>
+              <button onClick={()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');return}setAiOpSummary('');setShowCleanNotesModal(true)}}
+                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#eff6ff':'rgba(37,99,235,0.1)',border:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.25)'}`,borderRadius:8,color:isLight?'#1d4ed8':'#93c5fd',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                Clean Duplicate Notes
               </button>
               <button onClick={()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('')}}
                 style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>
@@ -3160,6 +3264,57 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         </div>
         )
       })()}
+
+      {/* AUTO-FILL CONFIRMATION MODAL */}
+      {showAutoFillModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000,padding:20}} onClick={()=>setShowAutoFillModal(false)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:28,width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:10}}>Auto-fill Missing Data</div>
+            <div style={{fontSize:13,color:S.muted,lineHeight:1.6,marginBottom:20}}>
+              AI will search for employee count and revenue for <strong style={{color:S.txt}}>{ws.filter(a=>!a.employees||!a.revenue).length} accounts</strong> with missing data. This uses your API key.
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={handleAutoFill} style={{flex:1,padding:'10px',background:'#15803d',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Continue</button>
+              <button onClick={()=>setShowAutoFillModal(false)} style={{padding:'10px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLEAN NOTES CONFIRMATION MODAL */}
+      {showCleanNotesModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000,padding:20}} onClick={()=>setShowCleanNotesModal(false)}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:28,width:'100%',maxWidth:480,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:10}}>Clean Duplicate Notes</div>
+            <div style={{fontSize:13,color:S.muted,lineHeight:1.6,marginBottom:20}}>
+              AI will clean up redundant notes for <strong style={{color:S.txt}}>{ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2).length} accounts</strong>. Duplicate and repetitive information will be consolidated. Original entries are archived and not lost.
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={handleCleanNotes} style={{flex:1,padding:'10px',background:'#1d4ed8',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Continue</button>
+              <button onClick={()=>setShowCleanNotesModal(false)} style={{padding:'10px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI OPERATION PROGRESS OVERLAY */}
+      {aiOpRunning&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2100,padding:20}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:32,width:'100%',maxWidth:440,boxShadow:'0 20px 60px rgba(0,0,0,0.5)',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:12}}>⏳</div>
+            <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:8}}>AI Working…</div>
+            <div style={{fontSize:13,color:S.muted,lineHeight:1.6}}>{aiOpProgress}</div>
+          </div>
+        </div>
+      )}
+
+      {/* AI OPERATION SUMMARY TOAST */}
+      {aiOpSummary&&!aiOpRunning&&(
+        <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f0fdf4',padding:'12px 24px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:10}}>
+          <span style={{color:'#4ade80'}}>✓</span>{aiOpSummary}
+          <button onClick={()=>setAiOpSummary('')} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,lineHeight:1,marginLeft:8}}>×</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -4408,7 +4563,7 @@ export default function App() {
         <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
           {tab==='dashboard'&&<AccountDashboard acct={acct} setTab={setTab}/>}
-          {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct}/>}
+          {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
