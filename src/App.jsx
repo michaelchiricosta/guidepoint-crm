@@ -2031,7 +2031,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
-  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity']
+  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity','Hot']
   const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
@@ -2053,6 +2053,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       case 'Recently Updated':return(b.updatedAt||'').localeCompare(a.updatedAt||'')
       case 'Intel':return((b.intelLog||[]).length+(b.notes||[]).length)-((a.intelLog||[]).length+(a.notes||[]).length)
       case 'Sort by Opportunity':return(b.ai_opportunity_score||0)-(a.ai_opportunity_score||0)
+      case 'Hot':return(isHot(b)?1:0)-(isHot(a)?1:0)
       default:return(b.addedAt||'').localeCompare(a.addedAt||'')
     }
   })
@@ -2075,6 +2076,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   })()
 
   const isHot = (a) => {
+    if (a.ai_opportunity_score != null) return a.ai_opportunity_score >= flameThreshold
     const signals = [
       ((a.intelLog||[]).length + (a.notes||[]).length) >= 3,
       a.status === 'Active Conversation',
@@ -2083,7 +2085,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       (a.technologies||[]).length >= 1,
       a.employees && parseInt(a.employees.replace(/\D/g,'')) >= 1000,
     ]
-    return signals.filter(Boolean).length >= 3
+    return signals.filter(Boolean).length >= 2
   }
 
   const updateAccount = (id, changes) => {
@@ -2347,7 +2349,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     finally{setScoringId(null)}
   }
 
-  const executeMerge = () => {
+  const executeMerge = async () => {
     if (mergeSelected.size < 2 || !mergePrimary) return
     const selectedIds = [...mergeSelected]
     console.log('Merge clicked, selected:', selectedIds, 'primary:', mergePrimary)
@@ -2357,19 +2359,39 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     const allIntelLog = [...(primary.intelLog||[]),...others.flatMap(a=>a.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const allNotes = [...(primary.notes||[]),...others.flatMap(a=>a.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const contactMap = new Map()
-    ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase().trim();if(!contactMap.has(k))contactMap.set(k,c)})
+    ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=((c.email||'').toLowerCase().trim()||(c.name||'').toLowerCase().trim());if(!contactMap.has(k))contactMap.set(k,c)})
     const techMap = new Map()
     ;[...(primary.technologies||[]),...others.flatMap(a=>a.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase().trim();if(!techMap.has(k))techMap.set(k,t)})
-    const mergedAccount = {...primary,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
+    const histMap = new Map()
+    ;[...(primary.aiHistory||[]),...others.flatMap(a=>a.aiHistory||[])].forEach(h=>{if(!histMap.has(h.id))histMap.set(h.id,h)})
+    const fuMap = new Map()
+    ;[...(primary.followUps||[]),...others.flatMap(a=>a.followUps||[])].forEach(fu=>{if(!fuMap.has(fu.id))fuMap.set(fu.id,fu)})
+    const projMap = new Map()
+    ;[...(primary.projects||[]),...others.flatMap(a=>a.projects||[])].forEach(proj=>{if(!projMap.has(proj.id))projMap.set(proj.id,proj)})
+    const mergedAccount = {
+      ...primary,
+      notes: allNotes,
+      intelLog: allIntelLog,
+      contacts: [...contactMap.values()],
+      technologies: [...techMap.values()],
+      aiHistory: [...histMap.values()],
+      followUps: [...fuMap.values()],
+      projects: [...projMap.values()],
+      updatedAt: new Date().toISOString()
+    }
     const allSelectedIds = [...mergeSelected]
-    setData(prev=>({
-      ...prev,
-      whitespaceAccounts:[
-        ...(prev.whitespaceAccounts||[]).filter(a=>!allSelectedIds.includes(a.id)),
-        mergedAccount
-      ]
-    }))
+    const newWhitespaceAccounts = [...(ws.filter(a=>!allSelectedIds.includes(a.id))), mergedAccount]
+    const mergedData = {...data, whitespaceAccounts: newWhitespaceAccounts}
+    setData(prev=>({...prev, whitespaceAccounts: newWhitespaceAccounts}))
     window._lastDirectSave = Date.now()
+    try {
+      await saveData(mergedData)
+    } catch(e) {
+      console.error('Merge save failed:', e)
+      setMergeToast('Merge failed to save — please try again')
+      setTimeout(()=>setMergeToast(''),4000)
+      return
+    }
     const msg = `${mergeSelected.size} accounts merged into "${primary.name}"`
     setMergeToast(msg); setTimeout(()=>setMergeToast(''),4000)
     setShowMerge(false); setMergeSelected(new Set()); setMergePrimary(null); setMergeStep(1); setMergeSearch('')

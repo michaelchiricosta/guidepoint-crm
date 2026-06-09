@@ -228,6 +228,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   const [remindersToast,setRemindersToast] = useState(false)
   const [fuSnoozeId,setFuSnoozeId] = useState(null)
   const [fuSnoozeCustomDate,setFuSnoozeCustomDate] = useState('')
+  const [fuSnoozePos,setFuSnoozePos] = useState(null)
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const [summaryLoading,setSummaryLoading] = useState(false)
@@ -253,7 +254,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
 
   useEffect(()=>{
     if(!fuSnoozeId)return
-    const h=()=>setFuSnoozeId(null)
+    const h=()=>{setFuSnoozeId(null);setFuSnoozePos(null)}
     document.addEventListener('click',h)
     return()=>document.removeEventListener('click',h)
   },[fuSnoozeId])
@@ -317,6 +318,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     setAcct(prev=>({...prev,followUps:prev.followUps.map(f=>f.id===fuId?{...f,dueDate:ds}:f)}))
     setFuSnoozeId(null)
     setFuSnoozeCustomDate('')
+    setFuSnoozePos(null)
     const dateStr=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
     setSnoozeMsg(`Snoozed until ${dateStr}`)
     setSnoozeToast(true)
@@ -1046,17 +1048,17 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 </div>
               </div>
               <Badge label={f.priority} color={p.c} bg={p.b}/>
-              <div style={{position:'relative',flexShrink:0}}>
+              <div style={{flexShrink:0}}>
                 <button
-                  onClick={e=>{e.stopPropagation();setFuSnoozeId(fuSnoozeId===f.id?null:f.id);setFuSnoozeCustomDate('')}}
+                  onClick={e=>{e.stopPropagation();if(fuSnoozeId===f.id){setFuSnoozeId(null);setFuSnoozePos(null);setFuSnoozeCustomDate('')}else{const r=e.currentTarget.getBoundingClientRect();setFuSnoozePos({top:r.bottom+4,right:window.innerWidth-r.right});setFuSnoozeId(f.id);setFuSnoozeCustomDate('')}}}
                   title='Snooze follow-up'
                   style={{background:'transparent',border:'none',color:fuSnoozeId===f.id?p.c:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id||fuSnoozeId===f.id?1:0,transition:'opacity 0.15s'}}
                   onMouseEnter={e=>e.currentTarget.style.color=p.c}
                   onMouseLeave={e=>e.currentTarget.style.color=fuSnoozeId===f.id?p.c:'#94a3b8'}>
                   <Clock size={14}/>
                 </button>
-                {fuSnoozeId===f.id&&(
-                  <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:200,background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:200,overflow:'hidden'}}>
+                {fuSnoozeId===f.id&&fuSnoozePos&&(
+                  <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:fuSnoozePos.top,right:fuSnoozePos.right,zIndex:9999,background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:200,overflow:'hidden'}}>
                     {[{label:'Tomorrow',opt:'tomorrow'},{label:'In 3 days',opt:'3days'},{label:'In 1 week',opt:'1week'}].map(o=>(
                       <button key={o.opt} onClick={()=>snoozeFU(f.id,o.opt)}
                         style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left',fontSize:13,color:S.isLight?'#374151':S.txt,fontWeight:500}}

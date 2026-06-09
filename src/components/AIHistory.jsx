@@ -45,7 +45,14 @@ export default function AIHistory({acct, setAcct, data, setData, apiKey}) {
             : a
         )
       }
-      setData(() => updatedData)
+      setData(prev => ({
+        ...prev,
+        accounts: (prev.accounts||[]).map(a =>
+          a.id === acct.id
+            ? {...a, aiHistory: (a.aiHistory||[]).filter(s => s.id !== sessionId)}
+            : a
+        )
+      }))
       window._lastDirectSave = Date.now()
       await saveData(updatedData)
     }
