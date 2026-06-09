@@ -174,10 +174,10 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     <>
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:150}}/>
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
-        <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6}}/>
-            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Ledgr.</div>
+        <div style={{padding:'10px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <img src="/letterl.png" alt="Ledgr." style={{width:44,height:44,objectFit:'contain',borderRadius:6}}/>
+            <div style={{fontSize:24,fontWeight:700,color:'#0f172a'}}>Ledgr.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
@@ -213,14 +213,14 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   return (
     <div style={{width:collapsed?60:240,background:S.sidebarBg,borderRight:'none',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
       {/* Logo area */}
-      <div style={{padding:collapsed?'20px 0 16px':'20px 16px 16px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+      <div style={{padding:collapsed?'12px 0 10px':'12px 16px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
         {!collapsed?(
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
-              style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:10}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:6}}>
+              <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <div>
-                <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.2}}>Ledgr.</div>
+                <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
               </div>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Collapse"
@@ -229,9 +229,9 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
               onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>‹</button>
           </div>
         ):(
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6,display:'block'}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:44,height:44,objectFit:'contain',borderRadius:6,display:'block'}}/>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Expand"
               style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
@@ -381,8 +381,8 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   return (
     <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
-        <div style={{padding:'16px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
+        <div style={{padding:'10px 0 8px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:6,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+          <img src="/letterl.png" alt="Ledgr." style={{width:32,height:32,objectFit:'contain',borderRadius:4}}/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
             style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
@@ -390,11 +390,11 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
           </button>
         </div>
       ) : (
-        <div style={{padding:'18px 14px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-              <span style={{fontSize:14,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
+        <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
               style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
@@ -889,53 +889,23 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
-      {/* HERO SECTION — solid dark gradient with drop shadow */}
-      <div style={{background:S.isLight?'linear-gradient(90deg, #0f1729 0%, #1e3a5f 35%, #2563eb 70%, #3b7de8 100%)':'linear-gradient(135deg,#0a0e1a 0%,#111827 100%)',padding:mob?'28px 16px 32px':'36px 48px 40px',position:'relative',overflow:'hidden',height:S.isLight?116:undefined,display:'flex',alignItems:'center',boxShadow:S.isLight?'0 6px 32px rgba(15,23,42,0.35), 0 2px 0 rgba(15,23,42,0.15)':undefined}}>
-        {/* Decorative rings */}
-        <div style={{position:'absolute',right:-60,top:-60,width:280,height:280,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.05)',pointerEvents:'none'}}/>
-        <div style={{position:'absolute',right:-20,top:-20,width:180,height:180,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.04)',pointerEvents:'none'}}/>
-        {/* Flowing line texture */}
-        <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0.18,pointerEvents:'none',zIndex:0}} viewBox="0 0 1200 160" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-          <path d="M-100,120 Q200,40 500,80 T1100,50 T1400,90" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" fill="none" strokeDasharray="2,14" strokeLinecap="round"/>
-          <path d="M-100,140 Q300,60 600,100 T1200,70 T1500,110" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" fill="none" strokeDasharray="2,18" strokeLinecap="round"/>
-          <path d="M-50,90 Q250,20 550,60 T1150,30 T1450,70" stroke="rgba(255,255,255,0.35)" strokeWidth="1" fill="none" strokeDasharray="2,22" strokeLinecap="round"/>
-          <path d="M0,150 Q400,80 700,120 T1300,90 T1600,130" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none" strokeDasharray="3,20" strokeLinecap="round"/>
-          <path d="M-200,70 Q100,10 400,50 T1000,20 T1300,60" stroke="rgba(147,197,253,0.4)" strokeWidth="1.2" fill="none" strokeDasharray="2,16" strokeLinecap="round"/>
-          <path d="M100,155 Q500,90 800,130 T1400,100" stroke="rgba(147,197,253,0.25)" strokeWidth="0.8" fill="none" strokeDasharray="2,24" strokeLinecap="round"/>
-          <circle cx="150" cy="110" r="1.5" fill="rgba(147,197,253,0.5)"/>
-          <circle cx="165" cy="105" r="1" fill="rgba(147,197,253,0.4)"/>
-          <circle cx="178" cy="112" r="1.5" fill="rgba(147,197,253,0.5)"/>
-          <circle cx="192" cy="107" r="1" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="206" cy="115" r="1.5" fill="rgba(147,197,253,0.4)"/>
-          <circle cx="450" cy="70" r="1.5" fill="rgba(147,197,253,0.4)"/>
-          <circle cx="466" cy="65" r="1" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="480" cy="73" r="1.5" fill="rgba(147,197,253,0.4)"/>
-          <circle cx="495" cy="68" r="1" fill="rgba(147,197,253,0.25)"/>
-          <circle cx="750" cy="95" r="1.5" fill="rgba(147,197,253,0.35)"/>
-          <circle cx="766" cy="89" r="1.2" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="781" cy="97" r="1.5" fill="rgba(147,197,253,0.35)"/>
-          <circle cx="796" cy="91" r="1" fill="rgba(147,197,253,0.25)"/>
-          <circle cx="811" cy="98" r="1.5" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="1050" cy="55" r="1.5" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="1066" cy="49" r="1" fill="rgba(147,197,253,0.25)"/>
-          <circle cx="1081" cy="57" r="1.5" fill="rgba(147,197,253,0.3)"/>
-          <circle cx="1096" cy="51" r="1" fill="rgba(147,197,253,0.2)"/>
-        </svg>
-        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20,position:'relative',zIndex:1}}>
+      {/* HERO SECTION */}
+      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.08)'}}>
+        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
           <div>
-            <div style={{fontSize:mob?24:32,fontWeight:900,color:'#ffffff',marginBottom:8,lineHeight:1.1,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
-            <div style={{fontSize:14,color:'rgba(255,255,255,0.7)',lineHeight:1.7}}>
-              <span style={{fontWeight:500,color:'rgba(255,255,255,0.9)'}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
-              {totalOpenFUs>0&&<> · <span style={{color:'#93c5fd',fontWeight:600}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
-              {criticalItems>0&&<> · <span style={{color:'#fca5a5',fontWeight:600}}>{criticalItems} critical</span></>}
-              {renewals90>0&&<> · <span style={{color:'#fdba74',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
+            <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
+            <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}>
+              <span style={{fontWeight:600,color:'#0f172a'}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
+              {totalOpenFUs>0&&<> · <span style={{color:'#2563eb',fontWeight:600}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
+              {criticalItems>0&&<> · <span style={{color:'#dc2626',fontWeight:600}}>{criticalItems} critical</span></>}
+              {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
             </div>
           </div>
           {!mob&&todayTasksCount>0&&(
             <div style={{display:'flex',gap:8,flexShrink:0}}>
-              <div style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:10,padding:'10px 16px',backdropFilter:'blur(8px)'}}>
-                <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Due Today</div>
-                <div style={{fontSize:24,fontWeight:800,color:'#ffffff',lineHeight:1}}>{todayTasksCount}</div>
+              <div style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:10,padding:'8px 16px'}}>
+                <div style={{fontSize:11,color:'#64748b',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Due Today</div>
+                <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1}}>{todayTasksCount}</div>
               </div>
             </div>
           )}
@@ -2619,12 +2589,12 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:isLight?'#f1f5f9':S.bg}}>
       {/* SIDEBAR */}
       <div style={{width:240,flexShrink:0,background:S.sidebarBg,display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
-        <div style={{padding:'20px 16px 16px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+        <div style={{padding:'12px 16px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
-              <div style={{fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.2}}>Ledgr.</div>
-              <div style={{fontSize:11,color:'#64748b',marginTop:1}}>Whitespace Tracker</div>
+              <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
+              <div style={{fontSize:10,color:'#64748b',marginTop:1}}>Whitespace Tracker</div>
             </div>
           </div>
         </div>
@@ -4086,12 +4056,14 @@ function AllProjectsPage({data, setData, onBack}) {
 `}</style>
       {/* ── SIDEBAR ── */}
       <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-        <div style={{padding:'18px 14px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
-            <span style={{fontSize:14,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
+        <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <img src="/letterl.png" alt="Ledgr." style={{width:32,height:32,objectFit:'contain',borderRadius:4}}/>
+            <div>
+              <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
+              <div style={{fontSize:10,color:'#64748b'}}>All Projects</div>
+            </div>
           </div>
-          <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>All Projects</div>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
           <button onClick={onBack} style={{...sideStyle,background:'transparent',border:'none',width:'100%',textAlign:'left',marginBottom:4}}>
