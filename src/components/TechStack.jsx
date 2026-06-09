@@ -16,7 +16,13 @@ const makeArc = (cx,cy,r1,r2,a1,a2,gap=0.01) => {
   return `M ${cx+r2*co(s)} ${cy+r2*si(s)} A ${r2} ${r2} 0 ${lg} 1 ${cx+r2*co(e)} ${cy+r2*si(e)} L ${cx+r1*co(e)} ${cy+r1*si(e)} A ${r1} ${r1} 0 ${lg} 0 ${cx+r1*co(s)} ${cy+r1*si(s)} Z`
 }
 const findVendorForSub = (sub, techStack) =>
-  techStack.find(t => resolveVendorMapping(t.vendor, t.category).primarySub === sub) || null
+  techStack.find(t => {
+    // Stored fields take priority — resolveVendorMapping can remap known vendor names
+    // to their canonical slot (e.g. "Palo Alto XSOAR" → NGFW), ignoring where the user
+    // actually placed the entry.
+    if (t.primarySub === sub || t.category === sub) return true
+    return resolveVendorMapping(t.vendor, t.category).primarySub === sub
+  }) || null
 const getSecondaryVendors = (sub, techStack) =>
   techStack.filter(t => resolveVendorMapping(t.vendor, t.category).secondarySubs.includes(sub))
 const getKnownVendorsForSub = sub =>
@@ -29,6 +35,7 @@ export default function TechStack({acct,setAcct}) {
   const [collapsedDomains, setCollapsedDomains] = useState({})
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
+  const [saveFlash,setSaveFlash] = useState('')
   const [hoveredSeg,setHoveredSeg] = useState(null)
   const [legendModal,setLegendModal] = useState(null)
   const [saleFilter,setSaleFilter] = useState('All')
@@ -56,11 +63,18 @@ export default function TechStack({acct,setAcct}) {
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
-    const entry={...form,vendor:form.vendor||(isGap?'No Solution':''),primarySub:form.category}
+    const entry={...form,vendor:form.vendor||(isGap?'No Solution':''),primarySub:form.category,category:form.category}
     if(!entry.vendor)return
-    if(entry.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===entry.id?entry:t)}))
-    else setAcct(p=>({...p,techStack:[...p.techStack,{...entry,id:uid()}]}))
-    setShowAdd(false);setForm(blank)
+    try {
+      if(entry.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===entry.id?entry:t)}))
+      else setAcct(p=>({...p,techStack:[...p.techStack,{...entry,id:uid()}]}))
+      setShowAdd(false);setForm(blank)
+      setSaveFlash(`Saved ${entry.vendor} → ${entry.category}`)
+      setTimeout(()=>setSaveFlash(''),3000)
+    } catch(e) {
+      setSaveFlash(`Error saving: ${e.message}`)
+      setTimeout(()=>setSaveFlash(''),6000)
+    }
   }
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
   const openVendorEdit=item=>{
@@ -141,8 +155,9 @@ export default function TechStack({acct,setAcct}) {
         {(()=>{
           const subVendorMap = {}
           ;(acct.techStack||[]).forEach(item=>{
+            // Prefer the explicitly stored sub-domain over the name-resolved one
             const mapping=resolveVendorMapping(item.vendor,item.category)
-            const sub=mapping.primarySub||item.primarySub||item.category
+            const sub=item.primarySub||item.category||mapping.primarySub||'Unknown'
             if(!subVendorMap[sub])subVendorMap[sub]=[]
             subVendorMap[sub].push(item)
           })
@@ -532,6 +547,18 @@ export default function TechStack({acct,setAcct}) {
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
+      {saveFlash&&(
+        <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',
+          background:saveFlash.startsWith('Error')?'#dc2626':'#0f172a',
+          color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,
+          zIndex:3000,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',display:'flex',alignItems:'center',gap:8,
+          pointerEvents:'none'}}>
+          <span style={{color:saveFlash.startsWith('Error')?'#fca5a5':'#4ade80'}}>
+            {saveFlash.startsWith('Error')?'✕':'✓'}
+          </span>
+          {saveFlash}
+        </div>
+      )}
     </div>
   )
 }
