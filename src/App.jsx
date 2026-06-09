@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2 } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -19,6 +19,7 @@ import AccountDashboard from './components/AccountDashboard.jsx'
 import FollowUps from './components/FollowUps.jsx'
 import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
+import VendorsPage from './components/VendorsPage.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
@@ -343,7 +344,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, showAccounts, setShowAccounts, onOpenSettings}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings}) {
   const [collapsed, setCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const navTop = [
@@ -351,6 +352,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'accounts',    label:'Accounts',     icon:<Building2 size={15}/>,     action:()=>setShowAccounts(true)},
     {id:'allprojects', label:'All Projects', icon:<Folder size={15}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
     {id:'whitespace',  label:'Whitespace',   icon:<Map size={15}/>,           action:()=>onGoWhitespace&&onGoWhitespace()},
+    {id:'vendors',     label:'Vendors',      icon:<Package size={15}/>,       action:()=>onGoVendors&&onGoVendors()},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={15}/>,     action:()=>setTodayModal(true)},
@@ -746,7 +748,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, theme, setTheme, showAccounts, setShowAccounts}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, theme, setTheme, showAccounts, setShowAccounts}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -903,7 +905,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
       <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
@@ -4614,6 +4616,7 @@ export default function App() {
   const [showAccounts,setShowAccounts] = useState(false)
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
+  const [showVendors,setShowVendors] = useState(false)
   const [showClientView,setShowClientView] = useState(false)
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [theme,setTheme] = useState(()=>{
@@ -4735,6 +4738,15 @@ export default function App() {
     />
   )
 
+  if (showVendors) return (
+    <VendorsPage
+      data={data}
+      setData={setData}
+      apiKey={data.apiKey}
+      onBack={()=>{setShowVendors(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (isLandingPage) return (
     <LandingPage
       data={data}
@@ -4744,6 +4756,7 @@ export default function App() {
       onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
+      onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
       theme={theme}
       setTheme={handleSetTheme}
       showAccounts={showAccounts}
@@ -4822,7 +4835,7 @@ export default function App() {
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
           {tab==='dashboard'&&<AccountDashboard acct={acct} setTab={setTab}/>}
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
-          {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
+          {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
