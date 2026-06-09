@@ -1632,7 +1632,7 @@ const parseTechFromEntries = entries => {
   } catch(e) { return [] }
 }
 
-function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
+function ExpandedWhitespaceRow({acct, updateAccount, isLight, onRescore, scoringId}) {
   const [editForm, setEditForm] = useState({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})
   const [addingNote, setAddingNote] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -1690,7 +1690,10 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight}) {
       {/* Top row: Account Details + Notes & Intel */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1.8fr',gap:28,marginBottom:16}}>
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:12}}>Account Details</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em'}}>Account Details</div>
+            {onRescore&&<button onClick={()=>onRescore(acct.id)} disabled={scoringId===acct.id} style={{padding:'3px 9px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:'#2563eb',fontSize:11,fontWeight:600,cursor:scoringId===acct.id?'default':'pointer',opacity:scoringId===acct.id?0.6:1}}>{scoringId===acct.id?'Scoring…':'Rescore'}</button>}
+          </div>
           {[{label:'Name',key:'name'},{label:'HQ',key:'hq'},{label:'Industry',key:'industry'},{label:'Employees',key:'employees'},{label:'Revenue',key:'revenue'}].map(f=>(
             <div key={f.key} style={{marginBottom:9}}>
               <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>{f.label}</div>
@@ -2015,6 +2018,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [recLoading, setRecLoading] = useState(false)
   const [recError, setRecError] = useState('')
   const [wsToast, setWsToast] = useState('')
+  const [scoringAll, setScoringAll] = useState(false)
+  const [scoringId, setScoringId] = useState(null)
+  const [scoreProgress, setScoreProgress] = useState('')
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2025,7 +2031,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
-  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel']
+  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity']
   const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
@@ -2046,9 +2052,18 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       case 'Revenue':return parseNum(b.revenue)-parseNum(a.revenue)
       case 'Recently Updated':return(b.updatedAt||'').localeCompare(a.updatedAt||'')
       case 'Intel':return((b.intelLog||[]).length+(b.notes||[]).length)-((a.intelLog||[]).length+(a.notes||[]).length)
+      case 'Sort by Opportunity':return(b.ai_opportunity_score||0)-(a.ai_opportunity_score||0)
       default:return(b.addedAt||'').localeCompare(a.addedAt||'')
     }
   })
+
+  const flameThreshold = (()=>{
+    const scores = ws.filter(a=>a.ai_opportunity_score!=null).map(a=>a.ai_opportunity_score).sort((a,b)=>a-b)
+    if (scores.length < 4) return Infinity
+    const p75 = scores[Math.floor(scores.length*0.75)]
+    const p80 = scores[Math.min(Math.floor(scores.length*0.80),scores.length-1)]
+    return (p75+p80)/2
+  })()
 
   const updateAccount = (id, changes) => {
     const now = new Date().toISOString()
@@ -2264,6 +2279,49 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     } finally {
       setRecLoading(false)
     }
+  }
+
+  const scoreOneAccount = async (acct) => {
+    const empN = parseNum(acct.employees||'')
+    const empTier = empN<=1000?'Under 1,000 (lowest weight)':empN<=3500?'1,001–3,500 (low-medium weight)':empN<=6000?'3,501–6,000 (medium weight)':empN<=15000?'6,001–15,000 (medium-high weight)':empN<=40000?'15,001–40,000 (high weight)':'40,001+ (highest weight)'
+    const allNotes = [...(acct.intelLog||[]).map(n=>n.summary||n.text||''),...(acct.notes||[]).map(n=>n.text||'')].filter(Boolean)
+    const lastIntelDate = [...(acct.intelLog||[]),...(acct.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0]?.date||''
+    const ctx = {name:acct.name,hq:acct.hq||'',employees:acct.employees||'',employeeTier:empTier,revenue:acct.revenue||'',status:acct.status||'',industry:acct.industry||'',vendors:(acct.technologies||[]).map(t=>({name:t.name,status:t.status})),contacts:(acct.contacts||[]).map(c=>c.name),notes:allNotes.slice(0,8),lastIntelDate,intelCount:allNotes.length}
+    const prompt = `You are a cybersecurity sales scoring engine for GuidePoint Security. Score this whitespace prospect's AI opportunity score from 1-100.\n\nAccount:\n${JSON.stringify(ctx,null,2)}\n\nWeighting:\n- Employee count tier: ${empTier}\n  Exact tiers: Under 1,000=lowest weight | 1,001-3,500=low-medium weight | 3,501-6,000=medium weight | 6,001-15,000=medium-high weight | 15,001-40,000=high weight | 40,001+=highest weight\n- Revenue: higher revenue scores higher\n- Notes/intel: active evaluations, renewals, vendor dissatisfaction, budget cycles, known gaps score higher\n- Displacement opportunity: incumbent vendors GuidePoint could displace score higher\n- Whitespace coverage: fewer known vendors = more opportunity = higher score\n- Intel recency: recent notes score higher than stale or empty\n\nReturn ONLY valid JSON, no preamble or markdown:\n{"score":<integer 1-100>,"reasoning":"<1-2 sentences on the top factors>"}`
+    const {data:result} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:prompt}]},effectiveKey)
+    if (result.error) throw new Error(result.error.message)
+    const text = (result.content||[]).find(b=>b.type==='text')?.text||''
+    const parsed = extractJSON(text)
+    if (!parsed?.score) throw new Error('Invalid score response')
+    return {score:parsed.score,reasoning:parsed.reasoning||''}
+  }
+
+  const scoreAllAccounts = async () => {
+    if (!effectiveKey) {alert('Add your Anthropic API key in Settings first.');return}
+    const unscored = ws.filter(a=>a.ai_opportunity_score==null)
+    if (!unscored.length) {alert('All accounts are already scored. Use Rescore on individual accounts to refresh.');return}
+    setScoringAll(true)
+    let done = 0
+    for (const acct of unscored) {
+      setScoreProgress(`Scoring ${acct.name}… (${done+1}/${unscored.length})`)
+      try {
+        const {score,reasoning} = await scoreOneAccount(acct)
+        setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acct.id?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
+        done++
+      } catch(err){console.error(`Score failed for ${acct.name}:`,err)}
+    }
+    setScoringAll(false); setScoreProgress('')
+  }
+
+  const rescoreAccount = async (acctId) => {
+    if (!effectiveKey) {alert('Add your Anthropic API key in Settings first.');return}
+    const acct = ws.find(a=>a.id===acctId); if(!acct)return
+    setScoringId(acctId)
+    try {
+      const {score,reasoning} = await scoreOneAccount(acct)
+      setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acctId?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
+    } catch(err){console.error(`Rescore failed for ${acct.name}:`,err)}
+    finally{setScoringId(null)}
   }
 
   const executeMerge = () => {
@@ -2756,6 +2814,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                     {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                     {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
                     {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
+                    {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
                   ].map((item,i,arr)=>(
                     <button key={item.label} onClick={item.action}
                       style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
@@ -2792,6 +2851,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         {mergeToast&&(
           <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:8}}>
             <span style={{color:'#4ade80'}}>✓</span>{mergeToast}
+          </div>
+        )}
+        {scoreProgress&&(
+          <div style={{position:'fixed',bottom:60,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2002,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}>
+            <span style={{fontSize:14}}>⚡</span>{scoreProgress}
           </div>
         )}
         {wsToast&&(
@@ -2833,7 +2897,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                   )}
                   {(()=>{
                     const dismissed=data.dismissedWhitespaceSuggestions||[]
-                    const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).slice(0,3)
+                    const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).sort((a,b)=>{const aS=ws.find(w=>w.name===a.name)?.ai_opportunity_score??-1;const bS=ws.find(w=>w.name===b.name)?.ai_opportunity_score??-1;if(aS>=0&&bS>=0)return bS-aS;return 0}).slice(0,3)
                     const dismissRec=(name)=>setData(prev=>({...prev,dismissedWhitespaceSuggestions:[...(prev.dismissedWhitespaceSuggestions||[]),name]}))
                     return visibleRecs.length>0?(
                       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
@@ -2910,7 +2974,12 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       onMouseEnter={()=>setHoveredId(acct.id)}
                       onMouseLeave={()=>setHoveredId(null)}>
                       <div style={{width:28,flexShrink:0,color:'#94a3b8',fontSize:11}}>{isExp?'▼':'▶'}</div>
-                      <div style={{flex:'0 0 200px',fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.name}</div>
+                      <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',gap:3,paddingRight:12,minWidth:0}}>
+                        <span style={{fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</span>
+                        {acct.ai_opportunity_score!=null&&acct.ai_opportunity_score>=flameThreshold&&(
+                          <span title={`${acct.ai_score_reasoning||'High opportunity account'}\nScored: ${acct.ai_score_updated_at?new Date(acct.ai_score_updated_at).toLocaleDateString():''}`} style={{flexShrink:0,cursor:'help',fontSize:13,lineHeight:1}}>🔥</span>
+                        )}
+                      </div>
                       <div style={{flex:'0 0 120px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.hq||''}</div>
                       <div style={{flex:'1 1 140px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.industry||''}</div>
                       <div style={{flex:'0 0 90px',textAlign:'right',fontSize:12,color:'#64748b'}}>{acct.employees||''}</div>
@@ -2927,7 +2996,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                           onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Trash2 size={12}/></button>
                       </div>
                     </div>
-                    {isExp&&<ExpandedWhitespaceRow key={acct.id+'-exp'} acct={acct} updateAccount={updateAccount} isLight={isLight}/>}
+                    {isExp&&<ExpandedWhitespaceRow key={acct.id+'-exp'} acct={acct} updateAccount={updateAccount} isLight={isLight} onRescore={rescoreAccount} scoringId={scoringId}/>}
                   </div>
                 )
               })}
