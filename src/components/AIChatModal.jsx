@@ -33,6 +33,8 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
   throw new Error('OVERLOADED')
 }
 
+const CHAT_INPUT_MAX = 4000
+
 export default function AIChatModal({acct, setAcct, effectiveKey, onClose, initialMessages=[], initialPinned=[], initialSessionId=null}) {
   const [messages, setMessages] = useState(initialMessages)
   const [input, setInput] = useState('')
@@ -219,6 +221,7 @@ Do not use headers. Do not use bold text. Do not start the prose section with 'I
 
   const sendMessage = async (msgText) => {
     if(!msgText.trim() || loading) return
+    if(msgText.length > CHAT_INPUT_MAX) { setError(`Message is too long (${msgText.length} chars). Maximum is ${CHAT_INPUT_MAX} characters.`); return }
     const userMsg = {id:uid(), role:'user', content:msgText.trim(), timestamp:new Date()}
     const newMsgs = [...messages, userMsg]
     setMessages(newMsgs)
@@ -450,19 +453,22 @@ Do not use headers. Do not use bold text. Do not start the prose section with 'I
               <button onClick={()=>setViewingSession(null)} style={{padding:'10px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
             </div>
           ):(
-            <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0,display:'flex',gap:10,alignItems:'flex-end'}}>
-              <textarea
-                value={input}
-                onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage(input)}}}
-                placeholder='Ask anything about this account... (Enter to send, Shift+Enter for new line)'
-                rows={1}
-                style={{flex:1,fontSize:13,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'10px 12px',color:S.txt,resize:'none',lineHeight:1.5,fontFamily:'inherit',maxHeight:120,overflowY:'auto'}}
-              />
-              <button onClick={()=>sendMessage(input)} disabled={!input.trim()||loading}
-                style={{padding:'10px 18px',background:!input.trim()||loading?S.dim:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!input.trim()||loading?'default':'pointer',flexShrink:0,opacity:!input.trim()||loading?0.5:1,minHeight:42}}>
-                Send
-              </button>
+            <div style={{borderTop:`1px solid ${S.bdr}`,padding:'12px 18px',flexShrink:0}}>
+              <div style={{display:'flex',gap:10,alignItems:'flex-end'}}>
+                <textarea
+                  value={input}
+                  onChange={e=>setInput(e.target.value.slice(0,CHAT_INPUT_MAX))}
+                  onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage(input)}}}
+                  placeholder='Ask anything about this account... (Enter to send, Shift+Enter for new line)'
+                  rows={1}
+                  style={{flex:1,fontSize:13,background:S.surf2,border:`1px solid ${input.length>CHAT_INPUT_MAX*0.9?'#d97706':S.bdr}`,borderRadius:8,padding:'10px 12px',color:S.txt,resize:'none',lineHeight:1.5,fontFamily:'inherit',maxHeight:120,overflowY:'auto'}}
+                />
+                <button onClick={()=>sendMessage(input)} disabled={!input.trim()||loading}
+                  style={{padding:'10px 18px',background:!input.trim()||loading?S.dim:S.blue,border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:!input.trim()||loading?'default':'pointer',flexShrink:0,opacity:!input.trim()||loading?0.5:1,minHeight:42}}>
+                  Send
+                </button>
+              </div>
+              {input.length>CHAT_INPUT_MAX*0.8&&<div style={{fontSize:11,color:input.length>=CHAT_INPUT_MAX?'#dc2626':'#d97706',marginTop:4,textAlign:'right'}}>{input.length}/{CHAT_INPUT_MAX} chars</div>}
             </div>
           )}
         </div>

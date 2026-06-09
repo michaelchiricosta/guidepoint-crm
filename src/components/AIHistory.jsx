@@ -6,7 +6,7 @@ import { saveData } from '../supabase.js'
 import AIChatModal from './AIChatModal.jsx'
 
 export default function AIHistory({acct, setAcct, data, setData, apiKey}) {
-  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
+  const effectiveKey = apiKey || ''
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState(null)
   const [showChat, setShowChat] = useState(false)

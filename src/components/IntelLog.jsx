@@ -48,7 +48,7 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
 }
 
 export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
-  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
+  const effectiveKey = apiKey || ''
   const [text,setText] = useState('')
   const [loading,setLoading] = useState(false)
   const [error,setError] = useState('')

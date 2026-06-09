@@ -573,8 +573,17 @@ export default function TechStack({acct,setAcct,apiKey}) {
           setFeedbackToast(true); setTimeout(()=>setFeedbackToast(false),3000)
         }
 
+        const CISO_COOLDOWN_MS = 30_000
         const generateCisoRecs = async () => {
-          if (!apiKey) { alert('Add your Anthropic API key in Settings first.'); return }
+          if (!apiKey) { setCisoError('Add your Anthropic API key in Settings first.'); return }
+          const lastGen = window._lastCisoGenAt || 0
+          const elapsed = Date.now() - lastGen
+          if (elapsed < CISO_COOLDOWN_MS && lastGen > 0) {
+            const wait = Math.ceil((CISO_COOLDOWN_MS - elapsed) / 1000)
+            setCisoError(`Please wait ${wait}s before regenerating recommendations.`)
+            return
+          }
+          window._lastCisoGenAt = Date.now()
           setCisoLoading(true); setCisoError(''); setCisoStatus('Analyzing account dossier…')
           try {
             // ── Intel Log: primary source of truth — full entries with signals ──

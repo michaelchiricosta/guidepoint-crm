@@ -59,6 +59,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
   const [photoTarget,setPhotoTarget] = useState(null)
   const photoInputRef = useRef(null)
   const [photoUploading,setPhotoUploading] = useState(false)
+  const [photoError,setPhotoError] = useState('')
   const [editingNotes,setEditingNotes] = useState(null)
   const [notesText,setNotesText] = useState('')
 
@@ -131,9 +132,9 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
     if (onContactPhotoSave) onContactPhotoSave()
     setPhotoPopover(null)
     setPhotoUploading(true)
+    setPhotoError('')
 
     try {
-      console.log('[ContactPhoto] uploading for contact:', contactId, 'in account:', acct.id)
       const { url } = await uploadContactPhoto(acct.id, contactId, file)
 
       const updatedContacts = (acct.contacts || []).map(c =>
@@ -150,12 +151,9 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
       window._lastDirectSave = Date.now()
 
       const { error } = await saveData(updatedData)
-      if (error) throw new Error(error.message || 'Supabase save failed')
-
-      console.log('[ContactPhoto] saved successfully for contact:', contactId, 'url:', url)
+      if (error) throw new Error('Save failed')
     } catch(err) {
-      console.error('[ContactPhoto] upload/save error:', err)
-      alert(`Photo upload failed: ${err.message || 'Unknown error'}. Check the browser console for details.`)
+      setPhotoError(err.message || 'Photo upload failed. Please try again.')
     } finally {
       setPhotoUploading(false)
       setTimeout(() => { contactPhotoSaving = false }, 5000)
@@ -1141,6 +1139,11 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
       {photoUploading&&(
         <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(37,99,235,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none'}}>
           Uploading photo…
+        </div>
+      )}
+      {photoError&&(
+        <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(220,38,38,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',cursor:'pointer'}} onClick={()=>setPhotoError('')}>
+          {photoError} (tap to dismiss)
         </div>
       )}
     </div>

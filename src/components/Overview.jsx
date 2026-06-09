@@ -258,7 +258,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     document.addEventListener('click',h)
     return()=>document.removeEventListener('click',h)
   },[fuSnoozeId])
-  const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
+  const effectiveKey = apiKey || ''
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
   const alerts = []

@@ -12,6 +12,7 @@ export default function Files({acct,setAcct}) {
   const [category,setCategory] = useState('Other')
   const [notes,setNotes] = useState('')
   const [viewingId,setViewingId] = useState(null)
+  const [actionErr,setActionErr] = useState('')
   const [showAddLink,setShowAddLink] = useState(false)
   const [linkForm,setLinkForm] = useState({url:'',title:'',category:'Reference',notes:''})
   const [linkError,setLinkError] = useState('')
@@ -32,7 +33,6 @@ export default function Files({acct,setAcct}) {
 
   const doUpload = async () => {
     if(!fileInput) return
-    if(fileInput.size>10*1024*1024 && !window.confirm(`This file is ${fmtSize(fileInput.size)} — over 10 MB. Upload anyway?`)) return
     setUploading(true); setUploadErr('')
     try {
       const meta = await uploadFile(acct.id, fileInput, category, notes)
@@ -43,27 +43,28 @@ export default function Files({acct,setAcct}) {
   }
 
   const doView = async f => {
-    setViewingId(f.id)
+    setViewingId(f.id); setActionErr('')
     try { const url=await getFileUrl(f.path); if(url)window.open(url,'_blank') }
-    catch(e){alert('Could not load file: '+e.message)}
+    catch(e){setActionErr('Could not load file. Please try again.')}
     finally{setViewingId(null)}
   }
 
   const doDownload = async f => {
-    setViewingId(f.id)
+    setViewingId(f.id); setActionErr('')
     try {
       const url=await getFileUrl(f.path)
       if(url){const a=document.createElement('a');a.href=url;a.download=f.name;a.click()}
-    } catch(e){alert('Could not download file: '+e.message)}
+    } catch(e){setActionErr('Could not download file. Please try again.')}
     finally{setViewingId(null)}
   }
 
   const doDelete = async f => {
     if(!window.confirm(`Delete "${f.name}"?`)) return
+    setActionErr('')
     try {
       await deleteFile(f.path)
       setAcct(p=>({...p, files:(p.files||[]).filter(x=>x.id!==f.id)}))
-    } catch(e){alert('Delete failed: '+e.message)}
+    } catch(e){setActionErr('Delete failed. Please try again.')}
   }
 
   const LINK_CATS = ['Contract','Proposal','Resource','Portal','Reference','Other']
@@ -127,6 +128,8 @@ export default function Files({acct,setAcct}) {
         </div>
         <Btn variant='primary' onClick={()=>setShowUpload(true)}>+ Upload File</Btn>
       </div>
+
+      {actionErr&&<div style={{background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',fontSize:13,color:S.red,marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>{actionErr}</span><button onClick={()=>setActionErr('')} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:16,lineHeight:1}}>×</button></div>}
 
       {showUpload&&(
         <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>

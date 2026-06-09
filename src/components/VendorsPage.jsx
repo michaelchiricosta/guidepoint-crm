@@ -117,10 +117,12 @@ export default function VendorsPage({data, setData, onBack, apiKey}) {
     persist(directory.map(c=>c.id===selId?{...c,contacts:(c.contacts||[]).filter(ct=>ct.id!==cid)}:c))
   }
 
+  const VENDOR_DOC_MAX = 20 * 1024 * 1024  // 20 MB
   const handleFile = async file => {
-    if (!apiKey) { alert('Add your Anthropic API key in Settings first.'); return }
+    if (!apiKey) { setUploadError('Add your Anthropic API key in Settings first.'); return }
     const ext = file.name.split('.').pop().toLowerCase()
     if (!['pdf','doc','docx','txt'].includes(ext)) { setUploadError('Unsupported type. Use PDF, DOC, DOCX, or TXT.'); return }
+    if (file.size > VENDOR_DOC_MAX) { setUploadError(`File is too large (${(file.size/1024/1024).toFixed(1)} MB). Maximum is 20 MB.`); return }
     setUploadError(''); setUploadStatus('Reading document…')
     try {
       const ab = await file.arrayBuffer()
