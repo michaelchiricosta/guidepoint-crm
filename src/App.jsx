@@ -176,7 +176,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
         <div style={{padding:'16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:24,height:24,objectFit:'contain',borderRadius:6}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6}}/>
             <div style={{fontSize:14,fontWeight:700,color:'#ffffff'}}>Ledgr.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
@@ -218,7 +218,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
               style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:10}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:28,height:28,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <div>
                 <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledgr.</div>
                 <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:1}}>Your book of business, organized.</div>
@@ -232,7 +232,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:24,height:24,objectFit:'contain',borderRadius:6,display:'block'}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:72,height:72,objectFit:'contain',borderRadius:6,display:'block'}}/>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Expand"
               style={{background:'transparent',border:'none',color:SM,cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
@@ -383,7 +383,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
         <div style={{padding:'16px 0 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-          <img src="/letterl.png" alt="Ledgr." style={{width:18,height:18,objectFit:'contain',borderRadius:4}}/>
+          <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
             style={{background:'transparent',border:'none',color:SM,cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color=SM}>
@@ -394,7 +394,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
         <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:28,height:28,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <span style={{fontSize:14,fontWeight:700,color:'#ffffff',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
@@ -2640,7 +2640,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       <div style={{width:240,flexShrink:0,background:S.sidebarBg,display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
         <div style={{padding:'20px 16px 16px',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:28,height:28,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:84,height:84,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
               <div style={{fontSize:15,fontWeight:700,color:'#ffffff',lineHeight:1.2}}>Ledgr.</div>
               <div style={{fontSize:11,color:SM,marginTop:1}}>Whitespace Tracker</div>
@@ -4108,7 +4108,7 @@ function AllProjectsPage({data, setData, onBack}) {
       <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
         <div style={{padding:'18px 14px 10px',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:18,height:18,objectFit:'contain',borderRadius:4}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:54,height:54,objectFit:'contain',borderRadius:4}}/>
             <span style={{fontSize:14,fontWeight:700,color:'#fff',letterSpacing:'-0.01em'}}>Ledgr.</span>
           </div>
           <div style={{fontSize:10,color:'#64748b',paddingLeft:26}}>All Projects</div>
