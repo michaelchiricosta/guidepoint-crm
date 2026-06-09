@@ -2059,10 +2059,19 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
   const flameThreshold = (()=>{
     const scores = ws.filter(a=>a.ai_opportunity_score!=null).map(a=>a.ai_opportunity_score).sort((a,b)=>a-b)
-    if (scores.length < 4) return Infinity
+    console.log('[FlameScore] scored:', scores.length, '/', ws.length, '— scores:', scores)
+    if (scores.length === 0) return Infinity
+    if (scores.length < 4) {
+      // not enough accounts for percentile — use absolute cutoff of 75
+      const threshold = 75
+      console.log('[FlameScore] <4 scored, using absolute threshold:', threshold)
+      return threshold
+    }
     const p75 = scores[Math.floor(scores.length*0.75)]
     const p80 = scores[Math.min(Math.floor(scores.length*0.80),scores.length-1)]
-    return (p75+p80)/2
+    const threshold = (p75+p80)/2
+    console.log('[FlameScore] p75=', p75, 'p80=', p80, 'threshold=', threshold)
+    return threshold
   })()
 
   const updateAccount = (id, changes) => {
@@ -2306,6 +2315,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       setScoreProgress(`Scoring ${acct.name}… (${done+1}/${unscored.length})`)
       try {
         const {score,reasoning} = await scoreOneAccount(acct)
+        console.log(`[Score] ✓ ${acct.name}: score=${score}, reasoning="${reasoning}"`)
         setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acct.id?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
         done++
       } catch(err){console.error(`Score failed for ${acct.name}:`,err)}
@@ -2319,6 +2329,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setScoringId(acctId)
     try {
       const {score,reasoning} = await scoreOneAccount(acct)
+      console.log(`[Rescore] ✓ ${acct.name}: score=${score}, reasoning="${reasoning}"`)
       setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acctId?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
     } catch(err){console.error(`Rescore failed for ${acct.name}:`,err)}
     finally{setScoringId(null)}
@@ -2803,6 +2814,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)',flexShrink:0}}>
               <Zap size={14}/>Add Intelligence
             </button>
+            <button onClick={scoreAllAccounts} disabled={scoringAll||!effectiveKey}
+              title={!effectiveKey?'Add your Anthropic API key in Settings first':'Score all unscored accounts with AI opportunity scores'}
+              style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:scoringAll?'#f59e0b':'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:scoringAll||!effectiveKey?'default':'pointer',boxShadow:'0 2px 8px rgba(245,158,11,0.3)',flexShrink:0,opacity:!effectiveKey?0.5:1}}>
+              <span style={{fontSize:14}}>🔥</span>{scoringAll?'Scoring…':'Score All'}
+            </button>
             <div ref={moreMenuRef} style={{position:'relative',flexShrink:0}}>
               <button onClick={()=>setShowMoreMenu(v=>!v)}
                 style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:8,color:S.muted,fontSize:18,fontWeight:700,cursor:'pointer',lineHeight:1}}
@@ -2976,9 +2992,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       <div style={{width:28,flexShrink:0,color:'#94a3b8',fontSize:11}}>{isExp?'▼':'▶'}</div>
                       <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',gap:3,paddingRight:12,minWidth:0}}>
                         <span style={{fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</span>
-                        {acct.ai_opportunity_score!=null&&acct.ai_opportunity_score>=flameThreshold&&(
-                          <span title={`${acct.ai_score_reasoning||'High opportunity account'}\nScored: ${acct.ai_score_updated_at?new Date(acct.ai_score_updated_at).toLocaleDateString():''}`} style={{flexShrink:0,cursor:'help',fontSize:13,lineHeight:1}}>🔥</span>
-                        )}
+                        {acct.ai_opportunity_score!=null&&acct.ai_opportunity_score>=flameThreshold
+                          ? <span title={`${acct.ai_score_reasoning||'High opportunity account'}\nScored: ${acct.ai_score_updated_at?new Date(acct.ai_score_updated_at).toLocaleDateString():''}`} style={{flexShrink:0,cursor:'help',fontSize:13,lineHeight:1}}>🔥</span>
+                          : <span title={acct.ai_opportunity_score!=null?`Score: ${acct.ai_opportunity_score} — not in top tier\n${acct.ai_score_reasoning||''}`:'Not yet scored — use ⋯ → Score All or Rescore in account details'} style={{flexShrink:0,fontSize:11,lineHeight:1,opacity:0.25,cursor:'help',userSelect:'none'}}>🔥</span>
+                        }
                       </div>
                       <div style={{flex:'0 0 120px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.hq||''}</div>
                       <div style={{flex:'1 1 140px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.industry||''}</div>
