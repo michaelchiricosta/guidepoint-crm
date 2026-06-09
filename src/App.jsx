@@ -27,6 +27,9 @@ const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color:
 const SK = 'gp-crm-v4'
 const TECH_CATS = WHEEL_DOMAINS.flatMap(d => d.subs).sort()
 
+// Module-level guard — set by the contact photo upload handler so focus/save don't overwrite
+let contactPhotoSaveTime = 0
+
 // Shared retry wrapper for all Anthropic API calls — handles rate limits and overload
 const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
   // Throttle: maintain at least 2s between calls to avoid bursting
@@ -2062,6 +2065,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [aiOpRunning, setAiOpRunning] = useState(false)
   const [aiOpProgress, setAiOpProgress] = useState('')
   const [aiOpSummary, setAiOpSummary] = useState('')
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const moreMenuRef = useRef(null)
+  const [recOpen, setRecOpen] = useState(false)
+  const [recLoading, setRecLoading] = useState(false)
+  const [recError, setRecError] = useState('')
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2204,6 +2212,53 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     }
     setAiOpRunning(false); setAiOpProgress('')
     setAiOpSummary(`Cleaned and consolidated notes for ${updatedCount} of ${accts.length} accounts`)
+  }
+
+  useEffect(()=>{
+    if(!showMoreMenu)return
+    const h=e=>{if(moreMenuRef.current&&!moreMenuRef.current.contains(e.target))setShowMoreMenu(false)}
+    document.addEventListener('mousedown',h)
+    return()=>document.removeEventListener('mousedown',h)
+  },[showMoreMenu])
+
+  const fetchRecommendations = async () => {
+    if (!effectiveKey) { setRecError('Add your Anthropic API key in Settings first.'); return }
+    setRecLoading(true); setRecError('')
+    const context = {
+      whitespaceAccounts: ws.map(a => ({
+        name: a.name, status: a.status, employees: a.employees, revenue: a.revenue,
+        industry: a.industry, hq: a.hq,
+        intelCount: ((a.intelLog||[]).length + (a.notes||[]).length),
+        lastIntel: ([...(a.intelLog||[]),...(a.notes||[])].sort((x,y)=>(y.date||'').localeCompare(x.date||''))[0]?.date)||'',
+        contacts: (a.contacts||[]).map(c=>c.name),
+        technologies: (a.technologies||[]).map(t=>t.vendor),
+        notes: [...(a.intelLog||[]),...(a.notes||[])].slice(0,2).map(n=>n.summary||n.text||'').join(' ').slice(0,300)
+      })),
+      myAccounts: (data.accounts||[]).map(a=>({name:a.name, contacts:(a.contacts||[]).map(c=>c.name)}))
+    }
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-6',
+          max_tokens:1000,
+          system:'You are a cybersecurity sales advisor helping an Enterprise Client Manager at GuidePoint Security prioritize whitespace accounts to pursue. Analyze the accounts and identify the 3 highest priority targets.',
+          messages:[{role:'user',content:`Here is my whitespace account data and my existing named accounts:\n${JSON.stringify(context,null,2)}\n\nIdentify the TOP 3 whitespace accounts to prioritize RIGHT NOW. For each account return:\n- name: exact account name from the data\n- priority: "Hot" | "Warm" | "Watch"\n- reasons: array of exactly 3 short bullet points explaining why (mention specific signals like known contacts, intel activity, direct contracts, vendor relationships, industry urgency, employee size, revenue)\n\nReturn ONLY valid JSON:\n{"recommendations":[{"name":"...","priority":"Hot","reasons":["...","...","..."]}]}`}]
+        })
+      })
+      const result = await resp.json()
+      if (result.error) throw new Error(result.error.message)
+      const text = (result.content||[]).find(b=>b.type==='text')?.text||''
+      const parsed = extractJSON(text)
+      const recs = parsed?.recommendations || []
+      setData(prev=>({...prev, whitespaceRecommendations: recs}))
+    } catch(err) {
+      console.error('Recommendations error:', err)
+      setRecError('Failed to get recommendations. Check your API key.')
+    } finally {
+      setRecLoading(false)
+    }
   }
 
   const executeMerge = () => {
@@ -2672,34 +2727,45 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
       {/* MAIN */}
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{padding:'20px 28px 16px',background:isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
-          <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:6,background:'transparent',border:'none',color:'#2563eb',cursor:'pointer',fontSize:13,fontWeight:600,padding:'0 0 12px',lineHeight:1}}>
-            <ArrowLeft size={14}/>Back to Accounts
+        <div style={{padding:'16px 24px 14px',background:isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+          <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:6,background:'transparent',border:'none',color:'#2563eb',cursor:'pointer',fontSize:12,fontWeight:600,padding:'0 0 10px',lineHeight:1}}>
+            <ArrowLeft size={13}/>Back to Accounts
           </button>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div>
-              <div style={{fontSize:24,fontWeight:900,color:isLight?'#0f172a':S.txt,letterSpacing:'-0.02em',marginBottom:2}}>Whitespace Tracker</div>
-              <div style={{fontSize:13,color:'#64748b'}}>Prospect accounts you're tracking for future opportunities</div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+                <div style={{fontSize:22,fontWeight:900,color:isLight?'#0f172a':S.txt,letterSpacing:'-0.02em'}}>Whitespace</div>
+                <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 9px'}}>{ws.length}</span>
+              </div>
+              <div style={{fontSize:12,color:'#64748b'}}>Prospect accounts you're tracking for future opportunities</div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontSize:12,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'3px 12px'}}>{ws.length}</span>
-              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
-                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)'}}>
-                <Zap size={14}/>Add Intelligence
-              </button>
-              <button onClick={()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');return}setAiOpSummary('');setShowAutoFillModal(true)}}
-                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#f0fdf4':'rgba(14,188,95,0.1)',border:`1px solid ${isLight?'#bbf7d0':'rgba(14,188,95,0.25)'}`,borderRadius:8,color:isLight?'#15803d':'#4ade80',fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                Auto-fill Missing Data
-              </button>
-              <button onClick={()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');return}setAiOpSummary('');setShowCleanNotesModal(true)}}
-                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#eff6ff':'rgba(37,99,235,0.1)',border:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.25)'}`,borderRadius:8,color:isLight?'#1d4ed8':'#93c5fd',fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                Clean Duplicate Notes
-              </button>
-              <button onClick={()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('')}}
-                style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                <GitMerge size={14}/>Merge
-              </button>
-              <button onClick={()=>setShowAdd(true)} style={{padding:'9px 18px',background:isLight?'#f8fafc':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':'rgba(255,255,255,0.12)'}`,borderRadius:8,color:isLight?'#475569':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Add Account</button>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search accounts…'
+              style={{width:200,fontSize:12,padding:'7px 10px',background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.txt,outline:'none',flexShrink:0}}/>
+            <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
+              style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)',flexShrink:0}}>
+              <Zap size={14}/>Add Intelligence
+            </button>
+            <div ref={moreMenuRef} style={{position:'relative',flexShrink:0}}>
+              <button onClick={()=>setShowMoreMenu(v=>!v)}
+                style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:8,color:S.muted,fontSize:18,fontWeight:700,cursor:'pointer',lineHeight:1}}
+                title="More actions">⋯</button>
+              {showMoreMenu&&(
+                <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:100}}>
+                  {[
+                    {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                    {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
+                    {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
+                    {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
+                  ].map((item,i,arr)=>(
+                    <button key={item.label} onClick={item.action}
+                      style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
+                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2736,6 +2802,60 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           </div>
         )}
         <div style={{flex:1,overflowY:'auto'}}>
+          {/* AI RECOMMENDATIONS */}
+          {ws.length>0&&(
+            <div style={{borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0}}>
+              <button onClick={()=>{setRecOpen(v=>!v);if(!recOpen&&!(data.whitespaceRecommendations||[]).length)fetchRecommendations()}}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 20px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+                <span style={{fontSize:15}}>✦</span>
+                <span style={{fontSize:13,fontWeight:700,color:'#2563eb'}}>AI Recommendations</span>
+                <span style={{fontSize:12,color:S.muted}}>{(data.whitespaceRecommendations||[]).length>0?`${(data.whitespaceRecommendations||[]).length} accounts to prioritize`:'Click to generate'}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" style={{marginLeft:'auto',flexShrink:0,transform:recOpen?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s'}}><polyline points="3,2 9,6 3,10" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                {recOpen&&<button onClick={e=>{e.stopPropagation();fetchRecommendations()}}
+                  style={{padding:'4px 10px',background:isLight?'#eff6ff':'rgba(37,99,235,0.12)',border:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.25)'}`,borderRadius:6,color:'#2563eb',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                  {recLoading?'Loading…':'Refresh'}
+                </button>}
+              </button>
+              {recOpen&&(
+                <div style={{padding:'0 20px 16px'}}>
+                  {recError&&<div style={{fontSize:12,color:'#dc2626',marginBottom:8}}>{recError}</div>}
+                  {recLoading&&!(data.whitespaceRecommendations||[]).length&&(
+                    <div style={{fontSize:13,color:S.muted,padding:'12px 0'}}>Analyzing your whitespace accounts…</div>
+                  )}
+                  {(data.whitespaceRecommendations||[]).length>0&&(
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+                      {(data.whitespaceRecommendations||[]).map((rec,i)=>{
+                        const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
+                        const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
+                        return (
+                          <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:8}}>
+                              <div style={{fontSize:15,fontWeight:700,color:isLight?'#0f172a':S.txt,lineHeight:1.3}}>{rec.name}</div>
+                              <span style={{fontSize:10,fontWeight:700,color:pc,background:pb,borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0}}>{rec.priority}</span>
+                            </div>
+                            <ul style={{margin:0,padding:'0 0 0 14px',listStyle:'disc'}}>
+                              {(rec.reasons||[]).map((r,j)=>(
+                                <li key={j} style={{fontSize:12,color:S.muted,lineHeight:1.5,marginBottom:2}}>{r}</li>
+                              ))}
+                            </ul>
+                            {ws.find(a=>a.name===rec.name)&&(
+                              <button onClick={()=>setExpandedId(ws.find(a=>a.name===rec.name)?.id||null)}
+                                style={{marginTop:10,fontSize:11,fontWeight:600,color:'#2563eb',background:'transparent',border:'none',cursor:'pointer',padding:0}}>
+                                View Account →
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {!recLoading&&!(data.whitespaceRecommendations||[]).length&&!recError&&(
+                    <div style={{fontSize:12,color:S.muted}}>Click Refresh to generate AI recommendations.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {ws.length===0?(
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,padding:40}}>
               <svg width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="#94a3b8" strokeWidth="2"/><circle cx="24" cy="24" r="10" fill="none" stroke="#94a3b8" strokeWidth="1.5"/><circle cx="24" cy="24" r="2" fill="#94a3b8"/><line x1="24" y1="4" x2="24" y2="8" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/><line x1="24" y1="40" x2="24" y2="44" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/><line x1="4" y1="24" x2="8" y2="24" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/><line x1="40" y1="24" x2="44" y2="24" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
@@ -4395,6 +4515,7 @@ export default function App() {
   useEffect(()=>{ loadData().then(applyLoad) },[])
 
   const safeLoadData = async () => {
+    if (Date.now() - contactPhotoSaveTime < 5000) { console.log('Skipping reload — contact photo save in progress'); return }
     console.log('safeLoadData called, inProgress:', saveInProgress.current, 'lastSave:', lastSaveTime.current)
     if (saveInProgress.current) { console.log('Skipping reload — save in progress'); return }
     if (Date.now() - lastSaveTime.current < 5000) { console.log('Skipping reload — recent save'); return }
@@ -4412,6 +4533,7 @@ export default function App() {
 
   useEffect(()=>{
     if(!data || !initialLoadDone || !storageReady) return
+    if (Date.now() - contactPhotoSaveTime < 5000) return
     console.log('Auto-save triggered')
     let iv
     const timer = setTimeout(()=>{
@@ -4563,7 +4685,7 @@ export default function App() {
         <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
           {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
           {tab==='dashboard'&&<AccountDashboard acct={acct} setTab={setTab}/>}
-          {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData}/>}
+          {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}

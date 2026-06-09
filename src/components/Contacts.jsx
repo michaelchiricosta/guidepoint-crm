@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../supabase.js'
+
+let contactPhotoSaving = false
 import * as XLSX from 'xlsx'
 import { ArrowLeft, List } from 'lucide-react'
 import { S, IC } from '../theme.js'
@@ -7,7 +9,7 @@ import { uid, fmtDate, daysSince, initials } from '../utils.js'
 import { INFLUENCES, INTERACTION_COLORS } from '../constants.js'
 import { Badge, Btn, Field, Modal, SH, Card } from './UI.jsx'
 
-export default function Contacts({acct,setAcct,data,setData}) {
+export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave}) {
   const [exp,setExp] = useState(null)
   const [showAdd,setShowAdd] = useState(false)
   const [form,setForm] = useState({})
@@ -137,8 +139,12 @@ export default function Contacts({acct,setAcct,data,setData}) {
     }
     img.src = URL.createObjectURL(file)
   })
-  const handleContactPhotoSave = async (file, contactId) => {
+  const handleContactPhotoUpload = async (file, contactId) => {
+    contactPhotoSaving = true
+    if (onContactPhotoSave) onContactPhotoSave()
+
     const compressed = await compressImage(file)
+
     const updatedContacts = (acct.contacts || []).map(c =>
       c.id === contactId ? {...c, contactPhoto: compressed} : c
     )
@@ -147,21 +153,26 @@ export default function Contacts({acct,setAcct,data,setData}) {
       a.id === acct.id ? updatedAcct : a
     )
     const updatedData = {...data, accounts: updatedAccounts}
-    setAcct(p=>({...p, contacts: updatedContacts}))
+
+    setAcct(updatedAcct)
     setData(updatedData)
     setPhotoPopover(null)
+
     try {
-      const { error } = await supabase
+      const { createClient } = await import('@supabase/supabase-js')
+      const sb = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      )
+      const { error } = await sb
         .from('accounts')
-        .upsert({
-          id: 'user-data',
-          data: updatedData,
-          updated_at: new Date().toISOString()
-        })
+        .upsert({ id: 'user-data', data: updatedData, updated_at: new Date().toISOString() })
       if (error) throw error
-      console.log('Contact photo saved for:', contactId)
-    } catch (err) {
-      console.error('Contact photo save failed:', err)
+      console.log('Contact photo saved successfully:', contactId)
+    } catch(err) {
+      console.error('Contact photo save error:', err)
+    } finally {
+      setTimeout(() => { contactPhotoSaving = false }, 5000)
     }
   }
   const removePhoto = (contactId) => {
@@ -1140,7 +1151,7 @@ export default function Contacts({acct,setAcct,data,setData}) {
         </div>
       )}
       <input ref={photoInputRef} type='file' accept='image/*' style={{display:'none'}}
-        onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)handleContactPhotoSave(file,photoTarget);e.target.value=''}}/>
+        onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)handleContactPhotoUpload(file,photoTarget);e.target.value=''}}/>
     </div>
   )
 }
