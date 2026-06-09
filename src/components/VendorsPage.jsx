@@ -119,12 +119,12 @@ export default function VendorsPage({data, setData, onBack, apiKey}) {
     persist(directory.map(c=>c.id===selId?{...c,contacts:(c.contacts||[]).filter(ct=>ct.id!==cid)}:c))
   }
 
-  const VENDOR_DOC_MAX = 20 * 1024 * 1024  // 20 MB
+  const VENDOR_DOC_MAX = 30 * 1024 * 1024  // 30 MB
   const handleFile = async file => {
     if (!apiKey) { setUploadError('Add your Anthropic API key in Settings first.'); return }
     const ext = file.name.split('.').pop().toLowerCase()
     if (!['pdf','doc','docx','txt'].includes(ext)) { setUploadError('Unsupported type. Use PDF, DOC, DOCX, or TXT.'); return }
-    if (file.size > VENDOR_DOC_MAX) { setUploadError(`File is too large (${(file.size/1024/1024).toFixed(1)} MB). Maximum is 20 MB.`); return }
+    if (file.size > VENDOR_DOC_MAX) { setUploadError(`File is too large (${(file.size/1024/1024).toFixed(1)} MB). Maximum file size: 30 MB.`); return }
     setUploadError(''); setUploadStatus('Reading document…')
     try {
       const ab = await file.arrayBuffer()
@@ -297,7 +297,7 @@ ${text}`
                 <Upload size={22} style={{color:'#2563eb',flexShrink:0}}/>
                 <div style={{flex:1,minWidth:180}}>
                   <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Upload Vendor Contact PDF</div>
-                  <div style={{fontSize:12,color:S.muted,marginTop:2}}>PDF, DOCX, or TXT — AI extracts all vendor companies and contacts &nbsp;·&nbsp; Drag &amp; drop or click to browse</div>
+                  <div style={{fontSize:12,color:S.muted,marginTop:2}}>PDF, DOCX, or TXT — AI extracts all vendor companies and contacts &nbsp;·&nbsp; Drag &amp; drop or click to browse &nbsp;·&nbsp; Maximum file size: 30 MB</div>
                 </div>
                 <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}
                   style={{padding:'8px 18px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,pointerEvents:'auto'}}>
