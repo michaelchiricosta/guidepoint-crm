@@ -78,6 +78,8 @@ export default function VendorsPage({data, setData, onBack, apiKey}) {
   const [uploadError, setUploadError] = useState('')
   const [review, setReview] = useState(null)
   const [reviewSel, setReviewSel] = useState(new Set())
+  const [importToast, setImportToast] = useState(null)
+  const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef(null)
 
   const sel = directory.find(c=>c.id===selId)
@@ -183,23 +185,36 @@ ${text}`
     if (!review) return
     const toImport = review.companies.filter((_,i)=>reviewSel.has(i))
     let newDir = [...directory]
+    let addedVendors = 0, addedContacts = 0
     toImport.forEach(ec=>{
       const existing = newDir.find(c=>fuzzyMatchVendor(c.companyName,ec.companyName))
       if (existing) {
-        const knownEmails = new Set((existing.contacts||[]).map(c=>(c.email||'').toLowerCase()))
-        const merged = {
-          ...existing,
-          contacts:[...(existing.contacts||[]),
-            ...(ec.contacts||[]).filter(c=>!(c.email&&knownEmails.has(c.email.toLowerCase()))).map(c=>({...BLANK_CT,...c,id:uid()}))
-          ]
-        }
-        newDir = newDir.map(c=>c.id===existing.id?merged:c)
+        const knownEmails = new Set((existing.contacts||[]).map(c=>(c.email||'').toLowerCase()).filter(Boolean))
+        const knownNames  = new Set((existing.contacts||[]).map(c=>(c.name||'').toLowerCase()).filter(Boolean))
+        const fresh = (ec.contacts||[]).filter(c=>{
+          if (c.email && knownEmails.has(c.email.toLowerCase())) return false
+          if (!c.email && c.name && knownNames.has(c.name.toLowerCase())) return false
+          return true
+        }).map(c=>({...BLANK_CT,...c,id:uid()}))
+        addedContacts += fresh.length
+        newDir = newDir.map(c=>c.id===existing.id?{...existing,contacts:[...(existing.contacts||[]),...fresh]}:c)
       } else {
-        newDir.push({id:uid(),companyName:ec.companyName,website:ec.website||'',category:ec.category||'',notes:ec.notes||'',contacts:(ec.contacts||[]).map(c=>({...BLANK_CT,...c,id:uid()}))})
+        const cts = (ec.contacts||[]).map(c=>({...BLANK_CT,...c,id:uid()}))
+        addedContacts += cts.length
+        addedVendors++
+        const nv = {id:uid(),companyName:ec.companyName,website:ec.website||'',category:ec.category||'',notes:ec.notes||'',contacts:cts}
+        newDir.push(nv)
+        if (!selId) setSelId(nv.id)
       }
     })
     persist(newDir)
     setReview(null); setReviewSel(new Set())
+    const msg = [
+      addedVendors  ? `${addedVendors} vendor${addedVendors!==1?'s':''}`   : '',
+      addedContacts ? `${addedContacts} contact${addedContacts!==1?'s':''}` : '',
+    ].filter(Boolean).join(' and ')
+    setImportToast(msg ? `Added ${msg}.` : 'Nothing new to import — all contacts already existed.')
+    setTimeout(()=>setImportToast(null), 5000)
   }
 
   const cfk = k => v => setCtForm(p=>({...p,[k]:v}))
@@ -208,6 +223,7 @@ ${text}`
 
   return (
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:S.bg}}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Sidebar */}
       <div style={{width:260,flexShrink:0,background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',display:'flex',flexDirection:'column',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
@@ -256,45 +272,97 @@ ${text}`
       {/* Main */}
       <div style={{flex:1,overflow:'auto',padding:'20px 24px'}}>
 
-        {/* Review overlay */}
+        {/* Hidden file input — always rendered at top level */}
+        <input ref={fileRef} type='file' accept='.pdf,.doc,.docx,.txt' style={{display:'none'}}
+          onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
+
+        {/* Top-level upload card — always visible when not in review */}
+        {!review&&(
+          <div
+            onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+            onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragOver(false)}}
+            onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files?.[0];if(f)handleFile(f)}}
+            onClick={()=>!uploadStatus&&fileRef.current?.click()}
+            style={{background:dragOver?(S.isLight?'#eff6ff':'rgba(37,99,235,0.08)'):S.surf,border:`2px dashed ${dragOver?'#2563eb':uploadStatus?'#d97706':S.bdr}`,borderRadius:10,padding:'20px 24px',marginBottom:20,cursor:uploadStatus?'default':'pointer',transition:'border-color 0.15s,background 0.15s',userSelect:'none'}}>
+            {uploadStatus?(
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:18,height:18,border:'2px solid #2563eb',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:S.txt}}>Extracting vendors…</div>
+                  <div style={{fontSize:12,color:S.blue,marginTop:2}}>{uploadStatus}</div>
+                </div>
+              </div>
+            ):(
+              <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+                <Upload size={22} style={{color:'#2563eb',flexShrink:0}}/>
+                <div style={{flex:1,minWidth:180}}>
+                  <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Upload Vendor Contact PDF</div>
+                  <div style={{fontSize:12,color:S.muted,marginTop:2}}>PDF, DOCX, or TXT — AI extracts all vendor companies and contacts &nbsp;·&nbsp; Drag &amp; drop or click to browse</div>
+                </div>
+                <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}
+                  style={{padding:'8px 18px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,pointerEvents:'auto'}}>
+                  Browse File
+                </button>
+              </div>
+            )}
+            {uploadError&&(
+              <div style={{marginTop:10,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',border:'1px solid #fca5a5',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#dc2626',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>{uploadError}</span>
+                <button onClick={e=>{e.stopPropagation();setUploadError('')}} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:15,lineHeight:1,padding:'0 2px'}}>×</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Review screen */}
         {review&&(
           <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'20px 24px',marginBottom:20}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:8}}>
               <div>
                 <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Review Extracted Vendors</div>
-                <div style={{fontSize:12,color:S.muted,marginTop:2}}>From: {review.fileName} · {review.companies.length} compan{review.companies.length===1?'y':'ies'} found · Click to select/deselect</div>
+                <div style={{fontSize:12,color:S.muted,marginTop:2}}>
+                  {review.fileName} &nbsp;·&nbsp; {review.companies.length} compan{review.companies.length===1?'y':'ies'} found
+                  &nbsp;·&nbsp;
+                  <button onClick={()=>setReviewSel(reviewSel.size===review.companies.length?new Set():new Set(review.companies.map((_,i)=>i)))}
+                    style={{background:'none',border:'none',padding:0,cursor:'pointer',color:S.blue,fontSize:12,fontWeight:600}}>
+                    {reviewSel.size===review.companies.length?'Deselect All':'Select All'}
+                  </button>
+                </div>
               </div>
               <div style={{display:'flex',gap:8}}>
                 <button onClick={()=>{setReview(null);setReviewSel(new Set())}}
-                  style={{padding:'7px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Discard</button>
+                  style={{padding:'7px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
                 <button onClick={confirmReview} disabled={reviewSel.size===0}
                   style={{padding:'7px 16px',background:reviewSel.size>0?'#2563eb':'#94a3b8',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:reviewSel.size>0?'pointer':'not-allowed'}}>
-                  Import {reviewSel.size} Selected
+                  {reviewSel.size===review.companies.length?'Save All':`Save ${reviewSel.size} of ${review.companies.length}`}
                 </button>
               </div>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
               {review.companies.map((ec,i)=>{
                 const willMerge = !!directory.find(d=>fuzzyMatchVendor(d.companyName,ec.companyName))
                 const isChecked = reviewSel.has(i)
+                const totalCts = (ec.contacts||[]).length
                 return (
                   <div key={i} onClick={()=>setReviewSel(prev=>{const ns=new Set(prev);ns.has(i)?ns.delete(i):ns.add(i);return ns})}
                     style={{padding:'12px 14px',background:isChecked?(S.isLight?'#eff6ff':'rgba(37,99,235,0.1)'):(S.isLight?'#f8fafc':S.surf2),border:`1px solid ${isChecked?'rgba(37,99,235,0.5)':S.bdr}`,borderRadius:8,cursor:'pointer',userSelect:'none'}}>
                     <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                      <input type='checkbox' checked={isChecked} onChange={()=>{}} style={{marginTop:2,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}/>
+                      <input type='checkbox' checked={isChecked} readOnly style={{marginTop:3,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
                           <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{ec.companyName}</span>
                           {ec.category&&<span style={{fontSize:10,background:S.isLight?'#e0f2fe':'rgba(59,130,246,0.2)',color:S.isLight?'#0369a1':'#93c5fd',padding:'1px 7px',borderRadius:4}}>{ec.category}</span>}
-                          {willMerge&&<span style={{fontSize:10,background:'#fef3c7',color:'#d97706',padding:'1px 7px',borderRadius:4}}>Will merge</span>}
+                          {willMerge&&<span style={{fontSize:10,background:'#fef3c7',color:'#d97706',padding:'1px 7px',borderRadius:4,fontWeight:600}}>Will merge</span>}
+                          {totalCts>0&&<span style={{fontSize:10,color:S.muted}}>{totalCts} contact{totalCts!==1?'s':''}</span>}
                         </div>
-                        {ec.contacts&&ec.contacts.length>0&&(
-                          <div style={{marginTop:5,display:'flex',flexWrap:'wrap',gap:4}}>
-                            {ec.contacts.map((ct,j)=>(
-                              <span key={j} style={{fontSize:11,color:S.muted,background:S.isLight?'#f1f5f9':S.surf,border:`1px solid ${S.bdr}`,padding:'1px 7px',borderRadius:4}}>
+                        {(ec.contacts||[]).length>0&&(
+                          <div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>
+                            {(ec.contacts||[]).slice(0,8).map((ct,j)=>(
+                              <span key={j} style={{fontSize:11,color:S.muted,background:S.isLight?'#f1f5f9':S.surf,border:`1px solid ${S.bdr}`,padding:'2px 8px',borderRadius:4}}>
                                 {ct.name}{ct.title?` · ${ct.title}`:''}
                               </span>
                             ))}
+                            {(ec.contacts||[]).length>8&&<span style={{fontSize:11,color:S.muted,padding:'2px 8px'}}>+{(ec.contacts||[]).length-8} more</span>}
                           </div>
                         )}
                       </div>
@@ -307,10 +375,10 @@ ${text}`
         )}
 
         {!sel&&!review&&(
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'50vh',gap:10,color:S.muted}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'35vh',gap:10,color:S.muted}}>
             <div style={{fontSize:36,opacity:0.3}}>🏢</div>
             <div style={{fontSize:15,fontWeight:600,color:S.txt}}>No vendor selected</div>
-            <div style={{fontSize:13}}>Select a vendor company from the sidebar, or add one to get started.</div>
+            <div style={{fontSize:13}}>Select a vendor from the sidebar, upload a PDF to extract contacts, or add one manually.</div>
           </div>
         )}
 
@@ -340,19 +408,6 @@ ${text}`
               </div>
             </div>
 
-            {/* Upload */}
-            <div style={{background:S.surf,border:`1px dashed ${S.bdr}`,borderRadius:8,padding:'12px 16px',marginBottom:20,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-              <button onClick={()=>fileRef.current?.click()}
-                style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
-                <Upload size={13}/> Extract from Document
-              </button>
-              <span style={{fontSize:12,color:S.muted}}>PDF, DOC, DOCX, TXT — AI extracts all vendor contacts</span>
-              {uploadStatus&&<span style={{fontSize:12,color:S.blue,fontStyle:'italic'}}>{uploadStatus}</span>}
-              {uploadError&&<span style={{fontSize:12,color:'#dc2626'}}>{uploadError}</span>}
-              <input ref={fileRef} type='file' accept='.pdf,.doc,.docx,.txt' style={{display:'none'}}
-                onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
-            </div>
-
             {/* Contacts header */}
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
               <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Contacts ({(sel.contacts||[]).length})</div>
@@ -364,7 +419,7 @@ ${text}`
 
             {(sel.contacts||[]).length===0&&(
               <div style={{textAlign:'center',padding:'32px 20px',color:S.muted,fontSize:13,background:S.surf,borderRadius:8,border:`1px dashed ${S.bdr}`}}>
-                No contacts yet. Add manually or upload a document to extract contacts with AI.
+                No contacts yet. Add manually or upload a PDF above to extract contacts with AI.
               </div>
             )}
 
@@ -398,6 +453,13 @@ ${text}`
           </>
         )}
       </div>
+
+      {/* Success toast */}
+      {importToast&&(
+        <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(22,163,74,0.93)',color:'#fff',padding:'10px 24px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 20px rgba(0,0,0,0.3)',pointerEvents:'none',whiteSpace:'nowrap'}}>
+          {importToast}
+        </div>
+      )}
 
       {/* Company form modal */}
       {showCoForm&&(
