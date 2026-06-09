@@ -73,6 +73,10 @@ export default function TechStack({acct,setAcct,apiKey}) {
   const [cisoLoading,setCisoLoading] = useState(false)
   const [cisoStatus,setCisoStatus] = useState('')
   const [cisoError,setCisoError] = useState('')
+  const [feedbackModal,setFeedbackModal] = useState(null)
+  const [feedbackReason,setFeedbackReason] = useState('')
+  const [feedbackNotes,setFeedbackNotes] = useState('')
+  const [feedbackToast,setFeedbackToast] = useState(false)
   const [saleFilter,setSaleFilter] = useState('All')
   const [logoUrl,setLogoUrl] = useState(acct.heatmapLogoUrl||null)
   const logoInputRef = useRef(null)
@@ -549,60 +553,138 @@ export default function TechStack({acct,setAcct,apiKey}) {
         const recs = acct.aiCisoRecommendations || []
         const updatedAt = acct.aiCisoUpdatedAt
 
+        const submitFeedback = () => {
+          if (!feedbackModal || !feedbackReason) return
+          const fb = {
+            id: uid(),
+            recommendationId: feedbackModal.recId,
+            recommendationTitle: feedbackModal.recTitle,
+            reason: feedbackReason,
+            notes: feedbackNotes.trim(),
+            deletedAt: new Date().toISOString(),
+            recommendationSnapshot: feedbackModal.recSnapshot
+          }
+          setAcct(prev=>({
+            ...prev,
+            aiCisoRecommendations: (prev.aiCisoRecommendations||[]).filter(r=>(r.id||r.title)!==feedbackModal.recId),
+            aiCisoFeedback: [...(prev.aiCisoFeedback||[]), fb]
+          }))
+          setFeedbackModal(null); setFeedbackReason(''); setFeedbackNotes('')
+          setFeedbackToast(true); setTimeout(()=>setFeedbackToast(false),3000)
+        }
+
         const generateCisoRecs = async () => {
           if (!apiKey) { alert('Add your Anthropic API key in Settings first.'); return }
-          setCisoLoading(true); setCisoError(''); setCisoStatus('Analyzing security posture…')
+          setCisoLoading(true); setCisoError(''); setCisoStatus('Analyzing account dossier…')
           try {
-            const recentIntel = (acct.intelLog||[]).slice(-6).map(l=>`[${l.date||''}] ${l.summary||''}`).join('\n')
-            const openFU = (acct.followUps||[]).filter(f=>f.status==='Open').slice(0,8).map(f=>`${f.priority}: ${f.task}`).join('\n')
-            const activeProjects = (acct.projects||[]).filter(p=>p.status!=='Complete'&&p.status!=='Cancelled').slice(0,6).map(p=>`${p.name} (${p.status||'Active'})`).join(', ')
-            const currentVendors = (acct.techStack||[]).filter(t=>t.status==='Current'||t.status==='Evaluating').map(t=>`${t.vendor} (${t.primarySub||t.category})`).join(', ')
-            const topGaps = gaps.slice(0,20).join(', ')
+            // ── Intel Log: primary source of truth — full entries with signals ──
+            const intelFull = (acct.intelLog||[]).slice(-25).map(l=>{
+              const insights = (l.insights||[]).join(' | ')
+              const risks = (l.risks||[]).join(' | ')
+              const opps = (l.opportunities||[]).join(' | ')
+              return `[${l.date||'?'}] ${l.type||'Note'}: ${l.summary||''}\n  → Insights: ${insights||'none'}\n  → Risks: ${risks||'none'}\n  → Opportunities: ${opps||'none'}`
+            }).join('\n')
 
-            const prompt = `You are a virtual CISO advisor for a Fortune 500 cybersecurity consultancy (GuidePoint Security). You are analyzing a specific client account and providing strategic security recommendations to the sales team to help them bring the most value to this client.
+            // ── Tech stack with notes and AI intel ──
+            const techStackDetail = (acct.techStack||[]).map(t=>{
+              const parts = [`${t.vendor} (${t.primarySub||t.category}): ${t.status||'?'}`]
+              if (t.notes) parts.push(`Notes: ${t.notes}`)
+              if (t.aiNotes) parts.push(`AI Intel: ${t.aiNotes.slice(0,200)}`)
+              if (t.replacementOptions) parts.push(`Replacement considerations: ${t.replacementOptions}`)
+              return parts.join(' | ')
+            }).join('\n') || 'None documented'
 
-Account context:
-- Company: ${acct.name || 'Unknown'}
-- Industry: ${acct.industry || 'Not specified'}
-- Size: ${acct.employees || 'Unknown'} employees, ${acct.revenue || 'Unknown'} revenue
-- HQ: ${acct.hq || 'Unknown'}
-- Current security vendors: ${currentVendors || 'None documented'}
-- Framework gaps (no solution deployed): ${topGaps || 'None identified'}
-- Active projects: ${activeProjects || 'None'}
-- Open follow-ups: ${openFU || 'None'}
-- Recent intel (last 6 entries): ${recentIntel || 'None'}
+            // ── Contacts with titles and influence ──
+            const contactsDetail = (acct.contacts||[]).filter(c=>c.contactType!=='Internal').map(c=>`${c.name} (${c.title||'?'}) — influence: ${c.influence||'?'}, relationship: ${c.relStatus||'?'}`).join('\n') || 'None documented'
 
-Important context for prioritization:
-- IGA, PAM, SIEM, EDR/XDR, SOAR, micro-segmentation are HIGH lift (6-18 months, $500K+)
-- Penetration testing, assessments, advisory engagements are LOW lift (weeks to 3 months, $30K-$150K)
-- Cloud security posture, email security, MFA improvements are MEDIUM lift
-- Favor recommendations with clear ROI and tie to account evidence
+            // ── Projects with notes ──
+            const projectsDetail = (acct.projects||[]).filter(p=>p.status!=='Complete'&&p.status!=='Cancelled').map(p=>`${p.name} (${p.status||'Active'})${p.notes?`: ${p.notes.slice(0,150)}`:''}` ).join('\n') || 'None active'
 
-Return ONLY valid JSON — no markdown, no preamble:
+            // ── Open follow-ups ──
+            const openFU = (acct.followUps||[]).filter(f=>f.status==='Open').slice(0,10).map(f=>`[${f.priority}] ${f.task}${f.dueDate?` (due ${f.dueDate})`:''}`).join('\n') || 'None'
+
+            // ── AI chat history themes ──
+            const aiHistorySummary = (acct.aiHistory||[]).slice(-8).map(s=>`${s.date?.split('T')[0]||'?'}: ${s.title||''}`).join('\n') || 'None'
+
+            // ── Gaps grouped by domain ──
+            const gapsByDomain = SECURITY_FRAMEWORK.domains.map(d=>{
+              const domainGaps = d.subs.filter(s=>!coveredSubs.has(s))
+              return domainGaps.length ? `${d.name}: ${domainGaps.join(', ')}` : null
+            }).filter(Boolean).join('\n')
+
+            // ── Previous feedback — teach the model what NOT to repeat ──
+            const feedbackContext = (acct.aiCisoFeedback||[]).slice(-15).map(fb=>`- "${fb.recommendationTitle}" dismissed as "${fb.reason}"${fb.notes?` (note: ${fb.notes})`:''}`).join('\n') || 'None'
+
+            const GP_SERVICES = `IAM Program Assessment | IAM Strategy & Roadmap | Zero Trust Workshop | Segmentation Assessment | SIEM/SOC Maturity Assessment | Security Program Development | Security Architecture Review | Cloud Security Assessment | Vulnerability Program Development | Incident Response Planning | Third Party Risk Assessment | Tabletop Exercise | Security Program Management | Executive Road Mapping | Penetration Testing | Application Security Assessment | Red Team Exercise`
+
+            const prompt = `You are a virtual CISO reviewing an account dossier for GuidePoint Security, a cybersecurity value-added reseller. Your job is to generate 3–5 strategic security recommendations for the sales team.
+
+GUIDING PRINCIPLES:
+1. Intel Log entries are your highest-value signal — read every entry carefully and infer unspoken needs from language patterns. Examples: "struggling with onboarding/offboarding" → IGA maturity gap; "board pressure on ransomware" → EDR/backup priority; "cloud migration underway" → CSPM/CNAPP; "frustrated with current SIEM" → SIEM modernization opportunity.
+2. Recommendations must be VENDOR-NEUTRAL — focus on security outcomes and maturity, not products. Do not favor any specific vendor.
+3. Use ALL account context: contacts and their influence, projects, follow-ups, tech stack, framework gaps, intel history, and AI chat themes.
+4. Think sequentially: explicitly say what to prioritize first and what to defer.
+5. Be specific to this account — no generic advice.
+6. Confidence reflects data richness: High = multiple confirming signals across sources; Medium = some evidence but limited; Low = inferred from weak signals, needs validation.
+7. GuidePoint professional services (${GP_SERVICES}) should appear under supportingServices ONLY when they directly enable the recommended action. Use an empty array if nothing fits naturally. Never force a service.
+
+=== ACCOUNT PROFILE ===
+Company: ${acct.name||'Unknown'}
+Industry: ${acct.industry||'Not specified'}
+Size: ${acct.employees||'Unknown'} employees · ${acct.revenue||'Unknown'} revenue
+HQ: ${acct.hq||'Unknown'}
+Account Status: ${acct.status||'Unknown'}
+
+=== KEY CONTACTS ===
+${contactsDetail}
+
+=== TECH STACK (Deployed) ===
+${techStackDetail}
+
+=== SECURITY FRAMEWORK GAPS (no solution deployed, grouped by domain) ===
+${gapsByDomain||'All areas covered'}
+
+=== ACTIVE PROJECTS ===
+${projectsDetail}
+
+=== OPEN FOLLOW-UPS ===
+${openFU}
+
+=== INTEL LOG — read carefully, this is the primary source of truth ===
+${intelFull||'No intel entries yet'}
+
+=== AI CHAT HISTORY THEMES ===
+${aiHistorySummary}
+
+=== PREVIOUS FEEDBACK (do not repeat these mistakes) ===
+${feedbackContext}
+
+Return ONLY valid JSON — no markdown, no preamble, no commentary:
 {
-  "summary": "2-3 sentence strategic summary of this account's security posture",
+  "summary": "2-3 sentence strategic CISO-level summary of this account's security posture and top priorities",
   "recommendations": [
     {
-      "title": "Short priority title (e.g. 'Deploy PAM for privileged access control')",
-      "why": "Why this matters for this specific account (1-2 sentences)",
-      "riskReduced": "Specific risk category reduced (e.g. 'Credential theft, insider threat')",
-      "evidence": "Evidence from this account data that supports this recommendation",
+      "id": "unique-slug-1",
+      "title": "Concise priority title",
+      "why": "Why this matters specifically for this account (1-2 sentences grounded in account data)",
+      "riskReduced": "Specific risk category this addresses",
+      "evidence": "Direct evidence from Intel Log, tech stack, or account context that supports this",
       "difficulty": "Low|Medium|High",
       "cost": "Low|Medium|High|Very High",
-      "nextAction": "Single most impactful next step (1 sentence, actionable)"
+      "confidence": "High|Medium|Low",
+      "nextAction": "Single most actionable next step (1 sentence)",
+      "supportingServices": ["service name if relevant"]
     }
   ]
-}
+}`
 
-Provide 3-5 recommendations. Be specific to this account — do not give generic advice. Rank by strategic impact vs lift ratio.`
-
-            setCisoStatus('Generating CISO recommendations…')
-            const {data:resp} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:2000,messages:[{role:'user',content:prompt}]}, apiKey, setCisoStatus)
+            setCisoStatus('Generating recommendations…')
+            const {data:resp} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:prompt}]}, apiKey, setCisoStatus)
             const raw = resp.content?.[0]?.text||''
             const parsed = extractJSON(raw)
-            if (!parsed?.recommendations?.length) throw new Error('No recommendations returned')
+            if (!parsed?.recommendations?.length) throw new Error('No recommendations returned — try again')
             setAcct(p=>({...p,
-              aiCisoRecommendations: parsed.recommendations,
+              aiCisoRecommendations: parsed.recommendations.map(r=>({...r, id: r.id||uid()})),
               aiCisoSummary: parsed.summary||'',
               aiCisoUpdatedAt: new Date().toISOString()
             }))
@@ -611,24 +693,28 @@ Provide 3-5 recommendations. Be specific to this account — do not give generic
             console.error('[AI CISO] error:', err)
             setCisoError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':err.message||'Generation failed')
             setCisoStatus('')
-          } finally {
-            setCisoLoading(false)
-          }
+          } finally { setCisoLoading(false) }
         }
 
         const diffColor = d => d==='High'?'#dc2626':d==='Medium'?'#d97706':'#16a34a'
         const diffBg = d => d==='High'?(S.isLight?'#fef2f2':'rgba(220,38,38,0.1)'):d==='Medium'?(S.isLight?'#fffbeb':'rgba(217,119,6,0.1)'):(S.isLight?'#f0fdf4':'rgba(22,163,74,0.1)')
         const costColor = c => c==='Very High'?'#7c3aed':c==='High'?'#dc2626':c==='Medium'?'#d97706':'#16a34a'
+        const confColor = c => c==='High'?'#16a34a':c==='Medium'?'#d97706':'#94a3b8'
+        const confBg = c => c==='High'?(S.isLight?'#f0fdf4':'rgba(22,163,74,0.1)'):c==='Medium'?(S.isLight?'#fffbeb':'rgba(217,119,6,0.1)'):(S.isLight?'#f8fafc':S.surf2)
+
+        const FEEDBACK_REASONS = ['Not Relevant','Already Solved','Wrong Priority','Bad Timing','Too Vendor Focused','Too Services Focused','Missing Context','Other']
 
         return (
           <div>
+            {/* Feedback toast */}
+            {feedbackToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(22,163,74,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.3)',pointerEvents:'none'}}>Feedback captured</div>}
+
             {/* Header */}
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,gap:12,flexWrap:'wrap'}}>
               <div>
                 <div style={{fontSize:15,fontWeight:700,color:S.txt}}>AI CISO Recommendations</div>
                 <div style={{fontSize:12,color:S.muted,marginTop:2}}>
-                  {updatedAt?`Generated ${new Date(updatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · `:''}{coveredSubs.size} of {allSubs.length} framework areas covered · {gaps.length} gaps
-                </div>
+                  {updatedAt?`Generated ${new Date(updatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · `:''}{coveredSubs.size}/{allSubs.length} framework areas covered · {gaps.length} gaps{(acct.aiCisoFeedback||[]).length>0?` · ${(acct.aiCisoFeedback||[]).length} feedback signal${(acct.aiCisoFeedback||[]).length!==1?'s':''}`:''}</div>
               </div>
               <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
                 {cisoStatus&&<span style={{fontSize:12,color:S.blue,fontStyle:'italic'}}>{cisoStatus}</span>}
@@ -641,60 +727,82 @@ Provide 3-5 recommendations. Be specific to this account — do not give generic
 
             {cisoError&&<div style={{background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',border:'1px solid #fca5a5',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#dc2626',marginBottom:16}}>{cisoError}</div>}
 
-            {/* Summary */}
+            {/* Strategic summary */}
             {acct.aiCisoSummary&&(
               <div style={{background:S.isLight?'#f0f9ff':'rgba(37,99,235,0.08)',border:`1px solid ${S.isLight?'#bae6fd':'rgba(59,130,246,0.25)'}`,borderRadius:8,padding:'12px 16px',marginBottom:16,fontSize:13,color:S.txt,lineHeight:1.6}}>
                 <span style={{fontWeight:700,color:S.blue}}>Strategic Summary: </span>{acct.aiCisoSummary}
               </div>
             )}
 
-            {/* No recommendations yet */}
+            {/* Empty state */}
             {recs.length===0&&!cisoLoading&&!cisoError&&(
               <div style={{textAlign:'center',padding:'48px 20px',color:S.muted,background:S.surf,borderRadius:8,border:`1px dashed ${S.bdr}`}}>
                 <div style={{fontSize:32,marginBottom:8,opacity:0.4}}>🛡️</div>
                 <div style={{fontSize:14,fontWeight:600,color:S.txt,marginBottom:4}}>No recommendations yet</div>
-                <div style={{fontSize:13}}>Click Generate to get AI-powered security priorities based on this account's data.</div>
-                {!apiKey&&<div style={{fontSize:12,color:'#d97706',marginTop:8}}>Add your Anthropic API key in Settings first.</div>}
+                <div style={{fontSize:13,marginBottom:6}}>Click Generate to produce AI-powered security priorities based on this account's full dossier including Intel Log, tech stack, projects, and contacts.</div>
+                {!apiKey&&<div style={{fontSize:12,color:'#d97706',marginTop:6}}>Add your Anthropic API key in Settings first.</div>}
+                {(acct.intelLog||[]).length===0&&<div style={{fontSize:12,color:S.muted,marginTop:4}}>Tip: Adding Intel Log entries significantly improves recommendation quality.</div>}
               </div>
             )}
 
             {/* Recommendation cards */}
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              {recs.map((rec,i)=>(
-                <div key={i} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'16px 20px'}}>
-                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:12,flexWrap:'wrap'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <div style={{width:24,height:24,borderRadius:'50%',background:'#2563eb',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}}>{i+1}</div>
-                      <div style={{fontSize:14,fontWeight:700,color:S.txt}}>{rec.title}</div>
+              {recs.map((rec,i)=>{
+                const recId = rec.id||rec.title
+                return (
+                  <div key={recId||i} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'16px 20px',position:'relative'}}>
+                    {/* Title row */}
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:10,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10,flex:1,minWidth:0}}>
+                        <div style={{width:24,height:24,borderRadius:'50%',background:'#2563eb',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,flexShrink:0}}>{i+1}</div>
+                        <div style={{fontSize:14,fontWeight:700,color:S.txt,lineHeight:1.3}}>{rec.title}</div>
+                      </div>
+                      <div style={{display:'flex',gap:5,flexShrink:0,flexWrap:'wrap',alignItems:'center'}}>
+                        {rec.confidence&&<span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:4,background:confBg(rec.confidence),color:confColor(rec.confidence),border:`1px solid ${confColor(rec.confidence)}44`}}>{rec.confidence} Confidence</span>}
+                        {rec.difficulty&&<span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:4,background:diffBg(rec.difficulty),color:diffColor(rec.difficulty),border:`1px solid ${diffColor(rec.difficulty)}44`}}>Lift: {rec.difficulty}</span>}
+                        {rec.cost&&<span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:4,background:S.isLight?'#f8fafc':S.surf2,color:costColor(rec.cost),border:`1px solid ${S.bdr}`}}>Cost: {rec.cost}</span>}
+                        <button onClick={()=>setFeedbackModal({recId,recTitle:rec.title,recSnapshot:rec})} title='Dismiss with feedback'
+                          style={{background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:4,color:S.muted,cursor:'pointer',padding:'2px 7px',fontSize:13,lineHeight:1.4,flexShrink:0}}
+                          onMouseEnter={e=>{e.currentTarget.style.borderColor='#dc2626';e.currentTarget.style.color='#dc2626'}}
+                          onMouseLeave={e=>{e.currentTarget.style.borderColor=S.bdr;e.currentTarget.style.color=S.muted}}>×</button>
+                      </div>
                     </div>
-                    <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
-                      {rec.difficulty&&<span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:4,background:diffBg(rec.difficulty),color:diffColor(rec.difficulty),border:`1px solid ${diffColor(rec.difficulty)}44`}}>Lift: {rec.difficulty}</span>}
-                      {rec.cost&&<span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:4,background:S.isLight?'#f8fafc':S.surf2,color:costColor(rec.cost),border:`1px solid ${S.bdr}`}}>Cost: {rec.cost}</span>}
+                    {/* Detail grid */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 20px',marginBottom:rec.supportingServices?.length?10:0}}>
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Why it matters</div>
+                        <div style={{fontSize:13,color:S.txt,lineHeight:1.5}}>{rec.why}</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Risk reduced</div>
+                        <div style={{fontSize:13,color:S.txt,lineHeight:1.5}}>{rec.riskReduced}</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Account evidence</div>
+                        <div style={{fontSize:13,color:S.muted,lineHeight:1.5,fontStyle:'italic'}}>{rec.evidence}</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:S.blue,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Next best action</div>
+                        <div style={{fontSize:13,color:S.txt,lineHeight:1.5,fontWeight:500}}>{rec.nextAction}</div>
+                      </div>
                     </div>
+                    {/* Supporting services */}
+                    {rec.supportingServices?.length>0&&(
+                      <div style={{borderTop:`1px solid ${S.bdr}`,paddingTop:10,marginTop:4}}>
+                        <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}}>Potential Supporting Services</div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+                          {rec.supportingServices.map((svc,si)=>(
+                            <span key={si} style={{fontSize:11,padding:'3px 10px',borderRadius:4,background:S.isLight?'#eff6ff':'rgba(37,99,235,0.12)',color:S.blue,border:`1px solid ${S.isLight?'#bfdbfe':'rgba(59,130,246,0.25)'}`}}>{svc}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px 20px',marginBottom:12}}>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Why it matters</div>
-                      <div style={{fontSize:13,color:S.txt,lineHeight:1.5}}>{rec.why}</div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Risk reduced</div>
-                      <div style={{fontSize:13,color:S.txt,lineHeight:1.5}}>{rec.riskReduced}</div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Account evidence</div>
-                      <div style={{fontSize:13,color:S.muted,lineHeight:1.5,fontStyle:'italic'}}>{rec.evidence}</div>
-                    </div>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:'#2563eb',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:3}}>Next best action</div>
-                      <div style={{fontSize:13,color:S.txt,lineHeight:1.5,fontWeight:500}}>{rec.nextAction}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
-            {/* Framework gaps summary */}
+            {/* Framework gaps */}
             {gaps.length>0&&(
               <div style={{marginTop:20,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'14px 16px'}}>
                 <div style={{fontSize:12,fontWeight:700,color:S.txt,marginBottom:8}}>Framework Coverage Gaps ({gaps.length})</div>
@@ -703,6 +811,36 @@ Provide 3-5 recommendations. Be specific to this account — do not give generic
                     const domain = SECURITY_FRAMEWORK.domains.find(d=>d.subs.includes(g))
                     return <span key={g} style={{fontSize:11,padding:'2px 9px',borderRadius:4,background:S.isLight?'#f8fafc':S.surf2,border:`1px solid ${S.bdr}`,color:domain?.color||S.muted}}>{g}</span>
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Feedback modal */}
+            {feedbackModal&&(
+              <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+                <div style={{background:S.surf,borderRadius:10,padding:'24px 26px',width:'100%',maxWidth:420,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+                  <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:4}}>Dismiss Recommendation</div>
+                  <div style={{fontSize:12,color:S.muted,marginBottom:16,lineHeight:1.4}}>"{feedbackModal.recTitle}"</div>
+                  <div style={{fontSize:12,fontWeight:600,color:S.txt,marginBottom:8}}>Why are you dismissing this?</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
+                    {FEEDBACK_REASONS.map(r=>(
+                      <button key={r} onClick={()=>setFeedbackReason(r)}
+                        style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${feedbackReason===r?'#2563eb':S.bdr}`,background:feedbackReason===r?(S.isLight?'#eff6ff':'rgba(37,99,235,0.15)'):'transparent',color:feedbackReason===r?S.blue:S.txt,fontSize:12,fontWeight:feedbackReason===r?700:400,cursor:'pointer',transition:'all 0.1s'}}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:5}}>Notes (optional)</div>
+                  <textarea value={feedbackNotes} onChange={e=>setFeedbackNotes(e.target.value)} placeholder='Any additional context…' rows={2}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:12,color:S.txt,background:S.surf2,resize:'vertical',boxSizing:'border-box',marginBottom:16}}/>
+                  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                    <button onClick={()=>{setFeedbackModal(null);setFeedbackReason('');setFeedbackNotes('')}}
+                      style={{padding:'8px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                    <button onClick={submitFeedback} disabled={!feedbackReason}
+                      style={{padding:'8px 16px',background:feedbackReason?'#2563eb':'#94a3b8',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:feedbackReason?'pointer':'not-allowed'}}>
+                      Dismiss &amp; Submit
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
