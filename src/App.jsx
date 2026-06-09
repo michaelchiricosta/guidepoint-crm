@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -314,7 +314,13 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px dashed rgba(255,255,255,0.1)',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'background 0.15s'}}
           onMouseEnter={e=>e.currentTarget.style.background=SH2}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>+ New Account</button>}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:10}}>
+        <button onClick={()=>onNavigate&&onNavigate(activeId,'settings')}
+          style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'none',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'all 0.15s',marginTop:8,textAlign:'left',boxSizing:'border-box'}}
+          onMouseEnter={e=>{e.currentTarget.style.background=SH2;e.currentTarget.style.color=ST}}
+          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=SM}}>
+          <Settings2 size={13}/> Settings
+        </button>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
           <span style={{fontSize:10,color:'#334155'}}>Theme</span>
           <div style={{display:'flex',gap:1,background:'rgba(0,0,0,0.3)',borderRadius:6,padding:2}}>
             <button onClick={()=>setTheme('light')} title='Light mode'
@@ -339,7 +345,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, showAccounts, setShowAccounts}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, showAccounts, setShowAccounts, onOpenSettings}) {
   const [collapsed, setCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const navTop = [
@@ -412,6 +418,11 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
       <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:collapsed?'10px 0':'10px 14px',flexShrink:0}}>
         {collapsed ? (
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+            <button onClick={onOpenSettings} title='Settings'
+              style={{padding:'5px',borderRadius:6,border:'none',background:'transparent',color:'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color='#64748b'}>
+              <Settings2 size={13}/>
+            </button>
             {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
               <button key={v} onClick={()=>setTheme(v)} title={v+' mode'}
                 style={{padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
@@ -421,6 +432,13 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
           </div>
         ) : (
           <div>
+            <div onClick={onOpenSettings}
+              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}
+              style={{padding:'7px 10px',borderRadius:6,margin:'0 6px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,background:'transparent',transition:'all 0.1s'}}>
+              <span style={{opacity:0.75,display:'flex'}}><Settings2 size={15}/></span>
+              Settings
+            </div>
             <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
               {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
                 <button key={v} onClick={()=>setTheme(v)}
@@ -887,10 +905,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
-      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.08)'}}>
+      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.092)'}}>
         <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
           <div>
             <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
