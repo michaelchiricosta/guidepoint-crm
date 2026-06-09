@@ -500,8 +500,8 @@ function BarChartCard({data}) {
     return (
       <g transform={`translate(${x},${y})`}>
         <text x={0} y={0} dy={12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{payload.value}</text>
-        <foreignObject x={-16} y={18} width={32} height={32}>
-          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:42,height:42,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <foreignObject x={-14} y={18} width={28} height={28}>
+          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {logoImage&&logoImage.length>10
               ?<img src={logoImage} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%',display:'block'}}/>
               :<span style={{color:'white',fontSize:13,fontWeight:700,lineHeight:1}}>{initial}</span>
@@ -557,9 +557,9 @@ function BarChartCard({data}) {
     <div style={mobChart?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
     <div style={mobChart?{minWidth:Math.max(600,chartData.length*80)}:{}}>
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4}>
+      <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4} style={{overflow:'visible'}}>
         <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
-        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXAxisTick/>} interval={0} height={65}/>
+        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXAxisTick/>} interval={0} height={60}/>
         <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
         <RechartsTooltip content={<CustomTooltip/>}/>
         {view==='projects' ? (
