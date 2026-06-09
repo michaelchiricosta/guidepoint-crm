@@ -73,3 +73,30 @@ export const deleteFile = async (path) => {
     .remove([path])
   if (error) throw error
 }
+
+export const uploadContactPhoto = async (accountId, contactId, file) => {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${accountId}/${contactId}-${Date.now()}.${ext}`
+  console.log('[uploadContactPhoto] uploading to contact-photos:', path)
+  const { error: uploadError } = await supabase.storage
+    .from('contact-photos')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (uploadError) {
+    console.error('[uploadContactPhoto] upload error:', uploadError)
+    throw uploadError
+  }
+  const { data: urlData } = supabase.storage
+    .from('contact-photos')
+    .getPublicUrl(path)
+  console.log('[uploadContactPhoto] success, url:', urlData.publicUrl)
+  return { url: urlData.publicUrl, path }
+}
+
+export const deleteContactPhoto = async (path) => {
+  if (!path) return
+  console.log('[deleteContactPhoto] removing:', path)
+  const { error } = await supabase.storage
+    .from('contact-photos')
+    .remove([path])
+  if (error) console.error('[deleteContactPhoto] error:', error)
+}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, uploadContactPhoto, saveData } from '../supabase.js'
 
 let contactPhotoSaving = false
 import * as XLSX from 'xlsx'
@@ -58,6 +58,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
   const [hoveredPhoto,setHoveredPhoto] = useState(null)
   const [photoTarget,setPhotoTarget] = useState(null)
   const photoInputRef = useRef(null)
+  const [photoUploading,setPhotoUploading] = useState(false)
   const [editingNotes,setEditingNotes] = useState(null)
   const [notesText,setNotesText] = useState('')
 
@@ -125,53 +126,38 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
   const relC={'Never Met':S.muted,Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
   const saveNote=c=>{if(!noteText.trim()){setNoteTarget(null);return};const stamp=`[${new Date().toISOString().split('T')[0]}] ${noteText.trim()}`;setAcct(p=>({...p,contacts:p.contacts.map(ct=>ct.id===c.id?{...ct,notes:(ct.notes?ct.notes+' | ':'')+stamp}:ct)}));setNoteTarget(null);setNoteText('')}
-  const compressImage = (file) => new Promise((resolve) => {
-    const canvas = document.createElement('canvas')
-    const img = new Image()
-    img.onload = () => {
-      const maxSize = 200
-      let w = img.width, h = img.height
-      if (w > h) { if (w > maxSize) { h = h * maxSize / w; w = maxSize } }
-      else { if (h > maxSize) { w = w * maxSize / h; h = maxSize } }
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', 0.85))
-    }
-    img.src = URL.createObjectURL(file)
-  })
   const handleContactPhotoUpload = async (file, contactId) => {
     contactPhotoSaving = true
     if (onContactPhotoSave) onContactPhotoSave()
-
-    const compressed = await compressImage(file)
-
-    const updatedContacts = (acct.contacts || []).map(c =>
-      c.id === contactId ? {...c, contactPhoto: compressed} : c
-    )
-    const updatedAcct = {...acct, contacts: updatedContacts}
-    const updatedAccounts = (data.accounts || []).map(a =>
-      a.id === acct.id ? updatedAcct : a
-    )
-    const updatedData = {...data, accounts: updatedAccounts}
-
-    setAcct(updatedAcct)
-    setData(updatedData)
     setPhotoPopover(null)
+    setPhotoUploading(true)
 
     try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const sb = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
+      console.log('[ContactPhoto] uploading for contact:', contactId, 'in account:', acct.id)
+      const { url } = await uploadContactPhoto(acct.id, contactId, file)
+
+      const updatedContacts = (acct.contacts || []).map(c =>
+        c.id === contactId ? {...c, contactPhoto: url} : c
       )
-      const { error } = await sb
-        .from('accounts')
-        .upsert({ id: 'user-data', data: updatedData, updated_at: new Date().toISOString() })
-      if (error) throw error
-      console.log('Contact photo saved successfully:', contactId)
+      const updatedAcct = {...acct, contacts: updatedContacts}
+      const updatedAccounts = (data.accounts || []).map(a =>
+        a.id === acct.id ? updatedAcct : a
+      )
+      const updatedData = {...data, accounts: updatedAccounts}
+
+      setAcct(updatedAcct)
+      setData(updatedData)
+      window._lastDirectSave = Date.now()
+
+      const { error } = await saveData(updatedData)
+      if (error) throw new Error(error.message || 'Supabase save failed')
+
+      console.log('[ContactPhoto] saved successfully for contact:', contactId, 'url:', url)
     } catch(err) {
-      console.error('Contact photo save error:', err)
+      console.error('[ContactPhoto] upload/save error:', err)
+      alert(`Photo upload failed: ${err.message || 'Unknown error'}. Check the browser console for details.`)
     } finally {
+      setPhotoUploading(false)
       setTimeout(() => { contactPhotoSaving = false }, 5000)
     }
   }
@@ -1152,6 +1138,11 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
       )}
       <input ref={photoInputRef} type='file' accept='image/*' style={{display:'none'}}
         onChange={e=>{const file=e.target.files?.[0];if(file&&photoTarget)handleContactPhotoUpload(file,photoTarget);e.target.value=''}}/>
+      {photoUploading&&(
+        <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(37,99,235,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none'}}>
+          Uploading photo…
+        </div>
+      )}
     </div>
   )
 }
