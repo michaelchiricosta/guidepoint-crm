@@ -264,13 +264,17 @@ export default function TechStack({acct,setAcct}) {
             })}
           </g>
 
-          {/* Empty/no-vendor caps — transparent white outside filter so alpha isn't killed */}
+          {/* Empty/no-vendor caps — neutral for truly empty, domain tint for secondary coverage */}
           {hmSegments.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>{
             const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
             const idx=seg.di*10+seg.ci
+            const hasSecondary = seg.secondary && seg.secondary.length > 0
+            const fillColor = hasSecondary
+              ? (isHov ? seg.domain.color+'99' : seg.domain.color+'45')
+              : (isHov ? 'rgba(255,255,255,0.12)' : (S.isLight ? '#f1f5f9' : '#1e293b'))
             return (
               <path key={`ce-${seg.di}-${seg.ci}`} d={seg.path}
-                fill={isHov?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.20)'} stroke="none"
+                fill={fillColor} stroke="none"
                 style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
                   transform:isHov?'scale(1.1)':'scale(1)',
                   opacity:hoveredSeg&&!isHov?0.82:1,
@@ -280,11 +284,6 @@ export default function TechStack({acct,setAcct}) {
                 onMouseLeave={()=>setHoveredSeg(null)} onClick={()=>handleCapClick(seg)}/>
             )
           })}
-          {/* Secondary coverage glow — domain-color tint for partial coverage */}
-          {hmSegments.filter(s=>s.type==='cap'&&!s.vendor&&s.secondary?.length>0).map((seg)=>(
-            <path key={`csec-${seg.di}-${seg.ci}`} d={seg.path}
-              fill={seg.domain.color+'45'} stroke="none" style={{pointerEvents:'none'}}/>
-          ))}
 
           {/* Vendor dots — rendered above the filter group */}
           {hmSegments.filter(s=>s.type==='cap'&&!!s.vendor).map((seg)=>(

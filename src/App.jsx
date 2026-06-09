@@ -240,8 +240,6 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           </div>
         )}
       </div>
-      {/* Divider */}
-      <div style={{height:1,background:SB,marginBottom:8,flexShrink:0}}/>
       {!collapsed&&(
         <div style={{padding:'0 12px 8px'}}>
           <input
@@ -908,7 +906,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings}/>}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
-      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center',boxShadow:'0 4px 16px rgba(0,0,0,0.092)'}}>
+      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
         <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
           <div>
             <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
@@ -2016,6 +2014,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [recOpen, setRecOpen] = useState(false)
   const [recLoading, setRecLoading] = useState(false)
   const [recError, setRecError] = useState('')
+  const [wsToast, setWsToast] = useState('')
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2053,6 +2052,64 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
 
   const updateAccount = (id, changes) => {
     const now = new Date().toISOString()
+    if (changes.status === 'Active Conversation') {
+      const wsAcct = (data.whitespaceAccounts||[]).find(a => a.id === id)
+      if (wsAcct && wsAcct.status !== 'Active Conversation') {
+        const accountName = wsAcct.name || ''
+        const existingAccount = (data.accounts||[]).find(a =>
+          a.name.toLowerCase() === accountName.toLowerCase()
+        )
+        if (!existingAccount) {
+          const newAcct = {
+            id: uid(),
+            name: wsAcct.name,
+            short: wsAcct.name.slice(0,6).toUpperCase(),
+            industry: wsAcct.industry || '',
+            hq: wsAcct.hq || '',
+            employees: wsAcct.employees || '',
+            revenue: wsAcct.revenue || '',
+            status: 'Prospect',
+            health: 50,
+            lastContact: '',
+            notes: '',
+            endpoints: '',
+            cloud: '',
+            users: '',
+            relationship: '',
+            contacts: [],
+            followUps: [],
+            projects: [],
+            techStack: [],
+            interactions: [],
+            intelLog: wsAcct.intelLog || [],
+            files: [],
+            savedLinks: [],
+            adminData: {},
+            upcomingDates: [],
+            unknownMentions: [],
+            relSuggestions: [],
+            contactSuggestions: [],
+            dismissedAlerts: [],
+            snoozedAlerts: [],
+            healthScoreOverrides: {},
+            healthScoreHistory: [],
+            aiHistory: [],
+            logoImage: '',
+            orgChart: {nodes: []},
+            createdAt: new Date().toISOString(),
+            createdFromWhitespace: true
+          }
+          setData(prev => ({
+            ...prev,
+            whitespaceAccounts: (prev.whitespaceAccounts||[]).map(a => a.id===id ? {...a,...changes,updatedAt:now} : a),
+            accounts: [...(prev.accounts||[]), newAcct]
+          }))
+          setWsToast(`${accountName} moved to Active Conversation — added to your accounts dashboard`)
+          setTimeout(() => setWsToast(''), 4000)
+          return
+        }
+      }
+    }
     setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===id?{...a,...changes,updatedAt:now}:a)}))
   }
   const deleteAccount = id => {
@@ -2733,6 +2790,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         {mergeToast&&(
           <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2000,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:8}}>
             <span style={{color:'#4ade80'}}>✓</span>{mergeToast}
+          </div>
+        )}
+        {wsToast&&(
+          <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'#0f172a',color:'#f0fdf4',padding:'10px 22px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:2001,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',display:'flex',alignItems:'center',gap:8}}>
+            <span style={{color:'#4ade80'}}>✓</span>{wsToast}
           </div>
         )}
         {!dupeDismissed&&dupePairs.length>0&&(
@@ -3580,7 +3642,7 @@ function ClientView({acct, setAcct, onClose}) {
     <div style={{position:'fixed',inset:0,zIndex:2000,background:'#f8fafc',display:'flex',flexDirection:'column',overflowY:'auto'}}>
 
       {/* ── Header ── */}
-      <div style={{background:'#ffffff',borderBottom:'1px solid #e2e8f0',padding:'0 28px',flexShrink:0,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
+      <div style={{background:'#ffffff',padding:'0 28px',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',gap:16,padding:'14px 0 0'}}>
           {acct.logoImage&&<img src={acct.logoImage} alt='' style={{width:40,height:40,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',flexShrink:0}}/>}
           <div style={{flex:1,minWidth:0}}>
@@ -4060,6 +4122,9 @@ function AllProjectsPage({data, setData, onBack}) {
   .all-projects-sidebar * {
     color: #f1f5f9 !important;
   }
+  .all-projects-sidebar .ap-logo-text {
+    color: #0f172a !important;
+  }
   .all-projects-sidebar input[type="checkbox"] {
     accent-color: #2563eb;
     width: 14px;
@@ -4078,8 +4143,7 @@ function AllProjectsPage({data, setData, onBack}) {
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
             <div>
-              <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
-              <div style={{fontSize:10,color:'#64748b'}}>All Projects</div>
+              <span className="ap-logo-text" style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
           </div>
         </div>
@@ -4131,7 +4195,7 @@ function AllProjectsPage({data, setData, onBack}) {
       {/* ── MAIN ── */}
       <div style={{flex:1,overflowY:'auto',background:S.isLight?'#f1f5f9':S.bg}}>
         {/* Header bar */}
-        <div style={{background:S.surf,borderBottom:`1px solid ${S.bdr}`,padding:'14px 24px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flexWrap:'wrap'}}>
+        <div style={{background:S.surf,padding:'14px 24px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100,flexWrap:'wrap'}}>
           <h1 style={{fontSize:20,fontWeight:800,color:S.txt,margin:0,flex:1,minWidth:120}}>All Projects</h1>
           <span style={{fontSize:12,fontWeight:600,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 10px'}}>{filtered.length}</span>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search...'
@@ -4582,7 +4646,7 @@ export default function App() {
         onCloseMobileMenu={()=>setMobileMenuOpen(false)}
       />
       <div style={{flex:mob?'none':1,display:'flex',flexDirection:'column',overflow:mob?'visible':'hidden'}}>
-        <div style={{background:S.isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+        <div style={{background:S.isLight?'#ffffff':S.headerBg,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.isLight?'#2563eb':S.muted,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
