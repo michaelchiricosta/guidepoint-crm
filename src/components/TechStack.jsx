@@ -264,17 +264,13 @@ export default function TechStack({acct,setAcct}) {
             })}
           </g>
 
-          {/* Empty/no-vendor caps — neutral for truly empty, domain tint for secondary coverage */}
+          {/* Empty/no-vendor caps — medium gray, no domain color */}
           {hmSegments.filter(s=>s.type==='cap'&&!s.vendor).map((seg)=>{
             const isHov=hoveredSeg?.di===seg.di&&hoveredSeg?.ci===seg.ci
             const idx=seg.di*10+seg.ci
-            const hasSecondary = seg.secondary && seg.secondary.length > 0
-            const fillColor = hasSecondary
-              ? (isHov ? seg.domain.color+'99' : seg.domain.color+'45')
-              : (isHov ? 'rgba(255,255,255,0.12)' : (S.isLight ? '#f1f5f9' : '#1e293b'))
             return (
               <path key={`ce-${seg.di}-${seg.ci}`} d={seg.path}
-                fill={fillColor} stroke="none"
+                fill={isHov?'#b0b7c3':'#9CA3AF'} stroke="none"
                 style={{cursor:'pointer',transformOrigin:`${seg.centX}px ${seg.centY}px`,
                   transform:isHov?'scale(1.1)':'scale(1)',
                   opacity:hoveredSeg&&!isHov?0.82:1,
