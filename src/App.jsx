@@ -176,7 +176,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
         <div style={{padding:'10px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:44,height:44,objectFit:'contain',borderRadius:6}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6}}/>
             <div style={{fontSize:24,fontWeight:700,color:'#0f172a'}}>Ledgr.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
@@ -218,7 +218,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
               style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:6}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <div>
                 <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
               </div>
@@ -231,7 +231,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:44,height:44,objectFit:'contain',borderRadius:6,display:'block'}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6,display:'block'}}/>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Expand"
               style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
@@ -382,7 +382,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
         <div style={{padding:'10px 0 8px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:6,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
-          <img src="/letterl.png" alt="Ledgr." style={{width:32,height:32,objectFit:'contain',borderRadius:4}}/>
+          <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
             style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
             onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
@@ -393,7 +393,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
         <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+              <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
@@ -483,7 +483,7 @@ function BarChartCard({data}) {
       <g transform={`translate(${x},${y})`}>
         <text x={0} y={0} dy={12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{payload.value}</text>
         <foreignObject x={-16} y={18} width={32} height={32}>
-          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:32,height:32,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:42,height:42,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
             {logoImage&&logoImage.length>10
               ?<img src={logoImage} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%',display:'block'}}/>
               :<span style={{color:'white',fontSize:13,fontWeight:700,lineHeight:1}}>{initial}</span>
@@ -939,7 +939,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             }}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <span style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
-              <div style={{width:32,height:32,borderRadius:8,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{width:42,height:42,borderRadius:8,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                 <svg width="16" height="16" viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2" fill="none" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5"/><line x1="6" y1="2" x2="6" y2="5" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5" strokeLinecap="round"/><line x1="12" y1="2" x2="12" y2="5" stroke="rgba(220,38,38,0.5)" strokeWidth="1.5" strokeLinecap="round"/><line x1="2" y1="8" x2="16" y2="8" stroke="rgba(220,38,38,0.5)" strokeWidth="1.2"/></svg>
               </div>
             </div>
@@ -1063,8 +1063,8 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                             style={{display:'grid',gridTemplateColumns:'44px 1fr 110px 110px 96px 56px 96px 72px 28px',alignItems:'center',padding:'0 16px',height:52,cursor:'pointer',background:idx%2===0?(S.isLight?'#ffffff':S.surf):(S.isLight?'#f8fafc':S.surf2),borderBottom:idx<sorted.length-1?`1px solid ${S.bdr}`:'none',transition:'background 0.1s'}}>
                             <div>
                               {acct.logoImage&&acct.logoImage.length>10
-                                ?<img src={acct.logoImage} style={{width:32,height:32,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
-                                :<div style={{width:32,height:32,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#fff'}}>{initial}</div>
+                                ?<img src={acct.logoImage} style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
+                                :<div style={{width:42,height:42,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'#fff'}}>{initial}</div>
                               }
                             </div>
                             <div style={{fontWeight:600,fontSize:13,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:8}}>{acct.name}</div>
@@ -1107,10 +1107,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       }}>
                       {/* TOP: logo + name */}
                       <div style={{display:'flex',alignItems:'center',gap:12,padding:'16px 16px 8px'}}>
-                        <div style={{flexShrink:0,width:44,height:44}}>
+                        <div style={{flexShrink:0,width:57,height:57}}>
                           {acct.logoImage&&acct.logoImage.length>10
-                            ?<img src={acct.logoImage} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
-                            :<div style={{width:44,height:44,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:700,color:'#fff'}}>{initial}</div>
+                            ?<img src={acct.logoImage} style={{width:57,height:57,borderRadius:'50%',objectFit:'cover',border:'1px solid #e2e8f0',display:'block'}}/>
+                            :<div style={{width:57,height:57,borderRadius:'50%',background:logoColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:700,color:'#fff'}}>{initial}</div>
                           }
                         </div>
                         <div style={{flex:1,minWidth:0}}>
@@ -2591,7 +2591,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       <div style={{width:240,flexShrink:0,background:S.sidebarBg,display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
         <div style={{padding:'12px 16px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:50,height:50,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
               <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
               <div style={{fontSize:10,color:'#64748b',marginTop:1}}>Whitespace Tracker</div>
@@ -3922,7 +3922,7 @@ function ClientView({acct, setAcct, onClose}) {
                       const nodeX=n.x/100*CANVAS_W, nodeY=n.y/100*CANVAS_H
                       return (
                         <div key={n.contactId} style={{position:'absolute',left:`${nodeX}px`,top:`${nodeY}px`,width:NODE_W,background:grad.gradient,borderRadius:14,padding:'8px 10px 10px',boxShadow:`0 4px 16px ${grad.shadow}`,userSelect:'none'}}>
-                          <div style={{width:32,height:32,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
+                          <div style={{width:42,height:42,borderRadius:'50%',background:'rgba(255,255,255,0.9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'#3c90ff',margin:'0 auto 6px',overflow:'hidden'}}>{c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials(c.name)}</div>
                           <div style={{fontSize:11,fontWeight:700,color:'#fff',textAlign:'center',lineHeight:1.3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</div>
                           <div style={{fontSize:9,color:'rgba(255,255,255,0.8)',textAlign:'center',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:2}}>{c.title}</div>
                         </div>
@@ -4058,7 +4058,7 @@ function AllProjectsPage({data, setData, onBack}) {
       <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
         <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:32,height:32,objectFit:'contain',borderRadius:4}}/>
+            <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
             <div>
               <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
               <div style={{fontSize:10,color:'#64748b'}}>All Projects</div>
