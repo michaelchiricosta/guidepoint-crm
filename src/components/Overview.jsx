@@ -224,7 +224,10 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   const [snoozeOpenFor,setSnoozeOpenFor] = useState(null)
   const [showSnoozed,setShowSnoozed] = useState(false)
   const [snoozeToast,setSnoozeToast] = useState(false)
+  const [snoozeMsg,setSnoozeMsg] = useState('Snoozed!')
   const [remindersToast,setRemindersToast] = useState(false)
+  const [fuSnoozeId,setFuSnoozeId] = useState(null)
+  const [fuSnoozeCustomDate,setFuSnoozeCustomDate] = useState('')
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const [summaryLoading,setSummaryLoading] = useState(false)
@@ -247,6 +250,13 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     document.addEventListener('click',h)
     return()=>document.removeEventListener('click',h)
   },[snoozeOpenFor])
+
+  useEffect(()=>{
+    if(!fuSnoozeId)return
+    const h=()=>setFuSnoozeId(null)
+    document.addEventListener('click',h)
+    return()=>document.removeEventListener('click',h)
+  },[fuSnoozeId])
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const openFU = acct.followUps.filter(f=>f.status==='Open')
@@ -294,6 +304,23 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     setSnoozeOpenFor(null)
     setSnoozeToast(true)
     setTimeout(()=>setSnoozeToast(false),2000)
+  }
+
+  const snoozeFU = (fuId, option, customDate) => {
+    const until = new Date()
+    let ds
+    if (option==='tomorrow') { until.setDate(until.getDate()+1); ds=until.toISOString().split('T')[0] }
+    else if (option==='3days') { until.setDate(until.getDate()+3); ds=until.toISOString().split('T')[0] }
+    else if (option==='1week') { until.setDate(until.getDate()+7); ds=until.toISOString().split('T')[0] }
+    else if (option==='custom') { ds=customDate }
+    if (!ds) return
+    setAcct(prev=>({...prev,followUps:prev.followUps.map(f=>f.id===fuId?{...f,dueDate:ds}:f)}))
+    setFuSnoozeId(null)
+    setFuSnoozeCustomDate('')
+    const dateStr=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+    setSnoozeMsg(`Snoozed until ${dateStr}`)
+    setSnoozeToast(true)
+    setTimeout(()=>setSnoozeToast(false),2500)
   }
 
   const saveCustomDate = () => {
@@ -451,7 +478,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   return (
     <div>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-      {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
+      {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> {snoozeMsg}</div>}
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':typeof window!=='undefined'&&window.innerWidth<1200?'repeat(4,1fr)':'repeat(8,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
@@ -1019,6 +1046,39 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 </div>
               </div>
               <Badge label={f.priority} color={p.c} bg={p.b}/>
+              <div style={{position:'relative',flexShrink:0}}>
+                <button
+                  onClick={e=>{e.stopPropagation();setFuSnoozeId(fuSnoozeId===f.id?null:f.id);setFuSnoozeCustomDate('')}}
+                  title='Snooze follow-up'
+                  style={{background:'transparent',border:'none',color:fuSnoozeId===f.id?p.c:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id||fuSnoozeId===f.id?1:0,transition:'opacity 0.15s'}}
+                  onMouseEnter={e=>e.currentTarget.style.color=p.c}
+                  onMouseLeave={e=>e.currentTarget.style.color=fuSnoozeId===f.id?p.c:'#94a3b8'}>
+                  <Clock size={14}/>
+                </button>
+                {fuSnoozeId===f.id&&(
+                  <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:200,background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:200,overflow:'hidden'}}>
+                    {[{label:'Tomorrow',opt:'tomorrow'},{label:'In 3 days',opt:'3days'},{label:'In 1 week',opt:'1week'}].map(o=>(
+                      <button key={o.opt} onClick={()=>snoozeFU(f.id,o.opt)}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left',fontSize:13,color:S.isLight?'#374151':S.txt,fontWeight:500}}
+                        onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        <Clock size={12} color={S.muted}/>
+                        {o.label}
+                      </button>
+                    ))}
+                    <div style={{padding:'8px 14px'}}>
+                      <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Pick a date</div>
+                      <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                        <input type='date' value={fuSnoozeCustomDate} onChange={e=>setFuSnoozeCustomDate(e.target.value)}
+                          style={{fontSize:12,padding:'4px 8px',background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.isLight?'#374151':S.txt,flex:1}}/>
+                        <button onClick={()=>{if(fuSnoozeCustomDate)snoozeFU(f.id,'custom',fuSnoozeCustomDate)}}
+                          disabled={!fuSnoozeCustomDate}
+                          style={{padding:'4px 10px',background:fuSnoozeCustomDate?'#2563eb':'#94a3b8',border:'none',borderRadius:5,color:'#fff',fontSize:12,cursor:fuSnoozeCustomDate?'pointer':'not-allowed',whiteSpace:'nowrap'}}>Set</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button onClick={()=>{sendToAppleReminders(f,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
                 title='Send to Apple Reminders'
                 style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id?1:0,transition:'opacity 0.15s'}}

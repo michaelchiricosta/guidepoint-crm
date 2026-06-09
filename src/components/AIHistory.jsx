@@ -2,12 +2,10 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { S } from '../theme.js'
 import { fmtDate } from '../utils.js'
-
-// AIChatModal is defined in IntelLog.jsx and passed in via prop or we import it
-// Since AIChatModal is in App.jsx still at this point, we import it
+import { saveData } from '../supabase.js'
 import AIChatModal from './AIChatModal.jsx'
 
-export default function AIHistory({acct, setAcct, apiKey}) {
+export default function AIHistory({acct, setAcct, data, setData, apiKey}) {
   const effectiveKey = apiKey || import.meta.env.VITE_ANTHROPIC_KEY || ''
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState(null)
@@ -34,10 +32,23 @@ export default function AIHistory({acct, setAcct, apiKey}) {
     setAcct(prev=>({...prev, aiHistory:(prev.aiHistory||[]).map(s=>s.id===sessionId?{...s,pinned:!s.pinned}:s)}))
   }
 
-  const deleteSession = (sessionId) => {
+  const deleteSession = async (sessionId) => {
     if(!window.confirm('Delete this chat session?')) return
     setAcct(prev => ({...prev, aiHistory: (prev.aiHistory||[]).filter(s => s.id !== sessionId)}))
     if(expanded === sessionId) setExpanded(null)
+    if (data && setData) {
+      const updatedData = {
+        ...data,
+        accounts: (data.accounts||[]).map(a =>
+          a.id === acct.id
+            ? {...a, aiHistory: (a.aiHistory||[]).filter(s => s.id !== sessionId)}
+            : a
+        )
+      }
+      setData(() => updatedData)
+      window._lastDirectSave = Date.now()
+      await saveData(updatedData)
+    }
   }
 
   const pinMsgInHistory = (sessionId, msgId) => {

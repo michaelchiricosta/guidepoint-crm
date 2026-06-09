@@ -2074,6 +2074,18 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     return threshold
   })()
 
+  const isHot = (a) => {
+    const signals = [
+      ((a.intelLog||[]).length + (a.notes||[]).length) >= 3,
+      a.status === 'Active Conversation',
+      a.status === 'Reached Out',
+      (a.contacts||[]).length >= 1,
+      (a.technologies||[]).length >= 1,
+      a.employees && parseInt(a.employees.replace(/\D/g,'')) >= 1000,
+    ]
+    return signals.filter(Boolean).length >= 3
+  }
+
   const updateAccount = (id, changes) => {
     const now = new Date().toISOString()
     if (changes.status === 'Active Conversation') {
@@ -2338,25 +2350,26 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const executeMerge = () => {
     if (mergeSelected.size < 2 || !mergePrimary) return
     const selectedIds = [...mergeSelected]
-    console.log('Merging accounts:', selectedIds, 'primary:', mergePrimary)
+    console.log('Merge clicked, selected:', selectedIds, 'primary:', mergePrimary)
     const primary = ws.find(a=>a.id===mergePrimary)
     if (!primary) { console.warn('Primary account not found:', mergePrimary); return }
     const others = ws.filter(a=>mergeSelected.has(a.id)&&a.id!==mergePrimary)
-    const nonPrimaryIds = others.map(a=>a.id)
-    const allNotes = [...(primary.notes||[]),...others.flatMap(a=>a.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const allIntelLog = [...(primary.intelLog||[]),...others.flatMap(a=>a.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    const allNotes = [...(primary.notes||[]),...others.flatMap(a=>a.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
     const contactMap = new Map()
-    ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase();if(!contactMap.has(k))contactMap.set(k,c)})
+    ;[...(primary.contacts||[]),...others.flatMap(a=>a.contacts||[])].forEach(c=>{const k=(c.name||'').toLowerCase().trim();if(!contactMap.has(k))contactMap.set(k,c)})
     const techMap = new Map()
-    ;[...(primary.technologies||[]),...others.flatMap(a=>a.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase();if(!techMap.has(k))techMap.set(k,t)})
+    ;[...(primary.technologies||[]),...others.flatMap(a=>a.technologies||[])].forEach(t=>{const k=(t.vendor||'').toLowerCase().trim();if(!techMap.has(k))techMap.set(k,t)})
     const mergedAccount = {...primary,notes:allNotes,intelLog:allIntelLog,contacts:[...contactMap.values()],technologies:[...techMap.values()],updatedAt:new Date().toISOString()}
+    const allSelectedIds = [...mergeSelected]
     setData(prev=>({
       ...prev,
       whitespaceAccounts:[
-        ...(prev.whitespaceAccounts||[]).filter(a=>!nonPrimaryIds.includes(a.id)&&a.id!==mergePrimary),
+        ...(prev.whitespaceAccounts||[]).filter(a=>!allSelectedIds.includes(a.id)),
         mergedAccount
       ]
     }))
+    window._lastDirectSave = Date.now()
     const msg = `${mergeSelected.size} accounts merged into "${primary.name}"`
     setMergeToast(msg); setTimeout(()=>setMergeToast(''),4000)
     setShowMerge(false); setMergeSelected(new Set()); setMergePrimary(null); setMergeStep(1); setMergeSearch('')
@@ -2740,7 +2753,6 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
               <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
-              <div style={{fontSize:10,color:'#64748b',marginTop:1}}>Whitespace Tracker</div>
             </div>
           </div>
         </div>
@@ -2968,6 +2980,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             <div>
               <div style={{display:'flex',alignItems:'center',padding:'8px 16px',background:isLight?'#f8fafc':'rgba(255,255,255,0.03)',borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.05em',position:'sticky',top:0,zIndex:10,userSelect:'none'}}>
                 <div style={{width:28,flexShrink:0}}/>
+                <div style={{width:28,flexShrink:0,textAlign:'center'}}>🔥</div>
                 <div style={{flex:'0 0 200px',cursor:'pointer'}} onClick={()=>setSort(sort==='Name A-Z'?'Name Z-A':'Name A-Z')}>Name{sort==='Name A-Z'?' ↑':sort==='Name Z-A'?' ↓':''}</div>
                 <div style={{flex:'0 0 120px'}}>HQ</div>
                 <div style={{flex:'1 1 140px',cursor:'pointer'}} onClick={()=>setSort('Industry')}>Industry{sort==='Industry'?' ↑':''}</div>
@@ -2990,12 +3003,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       onMouseEnter={()=>setHoveredId(acct.id)}
                       onMouseLeave={()=>setHoveredId(null)}>
                       <div style={{width:28,flexShrink:0,color:'#94a3b8',fontSize:11}}>{isExp?'▼':'▶'}</div>
-                      <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',gap:3,paddingRight:12,minWidth:0}}>
+                      <div style={{width:28,flexShrink:0,textAlign:'center',fontSize:14}}>
+                        {isHot(acct)?<span title='Hot account'>🔥</span>:null}
+                      </div>
+                      <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',paddingRight:12,minWidth:0}}>
                         <span style={{fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</span>
-                        {acct.ai_opportunity_score!=null&&acct.ai_opportunity_score>=flameThreshold
-                          ? <span title={`${acct.ai_score_reasoning||'High opportunity account'}\nScored: ${acct.ai_score_updated_at?new Date(acct.ai_score_updated_at).toLocaleDateString():''}`} style={{flexShrink:0,cursor:'help',fontSize:13,lineHeight:1}}>🔥</span>
-                          : <span title={acct.ai_opportunity_score!=null?`Score: ${acct.ai_opportunity_score} — not in top tier\n${acct.ai_score_reasoning||''}`:'Not yet scored — use ⋯ → Score All or Rescore in account details'} style={{flexShrink:0,fontSize:11,lineHeight:1,opacity:0.25,cursor:'help',userSelect:'none'}}>🔥</span>
-                        }
                       </div>
                       <div style={{flex:'0 0 120px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.hq||''}</div>
                       <div style={{flex:'1 1 140px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.industry||''}</div>
@@ -4616,6 +4628,7 @@ export default function App() {
 
   const safeLoadData = async () => {
     if (Date.now() - contactPhotoSaveTime < 5000) { console.log('Skipping reload — contact photo save in progress'); return }
+    if (Date.now() - (window._lastDirectSave || 0) < 5000) { console.log('Skipping reload — direct save in progress'); return }
     console.log('safeLoadData called, inProgress:', saveInProgress.current, 'lastSave:', lastSaveTime.current)
     if (saveInProgress.current) { console.log('Skipping reload — save in progress'); return }
     if (Date.now() - lastSaveTime.current < 5000) { console.log('Skipping reload — recent save'); return }
@@ -4634,6 +4647,7 @@ export default function App() {
   useEffect(()=>{
     if(!data || !initialLoadDone || !storageReady) return
     if (Date.now() - contactPhotoSaveTime < 5000) return
+    if (Date.now() - (window._lastDirectSave || 0) < 5000) return
     console.log('Auto-save triggered')
     let iv
     const timer = setTimeout(()=>{
