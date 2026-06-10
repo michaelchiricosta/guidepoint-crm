@@ -130,9 +130,9 @@ export default function AIHistory({acct, setAcct, data, setData, apiKey}) {
                   <div style={{display:'flex',gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
                     <button onClick={()=>openContinue(s)} style={{fontSize:11,color:S.blue,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:5,padding:'4px 10px',cursor:'pointer',fontWeight:600}}>Continue Chat</button>
                     <button onClick={()=>deleteSession(s.id)} title='Delete session'
-                      style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center'}}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',padding:'4px',display:'flex',alignItems:'center'}}
                       onMouseEnter={e=>e.currentTarget.style.color='#dc2626'}
-                      onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+                      onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
                       <Trash2 size={16}/>
                     </button>
                   </div>

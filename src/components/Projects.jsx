@@ -88,7 +88,7 @@ export default function Projects({acct,setAcct}) {
                 {projs.map(p=>{
                   const comp=p.timeline.filter(s=>s.status==='completed').length
                   return (
-                    <div key={p.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'9px 11px',marginBottom:6,position:'relative',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                    <div key={p.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'9px 11px',marginBottom:6,position:'relative',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
                       {/* Name + edit button */}
                       <div style={{display:'flex',alignItems:'flex-start',gap:4,marginBottom:4}}>
                         <div style={{fontSize:12,fontWeight:600,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
@@ -202,11 +202,11 @@ export default function Projects({acct,setAcct}) {
             </div>
             <div style={{padding:'0 14px 14px'}}>
               <div style={{display:'flex',gap:2,marginBottom:8}}>
-                {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#e2e8f0';return(<div key={i} onClick={e=>{e.stopPropagation();toggleStage(p.id,i)}} style={{flex:1,height:7,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.2s'}} title={stage.stage+(stage.date?' - '+fmtDate(stage.date):'')+' (click to toggle)'}/>)})}
+                {p.timeline.map((stage,i)=>{const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#007AFF':'#EEEFF2';return(<div key={i} onClick={e=>{e.stopPropagation();toggleStage(p.id,i)}} style={{flex:1,height:7,background:c,borderRadius:2,cursor:'pointer',transition:'background 0.2s'}} title={stage.stage+(stage.date?' - '+fmtDate(stage.date):'')+' (click to toggle)'}/>)})}
               </div>
               <div style={{display:'grid',gridTemplateColumns:`repeat(${p.timeline.length},1fr)`,gap:2}}>
                 {p.timeline.map((stage,i)=>{
-                  const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#2563eb':'#94a3b8'
+                  const c=stage.status==='completed'?'#0ebc5f':stage.status==='current'?'#007AFF':'#9CA3AF'
                   return (<div key={i} style={{textAlign:'center'}}>
                     <div style={{fontSize:9,color:c,fontWeight:stage.status!=='pending'?600:400,lineHeight:1.3,wordBreak:'break-word'}}>{stage.stage}{stage.status==='completed'?' ✓':stage.status==='current'?' ●':''}</div>
                     {stage.status==='completed'&&stage.date&&<div style={{fontSize:8,color:S.muted,marginTop:1,lineHeight:1.2}}>{fmtDate(stage.date)}</div>}
@@ -215,8 +215,8 @@ export default function Projects({acct,setAcct}) {
               </div>
               <div style={{display:'flex',gap:12,marginTop:6,fontSize:10,color:S.muted}}>
                 <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block',flexShrink:0}}/>Completed</span>
-                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#2563eb',display:'inline-block',flexShrink:0}}/>Scheduled / In Progress</span>
-                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#e2e8f0',display:'inline-block',flexShrink:0}}/>Not Started</span>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#007AFF',display:'inline-block',flexShrink:0}}/>Scheduled / In Progress</span>
+                <span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:'50%',background:'#EEEFF2',display:'inline-block',flexShrink:0}}/>Not Started</span>
               </div>
               {open&&<div style={{marginTop:12,borderTop:`1px solid ${S.bdr}`,paddingTop:12}}>
                 {/* Quick status action buttons */}

@@ -54,7 +54,7 @@ export default function AccountDashboard({acct, setTab}) {
     const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'})
   }
 
-  const LINE_PALETTE = ['#2563eb','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777']
+  const LINE_PALETTE = ['#007AFF','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777']
   const lineContacts = Array.from(new Set(filtered.map(i=>i.contact).filter(Boolean))).sort()
   const lineColorMap = Object.fromEntries(lineContacts.map((c,i)=>[c, LINE_PALETTE[i%LINE_PALETTE.length]]))
   const lineData = buckets.map(b => {
@@ -72,7 +72,7 @@ export default function AccountDashboard({acct, setTab}) {
     const total = entries.reduce((s,p)=>s+p.value,0)
     return (
       <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.15)',padding:'12px',minWidth:180}}>
-        <div style={{fontSize:12,fontWeight:700,color:S.txt,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,paddingBottom:6,marginBottom:6}}>{label}</div>
+        <div style={{fontSize:12,fontWeight:700,color:S.txt,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,paddingBottom:6,marginBottom:6}}>{label}</div>
         {entries.map((p,i)=>(
           <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:i<entries.length-1?4:0}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -82,7 +82,7 @@ export default function AccountDashboard({acct, setTab}) {
             <span style={{fontSize:12,fontWeight:700,color:S.txt}}>{p.value}</span>
           </div>
         ))}
-        {entries.length>1&&<div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,paddingTop:4,marginTop:6}}>
+        {entries.length>1&&<div style={{display:'flex',justifyContent:'space-between',borderTop:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,paddingTop:4,marginTop:6}}>
           <span style={{fontSize:11,color:S.muted}}>Total</span>
           <span style={{fontSize:11,fontWeight:700,color:S.muted}}>{total}</span>
         </div>}
@@ -91,8 +91,8 @@ export default function AccountDashboard({acct, setTab}) {
   }
 
   const typeBadge = t => ({
-    bg: S.isLight ? ({Meeting:'#dbeafe',Call:'#dcfce7',Email:'#fef9c3',Demo:'#ede9fe',Note:'#f1f5f9'}[t]||'#f1f5f9') : (INTERACTION_COLORS[t]||S.muted)+'1a',
-    c:  S.isLight ? ({Meeting:'#1d4ed8',Call:'#15803d',Email:'#a16207',Demo:'#7c3aed',Note:'#475569'}[t]||'#475569') : (INTERACTION_COLORS[t]||S.muted)
+    bg: S.isLight ? ({Meeting:'#EBF4FF',Call:'#dcfce7',Email:'#fef9c3',Demo:'#ede9fe',Note:'#F9FAFB'}[t]||'#F9FAFB') : (INTERACTION_COLORS[t]||S.muted)+'1a',
+    c:  S.isLight ? ({Meeting:'#0066CC',Call:'#15803d',Email:'#a16207',Demo:'#7c3aed',Note:'#475569'}[t]||'#475569') : (INTERACTION_COLORS[t]||S.muted)
   })
 
   const bucketMap = {}
@@ -139,7 +139,7 @@ export default function AccountDashboard({acct, setTab}) {
       {/* ── STAT CARDS ── */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
         {[
-          {key:'last30',bc:'#2563eb',onClick:()=>setCalendarOpen(true),label:'Last 30 Days',main:String(last30Count),sub:`interaction${last30Count!==1?'s':''} · click for calendar`},
+          {key:'last30',bc:'#007AFF',onClick:()=>setCalendarOpen(true),label:'Last 30 Days',main:String(last30Count),sub:`interaction${last30Count!==1?'s':''} · click for calendar`},
           {key:'topContact',bc:'#16a34a',onClick:()=>setContactFreqOpen(true),label:'Most Contacted',main:topContact?topContact[0]:'—',sub:topContact?`${topContact[1]} interaction${topContact[1]!==1?'s':''}`:null},
           {key:'topType',bc:'#9333ea',onClick:()=>setActivityBreakOpen(true),label:'Top Activity Type',main:topType?topType[0]:'—',sub:topType?`${topType[1]} total`:null},
         ].map(({key,bc,onClick,label,main,sub})=>{
@@ -148,7 +148,7 @@ export default function AccountDashboard({acct, setTab}) {
             <div key={key} onClick={onClick}
               onMouseEnter={()=>setHoveredStat(key)}
               onMouseLeave={()=>setHoveredStat(null)}
-              style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${bc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.1)':S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
+              style={{background:S.surf,border:`1px solid ${S.bdr}`,borderTop:`3px solid ${bc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.1)':'0 1px 4px rgba(0,0,0,0.06)',transition:'all 0.15s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
               <div style={{fontSize:10,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700,marginBottom:8}}>{label}</div>
               <div style={{fontSize:key==='last30'?28:15,fontWeight:800,color:S.txt,marginBottom:2,lineHeight:1.2}}>{main}</div>
               {sub&&<div style={{fontSize:11,color:S.muted}}>{sub}</div>}
@@ -158,7 +158,7 @@ export default function AccountDashboard({acct, setTab}) {
       </div>
 
       {acct.interactions.length===0 ? (
-        <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'60px 20px',textAlign:'center',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+        <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'60px 20px',textAlign:'center',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
           <div style={{fontSize:40,marginBottom:14,opacity:0.25}}>📈</div>
           <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:8}}>No interactions logged yet</div>
           <div style={{fontSize:13,color:S.muted,marginBottom:22,lineHeight:1.6,maxWidth:380,margin:'0 auto 22px'}}>Process a call transcript in Intel Log to automatically populate this dashboard.</div>
@@ -202,7 +202,7 @@ export default function AccountDashboard({acct, setTab}) {
               {selectedContacts.length>0&&(
                 <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:'flex-end'}}>
                   {selectedContacts.map(c=>(
-                    <span key={c} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',border:`1px solid ${S.isLight?'#93c5fd':'rgba(59,130,246,0.3)'}`,borderRadius:999,fontSize:11,color:S.blue}}>
+                    <span key={c} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'2px 8px',background:'#EBF4FF',border:`1px solid ${S.isLight?'#007AFF':'rgba(0,122,255,0.3)'}`,borderRadius:999,fontSize:11,color:S.blue}}>
                       {c}<button onClick={()=>setSelectedContacts(p=>p.filter(x=>x!==c))} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 0 0 2px'}}>×</button>
                     </span>
                   ))}
@@ -211,12 +211,12 @@ export default function AccountDashboard({acct, setTab}) {
             </div>
           </div>
 
-          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'20px 20px 12px',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:10}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:'20px 20px 12px',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:10}}>
             <ResponsiveContainer width='100%' height={280}>
               <LineChart data={lineData} margin={{top:8,right:16,bottom:0,left:0}}>
-                <CartesianGrid horizontal={true} vertical={false} stroke={S.isLight?'#f1f5f9':S.bdr} strokeDasharray='4 4'/>
-                <XAxis dataKey='date' tick={{fontSize:11,fill:S.isLight?'#94a3b8':S.muted}} axisLine={false} tickLine={false}/>
-                <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.isLight?'#94a3b8':S.muted}} axisLine={false} tickLine={false} width={30}/>
+                <CartesianGrid horizontal={true} vertical={false} stroke={S.isLight?'#F9FAFB':S.bdr} strokeDasharray='4 4'/>
+                <XAxis dataKey='date' tick={{fontSize:11,fill:S.isLight?'#9CA3AF':S.muted}} axisLine={false} tickLine={false}/>
+                <YAxis allowDecimals={false} tick={{fontSize:11,fill:S.isLight?'#9CA3AF':S.muted}} axisLine={false} tickLine={false} width={30}/>
                 <RechartsTooltip content={renderLineTooltip}/>
                 {lineContacts.filter(c=>!hiddenContacts.includes(c)).map(c=>(
                   <Line key={c} type='monotone' dataKey={c} stroke={lineColorMap[c]} strokeWidth={2.5}
@@ -247,18 +247,18 @@ export default function AccountDashboard({acct, setTab}) {
             <div style={{marginBottom:20}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
                 <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Activity Feed</span>
-                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{feedItems.length}</span>
+                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:'#EBF4FF',borderRadius:999,padding:'1px 7px'}}>{feedItems.length}</span>
               </div>
-              <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'hidden',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+              <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
                 {feedItems.map((ix,idx)=>{
                   const isExp=expandedId===ix.id
                   const isLast=idx===feedItems.length-1
                   const {bg:tbg,c:tc}=typeBadge(ix.type||'Note')
                   return (
-                    <div key={ix.id} style={{borderBottom:isLast?'none':`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+                    <div key={ix.id} style={{borderBottom:isLast?'none':`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
                       <div onClick={()=>setExpandedId(isExp?null:ix.id)}
-                        style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExp?(S.isLight?'#f8fafc':S.surf2):'transparent',transition:'background 0.1s'}}
-                        onMouseEnter={e=>{if(!isExp)e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}}
+                        style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',background:isExp?(S.surf2):'transparent',transition:'background 0.1s'}}
+                        onMouseEnter={e=>{if(!isExp)e.currentTarget.style.background=S.surf2}}
                         onMouseLeave={e=>{if(!isExp)e.currentTarget.style.background='transparent'}}>
                         <span style={{fontSize:10,fontWeight:700,color:tc,background:tbg,padding:'3px 9px',borderRadius:999,flexShrink:0,whiteSpace:'nowrap'}}>{ix.type||'Note'}</span>
                         <div style={{flex:1,minWidth:0}}>
@@ -268,7 +268,7 @@ export default function AccountDashboard({acct, setTab}) {
                         <div style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</div>
                       </div>
                       {isExp&&(
-                        <div style={{background:S.isLight?'#f8fafc':S.surf2,borderTop:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,borderLeft:`3px solid ${tc}`,padding:'10px 16px 12px'}}>
+                        <div style={{background:S.surf2,borderTop:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,borderLeft:`3px solid ${tc}`,padding:'10px 16px 12px'}}>
                           {ix.summary&&<div style={{fontSize:13,color:S.secondary,lineHeight:1.65,marginBottom:6}}>{ix.summary.length>500?ix.summary.slice(0,500)+'…':ix.summary}</div>}
                           <div style={{fontSize:10,color:S.muted,display:'flex',gap:10}}>
                             <span>{fmtDate(ix.date)}</span>

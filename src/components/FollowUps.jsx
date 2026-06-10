@@ -90,12 +90,12 @@ export default function FollowUps({acct,setAcct}) {
     const isSelected=selMode&&selFUs.has(fu.id)
     return (
       <div key={fu.id}
-        style={{display:'flex',gap:12,padding:'13px 16px',background:isSelected?'#eff6ff':S.isLight?'#ffffff':S.surf,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,alignItems:'flex-start',transition:'background 0.12s'}}
-        onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=S.isLight?'#f9fafb':S.surf2;setHoveredFuId(fu.id)}}
-        onMouseLeave={e=>{e.currentTarget.style.background=isSelected?'#eff6ff':S.isLight?'#ffffff':S.surf;setHoveredFuId(null)}}>
+        style={{display:'flex',gap:12,padding:'13px 16px',background:isSelected?'#EBF4FF':S.surf,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,alignItems:'flex-start',transition:'background 0.12s'}}
+        onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=S.surf2;setHoveredFuId(fu.id)}}
+        onMouseLeave={e=>{e.currentTarget.style.background=isSelected?'#EBF4FF':S.surf;setHoveredFuId(null)}}>
         <div style={{display:'flex',alignItems:'flex-start',gap:10,flex:1,minWidth:0}}>
           {selMode
-            ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:3,cursor:'pointer',flexShrink:0,accentColor:'#2563eb'}}/>
+            ?<input type='checkbox' checked={selFUs.has(fu.id)} onChange={()=>toggleSel(fu.id)} style={{width:16,height:16,marginTop:3,cursor:'pointer',flexShrink:0,accentColor:'#007AFF'}}/>
             :<button onClick={()=>toggle(fu.id)}
                 style={{width:20,height:20,borderRadius:'50%',border:`2px solid ${p.d||p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer',transition:'all 0.15s'}}
                 onMouseEnter={e=>{e.currentTarget.style.background=(p.d||p.c)+'22';e.currentTarget.style.borderColor=p.d||p.c}}
@@ -104,27 +104,27 @@ export default function FollowUps({acct,setAcct}) {
           }
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:5}}>
-              <span style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,lineHeight:1.4}}>{fu.task}</span>
+              <span style={{fontSize:13,fontWeight:600,color:S.txt,lineHeight:1.4}}>{fu.task}</span>
               {extraBadge}
             </div>
             <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
               <span style={{fontSize:10,fontWeight:700,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
               {fu.contact&&<span style={{fontSize:11,color:S.isLight?'#64748b':S.muted,display:'inline-flex',alignItems:'center',gap:3}}>· {fu.contact}</span>}
               {fu.dueDate&&<span style={{fontSize:11,color:dueDateColor,fontWeight:dDue!==null&&dDue<0?700:400,display:'inline-flex',alignItems:'center',gap:3}}>· {fmtDate(fu.dueDate)}</span>}
-              {fu.context&&<span style={{fontSize:11,color:S.isLight?'#94a3b8':S.dim,marginTop:1}}>{fu.context}</span>}
+              {fu.context&&<span style={{fontSize:11,color:S.isLight?'#9CA3AF':S.dim,marginTop:1}}>{fu.context}</span>}
             </div>
           </div>
         </div>
         <div style={{display:'flex',gap:4,alignItems:'center'}}>
           <button onClick={()=>{setForm(fu);setShowAdd(true);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}
-            style={{background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,color:S.isLight?'#94a3b8':S.muted,cursor:'pointer',fontSize:11,flexShrink:0,padding:'3px 9px',borderRadius:6,transition:'all 0.12s'}}
-            onMouseEnter={e=>{e.currentTarget.style.color=S.isLight?'#475569':S.secondary;e.currentTarget.style.borderColor=S.isLight?'#94a3b8':S.secondary}}
-            onMouseLeave={e=>{e.currentTarget.style.color=S.isLight?'#94a3b8':S.muted;e.currentTarget.style.borderColor=S.isLight?'#e2e8f0':S.bdr}}>Edit</button>
+            style={{background:'transparent',border:`1px solid ${'#EEEFF2'}`,color:S.isLight?'#9CA3AF':S.muted,cursor:'pointer',fontSize:11,flexShrink:0,padding:'3px 9px',borderRadius:6,transition:'all 0.12s'}}
+            onMouseEnter={e=>{e.currentTarget.style.color=S.isLight?'#6B7280':S.secondary;e.currentTarget.style.borderColor=S.isLight?'#9CA3AF':S.secondary}}
+            onMouseLeave={e=>{e.currentTarget.style.color=S.isLight?'#9CA3AF':S.muted;e.currentTarget.style.borderColor='#EEEFF2'}}>Edit</button>
           <button onClick={()=>{sendToAppleReminders(fu,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
             title='Send to Apple Reminders'
-            style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===fu.id?1:0,transition:'opacity 0.15s'}}
-            onMouseEnter={e=>e.currentTarget.style.color='#475569'}
-            onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Share2 size={14}/></button>
+            style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===fu.id?1:0,transition:'opacity 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
+            onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}><Share2 size={14}/></button>
         </div>
       </div>
     )
@@ -136,10 +136,10 @@ export default function FollowUps({acct,setAcct}) {
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
 
       {/* ─── TODAY SECTION ─── */}
-      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:16,overflow:'hidden'}}>
-        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#0f172a':S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Today</span>
+            <span style={{fontSize:11,fontWeight:800,color:S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Today</span>
             <span style={{fontSize:11,color:S.muted,fontWeight:400}}>{todayFull}</span>
           </div>
           {(overdueFUs.length+dueTodayFUs.length)>0&&<span style={{fontSize:11,fontWeight:700,color:S.isLight?'#dc2626':S.red,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',borderRadius:999,padding:'2px 9px'}}>{overdueFUs.length+dueTodayFUs.length} due</span>}
@@ -163,12 +163,12 @@ export default function FollowUps({acct,setAcct}) {
       </div>
 
       {/* ─── OPEN TASKS SECTION ─── */}
-      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',marginBottom:16,overflow:'hidden'}}>
-        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+      <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
+        <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
           <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
             <span style={{fontSize:10,color:S.muted}}>{showOpenTasks?'▼':'▶'}</span>
-            <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#0f172a':S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Upcoming</span>
-            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.isLight?'#f1f5f9':S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
+            <span style={{fontSize:11,fontWeight:800,color:S.txt,letterSpacing:'0.08em',textTransform:'uppercase'}}>Upcoming</span>
+            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{futureFUs.length}</span>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
             {showOpenTasks&&!selMode&&(
@@ -178,8 +178,8 @@ export default function FollowUps({acct,setAcct}) {
                 <option value='contact'>Contact</option>
               </select>
             )}
-            {showOpenTasks&&!selMode&&<button onClick={()=>setSelMode(true)} style={{fontSize:12,color:'#475569',background:'transparent',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Select</button>}
-            {!selMode&&<button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:12,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>}
+            {showOpenTasks&&!selMode&&<button onClick={()=>setSelMode(true)} style={{fontSize:12,color:'#6B7280',background:'transparent',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Select</button>}
+            {!selMode&&<button onClick={()=>{setForm(blank);setShowAdd(true)}} style={{fontSize:12,color:'#007AFF',background:'#EBF4FF',border:'1px solid #bfdbfe',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>+ Add Follow-Up</button>}
           </div>
         </div>
 
@@ -187,24 +187,24 @@ export default function FollowUps({acct,setAcct}) {
         {selMode&&(
           <div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',background:'#ffffff',borderBottom:'1px solid #f1f5f9',flexWrap:'wrap',boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
             <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#64748b',cursor:'pointer'}}>
-              <input type='checkbox' checked={selFUs.size===futureFUs.length&&futureFUs.length>0} onChange={e=>{if(e.target.checked)setSelFUs(new Set(futureFUs.map(f=>f.id)));else setSelFUs(new Set())}} style={{accentColor:'#2563eb',cursor:'pointer'}}/>
+              <input type='checkbox' checked={selFUs.size===futureFUs.length&&futureFUs.length>0} onChange={e=>{if(e.target.checked)setSelFUs(new Set(futureFUs.map(f=>f.id)));else setSelFUs(new Set())}} style={{accentColor:'#007AFF',cursor:'pointer'}}/>
               Select All
             </label>
-            {selFUs.size>0&&<span style={{fontSize:12,fontWeight:600,color:'#0f172a',background:'#f1f5f9',borderRadius:999,padding:'2px 9px'}}>{selFUs.size} selected</span>}
+            {selFUs.size>0&&<span style={{fontSize:12,fontWeight:600,color:'#111827',background:'#F9FAFB',borderRadius:999,padding:'2px 9px'}}>{selFUs.size} selected</span>}
             {selFUs.size>0&&<>
               <div style={{position:'relative'}}>
-                <button onClick={()=>{setBatchDateOpen(v=>!v);setBatchPriOpen(false)}} style={{fontSize:11,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Due Date</button>
+                <button onClick={()=>{setBatchDateOpen(v=>!v);setBatchPriOpen(false)}} style={{fontSize:11,color:'#6B7280',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Due Date</button>
                 {batchDateOpen&&<div onClick={e=>e.stopPropagation()} style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,padding:'8px',boxShadow:'0 4px 16px rgba(0,0,0,0.12)',display:'flex',gap:6,alignItems:'center'}}>
-                  <input type='date' value={batchDate} onChange={e=>setBatchDate(e.target.value)} style={{fontSize:12,padding:'4px 7px',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,color:'#374151'}}/>
-                  <button onClick={applyBatchDate} style={{padding:'4px 10px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply</button>
+                  <input type='date' value={batchDate} onChange={e=>setBatchDate(e.target.value)} style={{fontSize:12,padding:'4px 7px',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:5,color:'#374151'}}/>
+                  <button onClick={applyBatchDate} style={{padding:'4px 10px',background:'#007AFF',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Apply</button>
                 </div>}
               </div>
               <div style={{position:'relative'}}>
-                <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:'#475569',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
+                <button onClick={()=>{setBatchPriOpen(v=>!v);setBatchDateOpen(false)}} style={{fontSize:11,color:'#6B7280',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:5,padding:'4px 9px',cursor:'pointer'}}>Set Priority</button>
                 {batchPriOpen&&<div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:100,background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:7,overflow:'hidden',boxShadow:'0 4px 16px rgba(0,0,0,0.12)'}}>
                   {['Critical','High','Medium','Low'].map(p=>(
                     <button key={p} onClick={()=>applyBatchPri(p)} style={{display:'block',width:'100%',padding:'7px 14px',background:'transparent',border:'none',fontSize:12,color:(PC[p]||PC.Low).c,cursor:'pointer',textAlign:'left',fontWeight:600,borderBottom:'1px solid #f1f5f9'}}
-                      onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'}
+                      onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{p}</button>
                   ))}
                 </div>}
@@ -223,23 +223,23 @@ export default function FollowUps({acct,setAcct}) {
       </div>
 
       {/* ─── COMPLETED SECTION ─── */}
-      <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',overflow:'hidden'}}>
+      <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
         <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
             <span style={{fontSize:10,color:S.muted}}>{showCompleted?'▼':'▶'}</span>
             <span style={{fontSize:11,fontWeight:800,color:S.muted,letterSpacing:'0.08em',textTransform:'uppercase'}}>Completed</span>
-            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.isLight?'#f8fafc':S.surf2,borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
+            <span style={{fontSize:11,fontWeight:600,color:S.muted,background:S.surf2,borderRadius:999,padding:'1px 8px'}}>{done.length}</span>
           </div>
           {done.length>0&&<button onClick={()=>{if(window.confirm(`Delete all ${done.length} completed tasks?`))setAcct(p=>({...p,followUps:p.followUps.filter(fu=>fu.status!=='Done')}))}} style={{fontSize:11,color:S.isLight?'#dc2626':S.red,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(220,38,38,0.2)'}`,borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>Clear All</button>}
         </div>
         {showCompleted&&(
           done.length===0
-          ?<div style={{fontSize:12,color:S.muted,padding:'12px 16px',borderTop:`1px solid ${S.isLight?'#f8fafc':S.bdr}`,textAlign:'center'}}>No completed tasks yet.</div>
-          :<div style={{borderTop:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+          ?<div style={{fontSize:12,color:S.muted,padding:'12px 16px',borderTop:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,textAlign:'center'}}>No completed tasks yet.</div>
+          :<div style={{borderTop:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
             {done.map(fu=>(
-              <div key={fu.id} style={{display:'flex',gap:12,padding:'10px 16px',alignItems:'center',background:S.isLight?'#f8fafc':S.surf2,borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`,cursor:'pointer',transition:'background 0.12s'}}
-                onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f1f5f9':S.surf}
-                onMouseLeave={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}>
+              <div key={fu.id} style={{display:'flex',gap:12,padding:'10px 16px',alignItems:'center',background:S.surf2,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,cursor:'pointer',transition:'background 0.12s'}}
+                onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#F9FAFB':S.surf}
+                onMouseLeave={e=>e.currentTarget.style.background=S.surf2}>
                 <div onClick={()=>toggle(fu.id)} style={{width:20,height:20,borderRadius:'50%',border:'2px solid #16a34a',background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer'}}>
                   <span style={{color:'#16a34a',fontSize:10,fontWeight:700}}>✓</span>
                 </div>

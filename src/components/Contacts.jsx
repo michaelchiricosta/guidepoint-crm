@@ -239,7 +239,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
     const fn=c.name.split(' ')[0].toLowerCase(),ln=c.name.split(' ').slice(-1)[0].toLowerCase()
     const matchEntry=e=>{const h=`${e.participants||''} ${e.topics||''} ${e.summary||''}`.toLowerCase();return h.includes(fn)||(ln!==fn&&h.includes(ln))}
     const relHistory=[...(acct.interactions||[]).filter(matchEntry).map(e=>({...e,_s:'i'})),...(acct.intelLog||[]).filter(matchEntry).map(e=>({...e,_s:'l'}))].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-    const avatarBg=isInternal?'rgba(59,130,246,0.15)':isVendor?'rgba(168,85,247,0.15)':inf.b
+    const avatarBg=isInternal?'rgba(0,122,255,0.15)':isVendor?'rgba(168,85,247,0.15)':inf.b
     const avatarColor=isInternal?S.blue:isVendor?S.purple:inf.c
     return (
       <Card key={c.id}>
@@ -607,7 +607,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
       setZoom(1);setPan({x:0,y:0})
       await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))
       const h2c=(await import('html2canvas')).default
-      const canvas=await h2c(chartContentRef.current,{backgroundColor:'#f8fafc',scale:2,useCORS:true,logging:false})
+      const canvas=await h2c(chartContentRef.current,{backgroundColor:'#F9FAFB',scale:2,useCORS:true,logging:false})
       if(type==='jpeg'){
         canvas.toBlob(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${acct.name}-org-chart.jpg`;a.click();URL.revokeObjectURL(url)},'image/jpeg',0.95)
       } else {
@@ -658,7 +658,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
         </div>
       </div>}
       {(acct.contactSuggestions||[]).length>0&&(
-        <div style={{marginBottom:12,background:S.isLight?'rgba(59,130,246,0.04)':'rgba(59,130,246,0.08)',border:`1px solid ${S.isLight?'rgba(59,130,246,0.2)':'rgba(59,130,246,0.3)'}`,borderRadius:8,overflow:'hidden'}}>
+        <div style={{marginBottom:12,background:S.isLight?'rgba(59,130,246,0.04)':'rgba(59,130,246,0.08)',border:`1px solid ${S.isLight?'rgba(0,122,255,0.2)':'rgba(0,122,255,0.3)'}`,borderRadius:8,overflow:'hidden'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',borderBottom:`1px solid ${S.bdr}`,background:S.isLight?'rgba(59,130,246,0.06)':'rgba(59,130,246,0.1)'}}>
             <span style={{fontSize:12,fontWeight:700,color:S.blue}}>AI Contact Suggestions <span style={{fontWeight:400,opacity:0.7}}>({(acct.contactSuggestions||[]).length})</span></span>
             <div style={{display:'flex',gap:6}}>
@@ -728,9 +728,9 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
               return (
                 <div key={c.id}
                   onClick={()=>{setContactView('list');setExp(c.id)}}
-                  style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,padding:'16px',cursor:'pointer',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',transition:'all 0.15s',position:'relative'}}
+                  style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,padding:'16px',cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',transition:'all 0.15s',position:'relative'}}
                   onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-1px)'}}
-                  onMouseLeave={e=>{e.currentTarget.style.boxShadow=S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none';e.currentTarget.style.transform='translateY(0)'}}>
+                  onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(0)'}}>
                   <div style={{position:'relative',display:'inline-block',marginBottom:10}}
                     onMouseEnter={()=>setHoveredPhoto(c.id)}
                     onMouseLeave={()=>setHoveredPhoto(null)}>
@@ -780,8 +780,8 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
 
           {/* Controls bar */}
           <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
-            <button onClick={autoLayout} style={{padding:'6px 14px',background:S.isLight?'#eff6ff':'rgba(59,130,246,0.15)',border:`1px solid ${S.isLight?'#bfdbfe':'rgba(59,130,246,0.3)'}`,borderRadius:7,color:S.blue,fontSize:12,fontWeight:600,cursor:'pointer'}}>⚡ Auto Layout</button>
-            <button onClick={()=>{if(window.confirm('Move all nodes back to unassigned?'))saveOrgNodes([])}} style={{padding:'6px 14px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:7,color:S.red,fontSize:12,fontWeight:600,cursor:'pointer'}}>✕ Clear</button>
+            <button onClick={autoLayout} style={{padding:'6px 14px',background:'#EBF4FF',border:`1px solid ${S.isLight?'#BFDBFE':'rgba(0,122,255,0.3)'}`,borderRadius:7,color:S.blue,fontSize:12,fontWeight:600,cursor:'pointer'}}>⚡ Auto Layout</button>
+            <button onClick={()=>{if(window.confirm('Move all nodes back to unassigned?'))saveOrgNodes([])}} style={{padding:'6px 14px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${'#FECACA'}`,borderRadius:7,color:S.red,fontSize:12,fontWeight:600,cursor:'pointer'}}>✕ Clear</button>
             <span style={{fontSize:11,color:S.muted,marginLeft:'auto'}}>{orgNodes.length} placed · {unassigned.length} unassigned</span>
           </div>
 
@@ -790,7 +790,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
             style={{position:'relative',width:'100%',height:typeof window!=='undefined'&&window.innerWidth<768?'70vh':600,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden',marginBottom:12,
               backgroundImage:'radial-gradient(circle, #e2e8f0 1px, transparent 1px)',
               backgroundSize:'24px 24px',
-              backgroundColor:S.isLight?'#f8fafc':S.surf2,
+              backgroundColor:S.surf2,
               cursor:isPanning?'grabbing':'grab',
               touchAction:'none',userSelect:'none'}}
             onDragOver={e=>e.preventDefault()}
@@ -918,7 +918,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
                   </div>
                   {c.lastInteracted&&<div style={{fontSize:10,color:S.muted,marginBottom:8}}>Last: {fmtDate(c.lastInteracted)}</div>}
                   {/* Divider */}
-                  <div style={{height:1,background:S.isLight?'#f1f5f9':S.bdr,marginBottom:10}}/>
+                  <div style={{height:1,background:S.isLight?'#F9FAFB':S.bdr,marginBottom:10}}/>
                   {/* Color picker */}
                   <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Node Color</div>
                   <div style={{display:'flex',gap:6}}>
@@ -939,7 +939,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
           {/* Unassigned tray */}
           <div style={{background:S.surf,border:`1px dashed ${S.bdr}`,borderRadius:12,padding:'12px 16px'}}>
             <div style={{fontSize:11,fontWeight:700,color:S.secondary,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10}}>
-              Unassigned Contacts{unassigned.length>0&&<span style={{marginLeft:6,fontSize:10,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px',fontWeight:700}}>{unassigned.length}</span>}
+              Unassigned Contacts{unassigned.length>0&&<span style={{marginLeft:6,fontSize:10,color:S.blue,background:'#EBF4FF',borderRadius:999,padding:'1px 7px',fontWeight:700}}>{unassigned.length}</span>}
             </div>
             {unassigned.length===0
               ?<div style={{fontSize:12,color:S.dim,padding:'8px 0'}}>All contacts are on the chart</div>

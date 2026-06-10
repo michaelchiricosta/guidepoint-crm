@@ -1,32 +1,101 @@
-// V3 design tokens — clean light SaaS, Apple blue accent
-export const LIGHT_THEME = {
-  bg:        '#F4F6F9',
-  surf:      '#FFFFFF',
-  surf2:     '#F9FAFB',
-  bdr:       '#EEEFF2',
-  bdr2:      '#D1D5DB',
-  txt:       '#111827',
-  muted:     '#6B7280',
-  dim:       '#9CA3AF',
-  blue:      '#007AFF',
-  green:     '#10B981',
-  red:       '#EF4444',
-  orange:    '#F59E0B',
-  yellow:    '#F59E0B',
-  purple:    '#8B5CF6',
-  secondary: '#374151',
-  // Sidebar tokens — now white sidebar, dark text
-  sidebarBg: '#FFFFFF',
-  headerBg:  '#FFFFFF',
-  isLight:   true,
-  sideTxt:   '#111827',
-  sideMuted: '#6B7280',
-  sideActive:'#EBF4FF',
-  sideBdr:   '#EEEFF2',
-  sideHover: '#F9FAFB',
+// V3 design system — clean light SaaS, Apple blue accent
+export const theme = {
+  // Canvas & surfaces
+  bgCanvas:      '#F4F6F9',
+  bgCard:        '#FFFFFF',
+  bgSidebar:     '#FFFFFF',
+  bgHover:       '#F9FAFB',
+  bgAccentLight: '#EBF4FF',
+
+  // Borders
+  border:        '1px solid #EEEFF2',
+  borderColor:   '#EEEFF2',
+  borderInput:   '1px solid #D1D5DB',
+
+  // Accent
+  accent:        '#007AFF',
+  accentHover:   '#0066CC',
+  accentLight:   '#EBF4FF',
+
+  // Text
+  textPrimary:   '#111827',
+  textSecondary: '#6B7280',
+  textLabel:     '#9CA3AF',
+  textInverse:   '#FFFFFF',
+
+  // Semantic
+  success:     '#10B981',
+  successBg:   '#D1FAE5',
+  successText: '#059669',
+  warning:     '#F59E0B',
+  warningBg:   '#FEF3C7',
+  warningText: '#D97706',
+  danger:      '#EF4444',
+  dangerBg:    '#FEE2E2',
+  dangerText:  '#DC2626',
+
+  // Shadows
+  shadowCard:       '0 1px 4px rgba(0,0,0,0.06)',
+  shadowCardHover:  '0 4px 12px rgba(0,0,0,0.10)',
+  shadowButton:     '0 1px 3px rgba(0,122,255,0.25)',
+
+  // Radius
+  radiusCard:   '12px',
+  radiusButton: '8px',
+  radiusInput:  '8px',
+  radiusBadge:  '20px',
+
+  // Sidebar
+  sidebarWidth: '260px',
+
+  // Typography
+  fontFamily:    'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+  fontSizeXS:    '11px',
+  fontSizeSM:    '13px',
+  fontSizeMD:    '14px',
+  fontSizeLG:    '16px',
+  fontSizeXL:    '20px',
+  fontSizeTitle: '24px',
+
+  // Spacing
+  spaceXS:  '4px',
+  spaceSM:  '8px',
+  spaceMD:  '16px',
+  spaceLG:  '24px',
+  spaceXL:  '32px',
+  spaceXXL: '48px',
 }
 
-// Dark theme preserved for toggle — kept functional but v3 defaults to light
+export default theme
+
+// ── Backward-compatible S object ──────────────────────────────────────────────
+// All components import `S` — this maps old property names to new theme values.
+export const LIGHT_THEME = {
+  bg:        theme.bgCanvas,
+  surf:      theme.bgCard,
+  surf2:     theme.bgHover,
+  bdr:       theme.borderColor,
+  bdr2:      '#D1D5DB',
+  txt:       theme.textPrimary,
+  muted:     theme.textSecondary,
+  dim:       theme.textLabel,
+  blue:      theme.accent,
+  green:     theme.success,
+  red:       theme.danger,
+  orange:    theme.warning,
+  yellow:    theme.warning,
+  purple:    '#8B5CF6',
+  secondary: '#374151',
+  sidebarBg: theme.bgSidebar,
+  headerBg:  theme.bgCard,
+  isLight:   true,
+  sideTxt:   theme.textPrimary,
+  sideMuted: theme.textSecondary,
+  sideActive: theme.bgAccentLight,
+  sideBdr:   theme.borderColor,
+  sideHover: theme.bgHover,
+}
+
 export const DARK_THEME = {
   bg:        '#0a0e1a',
   surf:      '#111827',

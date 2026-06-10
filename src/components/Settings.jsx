@@ -10,7 +10,7 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
   const logoInputRef = useRef(null)
   const saveKey=()=>{setData(p=>({...p,apiKey:key}));setSaved(true);setTimeout(()=>setSaved(false),2000)}
   const exportData=()=>{const b=new Blob([JSON.stringify(data,null,2)]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='guidepoint-crm-backup.json';a.click()}
-  const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
+  const LOGO_COLORS = ['#007AFF','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
   const acctIdx = (data.accounts||[]).findIndex(a=>a.id===acct.id)
   const logoColor = LOGO_COLORS[Math.max(0,acctIdx)%LOGO_COLORS.length]
   const logoInitial = (acct.name||'?')[0].toUpperCase()
@@ -75,7 +75,7 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>{saveInProgress.current=true;lastSaveTime.current=Date.now();logoInputRef.current?.click()}} style={{padding:'6px 14px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Upload Logo</button>
+              <button onClick={()=>{saveInProgress.current=true;lastSaveTime.current=Date.now();logoInputRef.current?.click()}} style={{padding:'6px 14px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Upload Logo</button>
               {acct.logoImage&&acct.logoImage.length>10&&<button onClick={handleRemoveLogo} style={{padding:'6px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>Remove Logo</button>}
             </div>
             {logoStatus&&<span style={{fontSize:12,color:logoStatus==='saving'?S.muted:'#16a34a'}}>{logoStatus==='saving'?'Saving…':'Saved!'}</span>}

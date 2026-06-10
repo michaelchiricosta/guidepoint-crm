@@ -21,9 +21,9 @@ export default function Files({acct,setAcct}) {
   const FILE_CATS = ['NDA','MSA','Contract','SOW','Proposal','Quote','Reference','Other']
   const fmtSize = b => b>=1048576?`${(b/1048576).toFixed(1)} MB`:b>=1024?`${(b/1024).toFixed(0)} KB`:`${b} B`
   const fileIcon = type => {
-    if(!type) return {icon:'📄',c:'#94a3b8'}
+    if(!type) return {icon:'📄',c:'#9CA3AF'}
     if(type.includes('pdf')) return {icon:'📕',c:'#dc2626'}
-    if(type.includes('word')||type.includes('document')) return {icon:'📘',c:'#2563eb'}
+    if(type.includes('word')||type.includes('document')) return {icon:'📘',c:'#007AFF'}
     if(type.includes('sheet')||type.includes('excel')||type.includes('csv')) return {icon:'📗',c:'#16a34a'}
     if(type.includes('presentation')||type.includes('powerpoint')) return {icon:'📙',c:'#ea580c'}
     if(type.startsWith('image/')) return {icon:'🖼️',c:'#7c3aed'}
@@ -87,33 +87,33 @@ export default function Files({acct,setAcct}) {
     const truncUrl=l.url.length>50?l.url.slice(0,50)+'…':l.url
     return(
       <div key={l.id}
-        style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',transition:'background 0.1s'}}
-        onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}
+        style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',transition:'background 0.1s'}}
+        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
         onMouseLeave={e=>e.currentTarget.style.background=S.surf}>
         <span style={{fontSize:20,flexShrink:0,lineHeight:1}}>{linkIcon(l.category)}</span>
         <div style={{flex:1,minWidth:0}}>
           <a href={l.url} target='_blank' rel='noreferrer'
-            style={{fontSize:13,fontWeight:600,color:'#0f172a',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+            style={{fontSize:13,fontWeight:600,color:'#111827',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
             onMouseEnter={e=>e.currentTarget.style.textDecoration='underline'}
             onMouseLeave={e=>e.currentTarget.style.textDecoration='none'}>
             {l.title||l.url}
           </a>
           <a href={l.url} target='_blank' rel='noreferrer' title={l.url}
-            style={{fontSize:11,color:'#2563eb',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>
+            style={{fontSize:11,color:'#007AFF',textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>
             {truncUrl}
           </a>
-          {l.notes&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{l.notes}</div>}
+          {l.notes&&<div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{l.notes}</div>}
         </div>
         <div style={{display:'flex',gap:4,flexShrink:0,alignItems:'center'}}>
-          <span style={{fontSize:10,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 7px',whiteSpace:'nowrap'}}>{l.category}</span>
+          <span style={{fontSize:10,fontWeight:700,color:S.blue,background:'#EBF4FF',borderRadius:999,padding:'2px 7px',whiteSpace:'nowrap'}}>{l.category}</span>
           <button onClick={()=>copyUrl(l.id,l.url)} title='Copy URL'
-            style={{padding:'4px 8px',background:isCopied?(S.isLight?'#dcfce7':'rgba(34,197,94,0.15)'):S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${isCopied?(S.isLight?'#86efac':'rgba(34,197,94,0.3)'):S.bdr}`,borderRadius:6,color:isCopied?S.green:S.muted,cursor:'pointer',fontSize:11,fontWeight:isCopied?600:400,transition:'all 0.2s',whiteSpace:'nowrap'}}>
+            style={{padding:'4px 8px',background:isCopied?('#D1FAE5'):S.surf2,border:`1px solid ${isCopied?('#6EE7B7'):S.bdr}`,borderRadius:6,color:isCopied?S.green:S.muted,cursor:'pointer',fontSize:11,fontWeight:isCopied?600:400,transition:'all 0.2s',whiteSpace:'nowrap'}}>
             {isCopied?'Copied!':'⎘'}
           </button>
           <button onClick={()=>startEditLink(l)} title='Edit link'
-            style={{padding:'4px 8px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:12}}>✏</button>
+            style={{padding:'4px 8px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,cursor:'pointer',fontSize:12}}>✏</button>
           <button onClick={()=>deleteLink(l.id)} title='Remove link'
-            style={{padding:'4px 8px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
+            style={{padding:'4px 8px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${'#FECACA'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
         </div>
       </div>
     )
@@ -129,7 +129,7 @@ export default function Files({acct,setAcct}) {
         <Btn variant='primary' onClick={()=>setShowUpload(true)}>+ Upload File</Btn>
       </div>
 
-      {actionErr&&<div style={{background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',fontSize:13,color:S.red,marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>{actionErr}</span><button onClick={()=>setActionErr('')} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:16,lineHeight:1}}>×</button></div>}
+      {actionErr&&<div style={{background:'#FEE2E2',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',fontSize:13,color:S.red,marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>{actionErr}</span><button onClick={()=>setActionErr('')} style={{background:'none',border:'none',color:S.red,cursor:'pointer',fontSize:16,lineHeight:1}}>×</button></div>}
 
       {showUpload&&(
         <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
@@ -157,7 +157,7 @@ export default function Files({acct,setAcct}) {
               </div>
               <Field label='Category' value={category} onChange={setCategory} options={FILE_CATS}/>
               <Field label='Notes (optional)' value={notes} onChange={setNotes} placeholder='Brief description...'/>
-              {uploadErr&&<div style={{fontSize:12,color:S.red,background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',marginBottom:12}}>{uploadErr}</div>}
+              {uploadErr&&<div style={{fontSize:12,color:S.red,background:'#FEE2E2',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'8px 12px',marginBottom:12}}>{uploadErr}</div>}
               <div style={{display:'flex',gap:8}}>
                 <Btn variant='primary' onClick={doUpload} disabled={!fileInput||uploading} style={{flex:1,justifyContent:'center'}}>{uploading?'Uploading…':'Upload'}</Btn>
                 <Btn onClick={()=>{setShowUpload(false);setFileInput(null);setUploadErr('')}}>Cancel</Btn>
@@ -178,14 +178,14 @@ export default function Files({acct,setAcct}) {
           <div key={cat} style={{marginBottom:20}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
               <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>{cat}</span>
-              <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{files.length}</span>
+              <span style={{fontSize:11,fontWeight:700,color:S.blue,background:'#EBF4FF',borderRadius:999,padding:'1px 7px'}}>{files.length}</span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:4}}>
               {files.map(f=>{
                 const {icon,c}=fileIcon(f.type)
                 const isLoading=viewingId===f.id
                 return (
-                  <div key={f.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none'}}>
+                  <div key={f.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,padding:'10px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
                     <span style={{fontSize:22,flexShrink:0,lineHeight:1}}>{icon}</span>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:13,fontWeight:600,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</div>
@@ -197,9 +197,9 @@ export default function Files({acct,setAcct}) {
                       </div>
                     </div>
                     <div style={{display:'flex',gap:4,flexShrink:0}}>
-                      <button onClick={()=>doView(f)} disabled={isLoading} title='View' style={{padding:'5px 10px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>{isLoading?'…':'👁'}</button>
-                      <button onClick={()=>doDownload(f)} disabled={isLoading} title='Download' style={{padding:'5px 10px',background:S.isLight?'#f1f5f9':S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>⬇</button>
-                      <button onClick={()=>doDelete(f)} title='Delete' style={{padding:'5px 10px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.2)'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
+                      <button onClick={()=>doView(f)} disabled={isLoading} title='View' style={{padding:'5px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>{isLoading?'…':'👁'}</button>
+                      <button onClick={()=>doDownload(f)} disabled={isLoading} title='Download' style={{padding:'5px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.secondary,cursor:'pointer',fontSize:12}}>⬇</button>
+                      <button onClick={()=>doDelete(f)} title='Delete' style={{padding:'5px 10px',background:S.isLight?'#fef2f2':'rgba(239,68,68,0.08)',border:`1px solid ${'#FECACA'}`,borderRadius:6,color:S.red,cursor:'pointer',fontSize:12}}>×</button>
                     </div>
                   </div>
                 )
@@ -216,7 +216,7 @@ export default function Files({acct,setAcct}) {
             <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Saved Links</div>
             <div style={{fontSize:12,color:S.muted,marginTop:2}}>{savedLinks.length} link{savedLinks.length!==1?'s':''} saved</div>
           </div>
-          {!showAddLink&&<button onClick={openAddLink} style={{padding:'6px 12px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Add Link</button>}
+          {!showAddLink&&<button onClick={openAddLink} style={{padding:'6px 12px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Add Link</button>}
         </div>
 
         {showAddLink&&(
@@ -227,7 +227,7 @@ export default function Files({acct,setAcct}) {
               <Field label='Category' value={linkForm.category} onChange={v=>setLinkForm(p=>({...p,category:v}))} options={LINK_CATS}/>
               <Field label='Notes (optional)' value={linkForm.notes} onChange={v=>setLinkForm(p=>({...p,notes:v}))} placeholder='Brief context...'/>
             </div>
-            {linkError&&<div style={{fontSize:12,color:S.red,background:S.isLight?'#fef2f2':'rgba(239,68,68,0.1)',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'7px 12px',marginBottom:10}}>{linkError}</div>}
+            {linkError&&<div style={{fontSize:12,color:S.red,background:'#FEE2E2',border:`1px solid ${S.isLight?'#fecaca':'rgba(239,68,68,0.3)'}`,borderRadius:6,padding:'7px 12px',marginBottom:10}}>{linkError}</div>}
             <div style={{display:'flex',gap:8}}>
               <Btn variant='primary' onClick={saveLink}>{editLinkId?'Update Link':'Save Link'}</Btn>
               <Btn onClick={cancelLink}>Cancel</Btn>
@@ -246,7 +246,7 @@ export default function Files({acct,setAcct}) {
             <div key={cat} style={{marginBottom:16}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                 <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>{cat}</span>
-                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'1px 7px'}}>{links.length}</span>
+                <span style={{fontSize:11,fontWeight:700,color:S.blue,background:'#EBF4FF',borderRadius:999,padding:'1px 7px'}}>{links.length}</span>
               </div>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>{links.map(renderLinkRow)}</div>
             </div>

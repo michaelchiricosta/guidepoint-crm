@@ -226,31 +226,31 @@ ${text}`
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Sidebar */}
-      <div style={{width:260,flexShrink:0,background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',display:'flex',flexDirection:'column',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-        <div style={{padding:'12px 14px 10px',background:'#ffffff',boxShadow:'0 2px 8px rgba(0,0,0,0.1)',flexShrink:0}}>
-          <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:'none',cursor:'pointer',color:'#64748b',fontSize:12,fontWeight:600,padding:'2px 0',marginBottom:8}}
-            onMouseEnter={e=>e.currentTarget.style.color='#1e293b'} onMouseLeave={e=>e.currentTarget.style.color='#64748b'}>
+      <div style={{width:260,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
+        <div style={{padding:'12px 14px 10px',borderBottom:'1px solid #EEEFF2',flexShrink:0}}>
+          <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:'none',cursor:'pointer',color:'#6B7280',fontSize:12,fontWeight:600,padding:'2px 0',marginBottom:8}}
+            onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#6B7280'}>
             <ArrowLeft size={13}/> Back
           </button>
-          <div style={{fontSize:16,fontWeight:700,color:'#0f172a'}}>Vendor Directory</div>
-          <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{directory.length} vendor compan{directory.length===1?'y':'ies'}</div>
+          <div style={{fontSize:16,fontWeight:700,color:'#111827'}}>Vendor Directory</div>
+          <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>{directory.length} vendor compan{directory.length===1?'y':'ies'}</div>
         </div>
         <div style={{padding:'10px 10px 4px',flexShrink:0}}>
           <div style={{position:'relative'}}>
-            <Search size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'#64748b',pointerEvents:'none'}}/>
+            <Search size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'#9CA3AF',pointerEvents:'none'}}/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search vendors…'
-              style={{width:'100%',padding:'7px 8px 7px 26px',fontSize:12,background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:6,color:'#e2e8f0',boxSizing:'border-box'}}/>
+              style={{width:'100%',padding:'7px 8px 7px 26px',fontSize:12,background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:6,color:'#111827',boxSizing:'border-box'}}/>
           </div>
         </div>
         <div style={{padding:'4px 10px 8px',flexShrink:0}}>
           <button onClick={()=>{setCoForm(BLANK_CO);setShowCoForm(true)}}
-            style={{width:'100%',padding:'7px',background:'rgba(37,99,235,0.2)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:6,color:'#93c5fd',fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+            style={{width:'100%',padding:'7px',background:'#EBF4FF',border:'1px solid #BFDBFE',borderRadius:6,color:'#007AFF',fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
             <Plus size={12}/> Add Vendor Company
           </button>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
           {filtered.length===0&&(
-            <div style={{padding:'20px 14px',fontSize:12,color:'#64748b',textAlign:'center'}}>
+            <div style={{padding:'20px 14px',fontSize:12,color:'#6B7280',textAlign:'center'}}>
               {directory.length===0?'No vendors yet. Add your first vendor company.':'No vendors match your search.'}
             </div>
           )}
@@ -258,11 +258,11 @@ ${text}`
             const isAct = selId===c.id
             return (
               <div key={c.id} onClick={()=>setSelId(c.id)}
-                style={{padding:'9px 12px',cursor:'pointer',borderLeft:isAct?'3px solid #2563eb':'3px solid transparent',background:isAct?'rgba(37,99,235,0.15)':'transparent',color:isAct?'#93c5fd':'#94a3b8',transition:'all 0.1s',borderBottom:'1px solid rgba(255,255,255,0.04)'}}
-                onMouseEnter={e=>{if(!isAct){e.currentTarget.style.background='rgba(255,255,255,0.05)';e.currentTarget.style.color='#e2e8f0'}}}
-                onMouseLeave={e=>{if(!isAct){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}}>
+                style={{padding:'9px 12px',cursor:'pointer',borderLeft:isAct?'3px solid #007AFF':'3px solid transparent',background:isAct?'#EBF4FF':'transparent',color:isAct?'#007AFF':'#374151',transition:'all 0.1s',borderBottom:'1px solid #EEEFF2'}}
+                onMouseEnter={e=>{if(!isAct){e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}}
+                onMouseLeave={e=>{if(!isAct){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#374151'}}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.companyName}</div>
-                <div style={{fontSize:10,opacity:0.65}}>{c.category||'Uncategorized'} · {(c.contacts||[]).length} contact{(c.contacts||[]).length!==1?'s':''}</div>
+                <div style={{fontSize:10,color:'#9CA3AF'}}>{c.category||'Uncategorized'} · {(c.contacts||[]).length} contact{(c.contacts||[]).length!==1?'s':''}</div>
               </div>
             )
           })}
@@ -283,7 +283,7 @@ ${text}`
             onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragOver(false)}}
             onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files?.[0];if(f)handleFile(f)}}
             onClick={()=>!uploadStatus&&fileRef.current?.click()}
-            style={{background:dragOver?(S.isLight?'#eff6ff':'rgba(37,99,235,0.08)'):S.surf,border:`2px dashed ${dragOver?'#2563eb':uploadStatus?'#d97706':S.bdr}`,borderRadius:10,padding:'20px 24px',marginBottom:20,cursor:uploadStatus?'default':'pointer',transition:'border-color 0.15s,background 0.15s',userSelect:'none'}}>
+            style={{background:dragOver?(S.isLight?'#EBF4FF':'rgba(0,122,255,0.08)'):S.surf,border:`2px dashed ${dragOver?'#007AFF':uploadStatus?'#d97706':S.bdr}`,borderRadius:10,padding:'20px 24px',marginBottom:20,cursor:uploadStatus?'default':'pointer',transition:'border-color 0.15s,background 0.15s',userSelect:'none'}}>
             {uploadStatus?(
               <div style={{display:'flex',alignItems:'center',gap:12}}>
                 <div style={{width:18,height:18,border:'2px solid #2563eb',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
@@ -294,13 +294,13 @@ ${text}`
               </div>
             ):(
               <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
-                <Upload size={22} style={{color:'#2563eb',flexShrink:0}}/>
+                <Upload size={22} style={{color:'#007AFF',flexShrink:0}}/>
                 <div style={{flex:1,minWidth:180}}>
                   <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Upload Vendor Contact PDF</div>
                   <div style={{fontSize:12,color:S.muted,marginTop:2}}>PDF, DOCX, or TXT — AI extracts all vendor companies and contacts &nbsp;·&nbsp; Drag &amp; drop or click to browse &nbsp;·&nbsp; Maximum file size: 30 MB</div>
                 </div>
                 <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}
-                  style={{padding:'8px 18px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,pointerEvents:'auto'}}>
+                  style={{padding:'8px 18px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,pointerEvents:'auto'}}>
                   Browse File
                 </button>
               </div>
@@ -333,7 +333,7 @@ ${text}`
                 <button onClick={()=>{setReview(null);setReviewSel(new Set())}}
                   style={{padding:'7px 14px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
                 <button onClick={confirmReview} disabled={reviewSel.size===0}
-                  style={{padding:'7px 16px',background:reviewSel.size>0?'#2563eb':'#94a3b8',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:reviewSel.size>0?'pointer':'not-allowed'}}>
+                  style={{padding:'7px 16px',background:reviewSel.size>0?'#007AFF':'#9CA3AF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:reviewSel.size>0?'pointer':'not-allowed'}}>
                   {reviewSel.size===review.companies.length?'Save All':`Save ${reviewSel.size} of ${review.companies.length}`}
                 </button>
               </div>
@@ -345,13 +345,13 @@ ${text}`
                 const totalCts = (ec.contacts||[]).length
                 return (
                   <div key={i} onClick={()=>setReviewSel(prev=>{const ns=new Set(prev);ns.has(i)?ns.delete(i):ns.add(i);return ns})}
-                    style={{padding:'12px 14px',background:isChecked?(S.isLight?'#eff6ff':'rgba(37,99,235,0.1)'):(S.isLight?'#f8fafc':S.surf2),border:`1px solid ${isChecked?'rgba(37,99,235,0.5)':S.bdr}`,borderRadius:8,cursor:'pointer',userSelect:'none'}}>
+                    style={{padding:'12px 14px',background:isChecked?(S.isLight?'#EBF4FF':'rgba(37,99,235,0.1)'):(S.isLight?'#f8fafc':S.surf2),border:`1px solid ${isChecked?'rgba(0,122,255,0.5)':S.bdr}`,borderRadius:8,cursor:'pointer',userSelect:'none'}}>
                     <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                      <input type='checkbox' checked={isChecked} readOnly style={{marginTop:3,cursor:'pointer',accentColor:'#2563eb',flexShrink:0}}/>
+                      <input type='checkbox' checked={isChecked} readOnly style={{marginTop:3,cursor:'pointer',accentColor:'#007AFF',flexShrink:0}}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
                           <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{ec.companyName}</span>
-                          {ec.category&&<span style={{fontSize:10,background:S.isLight?'#e0f2fe':'rgba(59,130,246,0.2)',color:S.isLight?'#0369a1':'#93c5fd',padding:'1px 7px',borderRadius:4}}>{ec.category}</span>}
+                          {ec.category&&<span style={{fontSize:10,background:S.isLight?'#e0f2fe':'rgba(0,122,255,0.2)',color:S.isLight?'#0369a1':'#007AFF',padding:'1px 7px',borderRadius:4}}>{ec.category}</span>}
                           {willMerge&&<span style={{fontSize:10,background:'#fef3c7',color:'#d97706',padding:'1px 7px',borderRadius:4,fontWeight:600}}>Will merge</span>}
                           {totalCts>0&&<span style={{fontSize:10,color:S.muted}}>{totalCts} contact{totalCts!==1?'s':''}</span>}
                         </div>
@@ -389,7 +389,7 @@ ${text}`
               <div style={{minWidth:0}}>
                 <div style={{fontSize:22,fontWeight:800,color:S.txt,lineHeight:1.2}}>{sel.companyName}</div>
                 <div style={{display:'flex',gap:8,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
-                  {sel.category&&<span style={{fontSize:11,background:S.isLight?'#eff6ff':'rgba(37,99,235,0.15)',color:S.blue,padding:'2px 9px',borderRadius:4}}>{sel.category}</span>}
+                  {sel.category&&<span style={{fontSize:11,background:S.isLight?'#EBF4FF':'rgba(0,122,255,0.15)',color:S.blue,padding:'2px 9px',borderRadius:4}}>{sel.category}</span>}
                   {sel.website&&<a href={sel.website.startsWith('http')?sel.website:`https://${sel.website}`} target='_blank' rel='noreferrer'
                     style={{fontSize:12,color:S.blue,textDecoration:'none',fontWeight:500}}
                     onClick={e=>e.stopPropagation()}>{sel.website}</a>}
@@ -412,7 +412,7 @@ ${text}`
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
               <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Contacts ({(sel.contacts||[]).length})</div>
               <button onClick={()=>{setCtForm(BLANK_CT);setShowCtForm(true)}}
-                style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>
                 <Plus size={12}/> Add Contact
               </button>
             </div>
@@ -491,7 +491,7 @@ ${text}`
               <button onClick={()=>{setShowCoForm(false);setCoForm(BLANK_CO)}}
                 style={{padding:'8px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
               <button onClick={saveCo}
-                style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
+                style={{padding:'8px 16px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
             </div>
           </div>
         </div>
@@ -529,7 +529,7 @@ ${text}`
               <button onClick={()=>{setShowCtForm(false);setCtForm(BLANK_CT)}}
                 style={{padding:'8px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
               <button onClick={saveCt}
-                style={{padding:'8px 16px',background:'#2563eb',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
+                style={{padding:'8px 16px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
             </div>
           </div>
         </div>

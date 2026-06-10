@@ -30,7 +30,7 @@ export default function Admin({acct,setAcct}) {
     <div style={{maxWidth:680}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <div style={{fontSize:15,fontWeight:700,color:S.txt}}>Opportunity / Admin Data</div>
-        <button onClick={copyAll} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:copied?(S.isLight?'#dcfce7':'rgba(34,197,94,0.15)'):S.surf,border:`1px solid ${copied?(S.isLight?'#86efac':S.green):S.bdr}`,borderRadius:8,color:copied?S.green:S.secondary,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>
+        <button onClick={copyAll} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:copied?('#D1FAE5'):S.surf,border:`1px solid ${copied?(S.isLight?'#86efac':S.green):S.bdr}`,borderRadius:8,color:copied?S.green:S.secondary,fontSize:12,fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>
           {copied?'✓ Copied!':'📋 Copy All'}
         </button>
       </div>
@@ -39,7 +39,7 @@ export default function Admin({acct,setAcct}) {
           const val = d[f.key]!==undefined ? d[f.key] : (f.defaultVal||'')
           const isEven = i%2===0
           return (
-            <div key={f.key} style={{display:'flex',alignItems:f.type==='textarea'?'flex-start':'center',borderBottom:i<FIELDS.length-1?`1px solid ${S.isLight?'#f8fafc':S.bdr}`:'none',background:isEven?(S.isLight?'#ffffff':S.surf):(S.isLight?'#fafafa':S.surf2)}}>
+            <div key={f.key} style={{display:'flex',alignItems:f.type==='textarea'?'flex-start':'center',borderBottom:i<FIELDS.length-1?`1px solid ${S.isLight?'#F9FAFB':S.bdr}`:'none',background:isEven?(S.surf):(S.isLight?'#fafafa':S.surf2)}}>
               <div style={{width:200,flexShrink:0,padding:'12px 16px',fontSize:12,fontWeight:600,color:S.muted}}>
                 {f.prefix&&<span style={{color:S.isLight?'#16a34a':S.green,marginRight:2}}>{f.prefix}</span>}
                 {f.label}

@@ -112,7 +112,7 @@ function HealthScoreModal({acct, setAcct, onClose}) {
                     <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4,flexWrap:'wrap'}}>
                       <span style={{fontSize:12,fontWeight:600,color:S.txt}}>{comp.label}</span>
                       <span style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
-                        <span onMouseEnter={()=>setHoveredTooltip(comp.key)} onMouseLeave={()=>setHoveredTooltip(null)} style={{fontSize:13,color:'#94a3b8',cursor:'help',display:'inline-flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>ⓘ</span>
+                        <span onMouseEnter={()=>setHoveredTooltip(comp.key)} onMouseLeave={()=>setHoveredTooltip(null)} style={{fontSize:13,color:'#9CA3AF',cursor:'help',display:'inline-flex',alignItems:'center',justifyContent:'center',userSelect:'none'}}>ⓘ</span>
                         {hoveredTooltip===comp.key&&<div style={{position:'absolute',bottom:'100%',left:0,zIndex:1000,background:'#fff',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.15)',padding:'10px 12px',width:260,fontSize:12,color:'#374151',lineHeight:1.5,whiteSpace:'normal',pointerEvents:'none',marginBottom:4}}>{HS_TOOLTIPS[comp.key]}</div>}
                       </span>
                       {comp.overridden&&<Badge label='Overridden' color={S.orange} bg='rgba(249,115,22,0.12)' size={10}/>}
@@ -414,7 +414,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     const norm = s=>s.toUpperCase().replace(/['\u2018\u2019\u201a\u2032]/g,'').replace(/\s+/g,' ').trim()
     const defs = [
       {key:'summary',title:'SUMMARY',isSummary:true},
-      {key:'now',title:"WHAT'S HAPPENING NOW",color:'#2563eb',lightBg:'#f0f9ff',darkBg:'rgba(37,99,235,0.08)'},
+      {key:'now',title:"WHAT'S HAPPENING NOW",color:'#007AFF',lightBg:'#f0f9ff',darkBg:'rgba(0,122,255,0.08)'},
       {key:'coming',title:"WHAT'S COMING UP",color:'#7c3aed',lightBg:'#faf5ff',darkBg:'rgba(124,58,237,0.08)'},
       {key:'watch',title:'WATCH LIST',color:'#fc413d',lightBg:'#fef2f2',darkBg:'rgba(252,65,61,0.08)'},
       {key:'momentum',title:'MOMENTUM ITEMS',color:'#0ebc5f',lightBg:'#f0fdf4',darkBg:'rgba(14,188,95,0.08)'},
@@ -501,26 +501,17 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
           const hg=`linear-gradient(135deg,#0a1628 0%,${hc} 100%)`
           return (
             <div onClick={()=>setShowHealthModal(true)}
-              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:`3px solid ${hc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}:{background:hg,border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,padding:'16px 20px',cursor:'pointer',transition:'filter 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}
-              onMouseEnter={e=>S.isLight?(e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.1)',e.currentTarget.style.transform='translateY(-1px)'):(e.currentTarget.style.filter='brightness(1.15)')}
-              onMouseLeave={e=>S.isLight?(e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)',e.currentTarget.style.transform='translateY(0)'):(e.currentTarget.style.filter='brightness(1)')}>
-              {S.isLight?(
-                <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Health Score</div>
-                  <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{hs}</div>
-                </>
-              ):(
-                <>
-                  <div style={{fontSize:13,color:'rgba(255,255,255,0.9)',fontWeight:500,lineHeight:1.3}}>Health Score</div>
-                  <div style={{fontSize:32,fontWeight:800,color:'#fff',lineHeight:1,flexShrink:0}}>{hs}</div>
-                </>
-              )}
+              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:`3px solid ${hc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)';e.currentTarget.style.transform='translateY(-1px)'}}
+              onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(0)'}}>
+              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Health Score</div>
+              <div style={{fontSize:36,fontWeight:900,color:'#111827',lineHeight:1}}>{hs}</div>
             </div>
           )
         })()}
         {/* Metric cards */}
         {[
-          {label:'Open Follow-Ups',val:openFU.length,c:'#2563eb',tab:'followups',type:'followups'},
+          {label:'Open Follow-Ups',val:openFU.length,c:'#007AFF',tab:'followups',type:'followups'},
           {label:'Active Projects',val:inFlight,c:'#16a34a',tab:'projects',type:'projects'},
           {label:'Contacts Mapped',val:acct.contacts.length,c:'#7c3aed',tab:'contacts',type:'contacts'},
           {label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?'#ea580c':'#16a34a',tab:'intel',type:'contact-days'}
@@ -531,18 +522,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               onClick={()=>setTab(m.tab)}
               onMouseEnter={()=>setHoveredCard(m.label)}
               onMouseLeave={()=>setHoveredCard(null)}
-              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:`3px solid ${m.c}`,borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(59,130,246,0.4)':S.bdr}`,borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
-              {S.isLight?(
-                <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>{m.label}</div>
-                  <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1}}>{m.val}</div>
-                </>
-              ):(
-                <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>{m.label}</div>
-                  <div style={{fontSize:32,fontWeight:800,color:m.c,lineHeight:1}}>{m.val}</div>
-                </>
-              )}
+              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:`3px solid ${m.c}`,borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
+              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>{m.label}</div>
+              <div style={{fontSize:36,fontWeight:900,color:'#111827',lineHeight:1}}>{m.val}</div>
             </div>
           )
         })}
@@ -554,18 +536,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               onClick={()=>setShowSpendModal(true)}
               onMouseEnter={()=>setHoveredCard('ANNUAL SPEND')}
               onMouseLeave={()=>setHoveredCard(null)}
-              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:'3px solid #7c3aed',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(124,58,237,0.4)':S.bdr}`,borderTop:'3px solid #7c3aed',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
-              {S.isLight?(
-                <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
-                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
-                </>
-              ):(
-                <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>Annual Spend</div>
-                  <div style={{fontSize:22,fontWeight:800,color:'#a855f7',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
-                </>
-              )}
+              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:'3px solid #8B5CF6',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
+              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#111827',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
             </div>
           )
         })()}
@@ -577,22 +550,10 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               onClick={()=>setShowPipelineModal(true)}
               onMouseEnter={()=>setHoveredCard('PIPELINE')}
               onMouseLeave={()=>setHoveredCard(null)}
-              style={S.isLight?{background:'#ffffff',border:'1px solid #e2e8f0',borderTop:'3px solid #0891b2',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}:{background:isHov?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.02)',border:`1px solid ${isHov?'rgba(8,145,178,0.4)':S.bdr}`,borderTop:'3px solid #0891b2',borderRadius:8,padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.15)',minHeight:80,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,cursor:'pointer',transition:'all 0.15s'}}>
-              {S.isLight?(
-                <>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
-                  <div style={{fontSize:22,fontWeight:900,color:'#0f172a',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
-                  {totalWeightedPipeline>0&&<div style={{fontSize:9,color:'#94a3b8',marginTop:1}}>weighted by stage</div>}
-                </>
-              ):(
-                <>
-                  <div style={{fontSize:13,color:S.muted,fontWeight:500,lineHeight:1.3,maxWidth:'60%'}}>Pipeline</div>
-                  <div>
-                    <div style={{fontSize:22,fontWeight:800,color:'#06b6d4',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
-                    {totalWeightedPipeline>0&&<div style={{fontSize:9,color:S.muted,marginTop:2}}>weighted by stage</div>}
-                  </div>
-                </>
-              )}
+              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:'3px solid #0891b2',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
+              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#111827',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
+              {totalWeightedPipeline>0&&<div style={{fontSize:9,color:'#9CA3AF',marginTop:1}}>weighted by stage</div>}
             </div>
           )
         })()}
@@ -601,7 +562,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
       {showPipelineModal&&(()=>{
         const sw={'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
-        const wBadge=w=>{if(w>=1.0)return{c:'#7c3aed',bg:'rgba(124,58,237,0.12)'};if(w>=0.9)return{c:'#16a34a',bg:'rgba(22,163,74,0.12)'};if(w>=0.6)return{c:'#ea580c',bg:'rgba(234,88,12,0.12)'};if(w>=0.3)return{c:'#ca8a04',bg:'rgba(202,138,4,0.12)'};if(w>=0.15)return{c:'#2563eb',bg:'rgba(37,99,235,0.12)'};return{c:'#64748b',bg:'rgba(100,116,139,0.12)'}}
+        const wBadge=w=>{if(w>=1.0)return{c:'#7c3aed',bg:'rgba(124,58,237,0.12)'};if(w>=0.9)return{c:'#16a34a',bg:'rgba(22,163,74,0.12)'};if(w>=0.6)return{c:'#ea580c',bg:'rgba(234,88,12,0.12)'};if(w>=0.3)return{c:'#ca8a04',bg:'rgba(202,138,4,0.12)'};if(w>=0.15)return{c:'#007AFF',bg:'rgba(0,122,255,0.12)'};return{c:'#64748b',bg:'rgba(100,116,139,0.12)'}}
         const rows=(acct.projects||[]).filter(p=>p.status!=='Lost').map(p=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage||null;const w=sw[cs]??0.10;return{...p,_rev:rev,_cs:cs,_w:w,_wv:rev*w}}).sort((a,b)=>b._wv-a._wv)
         const active=rows.filter(r=>r._rev>0)
         const totW=active.reduce((s,r)=>s+r._wv,0)
@@ -612,7 +573,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No pipeline revenue entered. Add estimated revenue to your projects to track weighted pipeline.</div>
               :<>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
-                  {[{label:'Total Weighted Pipeline',val:formatCompactCurrency(totW),c:'#0891b2'},{label:'Total Unweighted',val:formatCompactCurrency(totU),c:'#2563eb'},{label:'Active Projects w/ Revenue',val:String(active.length),c:'#16a34a'}].map(card=>(
+                  {[{label:'Total Weighted Pipeline',val:formatCompactCurrency(totW),c:'#0891b2'},{label:'Total Unweighted',val:formatCompactCurrency(totU),c:'#007AFF'},{label:'Active Projects w/ Revenue',val:String(active.length),c:'#16a34a'}].map(card=>(
                     <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
                       <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
                       <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
@@ -657,7 +618,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No costs entered yet. Add annual costs in the Tech Stack tab.</div>
               :<>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}}>
-                  {[{label:'Total Annual Spend',val:fmtSpend(totCost),c:'#7c3aed'},{label:'Total Revenue',val:totRev>0?fmtSpend(totRev):'—',c:'#2563eb'},{label:'Total Gross Profit',val:totGP>0?fmtSpend(totGP):'—',c:'#16a34a'},{label:'GP%',val:gpPct,c:totRev>0&&totGP/totRev>=0.3?'#16a34a':'#ea580c'}].map(card=>(
+                  {[{label:'Total Annual Spend',val:fmtSpend(totCost),c:'#7c3aed'},{label:'Total Revenue',val:totRev>0?fmtSpend(totRev):'—',c:'#007AFF'},{label:'Total Gross Profit',val:totGP>0?fmtSpend(totGP):'—',c:'#16a34a'},{label:'GP%',val:gpPct,c:totRev>0&&totGP/totRev>=0.3?'#16a34a':'#ea580c'}].map(card=>(
                     <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
                       <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
                       <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
@@ -692,7 +653,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       })()}
       {alerts.length>0&&(
         <div style={{marginBottom:20}}>
-          <div style={S.isLight?{background:'#ffffff',borderRadius:12,border:`1px solid ${visibleAlerts.length===0?'#bbf7d0':'#fecaca'}`,boxShadow:visibleAlerts.length===0?'0 2px 8px rgba(22,163,74,0.08)':'0 2px 8px rgba(220,38,38,0.08)',overflow:'hidden'}:{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
+          <div style={{background:'#FFFFFF',borderRadius:12,border:`1px solid ${visibleAlerts.length===0?'#A7F3D0':'#FECACA'}`,boxShadow:visibleAlerts.length===0?'0 2px 8px rgba(16,185,129,0.08)':'0 2px 8px rgba(239,68,68,0.08)',overflow:'hidden'}}>
             {/* Header inside container */}
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${visibleAlerts.length===0?(S.isLight?'#dcfce7':S.bdr):(S.isLight?'#fef2f2':S.bdr)}`}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:8}}>
@@ -705,7 +666,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
             {/* Alert rows / empty state */}
             {visibleAlerts.length===0
               ?<div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 16px'}}>
-                <div style={{width:28,height:28,borderRadius:'50%',background:S.isLight?'#dcfce7':'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:S.isLight?'#16a34a':'#22c55e',flexShrink:0}}>✓</div>
+                <div style={{width:28,height:28,borderRadius:'50%',background:'#D1FAE5',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:S.isLight?'#16a34a':'#22c55e',flexShrink:0}}>✓</div>
                 <div><div style={{fontSize:13,fontWeight:600,color:S.isLight?'#16a34a':S.green}}>No active alerts</div><div style={{fontSize:11,color:S.muted,marginTop:1}}>All clear — no critical items need attention</div></div>
               </div>
               :<div>
@@ -785,21 +746,21 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       )}
       {/* AI Account Intelligence Summary */}
       <div style={{marginBottom:20}}>
-        <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+        <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
           {/* Header */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{color:'#2563eb',fontSize:16,lineHeight:1}}>✦</span>
-              <span style={{fontSize:14,fontWeight:700,color:S.isLight?'#0f172a':S.txt}}>Account Intelligence Summary</span>
+              <span style={{color:'#007AFF',fontSize:16,lineHeight:1}}>✦</span>
+              <span style={{fontSize:14,fontWeight:700,color:S.txt}}>Account Intelligence Summary</span>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               {acct.aiSummary?.generatedAt&&!summaryLoading&&(
                 <span style={{fontSize:11,color:S.muted}}>Generated {formatSummaryAge(acct.aiSummary.generatedAt)}</span>
               )}
               <button onClick={generateSummary} disabled={summaryLoading} title='Refresh summary'
-                style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,padding:'4px 10px',cursor:summaryLoading?'default':'pointer',color:S.muted,fontSize:12,fontWeight:500,transition:'all 0.15s'}}
+                style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:`1px solid ${'#EEEFF2'}`,borderRadius:6,padding:'4px 10px',cursor:summaryLoading?'default':'pointer',color:S.muted,fontSize:12,fontWeight:500,transition:'all 0.15s'}}
                 onMouseEnter={e=>{if(!summaryLoading)e.currentTarget.style.borderColor=S.blue;if(!summaryLoading)e.currentTarget.style.color=S.blue}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=S.isLight?'#e2e8f0':S.bdr;e.currentTarget.style.color=S.muted}}>
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='#EEEFF2';e.currentTarget.style.color=S.muted}}>
                 <span style={{display:'inline-block',animation:summaryLoading?'spin 1s linear infinite':'none',fontSize:13}}>↺</span>
                 Refresh
               </button>
@@ -817,21 +778,21 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               <div style={{textAlign:'center',padding:'20px 0',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
                 <span style={{fontSize:22,opacity:0.35}}>🔑</span>
                 <div style={{fontSize:13,color:S.muted}}>Add your Anthropic API key in Settings to generate AI summaries</div>
-                <button onClick={()=>setTab('settings')} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Go to Settings</button>
+                <button onClick={()=>setTab('settings')} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${'#EEEFF2'}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Go to Settings</button>
               </div>
             ):summaryError?(
               <div style={{textAlign:'center',padding:'20px 0',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
                 <span style={{fontSize:22,opacity:0.35}}>⚠️</span>
                 <div style={{fontSize:13,color:S.isLight?'#dc2626':S.red}}>Summary unavailable — check your API key in Settings</div>
-                <button onClick={generateSummary} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${S.isLight?'#e2e8f0':S.bdr}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Retry</button>
+                <button onClick={generateSummary} style={{marginTop:4,padding:'5px 14px',background:'transparent',border:`1px solid ${'#EEEFF2'}`,borderRadius:6,cursor:'pointer',fontSize:12,color:S.muted}}>Retry</button>
               </div>
             ):!acct.aiSummary?.content?(
               <div style={{textAlign:'center',padding:'24px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-                <span style={{fontSize:28,color:'#2563eb',opacity:0.4,lineHeight:1}}>✦</span>
+                <span style={{fontSize:28,color:'#007AFF',opacity:0.4,lineHeight:1}}>✦</span>
                 <div style={{fontSize:13,fontWeight:600,color:S.txt}}>No summary yet</div>
                 <div style={{fontSize:12,color:S.muted}}>Click Refresh to generate an AI briefing of this account</div>
                 <button onClick={generateSummary}
-                  style={{marginTop:8,padding:'7px 20px',background:'#2563eb',border:'none',borderRadius:7,cursor:'pointer',fontSize:13,fontWeight:700,color:'#fff',boxShadow:'0 2px 8px rgba(37,99,235,0.25)'}}>Generate Summary</button>
+                  style={{marginTop:8,padding:'7px 20px',background:'#007AFF',border:'none',borderRadius:7,cursor:'pointer',fontSize:13,fontWeight:700,color:'#fff',boxShadow:'0 2px 8px rgba(37,99,235,0.25)'}}>Generate Summary</button>
               </div>
             ):(()=>{
               const parsed = parseSummary(acct.aiSummary.content)
@@ -851,7 +812,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               return (
                 <div>
                   {summaryBlock?.text&&(
-                    <div style={{fontSize:14,color:S.isLight?'#0f172a':S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#f1f5f9':S.bdr}`}}>
+                    <div style={{fontSize:14,color:S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
                       {summaryBlock.text}
                     </div>
                   )}
@@ -875,9 +836,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       <div style={{display:'flex',flexDirection:mob?'column':'row',gap:16,marginBottom:20,alignItems:'stretch'}}>
         {/* Left: Account Profile */}
         <div style={{flex:1,display:'flex',flexDirection:'column'}}>
-          <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flex:1,overflow:'hidden'}}>
+          <div style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',flex:1,overflow:'hidden'}}>
             {/* Card header */}
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
               <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Account Profile</span>
               <button title='Edit in Settings' onClick={()=>setTab&&setTab('settings')} style={{background:'none',border:'none',color:S.dim,cursor:'pointer',fontSize:13,padding:'2px 4px',borderRadius:4,lineHeight:1}}
                 onMouseEnter={e=>e.currentTarget.style.color=S.muted}
@@ -885,11 +846,11 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
             </div>
             <div style={{padding:'4px 16px 8px'}}>
               {[['Industry',acct.industry],['HQ',acct.hq],['Cloud',acct.cloud],['Users',acct.users],['Relationship',acct.relationship],['Last Contact',fmtDate(acct.lastContact)]].map(([k,v],i,arr)=>(
-                <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<arr.length-1?`1px solid ${S.isLight?'#f8fafc':S.bdr}`:'none',cursor:'default',transition:'background 0.1s',borderRadius:4,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
-                  onMouseEnter={e=>{if(S.isLight)e.currentTarget.style.background='#f8fafc'}}
+                <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<arr.length-1?`1px solid ${S.isLight?'#F9FAFB':S.bdr}`:'none',cursor:'default',transition:'background 0.1s',borderRadius:4,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
+                  onMouseEnter={e=>{if(S.isLight)e.currentTarget.style.background='#F9FAFB'}}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                  <span style={{fontSize:12,fontWeight:500,color:'#94a3b8',flexShrink:0}}>{k}</span>
-                  <span style={{fontSize:13,fontWeight:600,color:'#0f172a',textAlign:'right',marginLeft:12,wordBreak:'break-word',maxWidth:'60%'}}>{v||'—'}</span>
+                  <span style={{fontSize:12,fontWeight:500,color:'#9CA3AF',flexShrink:0}}>{k}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:'#111827',textAlign:'right',marginLeft:12,wordBreak:'break-word',maxWidth:'60%'}}>{v||'—'}</span>
                 </div>
               ))}
             </div>
@@ -897,9 +858,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
         </div>
         {/* Right: Upcoming Dates */}
         <div style={{flex:1,display:'flex',flexDirection:'column'}}>
-          <div style={{background:S.isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+          <div style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
             {/* Card header */}
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#f8fafc':S.bdr}`,flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,flexShrink:0}}>
               <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Upcoming Dates</span>
               <button onClick={()=>setShowAddDate(v=>!v)} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:0,display:'flex',alignItems:'center',gap:2}}>+ Add Date</button>
             </div>
@@ -939,15 +900,15 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                   const fld={width:'100%',fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt,boxSizing:'border-box',fontFamily:'inherit'}
                   return (
                     <div key={item.id}>
-                      <div style={{position:'relative',display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:isExp?'none':(isLast?'none':`1px solid ${S.isLight?'#f8fafc':S.bdr}`),cursor:'pointer',transition:'background 0.1s',borderRadius:6,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
+                      <div style={{position:'relative',display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:isExp?'none':(isLast?'none':`1px solid ${S.isLight?'#F9FAFB':S.bdr}`),cursor:'pointer',transition:'background 0.1s',borderRadius:6,margin:'0 -4px',paddingLeft:4,paddingRight:4}}
                         onClick={()=>toggleDateExpand(item)}
-                        onMouseEnter={e=>{setHoveredDateId(item.id);if(S.isLight)e.currentTarget.style.background='#f8fafc'}}
+                        onMouseEnter={e=>{setHoveredDateId(item.id);if(S.isLight)e.currentTarget.style.background='#F9FAFB'}}
                         onMouseLeave={e=>{setHoveredDateId(null);e.currentTarget.style.background='transparent'}}>
                         <div style={{width:8,height:8,borderRadius:'50%',background:urgColor,flexShrink:0}}/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:2}}>{item.label}</div>
+                          <div style={{fontSize:13,fontWeight:600,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:2}}>{item.label}</div>
                           <div style={{display:'flex',alignItems:'center',gap:6}}>
-                            <Badge label={item.source} color={S.muted} bg={S.isLight?'#f1f5f9':S.surf2} size={9}/>
+                            <Badge label={item.source} color={S.muted} bg={S.surf2} size={9}/>
                             {item.notes&&<span style={{fontSize:10,color:S.dim,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>{item.notes}</span>}
                           </div>
                         </div>
@@ -955,7 +916,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                           <div style={{fontSize:12,fontWeight:500,color:S.isLight?'#64748b':S.muted}}>{new Date(item.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
                           <div style={{fontSize:10,fontWeight:600,color:relColor,marginTop:1}}>{relLabel}</div>
                         </div>
-                        <span style={{fontSize:11,color:hoveredDateId===item.id?S.muted:S.isLight?'#f1f5f9':S.bdr,transition:'color 0.15s',flexShrink:0}}>›</span>
+                        <span style={{fontSize:11,color:hoveredDateId===item.id?S.muted:S.isLight?'#F9FAFB':S.bdr,transition:'color 0.15s',flexShrink:0}}>›</span>
                       </div>
                       {isExp&&(
                         <div style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderBottom:`1px solid ${S.bdr}`,borderTop:`1px solid ${S.bdr}`,padding:'10px 10px 8px',marginBottom:2}} onClick={e=>e.stopPropagation()}>
@@ -1028,9 +989,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
           const isCompleting=completingFU===f.id
           return (
             <div key={f.id}
-              style={{background:isCompleting?(S.isLight?'#f0fdf4':S.surf2):(isOverdue&&S.isLight?'#fff5f5':S.surf),borderRadius:10,border:`1px solid ${isOverdue&&S.isLight?'#fecaca':S.bdr}`,padding:'12px 14px',marginBottom:6,boxShadow:S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none',display:'flex',alignItems:'center',gap:10,transition:'all 0.25s',opacity:isCompleting?0.4:1,transform:isCompleting?'translateX(16px)':'translateX(0)'}}
+              style={{background:isCompleting?(S.isLight?'#f0fdf4':S.surf2):(isOverdue&&S.isLight?'#fff5f5':S.surf),borderRadius:10,border:`1px solid ${isOverdue&&S.isLight?'#fecaca':S.bdr}`,padding:'12px 14px',marginBottom:6,boxShadow:'0 1px 3px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',gap:10,transition:'all 0.25s',opacity:isCompleting?0.4:1,transform:isCompleting?'translateX(16px)':'translateX(0)'}}
               onMouseEnter={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 4px 12px rgba(0,0,0,0.08)':'0 2px 8px rgba(0,0,0,0.2)';e.currentTarget.style.transform='translateY(-1px)'}setHoveredFuId(f.id)}}
-              onMouseLeave={e=>{if(!isCompleting){e.currentTarget.style.boxShadow=S.isLight?'0 1px 2px rgba(0,0,0,0.04)':'none';e.currentTarget.style.transform='translateY(0)'}setHoveredFuId(null)}}>
+              onMouseLeave={e=>{if(!isCompleting){e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)';e.currentTarget.style.transform='translateY(0)'}setHoveredFuId(null)}}>
               {/* Checkbox — border color reflects priority */}
               <button
                 onClick={()=>{setCompletingFU(f.id);setTimeout(()=>{setAcct(prev=>({...prev,followUps:prev.followUps.map(fu=>fu.id===f.id?{...fu,status:'Done'}:fu)}));setCompletingFU(null)},280)}}
@@ -1052,17 +1013,17 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 <button
                   onClick={e=>{e.stopPropagation();if(fuSnoozeId===f.id){setFuSnoozeId(null);setFuSnoozePos(null);setFuSnoozeCustomDate('')}else{const r=e.currentTarget.getBoundingClientRect();setFuSnoozePos({top:r.bottom+4,right:window.innerWidth-r.right});setFuSnoozeId(f.id);setFuSnoozeCustomDate('')}}}
                   title='Snooze follow-up'
-                  style={{background:'transparent',border:'none',color:fuSnoozeId===f.id?p.c:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id||fuSnoozeId===f.id?1:0,transition:'opacity 0.15s'}}
+                  style={{background:'transparent',border:'none',color:fuSnoozeId===f.id?p.c:'#9CA3AF',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id||fuSnoozeId===f.id?1:0,transition:'opacity 0.15s'}}
                   onMouseEnter={e=>e.currentTarget.style.color=p.c}
-                  onMouseLeave={e=>e.currentTarget.style.color=fuSnoozeId===f.id?p.c:'#94a3b8'}>
+                  onMouseLeave={e=>e.currentTarget.style.color=fuSnoozeId===f.id?p.c:'#9CA3AF'}>
                   <Clock size={14}/>
                 </button>
                 {fuSnoozeId===f.id&&fuSnoozePos&&(
-                  <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:fuSnoozePos.top,right:fuSnoozePos.right,zIndex:9999,background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:200,overflow:'hidden'}}>
+                  <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:fuSnoozePos.top,right:fuSnoozePos.right,zIndex:9999,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:200,overflow:'hidden'}}>
                     {[{label:'Tomorrow',opt:'tomorrow'},{label:'In 3 days',opt:'3days'},{label:'In 1 week',opt:'1week'}].map(o=>(
                       <button key={o.opt} onClick={()=>snoozeFU(f.id,o.opt)}
                         style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left',fontSize:13,color:S.isLight?'#374151':S.txt,fontWeight:500}}
-                        onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2}
+                        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
                         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                         <Clock size={12} color={S.muted}/>
                         {o.label}
@@ -1072,10 +1033,10 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                       <div style={{fontSize:11,color:S.muted,marginBottom:4}}>Pick a date</div>
                       <div style={{display:'flex',gap:6,alignItems:'center'}}>
                         <input type='date' value={fuSnoozeCustomDate} onChange={e=>setFuSnoozeCustomDate(e.target.value)}
-                          style={{fontSize:12,padding:'4px 8px',background:S.isLight?'#ffffff':S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.isLight?'#374151':S.txt,flex:1}}/>
+                          style={{fontSize:12,padding:'4px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.isLight?'#374151':S.txt,flex:1}}/>
                         <button onClick={()=>{if(fuSnoozeCustomDate)snoozeFU(f.id,'custom',fuSnoozeCustomDate)}}
                           disabled={!fuSnoozeCustomDate}
-                          style={{padding:'4px 10px',background:fuSnoozeCustomDate?'#2563eb':'#94a3b8',border:'none',borderRadius:5,color:'#fff',fontSize:12,cursor:fuSnoozeCustomDate?'pointer':'not-allowed',whiteSpace:'nowrap'}}>Set</button>
+                          style={{padding:'4px 10px',background:fuSnoozeCustomDate?'#007AFF':'#9CA3AF',border:'none',borderRadius:5,color:'#fff',fontSize:12,cursor:fuSnoozeCustomDate?'pointer':'not-allowed',whiteSpace:'nowrap'}}>Set</button>
                       </div>
                     </div>
                   </div>
@@ -1083,9 +1044,9 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               </div>
               <button onClick={()=>{sendToAppleReminders(f,acct.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
                 title='Send to Apple Reminders'
-                style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id?1:0,transition:'opacity 0.15s'}}
-                onMouseEnter={e=>e.currentTarget.style.color='#475569'}
-                onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Share2 size={14}/></button>
+                style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id?1:0,transition:'opacity 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
+                onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}><Share2 size={14}/></button>
             </div>
           )
         })}
@@ -1095,16 +1056,16 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       {(()=>{
         const qw=getQuickWin(acct)
         return qw?(
-          <div style={{marginBottom:20,background:S.isLight?'linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)':'linear-gradient(135deg,rgba(59,130,246,0.08) 0%,rgba(59,130,246,0.03) 100%)',border:`1px solid ${S.isLight?'#bfdbfe':S.bdr}`,borderRadius:12,padding:'16px'}}>
+          <div style={{marginBottom:20,background:S.isLight?'linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%)':'linear-gradient(135deg,rgba(59,130,246,0.08) 0%,rgba(59,130,246,0.03) 100%)',border:`1px solid ${S.isLight?'#BFDBFE':S.bdr}`,borderRadius:12,padding:'16px'}}>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-              <span style={{fontSize:14,color:S.isLight?'#2563eb':S.blue}}>⚡</span>
-              <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#1d4ed8':S.blue,letterSpacing:'0.1em',textTransform:'uppercase'}}>Quick Win</span>
+              <span style={{fontSize:14,color:S.isLight?'#007AFF':S.blue}}>⚡</span>
+              <span style={{fontSize:11,fontWeight:800,color:S.isLight?'#0066CC':S.blue,letterSpacing:'0.1em',textTransform:'uppercase'}}>Quick Win</span>
             </div>
             <div style={{fontSize:14,fontWeight:600,color:S.isLight?'#1e3a5f':S.txt,marginBottom:4,lineHeight:1.4}}>{qw.title}</div>
             <div style={{fontSize:12,color:S.isLight?'#3b82f6':S.muted,marginBottom:12,lineHeight:1.5}}>{qw.meta}</div>
-            {setTab&&<button onClick={()=>setTab(qw.tab)} style={{padding:'6px 14px',background:S.isLight?'#2563eb':S.blue,border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',transition:'background 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='#1d4ed8'}
-              onMouseLeave={e=>e.currentTarget.style.background=S.isLight?'#2563eb':S.blue}>Take Action →</button>}
+            {setTab&&<button onClick={()=>setTab(qw.tab)} style={{padding:'6px 14px',background:S.isLight?'#007AFF':S.blue,border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',transition:'background 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#0066CC'}
+              onMouseLeave={e=>e.currentTarget.style.background=S.isLight?'#007AFF':S.blue}>Take Action →</button>}
           </div>
         ):null
       })()}
