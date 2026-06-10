@@ -1,31 +1,147 @@
 import { useState, useEffect } from 'react'
-import { Clock, Share2 } from 'lucide-react'
+import { Clock, Share2, Zap } from 'lucide-react'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, sendToAppleReminders } from '../utils.js'
 import { Btn, Field, Modal } from './UI.jsx'
 
-const AI_SECTIONS = [
-  { key: 'quickContext', label: 'Quick Context', icon: '📋',
-    placeholder: 'A short summary of why this action exists — account situation, trigger event, and what outcome it drives toward.' },
-  { key: 'progressSinceCreation', label: 'Progress Since Creation', icon: '📈',
-    placeholder: 'Timeline of relevant activity since this action was created — meetings, intel entries, contact interactions.' },
-  { key: 'recommendedNextAction', label: 'Recommended Next Action', icon: '⚡',
-    placeholder: 'The single most important next step based on current deal stage, contact engagement, and account health.' },
-  { key: 'suggestedRecipients', label: 'Suggested Recipients', icon: '👥',
-    placeholder: 'Contacts at this account who should be looped in — based on role, influence, and past engagement.' },
-  { key: 'suggestedSubjectLine', label: 'Suggested Subject Line', icon: '✉️',
-    placeholder: 'An AI-crafted email subject line matched to this action\'s context and the recipient\'s communication history.' },
-  { key: 'draftEmail', label: 'Draft Email', icon: '📝',
-    placeholder: 'A ready-to-send email draft personalized to this account, action, and suggested recipients.' },
-  { key: 'recommendedAssets', label: 'Recommended Assets', icon: '📎',
-    placeholder: 'Case studies, one-pagers, and collateral matched to this account\'s industry and current stage.' },
-  { key: 'meetingRecommendation', label: 'Meeting Recommendation', icon: '📅',
-    placeholder: 'Agenda, talking points, and attendee suggestions for the next meeting tied to this action.' },
-  { key: 'actionHealth', label: 'Action Health', icon: '💪',
-    placeholder: 'An assessment of momentum, urgency, and risk for this action based on days open, priority, and deal context.' },
-]
+// ── Claude API helper (same pattern as TechStack.jsx / IntelLog.jsx) ───────────
+const callClaudeWithRetry = async (body, apiKey, maxRetries=3) => {
+  const lastCall = window._lastAnthropicCall||0
+  const wait = 2000-(Date.now()-lastCall)
+  if (wait>0) await new Promise(r=>setTimeout(r,wait))
+  for (let attempt=0; attempt<maxRetries; attempt++) {
+    window._lastAnthropicCall = Date.now()
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify(body)
+    })
+    const data = await res.json()
+    const overloaded = data.error?.type==='overloaded_error'||res.status===529||res.status===429
+    if (overloaded && attempt<maxRetries-1) {
+      await new Promise(r=>setTimeout(r,Math.pow(2,attempt)*2000))
+      continue
+    }
+    if (overloaded) throw new Error('OVERLOADED')
+    return {res,data}
+  }
+  throw new Error('OVERLOADED')
+}
 
-export default function Actions({acct,setAcct}) {
+// ── Action health config ───────────────────────────────────────────────────────
+const HEALTH_CONFIG = {
+  'Healthy':         { color:'#16a34a', bg:'#dcfce7', border:'#bbf7d0', icon:'✓' },
+  'Needs Attention': { color:'#d97706', bg:'#fef3c7', border:'#fde68a', icon:'▲' },
+  'At Risk':         { color:'#dc2626', bg:'#fee2e2', border:'#fecaca', icon:'⚠' },
+  'Critical':        { color:'#9f1239', bg:'#ffe4e6', border:'#fecdd3', icon:'🔴' },
+}
+
+// ── Build account context string for AI prompt ─────────────────────────────────
+const buildActionContext = (fu, acct, whitespaceAccounts) => {
+  const todayStr = new Date().toISOString().split('T')[0]
+  const dDue = fu.dueDate ? Math.ceil((new Date(fu.dueDate+'T12:00:00') - new Date(todayStr+'T12:00:00')) / 86400000) : null
+  const daysOverdue = dDue !== null && dDue < 0 ? Math.abs(dDue) : 0
+
+  // Intel log sorted ascending, split at action createdAt
+  const allIntel = [...(acct.intelLog||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+  const createdAt = fu.createdAt || null
+  const intelBefore = createdAt ? allIntel.filter(e=>e.date<=createdAt) : allIntel
+  const intelAfter  = createdAt ? allIntel.filter(e=>e.date>createdAt)  : []
+
+  const fmtEntry = e => {
+    const parts = [`[${e.date||'?'}]`]
+    if (e.type && e.type!=='Note') parts.push(`(${e.type})`)
+    if (e.participants) parts.push(`w/ ${e.participants}`)
+    const body = [e.summary, ...(e.insights||[]).map(i=>`insight: ${i}`), ...(e.risks||[]).map(r=>`risk: ${r}`), ...(e.opportunities||[]).map(o=>`opp: ${o}`)].filter(Boolean).join(' | ')
+    return `${parts.join(' ')} ${body}`.trim()
+  }
+
+  const contacts = (acct.contacts||[]).map(c=>
+    `  • ${c.name} (${c.title||'?'}) — ${c.relStatus||'?'} / ${c.sentiment||'neutral'}${c.notes?` — ${c.notes.slice(0,120)}`:''}`.trim()
+  ).join('\n')
+
+  const projects = (acct.projects||[])
+    .filter(p=>p.status!=='Lost')
+    .map(p=>{
+      const stage = p.timeline?.find(s=>s.status==='current')?.stage || p.timeline?.filter(s=>s.status==='completed').slice(-1)[0]?.stage || '?'
+      return `  • ${p.name} [${p.status}${stage&&stage!=='?'?` / ${stage}`:''}]${p.notes?` — ${p.notes.slice(0,100)}`:''}`.trim()
+    }).join('\n')
+
+  const wsLine = (whitespaceAccounts||[])
+    .filter(w=>w.name)
+    .slice(0,5)
+    .map(w=>`  • ${w.name}${w.priority?` (${w.priority})`:''}`).join('\n')
+
+  const intelSection = (entries, label) => entries.length
+    ? `\n${label}:\n${entries.slice(-10).map(fmtEntry).join('\n')}`
+    : ''
+
+  const notesText = typeof acct.notes === 'string'
+    ? acct.notes.slice(0,600)
+    : Array.isArray(acct.notes)
+      ? acct.notes.slice(0,5).map(n=>n.text||'').join(' | ').slice(0,600)
+      : ''
+
+  return `ACTION:
+  Task: ${fu.task}
+  Priority: ${fu.priority}
+  Due Date: ${fu.dueDate||'none'} ${daysOverdue>0?`(${daysOverdue} days overdue)`:''}
+  Contact: ${fu.contact||'not specified'}
+  Notes: ${fu.context||'none'}
+  Created: ${fu.createdAt||'unknown'}
+
+ACCOUNT: ${acct.name}
+  Industry: ${acct.industry||'?'}  HQ: ${acct.hq||'?'}
+  Relationship: ${acct.relationship||'?'}  Last Contact: ${acct.lastContact||'?'}
+  Notes: ${notesText||'none'}
+
+CONTACTS:
+${contacts||'  none'}
+
+ACTIVE PROJECTS:
+${projects||'  none'}
+${intelSection(intelBefore, 'INTEL LOG (at time action was created)')}
+${intelSection(intelAfter, 'INTEL LOG (since action was created)')}
+${wsLine?`\nWHITESPACE ACCOUNTS:\n${wsLine}`:''}`
+}
+
+// ── AI prompt ─────────────────────────────────────────────────────────────────
+const buildPrompt = (fu, acct, whitespaceAccounts) => {
+  const ctx = buildActionContext(fu, acct, whitespaceAccounts)
+  return `You are an AI assistant for a cybersecurity sales CRM. A sales rep is reviewing an action item. Your job is to give them sharp, specific intelligence to take action — not generic advice.
+
+${ctx}
+
+Analyze the action and context above. Return ONLY valid JSON with no markdown code fences or extra text:
+{
+  "quickContext": "One sentence. Why this action matters right now — the specific trigger, deal context, or relationship moment that created it.",
+  "progressSinceCreation": {
+    "completed": ["Specific things that have happened since this action was created, based on intel entries. Use real names and details. If nothing relevant, return an empty array."],
+    "outstanding": ["Specific things that are still unresolved or pending. Be concrete. Use real names and deal context."]
+  },
+  "recommendedNextAction": {
+    "text": "Start with a strong verb. Be specific — name the person, channel, or deadline. No vague suggestions.",
+    "confidence": 0.85
+  },
+  "suggestedRecipients": {
+    "to": ["Name (Title) — why they are primary"],
+    "cc": ["Name (Title) — why they should be aware"],
+    "internal": ["Name (Title) — internal GuidePoint resource to loop in"]
+  },
+  "suggestedSubjectLine": "Concise, professional subject. Reference the deal or account. No filler.",
+  "actionHealth": "Healthy"
+}
+
+Rules:
+- actionHealth must be exactly one of: "Healthy", "Needs Attention", "At Risk", "Critical"
+- Base actionHealth on: days overdue (0=ok, 1-3=Needs Attention, 4-7=At Risk, 8+=Critical), priority (Critical task overdue=Critical), recent contact (no contact in 30+ days with open Critical=At Risk), project status
+- progressSinceCreation.completed should only list things visible in the INTEL LOG since the action was created — not assumptions
+- Keep every string under 120 characters
+- suggestedRecipients.internal can be empty array if no internal resources are relevant
+- All arrays can be empty if nothing specific is known`
+}
+
+export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
   const [showAdd,setShowAdd] = useState(false)
   const [showCompleted,setShowCompleted] = useState(false)
   const [showOpenTasks,setShowOpenTasks] = useState(true)
@@ -42,11 +158,50 @@ export default function Actions({acct,setAcct}) {
   const [remindersToast,setRemindersToast] = useState(false)
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [expandedId,setExpandedId] = useState(null)
+  const [generatingId,setGeneratingId] = useState(null)
+  const [genError,setGenError] = useState(null)
   const blank={id:'',contact:'',task:'',priority:'High',dueDate:'',status:'Open',context:''}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
+
   const toggle=id=>setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===id?{...fu,status:fu.status==='Open'?'Done':'Open'}:fu)}))
-  const save=()=>{if(!form.task)return;if(form.id)setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===form.id?form:fu)}));else setAcct(p=>({...p,followUps:[...p.followUps,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
+  const save=()=>{
+    if(!form.task)return
+    const now = new Date().toISOString().split('T')[0]
+    if(form.id) setAcct(p=>({...p,followUps:p.followUps.map(fu=>fu.id===form.id?form:fu)}))
+    else setAcct(p=>({...p,followUps:[...p.followUps,{...form,id:uid(),createdAt:now}]}))
+    setShowAdd(false);setForm(blank)
+  }
+
+  // ── AI generation ────────────────────────────────────────────────────────────
+  const generateIntel = async (fu) => {
+    if (!apiKey) { setGenError('Add your Anthropic API key in Settings first.'); return }
+    setGenError(null)
+    setGeneratingId(fu.id)
+    try {
+      const prompt = buildPrompt(fu, acct, whitespaceAccounts)
+      const {data:result} = await callClaudeWithRetry(
+        {model:'claude-sonnet-4-6', max_tokens:1200, messages:[{role:'user',content:prompt}]},
+        apiKey
+      )
+      const raw = result?.content?.[0]?.text || ''
+      let intel = null
+      try { intel = JSON.parse(raw) } catch {
+        const m = raw.match(/\{[\s\S]*\}/)
+        if (m) { try { intel = JSON.parse(m[0]) } catch { /* ignore */ } }
+      }
+      if (intel) {
+        intel.generatedAt = new Date().toISOString()
+        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:intel}:x)}))
+      } else {
+        setGenError('AI returned an unexpected response. Please try again.')
+      }
+    } catch(err) {
+      setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Generation failed. Please try again.')
+    } finally {
+      setGeneratingId(null)
+    }
+  }
 
   const snoozeAction = (option) => {
     const now=new Date(); const until=new Date()
@@ -82,18 +237,11 @@ export default function Actions({acct,setAcct}) {
   const todayFull = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
   const allOpen = acct.followUps.filter(f=>f.status==='Open')
   const done = acct.followUps.filter(f=>f.status==='Done')
-  const overdueFUs = allOpen.filter(f=>f.dueDate&&f.dueDate<todayStr)
-    .sort((a,b)=>a.dueDate.localeCompare(b.dueDate))
-  const dueTodayFUs = allOpen.filter(f=>f.dueDate===todayStr)
-    .sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority))
+  const overdueFUs = allOpen.filter(f=>f.dueDate&&f.dueDate<todayStr).sort((a,b)=>a.dueDate.localeCompare(b.dueDate))
+  const dueTodayFUs = allOpen.filter(f=>f.dueDate===todayStr).sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority))
   const futureFUs = allOpen.filter(f=>!f.dueDate||f.dueDate>todayStr)
   const sortedFuture = [...futureFUs].sort((a,b)=>{
-    if(openSort==='duedate'){
-      if(!a.dueDate&&!b.dueDate)return 0
-      if(!a.dueDate)return 1
-      if(!b.dueDate)return -1
-      return a.dueDate.localeCompare(b.dueDate)
-    }
+    if(openSort==='duedate'){if(!a.dueDate&&!b.dueDate)return 0;if(!a.dueDate)return 1;if(!b.dueDate)return -1;return a.dueDate.localeCompare(b.dueDate)}
     if(openSort==='contact') return(a.contact||'').localeCompare(b.contact||'')
     return['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)
   })
@@ -103,12 +251,169 @@ export default function Actions({acct,setAcct}) {
   const applyBatchPri = pri => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,priority:pri}:fu)})); setBatchPriOpen(false) }
   const applyBatchComplete = () => { setAcct(p=>({...p,followUps:p.followUps.map(fu=>selFUs.has(fu.id)?{...fu,status:'Done'}:fu)})); exitSel() }
 
+  // ── AI panel renderer ────────────────────────────────────────────────────────
+  const renderAIPanel = (fu) => {
+    const intel = fu.aiIntel
+    const isGenerating = generatingId === fu.id
+    const hc = intel?.actionHealth ? HEALTH_CONFIG[intel.actionHealth] || HEALTH_CONFIG['Needs Attention'] : null
+
+    return (
+      <div style={{background:S.isLight?'#F8FAFE':'#1a1f2e',borderTop:`1px solid ${S.isLight?'#E8F0FE':'#2d3748'}`,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,padding:'14px 16px 16px'}}>
+
+        {/* Header row */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:10,fontWeight:700,color:'#007AFF',letterSpacing:'0.08em',textTransform:'uppercase'}}>✦ AI Intelligence</span>
+            {intel?.generatedAt&&(
+              <span style={{fontSize:9,color:'#9CA3AF'}}>{new Date(intel.generatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+            )}
+          </div>
+          <button
+            onClick={()=>generateIntel(fu)}
+            disabled={isGenerating||!apiKey}
+            style={{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 12px',background:isGenerating?'#F3F4F6':apiKey?'#007AFF':'#F3F4F6',border:'none',borderRadius:6,color:isGenerating||!apiKey?'#9CA3AF':'#fff',fontSize:11,fontWeight:600,cursor:isGenerating||!apiKey?'default':'pointer',transition:'background 0.15s'}}
+          >
+            <Zap size={11}/>
+            {isGenerating?'Analyzing…':intel?'Refresh':'Analyze'}
+          </button>
+        </div>
+
+        {!apiKey&&<div style={{fontSize:11,color:'#d97706',background:'#fef3c7',border:'1px solid #fde68a',borderRadius:6,padding:'7px 10px',marginBottom:10}}>Add your Anthropic API key in Settings to enable AI analysis.</div>}
+        {genError&&expandedId===fu.id&&<div style={{fontSize:11,color:'#dc2626',background:'#fee2e2',border:'1px solid #fecaca',borderRadius:6,padding:'7px 10px',marginBottom:10}}>{genError}</div>}
+
+        {isGenerating&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {[1,2,3,4,5,6].map(i=>(
+              <div key={i} style={{height:52,background:S.isLight?'#FFFFFF':'#222736',border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,overflow:'hidden',position:'relative'}}>
+                <div style={{position:'absolute',inset:0,background:`linear-gradient(90deg,transparent 0%,${S.isLight?'#F0F7FF':'#2a3247'} 50%,transparent 100%)`,animation:'shimmer 1.2s infinite'}}/>
+              </div>
+            ))}
+            <style>{`@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}`}</style>
+          </div>
+        )}
+
+        {!isGenerating&&intel&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+
+            {/* Row 1: Action Health + Quick Context */}
+            <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:8,alignItems:'stretch'}}>
+              {/* Action Health */}
+              {hc&&(
+                <div style={{background:hc.bg,border:`1px solid ${hc.border}`,borderRadius:8,padding:'10px 14px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',minWidth:100}}>
+                  <div style={{fontSize:16,marginBottom:3}}>{hc.icon}</div>
+                  <div style={{fontSize:10,fontWeight:700,color:hc.color,letterSpacing:'0.06em',textTransform:'uppercase',textAlign:'center',whiteSpace:'nowrap'}}>{intel.actionHealth}</div>
+                </div>
+              )}
+              {/* Quick Context */}
+              {intel.quickContext&&(
+                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>📋 Quick Context</div>
+                  <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.55}}>{intel.quickContext}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Row 2: Progress Since Creation */}
+            {(intel.progressSinceCreation?.completed?.length>0||intel.progressSinceCreation?.outstanding?.length>0)&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>📈 Progress Since Creation</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:600,color:'#16a34a',marginBottom:4}}>COMPLETED</div>
+                    {intel.progressSinceCreation.completed?.length>0
+                      ? intel.progressSinceCreation.completed.map((item,i)=>(
+                          <div key={i} style={{display:'flex',gap:5,fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:3}}>
+                            <span style={{color:'#16a34a',flexShrink:0}}>✓</span><span>{item}</span>
+                          </div>
+                        ))
+                      : <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic'}}>Nothing logged yet</div>
+                    }
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:600,color:'#d97706',marginBottom:4}}>OUTSTANDING</div>
+                    {intel.progressSinceCreation.outstanding?.length>0
+                      ? intel.progressSinceCreation.outstanding.map((item,i)=>(
+                          <div key={i} style={{display:'flex',gap:5,fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:3}}>
+                            <span style={{color:'#d97706',flexShrink:0}}>●</span><span>{item}</span>
+                          </div>
+                        ))
+                      : <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic'}}>None identified</div>
+                    }
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Row 3: Recommended Next Action */}
+            {intel.recommendedNextAction?.text&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`2px solid ${'#007AFF'}22`,borderLeft:`3px solid #007AFF`,borderRadius:'0 8px 8px 0',padding:'10px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#007AFF',textTransform:'uppercase',letterSpacing:'0.06em'}}>⚡ Recommended Next Action</div>
+                  {intel.recommendedNextAction.confidence!=null&&(
+                    <span style={{fontSize:10,fontWeight:600,color:'#9CA3AF',background:S.isLight?'#F3F4F6':'#2d3748',borderRadius:999,padding:'1px 7px'}}>
+                      {Math.round(intel.recommendedNextAction.confidence*100)}% confidence
+                    </span>
+                  )}
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5}}>{intel.recommendedNextAction.text}</div>
+              </div>
+            )}
+
+            {/* Row 4: Suggested Recipients + Subject Line */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {/* Suggested Recipients */}
+              {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||intel.suggestedRecipients?.internal?.length>0)&&(
+                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>👥 Suggested Recipients</div>
+                  {[
+                    {key:'to',label:'TO',color:'#007AFF'},
+                    {key:'cc',label:'CC',color:'#6B7280'},
+                    {key:'internal',label:'INTERNAL',color:'#8B5CF6'},
+                  ].map(({key,label,color})=> intel.suggestedRecipients[key]?.length>0&&(
+                    <div key={key} style={{marginBottom:5}}>
+                      <span style={{fontSize:9,fontWeight:700,color,letterSpacing:'0.08em'}}>{label} </span>
+                      {intel.suggestedRecipients[key].map((r,i)=>(
+                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,paddingLeft:8}}>{r}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggested Subject Line */}
+              {intel.suggestedSubjectLine&&(
+                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px',display:'flex',flexDirection:'column',justifyContent:'center'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>✉️ Suggested Subject Line</div>
+                  <div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5,background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'7px 10px',fontFamily:'monospace'}}>{intel.suggestedSubjectLine}</div>
+                  <button
+                    onClick={()=>{navigator.clipboard?.writeText(intel.suggestedSubjectLine)}}
+                    style={{marginTop:6,alignSelf:'flex-start',fontSize:10,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>
+                    Copy
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {!isGenerating&&!intel&&apiKey&&(
+          <div style={{textAlign:'center',padding:'20px 0',color:'#9CA3AF',fontSize:12}}>
+            Click <strong style={{color:'#007AFF'}}>Analyze</strong> to generate AI intelligence for this action.
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Action card renderer ─────────────────────────────────────────────────────
   const renderAction = (fu, extraBadge=null) => {
     const p=PC[fu.priority]||PC.Low
     const dDue=fu.dueDate?daysUntil(fu.dueDate):null
     const dueDateColor=dDue===null?S.muted:dDue<0?PC.Critical.c:p.c
     const isSelected=selMode&&selFUs.has(fu.id)
     const isExpanded=expandedId===fu.id
+    const health = fu.aiIntel?.actionHealth ? HEALTH_CONFIG[fu.aiIntel.actionHealth] : null
     return (
       <div key={fu.id}>
         <div
@@ -128,6 +433,8 @@ export default function Actions({acct,setAcct}) {
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:5}}>
                 <span style={{fontSize:13,fontWeight:600,color:S.txt,lineHeight:1.4}}>{fu.task}</span>
                 {extraBadge}
+                {/* Inline health dot if AI has run */}
+                {health&&<span style={{width:7,height:7,borderRadius:'50%',background:health.color,display:'inline-block',flexShrink:0,marginLeft:2}} title={fu.aiIntel.actionHealth}/>}
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 <span style={{fontSize:10,fontWeight:700,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
@@ -150,32 +457,14 @@ export default function Actions({acct,setAcct}) {
             <button
               onClick={()=>setExpandedId(isExpanded?null:fu.id)}
               title={isExpanded?'Hide AI details':'Show AI details'}
-              style={{background:'transparent',border:`1px solid ${isExpanded?'#007AFF':'#EEEFF2'}`,color:isExpanded?'#007AFF':'#9CA3AF',cursor:'pointer',fontSize:11,padding:'3px 7px',borderRadius:6,transition:'all 0.12s',flexShrink:0,lineHeight:1}}
+              style={{display:'inline-flex',alignItems:'center',gap:3,background:'transparent',border:`1px solid ${isExpanded?'#007AFF':'#EEEFF2'}`,color:isExpanded?'#007AFF':'#9CA3AF',cursor:'pointer',fontSize:11,padding:'3px 7px',borderRadius:6,transition:'all 0.12s',flexShrink:0,lineHeight:1,fontWeight:600}}
               onMouseEnter={e=>{e.currentTarget.style.color='#007AFF';e.currentTarget.style.borderColor='#007AFF'}}
               onMouseLeave={e=>{e.currentTarget.style.color=isExpanded?'#007AFF':'#9CA3AF';e.currentTarget.style.borderColor=isExpanded?'#007AFF':'#EEEFF2'}}>
-              {isExpanded?'▾ AI':'▸ AI'}
+              <Zap size={10}/>{isExpanded?'▾':'▸'}
             </button>
           </div>
         </div>
-        {isExpanded&&(
-          <div style={{background:S.isLight?'#F8FAFE':'#1a1f2e',borderTop:`1px solid ${S.isLight?'#E8F0FE':'#2d3748'}`,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,padding:'14px 16px 16px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-              <span style={{fontSize:10,fontWeight:700,color:'#007AFF',letterSpacing:'0.08em',textTransform:'uppercase'}}>✦ AI Intelligence</span>
-              <span style={{fontSize:9,fontWeight:600,color:'#9CA3AF',background:S.isLight?'#F3F4F6':'#2d3748',borderRadius:4,padding:'1px 6px',border:`1px solid ${S.isLight?'#EEEFF2':'#374151'}`}}>Coming soon</span>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-              {AI_SECTIONS.map(sec=>(
-                <div key={sec.key} style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:5}}>
-                    <span style={{fontSize:13}}>{sec.icon}</span>
-                    <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#374151':S.txt}}>{sec.label}</span>
-                  </div>
-                  <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic',lineHeight:1.5}}>{sec.placeholder}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {isExpanded&&renderAIPanel(fu)}
       </div>
     )
   }
@@ -185,7 +474,7 @@ export default function Actions({acct,setAcct}) {
       {fuSnoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> Snoozed!</div>}
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
 
-      {/* ─── TODAY SECTION ─── */}
+      {/* TODAY */}
       <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
         <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -197,10 +486,7 @@ export default function Actions({acct,setAcct}) {
         {(overdueFUs.length===0&&dueTodayFUs.length===0)
           ?<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',color:S.isLight?'#16a34a':S.green}}>
             <span style={{fontSize:16}}>✓</span>
-            <div>
-              <div style={{fontWeight:600,fontSize:13}}>All clear today</div>
-              <div style={{fontSize:11,color:S.muted,marginTop:1}}>No actions due or overdue</div>
-            </div>
+            <div><div style={{fontWeight:600,fontSize:13}}>All clear today</div><div style={{fontSize:11,color:S.muted,marginTop:1}}>No actions due or overdue</div></div>
           </div>
           :<div>
             {overdueFUs.map(fu=>{
@@ -212,7 +498,7 @@ export default function Actions({acct,setAcct}) {
         }
       </div>
 
-      {/* ─── UPCOMING SECTION ─── */}
+      {/* UPCOMING */}
       <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',marginBottom:16,overflow:'hidden'}}>
         <div style={{padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
           <div onClick={()=>setShowOpenTasks(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
@@ -233,7 +519,6 @@ export default function Actions({acct,setAcct}) {
           </div>
         </div>
 
-        {/* Batch toolbar */}
         {selMode&&(
           <div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 14px',background:'#ffffff',borderBottom:'1px solid #f1f5f9',flexWrap:'wrap',boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
             <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#64748b',cursor:'pointer'}}>
@@ -272,7 +557,7 @@ export default function Actions({acct,setAcct}) {
         )}
       </div>
 
-      {/* ─── COMPLETED SECTION ─── */}
+      {/* COMPLETED */}
       <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
         <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div onClick={()=>setShowCompleted(v=>!v)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
@@ -300,54 +585,57 @@ export default function Actions({acct,setAcct}) {
           </div>
         )}
       </div>
-      {showAdd&&<Modal title={form.id?'Edit Action':'Add Action'} onClose={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>
-        <Field label='Task' value={form.task} onChange={f('task')}/>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
-          <Field label='Priority' value={form.priority} onChange={f('priority')} options={['Critical','High','Medium','Low']}/>
-          <Field label='Due Date' value={form.dueDate} onChange={f('dueDate')} type='date'/>
-          <Field label='Contact Name' value={form.contact} onChange={f('contact')} style={{gridColumn:'span 2'}}/>
-        </div>
-        <Field label='Context / Notes' value={form.context} onChange={f('context')} multiline/>
-        <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
-          <Btn variant='primary' onClick={save}>Save</Btn>
-          {form.id&&(
-            <div style={{position:'relative'}} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>{setSnoozeDropOpen(v=>!v);setSnoozeShowCustom(false)}}
-                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',minHeight:44,borderRadius:6,fontSize:13,fontWeight:500,cursor:'pointer',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`}}>
-                <Clock size={14}/> Snooze
-              </button>
-              {snoozeDropOpen&&(
-                <div style={{position:'absolute',bottom:'calc(100% + 4px)',left:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:220,overflow:'hidden'}}>
-                  {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'In 3 Days',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
-                    <button key={o.opt} onClick={()=>snoozeAction(o.opt)}
-                      style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
-                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <Clock size={13} color={S.muted}/>
-                      <div><div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div><div style={{fontSize:10,color:S.muted}}>{o.sub}</div></div>
-                    </button>
-                  ))}
-                  {!snoozeShowCustom
-                    ?<button onClick={e=>{e.stopPropagation();setSnoozeShowCustom(true)}}
-                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}
+
+      {showAdd&&(
+        <Modal title={form.id?'Edit Action':'Add Action'} onClose={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>
+          <Field label='Task' value={form.task} onChange={f('task')}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
+            <Field label='Priority' value={form.priority} onChange={f('priority')} options={['Critical','High','Medium','Low']}/>
+            <Field label='Due Date' value={form.dueDate} onChange={f('dueDate')} type='date'/>
+            <Field label='Contact Name' value={form.contact} onChange={f('contact')} style={{gridColumn:'span 2'}}/>
+          </div>
+          <Field label='Context / Notes' value={form.context} onChange={f('context')} multiline/>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <Btn variant='primary' onClick={save}>Save</Btn>
+            {form.id&&(
+              <div style={{position:'relative'}} onClick={e=>e.stopPropagation()}>
+                <button onClick={()=>{setSnoozeDropOpen(v=>!v);setSnoozeShowCustom(false)}}
+                  style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',minHeight:44,borderRadius:6,fontSize:13,fontWeight:500,cursor:'pointer',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`}}>
+                  <Clock size={14}/> Snooze
+                </button>
+                {snoozeDropOpen&&(
+                  <div style={{position:'absolute',bottom:'calc(100% + 4px)',left:0,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:220,overflow:'hidden'}}>
+                    {[{label:'Later Today',sub:'5:00 PM today',opt:'later'},{label:'Tomorrow',sub:'8:00 AM tomorrow',opt:'tomorrow'},{label:'In 3 Days',sub:'8:00 AM',opt:'3days'},{label:'Next Week',sub:'Monday 7:00 AM',opt:'nextweek'}].map(o=>(
+                      <button key={o.opt} onClick={()=>snoozeAction(o.opt)}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',textAlign:'left'}}
                         onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
                         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                         <Clock size={13} color={S.muted}/>
-                        <div style={{fontSize:13,color:S.txt,fontWeight:500}}>Custom Date</div>
+                        <div><div style={{fontSize:13,color:S.txt,fontWeight:500}}>{o.label}</div><div style={{fontSize:10,color:S.muted}}>{o.sub}</div></div>
                       </button>
-                    :<div style={{padding:'8px 14px',display:'flex',gap:6,alignItems:'center'}} onClick={e=>e.stopPropagation()}>
-                        <input type='date' value={snoozeCustomDate} onChange={e=>setSnoozeCustomDate(e.target.value)}
-                          style={{flex:1,fontSize:12,padding:'4px 7px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}/>
-                        <button onClick={applyCustomSnooze} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Set</button>
-                      </div>
-                  }
-                </div>
-              )}
-            </div>
-          )}
-          <Btn onClick={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>Cancel</Btn>
-        </div>
-      </Modal>}
+                    ))}
+                    {!snoozeShowCustom
+                      ?<button onClick={e=>{e.stopPropagation();setSnoozeShowCustom(true)}}
+                          style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'9px 14px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <Clock size={13} color={S.muted}/>
+                          <div style={{fontSize:13,color:S.txt,fontWeight:500}}>Custom Date</div>
+                        </button>
+                      :<div style={{padding:'8px 14px',display:'flex',gap:6,alignItems:'center'}} onClick={e=>e.stopPropagation()}>
+                          <input type='date' value={snoozeCustomDate} onChange={e=>setSnoozeCustomDate(e.target.value)}
+                            style={{flex:1,fontSize:12,padding:'4px 7px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,color:S.txt}}/>
+                          <button onClick={applyCustomSnooze} style={{padding:'4px 10px',background:S.blue,border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Set</button>
+                        </div>
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+            <Btn onClick={()=>{setShowAdd(false);setForm(blank);setSnoozeDropOpen(false);setSnoozeShowCustom(false)}}>Cancel</Btn>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
