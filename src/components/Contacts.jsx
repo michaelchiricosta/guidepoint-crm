@@ -123,7 +123,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
   const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',contactPhoto:'',internalMeetings:[]}
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
-  const del=id=>{if(window.confirm('Delete contact?'))setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}))}
+  const del=id=>{setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}));setExp(null)}
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
   const relC={'Never Met':S.muted,Strong:S.green,Building:S.blue,'Needs Attention':S.orange,Unknown:S.muted}
   const saveNote=c=>{if(!noteText.trim()){setNoteTarget(null);return};const stamp=`[${new Date().toISOString().split('T')[0]}] ${noteText.trim()}`;setAcct(p=>({...p,contacts:p.contacts.map(ct=>ct.id===c.id?{...ct,notes:(ct.notes?ct.notes+' | ':'')+stamp}:ct)}));setNoteTarget(null);setNoteText('')}
@@ -404,7 +404,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
               ))}</div>}
             </div>
           )}
-          <div style={{display:'flex',gap:8,marginTop:10}}><Btn onClick={()=>{setForm({...blank,...c});setShowAdd(true)}}>Edit</Btn><Btn variant='danger' onClick={()=>del(c.id)}>Delete</Btn></div>
+          <div style={{display:'flex',gap:8,marginTop:10}}><Btn onClick={()=>{setForm({...blank,...c});setShowAdd(true)}}>Edit</Btn><Btn variant='danger' onClick={e=>{e.stopPropagation();del(c.id)}}>Delete</Btn></div>
         </div>}
       </Card>
     )
