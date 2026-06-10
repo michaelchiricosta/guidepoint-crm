@@ -173,17 +173,16 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   if(isMobile&&!mobileMenuOpen) return null
   if(isMobile&&mobileMenuOpen) return (
     <>
-      <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:150}}/>
-      <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:S.sidebarBg,display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.4)',overflowY:'auto'}}>
-        <div style={{padding:'10px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+      <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:150}}/>
+      <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
+        <div style={{padding:'10px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6}}/>
-            <div style={{fontSize:24,fontWeight:700,color:'#0f172a'}}>Ledgr.</div>
+            <div style={{fontSize:24,fontWeight:700,color:'#111827'}}>Ledgr.</div>
           </div>
-          <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+          <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
-        <div style={{height:1,background:'#1e2d40',flexShrink:0}}/>
-        <div style={{fontSize:10,fontWeight:700,color:'#475569',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>
+        <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>
         <div style={{flex:1,overflowY:'auto',padding:'0 8px'}}>
           {[...data.accounts].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
             const hs=calcHealthScore(a)
@@ -191,18 +190,18 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
             const isActive=activeId===a.id
             return (
               <button key={a.id} onClick={()=>setActiveId(a.id)}
-                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',background:isActive?'rgba(37,99,235,0.15)':'transparent',textAlign:'left',cursor:'pointer',marginBottom:1}}>
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #007AFF':'3px solid transparent',background:isActive?'#EBF4FF':'transparent',textAlign:'left',cursor:'pointer',marginBottom:1}}>
                 <div style={{minWidth:0,flex:1}}>
-                  <div style={{fontSize:14,fontWeight:600,color:isActive?'#ffffff':'#e2e8f0',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
+                  <div style={{fontSize:14,fontWeight:600,color:isActive?'#007AFF':'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
                 </div>
                 <span style={{fontSize:11,fontWeight:700,color:hc,background:hc+'20',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{hs}</span>
               </button>
             )
           })}
         </div>
-        <div style={{height:1,background:'#1e2d40',flexShrink:0}}/>
+        <div style={{height:1,background:'#EEEFF2',flexShrink:0}}/>
         <div style={{padding:'12px',flexShrink:0}}>
-          <button onClick={()=>{onGoHome&&onGoHome()}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'10px 12px',background:'transparent',border:'1px solid #1e2d40',borderRadius:8,color:'#94a3b8',fontSize:13,cursor:'pointer'}}>← Home</button>
+          <button onClick={()=>{onGoHome&&onGoHome()}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'10px 12px',background:'transparent',border:'1px solid #EEEFF2',borderRadius:8,color:'#6B7280',fontSize:13,cursor:'pointer'}}>← Home</button>
         </div>
       </div>
     </>
@@ -212,22 +211,22 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   const ST = S.sideTxt, SM = S.sideMuted, SA = S.sideActive, SB = S.sideBdr, SH2 = S.sideHover
 
   return (
-    <div style={{width:collapsed?60:240,background:S.sidebarBg,borderRight:'none',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
+    <div style={{width:collapsed?60:240,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
       {/* Logo area */}
-      <div style={{padding:collapsed?'12px 0 10px':'12px 16px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+      <div style={{padding:collapsed?'12px 0 10px':'12px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
         {!collapsed?(
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
               style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:6}}>
               <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
               <div>
-                <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
+                <div style={{fontSize:28,fontWeight:700,color:'#111827',lineHeight:1}}>Ledgr.</div>
               </div>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Collapse"
-              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#475569'}
-              onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>‹</button>
+              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
+              onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
           </div>
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
@@ -235,9 +234,9 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
               <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6,display:'block'}}/>
             </button>
             <button onClick={()=>toggleCollapsed()} title="Expand"
-              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#475569'}
-              onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>›</button>
+              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
+              onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>›</button>
           </div>
         )}
       </div>
@@ -248,12 +247,12 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
             value={searchQ}
             onChange={e=>setSearchQ(e.target.value)}
             placeholder='Search... (press /)'
-            style={{width:'100%',fontSize:11,padding:'7px 10px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:ST,boxSizing:'border-box',outline:'none'}}
+            style={{width:'100%',fontSize:11,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,boxSizing:'border-box',outline:'none'}}
           />
         </div>
       )}
       {!collapsed&&searchResults.length>0&&(
-        <div style={{maxHeight:260,overflowY:'auto',borderTop:`1px solid ${SB}`,borderBottom:`1px solid ${SB}`,background:'rgba(0,0,0,0.2)',flexShrink:0}}>
+        <div style={{maxHeight:260,overflowY:'auto',borderTop:`1px solid ${SB}`,borderBottom:`1px solid ${SB}`,background:'#F9FAFB',flexShrink:0}}>
           {Object.entries(grouped).map(([cat,items])=>(
             <div key={cat}>
               <div style={{fontSize:9,fontWeight:700,color:SM,letterSpacing:'0.1em',textTransform:'uppercase',padding:'6px 14px 2px'}}>{cat}</div>
@@ -273,7 +272,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           ))}
         </div>
       )}
-      {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:'#475569',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>}
+      {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>}
       <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 8px':'0 8px'}}>
         {[...data.accounts].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
           const hs=calcHealthScore(a)
@@ -283,16 +282,16 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           collapsed
           ? <button key={a.id} onClick={()=>setActiveId(a.id)} title={`${a.name} (Health: ${hs})`}
               style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',marginBottom:2,borderRadius:8}}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:isActive?'rgba(37,99,235,0.3)':'rgba(255,255,255,0.06)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:isActive?'#93c5fd':SM,border:`1px solid ${isActive?'#2563eb':SB}`,flexShrink:0}}>
+              <div style={{width:36,height:36,borderRadius:'50%',background:isActive?'#EBF4FF':'#F9FAFB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:isActive?'#007AFF':SM,border:`1px solid ${isActive?'#007AFF':SB}`,flexShrink:0}}>
                 {initials(a.short||a.name)}
               </div>
             </button>
           : <button key={a.id} onClick={()=>setActiveId(a.id)}
-              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',background:isActive?SA:'transparent',textAlign:'left',cursor:'pointer',marginBottom:1,transition:'all 0.1s'}}
+              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #007AFF':'3px solid transparent',background:isActive?SA:'transparent',textAlign:'left',cursor:'pointer',marginBottom:1,transition:'all 0.1s'}}
               onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=SH2}}
               onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background='transparent'}}>
               <div style={{minWidth:0,flex:1}}>
-                <div style={{fontSize:13,fontWeight:600,color:isActive?'#ffffff':ST,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
+                <div style={{fontSize:13,fontWeight:600,color:isActive?'#007AFF':ST,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
               </div>
               <span style={{fontSize:10,fontWeight:700,color:hc,background:hc+'20',borderRadius:999,padding:'1px 6px',flexShrink:0,lineHeight:'16px'}}>{hs}</span>
             </button>
@@ -304,13 +303,13 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       {!collapsed&&<div style={{padding:'12px',flexShrink:0}}>
         {showAdd?<div>
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder='Account name...' onKeyDown={e=>e.key==='Enter'&&addAccount()}
-            style={{marginBottom:6,fontSize:12,width:'100%',padding:'7px 10px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:ST,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
+            style={{marginBottom:6,fontSize:12,width:'100%',padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
           <div style={{display:'flex',gap:5}}>
-            <button onClick={addAccount} style={{flex:1,padding:'6px 8px',background:'#2563eb',border:'none',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Add</button>
-            <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'6px 10px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:SM,fontSize:12,cursor:'pointer'}}>✕</button>
+            <button onClick={addAccount} style={{flex:1,padding:'6px 8px',background:'#007AFF',border:'none',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Add</button>
+            <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'6px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:7,color:SM,fontSize:12,cursor:'pointer'}}>✕</button>
           </div>
         </div>:<button onClick={()=>setShowAdd(true)}
-          style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px dashed rgba(255,255,255,0.1)',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'background 0.15s'}}
+          style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px dashed #D1D5DB',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'background 0.15s'}}
           onMouseEnter={e=>e.currentTarget.style.background=SH2}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>+ New Account</button>}
         <button onClick={()=>onNavigate&&onNavigate(activeId,'settings')}
@@ -320,24 +319,24 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           <Settings2 size={13}/> Settings
         </button>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
-          <span style={{fontSize:10,color:'#334155'}}>Theme</span>
-          <div style={{display:'flex',gap:1,background:'rgba(0,0,0,0.3)',borderRadius:6,padding:2}}>
+          <span style={{fontSize:10,color:'#9CA3AF'}}>Theme</span>
+          <div style={{display:'flex',gap:1,background:'#F3F4F6',borderRadius:6,padding:2}}>
             <button onClick={()=>setTheme('light')} title='Light mode'
-              style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='light'?'rgba(255,255,255,0.12)':'transparent',color:theme==='light'?'#93c5fd':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☀</button>
+              style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='light'?'#FFFFFF':'transparent',color:theme==='light'?'#007AFF':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☀</button>
             <button onClick={()=>setTheme('dark')} title='Dark mode'
-              style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='dark'?'rgba(255,255,255,0.12)':'transparent',color:theme==='dark'?'#93c5fd':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☾</button>
+              style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='dark'?'#FFFFFF':'transparent',color:theme==='dark'?'#007AFF':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☾</button>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4,marginTop:6}}>
-          <div style={{fontSize:10,color:saveStatus==='error'?'#ef4444':'#475569',textAlign:'center'}}>
+          <div style={{fontSize:10,color:saveStatus==='error'?'#EF4444':'#9CA3AF',textAlign:'center'}}>
             {saveStatus==='saving'?'Saving...'
             :saveStatus==='error'?'Save failed — check connection'
             :lastSaved?`Saved ${lastSaved}`:''}
           </div>
           <button onClick={onRefresh} title="Refresh from Supabase"
-            style={{background:'transparent',border:'none',cursor:'pointer',color:'#475569',padding:'1px 3px',fontSize:13,lineHeight:1,transition:'color 0.15s',flexShrink:0}}
-            onMouseEnter={e=>e.currentTarget.style.color='#93c5fd'}
-            onMouseLeave={e=>e.currentTarget.style.color='#475569'}>↻</button>
+            style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',padding:'1px 3px',fontSize:13,lineHeight:1,transition:'color 0.15s',flexShrink:0}}
+            onMouseEnter={e=>e.currentTarget.style.color='#007AFF'}
+            onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>↻</button>
         </div>
       </div>}
     </div>
@@ -360,24 +359,24 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={15}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
   const activeId = showAccounts ? 'accounts' : 'dashboard'
-  const SM = '#64748b'
+  const SM = '#6B7280'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
-      onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.08)'}
-      onMouseLeave={e=>e.currentTarget.style.background=isActive?'rgba(37,99,235,0.2)':'transparent'}
+      onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
+      onMouseLeave={e=>e.currentTarget.style.background=isActive?'#EBF4FF':'transparent'}
       style={{padding:'9px 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'2px 8px',
-        background:isActive?'rgba(37,99,235,0.2)':'transparent',color:isActive?'#93c5fd':'#94a3b8',transition:'all 0.1s'}}>
+        background:isActive?'#EBF4FF':'transparent',color:isActive?'#007AFF':'#9CA3AF',transition:'all 0.1s'}}>
       {item.icon}
     </div>
   ) : (
     <div key={item.id} onClick={item.action}
-      onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}}
-      onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}}
+      onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}}
+      onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#9CA3AF'}}}
       style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,
-        color:isActive?'#ffffff':'#94a3b8',fontSize:12,fontWeight:isActive?600:500,
-        borderLeft:isActive?'3px solid #2563eb':'3px solid transparent',
-        background:isActive?'rgba(37,99,235,0.15)':'transparent',
+        color:isActive?'#007AFF':'#9CA3AF',fontSize:12,fontWeight:isActive?600:500,
+        borderLeft:isActive?'3px solid #007AFF':'3px solid transparent',
+        background:isActive?'#EBF4FF':'transparent',
         boxSizing:'border-box',transition:'all 0.1s'}}>
       <span style={{opacity:0.75,display:'flex'}}>{item.icon}</span>
       {item.label}
@@ -385,26 +384,26 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   )
 
   return (
-    <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden',transition:'width 0.2s ease'}}>
+    <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
-        <div style={{padding:'10px 0 8px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:6,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+        <div style={{padding:'10px 0 8px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:6,borderBottom:'1px solid #EEEFF2'}}>
           <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
-            style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-            onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+            style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
             <ChevronRight size={15}/>
           </button>
         </div>
       ) : (
-        <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+        <div style={{padding:'10px 14px 8px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-              <span style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
+              <span style={{fontSize:28,fontWeight:700,color:'#111827',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
-              style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#475569'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
               <ChevronLeft size={15}/>
             </button>
           </div>
@@ -412,20 +411,20 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
       )}
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
         {navTop.map(item=>navItem(item, activeId===item.id))}
-        <div style={{height:1,background:'rgba(255,255,255,0.06)',margin:'8px 10px'}}/>
+        <div style={{height:1,background:'#EEEFF2',margin:'8px 10px'}}/>
         {navBottom.map(item=>navItem(item, false))}
       </div>
-      <div style={{borderTop:'1px solid rgba(255,255,255,0.06)',padding:collapsed?'10px 0':'10px 14px',flexShrink:0}}>
+      <div style={{borderTop:'1px solid #EEEFF2',padding:collapsed?'10px 0':'10px 14px',flexShrink:0}}>
         {collapsed ? (
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
             <button onClick={onOpenSettings} title='Settings'
-              style={{padding:'5px',borderRadius:6,border:'none',background:'transparent',color:'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#e2e8f0'} onMouseLeave={e=>e.currentTarget.style.color='#64748b'}>
+              style={{padding:'5px',borderRadius:6,border:'none',background:'transparent',color:'#9CA3AF',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
               <Settings2 size={13}/>
             </button>
             {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
               <button key={v} onClick={()=>setTheme(v)} title={v+' mode'}
-                style={{padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+                style={{padding:'5px',borderRadius:6,border:'none',background:theme===v?'#EBF4FF':'transparent',color:theme===v?'#007AFF':'#9CA3AF',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
                 {icon}
               </button>
             ))}
@@ -433,21 +432,21 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
         ) : (
           <div>
             <div onClick={onOpenSettings}
-              onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='#e2e8f0'}}
-              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94a3b8'}}
-              style={{padding:'7px 10px',borderRadius:6,margin:'0 6px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,background:'transparent',transition:'all 0.1s'}}>
+              onMouseEnter={e=>{e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#9CA3AF'}}
+              style={{padding:'7px 10px',borderRadius:6,margin:'0 6px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#9CA3AF',fontSize:12,fontWeight:500,background:'transparent',transition:'all 0.1s'}}>
               <span style={{opacity:0.75,display:'flex'}}><Settings2 size={15}/></span>
               Settings
             </div>
-            <div style={{display:'flex',gap:1,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:2,marginBottom:8}}>
+            <div style={{display:'flex',gap:1,background:'#F3F4F6',borderRadius:8,padding:2,marginBottom:8}}>
               {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
                 <button key={v} onClick={()=>setTheme(v)}
-                  style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'rgba(255,255,255,0.18)':'transparent',color:theme===v?'#ffffff':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+                  style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'#FFFFFF':'transparent',color:theme===v?'#007AFF':'#6B7280',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
                   {icon}
                 </button>
               ))}
             </div>
-            <div style={{fontSize:10,color:'#475569'}}>Saved just now</div>
+            <div style={{fontSize:10,color:'#9CA3AF'}}>Saved just now</div>
           </div>
         )}
       </div>
@@ -2771,40 +2770,40 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   return (
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:isLight?'#f1f5f9':S.bg}}>
       {/* SIDEBAR */}
-      <div style={{width:240,flexShrink:0,background:S.sidebarBg,display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',boxShadow:'2px 0 12px rgba(0,0,0,0.15)'}}>
-        <div style={{padding:'12px 16px 10px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+      <div style={{width:240,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',borderRight:'1px solid #EEEFF2'}}>
+        <div style={{padding:'12px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
             <div>
-              <div style={{fontSize:28,fontWeight:700,color:'#0f172a',lineHeight:1}}>Ledgr.</div>
+              <div style={{fontSize:28,fontWeight:700,color:'#111827',lineHeight:1}}>Ledgr.</div>
             </div>
           </div>
         </div>
         <div style={{padding:'12px 12px 4px',flexShrink:0}}>
           <button onClick={onBack}
-            style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'all 0.15s'}}
-            onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color=ST}}
+            style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'1px solid #EEEFF2',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'all 0.15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color=ST}}
             onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=SM}}>
             ← Back to Accounts
           </button>
         </div>
         <div style={{padding:'8px 12px 4px',flexShrink:0}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search...'
-            style={{width:'100%',fontSize:11,padding:'7px 10px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:ST,boxSizing:'border-box',outline:'none'}}/>
+            style={{width:'100%',fontSize:11,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,boxSizing:'border-box',outline:'none'}}/>
         </div>
         <div style={{padding:'4px 12px 8px',flexShrink:0}}>
           <select value={sort} onChange={e=>setSort(e.target.value)}
-            style={{width:'100%',fontSize:11,padding:'6px 8px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,color:ST,boxSizing:'border-box'}}>
+            style={{width:'100%',fontSize:11,padding:'6px 8px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,boxSizing:'border-box'}}>
             {SORT_OPTS.map(o=><option key={o}>{o}</option>)}
           </select>
         </div>
         <div style={{padding:'4px 12px 8px',flexShrink:0}}>
-          <div style={{fontSize:9,fontWeight:700,color:'#475569',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:5}}>Status Filter</div>
+          <div style={{fontSize:9,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:5}}>Status Filter</div>
           <div style={{display:'flex',flexDirection:'column',gap:2}}>
             {STATUS_OPTS.map(s=>(
               <button key={s} onClick={()=>setStatusFilter(s)}
-                style={{textAlign:'left',padding:'5px 8px',borderRadius:6,border:'none',background:statusFilter===s?'rgba(37,99,235,0.2)':'transparent',color:statusFilter===s?'#93c5fd':SM,fontSize:11,cursor:'pointer',fontWeight:statusFilter===s?700:400}}
-                onMouseEnter={e=>{if(statusFilter!==s)e.currentTarget.style.background='rgba(255,255,255,0.06)'}}
+                style={{textAlign:'left',padding:'5px 8px',borderRadius:6,border:'none',background:statusFilter===s?'#EBF4FF':'transparent',color:statusFilter===s?'#007AFF':SM,fontSize:11,cursor:'pointer',fontWeight:statusFilter===s?700:400}}
+                onMouseEnter={e=>{if(statusFilter!==s)e.currentTarget.style.background='#F9FAFB'}}
                 onMouseLeave={e=>{if(statusFilter!==s)e.currentTarget.style.background='transparent'}}>
                 {s}
               </button>
@@ -2812,19 +2811,19 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           </div>
         </div>
         <div style={{padding:'2px 12px 6px',flexShrink:0}}>
-          <div style={{fontSize:10,color:'#475569'}}>{sorted.length} account{sorted.length!==1?'s':''}</div>
+          <div style={{fontSize:10,color:'#9CA3AF'}}>{sorted.length} account{sorted.length!==1?'s':''}</div>
         </div>
         <div style={{marginTop:'auto',padding:'12px',flexShrink:0}}>
           <div style={{height:1,background:SB,marginBottom:12}}/>
           <button onClick={()=>setShowAdd(true)}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,width:'100%',padding:'9px 12px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,width:'100%',padding:'9px 12px',background:'#007AFF',border:'none',borderRadius:8,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>
             + Add Account
           </button>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:10}}>
-            <span style={{fontSize:10,color:'#334155'}}>Theme</span>
-            <div style={{display:'flex',gap:1,background:'rgba(0,0,0,0.3)',borderRadius:6,padding:2}}>
-              <button onClick={()=>setTheme('light')} style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='light'?'rgba(255,255,255,0.12)':'transparent',color:theme==='light'?'#93c5fd':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☀</button>
-              <button onClick={()=>setTheme('dark')} style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='dark'?'rgba(255,255,255,0.12)':'transparent',color:theme==='dark'?'#93c5fd':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☾</button>
+            <span style={{fontSize:10,color:'#9CA3AF'}}>Theme</span>
+            <div style={{display:'flex',gap:1,background:'#F3F4F6',borderRadius:6,padding:2}}>
+              <button onClick={()=>setTheme('light')} style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='light'?'#FFFFFF':'transparent',color:theme==='light'?'#007AFF':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☀</button>
+              <button onClick={()=>setTheme('dark')} style={{padding:'3px 8px',borderRadius:4,border:'none',background:theme==='dark'?'#FFFFFF':'transparent',color:theme==='dark'?'#007AFF':SM,fontSize:12,cursor:'pointer',lineHeight:1.4}}>☾</button>
             </div>
           </div>
         </div>
@@ -4250,7 +4249,7 @@ function AllProjectsPage({data, setData, onBack}) {
     return()=>document.removeEventListener('click',h)
   },[])
 
-  const sideStyle={padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#94a3b8',fontSize:12,fontWeight:500,userSelect:'none'}
+  const sideStyle={padding:'7px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#6B7280',fontSize:12,fontWeight:500,userSelect:'none'}
   const ff=k=>v=>setEditForm(p=>({...p,[k]:v}))
   const fa=k=>v=>setAddForm(p=>({...p,[k]:v}))
 
@@ -4258,30 +4257,27 @@ function AllProjectsPage({data, setData, onBack}) {
     <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
       <style>{`
   .all-projects-sidebar * {
-    color: #f1f5f9 !important;
-  }
-  .all-projects-sidebar .ap-logo-text {
-    color: #0f172a !important;
+    color: #111827 !important;
   }
   .all-projects-sidebar input[type="checkbox"] {
-    accent-color: #2563eb;
+    accent-color: #007AFF;
     width: 14px;
     height: 14px;
   }
   .all-projects-sidebar label {
-    color: #f1f5f9 !important;
+    color: #111827 !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     cursor: pointer;
   }
 `}</style>
       {/* ── SIDEBAR ── */}
-      <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'linear-gradient(180deg,#0f1729 0%,#1a2744 60%,#0f1729 100%)',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
-        <div style={{padding:'10px 14px 8px',flexShrink:0,background:'#ffffff',boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+      <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
+        <div style={{padding:'10px 14px 8px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
             <div>
-              <span className="ap-logo-text" style={{fontSize:28,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em'}}>Ledgr.</span>
+              <span style={{fontSize:28,fontWeight:700,color:'#111827',letterSpacing:'-0.01em'}}>Ledgr.</span>
             </div>
           </div>
         </div>
@@ -4290,31 +4286,31 @@ function AllProjectsPage({data, setData, onBack}) {
             <ArrowLeft size={13}/> Back to Accounts
           </button>
           {/* Account filter */}
-          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 5px',fontWeight:600}}>Accounts</div>
+          <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.08em',padding:'8px 14px 5px',fontWeight:600}}>Accounts</div>
           {data.accounts.map(a=>(
             <label key={a.id}
-              style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 8px',borderRadius:'6px',cursor:'pointer',color:'#e2e8f0',margin:'1px 6px',boxSizing:'border-box',transition:'background 0.1s'}}
-              onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 8px',borderRadius:'6px',cursor:'pointer',color:'#111827',margin:'1px 6px',boxSizing:'border-box',transition:'background 0.1s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <input type='checkbox' checked={accountFilter.has(a.id)}
                 onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
-                style={{accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'#f1f5f9',fontWeight:'500'}}>{a.short||a.name}</span>
+                style={{accentColor:'#007AFF',cursor:'pointer',flexShrink:0}}/>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:'13px',color:'#111827',fontWeight:'500'}}>{a.short||a.name}</span>
             </label>
           ))}
           {/* Status filter */}
-          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Status</div>
+          <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Status</div>
           {(()=>{
-            const PCOL={'In Flight':'#2563eb','In Discussion':'#7c3aed','Not Started':'#64748b','Stalled':'#ea580c','Won':'#0ebc5f','Lost':'#dc2626'}
+            const PCOL={'In Flight':'#007AFF','In Discussion':'#8B5CF6','Not Started':'#9CA3AF','Stalled':'#F97316','Won':'#10B981','Lost':'#EF4444'}
             return PROJ_STATS.map(s=>{
-              const sc=PCOL[s]||'#64748b';const act=statusFilter.has(s)
+              const sc=PCOL[s]||'#9CA3AF';const act=statusFilter.has(s)
               return(
                 <button key={s}
                   onClick={()=>setStatusFilter(prev=>{const n=new Set(prev);if(n.has(s)){if(n.size>1)n.delete(s)}else n.add(s);return n})}
                   style={{display:'block',width:'calc(100% - 12px)',margin:'2px 6px',padding:'5px 10px',borderRadius:5,
-                    border:`1px solid ${act?sc:'rgba(255,255,255,0.1)'}`,
-                    background:act?sc:'rgba(255,255,255,0.04)',
-                    color:act?'#ffffff':'#64748b',
+                    border:`1px solid ${act?sc:'#EEEFF2'}`,
+                    background:act?sc+'1A':'transparent',
+                    color:act?sc:'#6B7280',
                     fontSize:11,fontWeight:600,cursor:'pointer',textAlign:'left',transition:'all 0.12s'}}>
                   {s}
                 </button>
@@ -4322,10 +4318,10 @@ function AllProjectsPage({data, setData, onBack}) {
             })
           })()}
           {/* Vendor filter */}
-          <div style={{fontSize:10,color:'#475569',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Vendor</div>
+          <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.08em',padding:'10px 14px 5px',fontWeight:600,marginTop:6}}>Vendor</div>
           <div style={{padding:'2px 10px 8px'}}>
             <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder='Filter by vendor...'
-              style={{width:'100%',fontSize:11,padding:'5px 8px',background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:5,color:'#e2e8f0',boxSizing:'border-box'}}/>
+              style={{width:'100%',fontSize:11,padding:'5px 8px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:5,color:'#111827',boxSizing:'border-box'}}/>
           </div>
         </div>
       </div>
