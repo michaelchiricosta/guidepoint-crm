@@ -170,7 +170,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:150}}/>
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
-          <img src="/Ledgr-full-logo.png" style={{height:'85px',width:'auto',maxWidth:'220px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
+          <img src="/Ledgr-full-logo.png" style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
         <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>
@@ -205,12 +205,12 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       {/* Logo area */}
       <div style={{padding:collapsed?'14px 0 10px':'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
         {!collapsed?(
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',flexShrink:1,minWidth:0}}>
-              <img src="/Ledgr-full-logo.png" style={{height:'85px',width:'auto',maxWidth:'220px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
+          <div style={{position:'relative',display:'flex',justifyContent:'center',alignItems:'center'}}>
+            <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
+              <img src="/Ledgr-full-logo.png" style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
             </button>
             <button onClick={toggleCollapsed} title="Collapse"
-              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
+              style={{position:'absolute',right:0,background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,transition:'color 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
               onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
           </div>
@@ -379,10 +379,10 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
         </div>
       ) : (
         <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <img src="/Ledgr-full-logo.png" style={{height:'85px',width:'auto',maxWidth:'220px',objectFit:'contain',display:'block',flexShrink:1,minWidth:0}} alt="Ledgr."/>
+          <div style={{position:'relative',display:'flex',justifyContent:'center',alignItems:'center'}}>
+            <img src="/Ledgr-full-logo.png" style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
-              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
+              style={{position:'absolute',right:0,background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'4px',lineHeight:1,transition:'color 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
           </div>
         </div>
