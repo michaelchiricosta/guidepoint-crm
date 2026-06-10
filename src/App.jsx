@@ -145,16 +145,10 @@ const detectDate = text => {
   return null
 }
 
-function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome,mobileMenuOpen,onCloseMobileMenu}) {
+function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSaved,saveStatus,onRefresh,theme,setTheme,onGoHome,mobileMenuOpen,onCloseMobileMenu,collapsed,setCollapsed}) {
   const [showAdd,setShowAdd] = useState(false)
   const [newName,setNewName] = useState('')
-  const [collapsed,setCollapsed] = useState(()=>{
-    if(typeof window!=='undefined'&&window.innerWidth<768)return true
-    return localStorage.getItem('sidebar-collapsed')==='true'
-  })
-  const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const [searchQ,setSearchQ] = useState('')
-  const [logoHovered, setLogoHovered] = useState(false)
   const [isMobile,setIsMobile] = useState(typeof window!=='undefined'&&window.innerWidth<768)
 
   useEffect(()=>{
@@ -164,8 +158,8 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     return()=>window.removeEventListener('resize',check)
   },[])
 
+  const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const addAccount=()=>{if(!newName.trim())return;const id=uid();const blank={id,name:newName,short:newName.slice(0,6).toUpperCase(),industry:'',hq:'',status:'Active',cloud:'',users:'',relationship:'',lastContact:'',notes:'',endpoints:'',contacts:[],techStack:[],projects:[],interactions:[],intelLog:[],followUps:[],files:[],savedLinks:[],adminData:{},upcomingDates:[],unknownMentions:[],relSuggestions:[],contactSuggestions:[],dismissedAlerts:[],snoozedAlerts:[],healthScoreOverrides:{},healthScoreHistory:[],aiHistory:[],logoImage:'',orgChart:{nodes:[]}};setData(p=>({...p,accounts:[...p.accounts,blank]}));setActiveId(id);setShowAdd(false);setNewName('')}
-  const sc={Strategic:'#a855f7',Active:'#22c55e',Prospect:'#3b82f6','At Risk':'#ef4444'}
   const searchResults = globalSearch(data, searchQ)
   const grouped = {}
   searchResults.forEach(r=>{if(!grouped[r.category])grouped[r.category]=[];grouped[r.category].push(r)})
@@ -175,10 +169,15 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     <>
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:150}}/>
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
-        <div style={{padding:'10px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6}}/>
-            <div style={{fontSize:24,fontWeight:700,color:'#111827'}}>Ledgr.</div>
+        <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
+            </div>
+            <div>
+              <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
+              <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
+            </div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
@@ -207,33 +206,38 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
     </>
   )
 
-  // Sidebar always uses dark-on-navy tokens regardless of light/dark theme
-  const ST = S.sideTxt, SM = S.sideMuted, SA = S.sideActive, SB = S.sideBdr, SH2 = S.sideHover
+  const SM = '#6B7280', SH2 = '#F9FAFB', SA = '#F0F7FF'
 
   return (
-    <div style={{width:collapsed?60:240,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',flexShrink:0,height:'100%',transition:'width 0.2s',overflow:'hidden'}}>
+    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',transition:'width 0.2s ease',overflow:'hidden'}}>
       {/* Logo area */}
-      <div style={{padding:collapsed?'12px 0 10px':'12px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
+      <div style={{padding:collapsed?'14px 0 10px':'14px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
         {!collapsed?(
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <button onClick={onGoHome} onMouseEnter={()=>setLogoHovered(true)} onMouseLeave={()=>setLogoHovered(false)} title="Home"
-              style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left',display:'flex',alignItems:'center',gap:6}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-              <div>
-                <div style={{fontSize:28,fontWeight:700,color:'#111827',lineHeight:1}}>Ledgr.</div>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
+                </div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
+                  <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
+                </div>
               </div>
             </button>
-            <button onClick={()=>toggleCollapsed()} title="Collapse"
-              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s'}}
+            <button onClick={toggleCollapsed} title="Collapse"
+              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s',marginTop:2}}
               onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
               onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
           </div>
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:57,height:57,objectFit:'contain',borderRadius:6,display:'block'}}/>
+              <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
+              </div>
             </button>
-            <button onClick={()=>toggleCollapsed()} title="Expand"
+            <button onClick={toggleCollapsed} title="Expand"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color='#6B7280'}
               onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>›</button>
@@ -241,18 +245,21 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         )}
       </div>
       {!collapsed&&(
-        <div style={{padding:'0 12px 8px'}}>
-          <input
-            ref={searchRef}
-            value={searchQ}
-            onChange={e=>setSearchQ(e.target.value)}
-            placeholder='Search... (press /)'
-            style={{width:'100%',fontSize:11,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,boxSizing:'border-box',outline:'none'}}
-          />
+        <div style={{padding:'8px 12px'}}>
+          <div style={{position:'relative',display:'flex',alignItems:'center'}}>
+            <input
+              ref={searchRef}
+              value={searchQ}
+              onChange={e=>setSearchQ(e.target.value)}
+              placeholder='Search...'
+              style={{width:'100%',fontSize:13,padding:'7px 10px',paddingRight:42,background:'#F3F4F6',border:'none',borderRadius:8,color:'#111827',boxSizing:'border-box',outline:'none',fontFamily:'inherit'}}
+            />
+            <span style={{position:'absolute',right:8,background:'#E5E7EB',color:'#6B7280',fontSize:9,fontWeight:600,padding:'2px 5px',borderRadius:4,pointerEvents:'none',whiteSpace:'nowrap'}}>⌘K</span>
+          </div>
         </div>
       )}
       {!collapsed&&searchResults.length>0&&(
-        <div style={{maxHeight:260,overflowY:'auto',borderTop:`1px solid ${SB}`,borderBottom:`1px solid ${SB}`,background:'#F9FAFB',flexShrink:0}}>
+        <div style={{maxHeight:260,overflowY:'auto',borderTop:'1px solid #EEEFF2',borderBottom:'1px solid #EEEFF2',background:'#F9FAFB',flexShrink:0}}>
           {Object.entries(grouped).map(([cat,items])=>(
             <div key={cat}>
               <div style={{fontSize:9,fontWeight:700,color:SM,letterSpacing:'0.1em',textTransform:'uppercase',padding:'6px 14px 2px'}}>{cat}</div>
@@ -261,7 +268,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
                   style={{display:'block',width:'100%',textAlign:'left',padding:'6px 14px',background:'transparent',border:'none',cursor:'pointer'}}
                   onMouseEnter={e=>e.currentTarget.style.background=SH2}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                  <div style={{fontSize:12,fontWeight:600,color:ST,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.label}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.label}</div>
                   <div style={{fontSize:10,color:SM,display:'flex',gap:4}}>
                     <span style={{flexShrink:0}}>{r.accountName}</span>
                     {r.sublabel&&<span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>· {r.sublabel}</span>}
@@ -272,7 +279,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           ))}
         </div>
       )}
-      {!collapsed&&<div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>}
+      {!collapsed&&<div style={{fontSize:11,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>}
       <div style={{flex:1,overflowY:'auto',padding:collapsed?'4px 8px':'0 8px'}}>
         {[...data.accounts].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
           const hs=calcHealthScore(a)
@@ -282,16 +289,16 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           collapsed
           ? <button key={a.id} onClick={()=>setActiveId(a.id)} title={`${a.name} (Health: ${hs})`}
               style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',padding:'5px 0',border:'none',background:'transparent',cursor:'pointer',marginBottom:2,borderRadius:8}}>
-              <div style={{width:36,height:36,borderRadius:'50%',background:isActive?'#EBF4FF':'#F9FAFB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:isActive?'#007AFF':SM,border:`1px solid ${isActive?'#007AFF':SB}`,flexShrink:0}}>
+              <div style={{width:36,height:36,borderRadius:'50%',background:isActive?'#F0F7FF':'#F9FAFB',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:isActive?'#007AFF':SM,border:`1px solid ${isActive?'#007AFF':'#EEEFF2'}`,flexShrink:0}}>
                 {initials(a.short||a.name)}
               </div>
             </button>
           : <button key={a.id} onClick={()=>setActiveId(a.id)}
-              style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',borderRadius:8,border:'none',borderLeft:isActive?'3px solid #007AFF':'3px solid transparent',background:isActive?SA:'transparent',textAlign:'left',cursor:'pointer',marginBottom:1,transition:'all 0.1s'}}
+              style={{display:'flex',alignItems:'center',gap:8,width:'100%',height:38,padding:'0 12px',borderRadius:8,border:'none',background:isActive?SA:'transparent',textAlign:'left',cursor:'pointer',marginBottom:1,transition:'background 0.1s'}}
               onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=SH2}}
               onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background='transparent'}}>
               <div style={{minWidth:0,flex:1}}>
-                <div style={{fontSize:13,fontWeight:600,color:isActive?'#007AFF':ST,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
+                <div style={{fontSize:14,fontWeight:600,color:isActive?'#007AFF':'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{a.short||a.name}</div>
               </div>
               <span style={{fontSize:10,fontWeight:700,color:hc,background:hc+'20',borderRadius:999,padding:'1px 6px',flexShrink:0,lineHeight:'16px'}}>{hs}</span>
             </button>
@@ -299,7 +306,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         })}
       </div>
       {/* Divider */}
-      <div style={{height:1,background:SB,flexShrink:0}}/>
+      <div style={{height:1,background:'#EEEFF2',flexShrink:0}}/>
       {!collapsed&&<div style={{padding:'12px',flexShrink:0}}>
         {showAdd?<div>
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder='Account name...' onKeyDown={e=>e.key==='Enter'&&addAccount()}
@@ -313,10 +320,10 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           onMouseEnter={e=>e.currentTarget.style.background=SH2}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>+ New Account</button>}
         <button onClick={()=>onNavigate&&onNavigate(activeId,'settings')}
-          style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'8px 12px',background:'transparent',border:'none',borderRadius:8,color:SM,fontSize:12,cursor:'pointer',transition:'all 0.15s',marginTop:8,textAlign:'left',boxSizing:'border-box'}}
-          onMouseEnter={e=>{e.currentTarget.style.background=SH2;e.currentTarget.style.color=ST}}
+          style={{display:'flex',alignItems:'center',gap:8,width:'100%',height:38,padding:'0 12px',background:'transparent',border:'none',borderRadius:8,color:SM,fontSize:14,cursor:'pointer',transition:'all 0.15s',marginTop:8,textAlign:'left',boxSizing:'border-box'}}
+          onMouseEnter={e=>{e.currentTarget.style.background=SH2;e.currentTarget.style.color='#111827'}}
           onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color=SM}}>
-          <Settings2 size={13}/> Settings
+          <Settings2 size={18}/> Settings
         </button>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6}}>
           <span style={{fontSize:10,color:'#9CA3AF'}}>Theme</span>
@@ -343,102 +350,97 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings}) {
-  const [collapsed, setCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
   const navTop = [
-    {id:'dashboard',   label:'Dashboard',    icon:<Home size={15}/>,          action:()=>setShowAccounts(false)},
-    {id:'accounts',    label:'Accounts',     icon:<Building2 size={15}/>,     action:()=>setShowAccounts(true)},
-    {id:'allprojects', label:'All Projects', icon:<Folder size={15}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
-    {id:'whitespace',  label:'Whitespace',   icon:<Map size={15}/>,           action:()=>onGoWhitespace&&onGoWhitespace()},
-    {id:'vendors',     label:'Vendors',      icon:<Package size={15}/>,       action:()=>onGoVendors&&onGoVendors()},
+    {id:'dashboard',   label:'Dashboard',    icon:<Home size={18}/>,          action:()=>setShowAccounts(false)},
+    {id:'accounts',    label:'Accounts',     icon:<Building2 size={18}/>,     action:()=>setShowAccounts(true)},
+    {id:'allprojects', label:'All Projects', icon:<Folder size={18}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
+    {id:'whitespace',  label:'Whitespace',   icon:<Map size={18}/>,           action:()=>onGoWhitespace&&onGoWhitespace()},
+    {id:'vendors',     label:'Vendors',      icon:<Package size={18}/>,       action:()=>onGoVendors&&onGoVendors()},
   ]
   const navBottom = [
-    {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={15}/>,     action:()=>setTodayModal(true)},
-    {id:'critical', label:'Critical Items', icon:<AlertTriangle size={15}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
-    {id:'renewals', label:'Renewals',       icon:<RefreshCw size={15}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
+    {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
+    {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
+    {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
   const activeId = showAccounts ? 'accounts' : 'dashboard'
-  const SM = '#6B7280'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
       onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
-      onMouseLeave={e=>e.currentTarget.style.background=isActive?'#EBF4FF':'transparent'}
-      style={{padding:'9px 0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'2px 8px',
-        background:isActive?'#EBF4FF':'transparent',color:isActive?'#007AFF':'#9CA3AF',transition:'all 0.1s'}}>
+      onMouseLeave={e=>e.currentTarget.style.background=isActive?'#F0F7FF':'transparent'}
+      style={{height:38,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'1px 8px',
+        background:isActive?'#F0F7FF':'transparent',color:isActive?'#007AFF':'#9CA3AF',transition:'background 0.1s'}}>
       {item.icon}
     </div>
   ) : (
     <div key={item.id} onClick={item.action}
       onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}}
       onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#9CA3AF'}}}
-      style={{padding:'7px 10px',borderRadius:6,margin:'1px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,
-        color:isActive?'#007AFF':'#9CA3AF',fontSize:12,fontWeight:isActive?600:500,
-        borderLeft:isActive?'3px solid #007AFF':'3px solid transparent',
-        background:isActive?'#EBF4FF':'transparent',
-        boxSizing:'border-box',transition:'all 0.1s'}}>
-      <span style={{opacity:0.75,display:'flex'}}>{item.icon}</span>
+      style={{height:38,padding:'0 16px',borderRadius:6,margin:'1px 8px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,
+        color:isActive?'#007AFF':'#9CA3AF',fontSize:14,fontWeight:isActive?600:500,
+        background:isActive?'#F0F7FF':'transparent',transition:'all 0.1s'}}>
+      <span style={{display:'flex',flexShrink:0}}>{item.icon}</span>
       {item.label}
     </div>
   )
 
   return (
-    <div style={{width:collapsed?56:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden',transition:'width 0.2s ease'}}>
+    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
-        <div style={{padding:'10px 0 8px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:6,borderBottom:'1px solid #EEEFF2'}}>
-          <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
+        <div style={{padding:'14px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,borderBottom:'1px solid #EEEFF2'}}>
+          <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
+          </div>
           <button onClick={toggleCollapsed} title="Expand sidebar"
-            style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-            onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
-            <ChevronRight size={15}/>
-          </button>
+            style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s',fontSize:16}}
+            onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>›</button>
         </div>
       ) : (
-        <div style={{padding:'10px 14px 8px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-              <span style={{fontSize:28,fontWeight:700,color:'#111827',letterSpacing:'-0.01em'}}>Ledgr.</span>
+        <div style={{padding:'14px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
+              </div>
+              <div>
+                <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
+                <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
+              </div>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
-              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
-              <ChevronLeft size={15}/>
-            </button>
+              style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s',marginTop:2}}
+              onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
           </div>
         </div>
       )}
       <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
+        {!collapsed&&<div style={{fontSize:11,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',padding:'10px 16px 4px'}}>Navigation</div>}
         {navTop.map(item=>navItem(item, activeId===item.id))}
-        <div style={{height:1,background:'#EEEFF2',margin:'8px 10px'}}/>
+        <div style={{height:1,background:'#EEEFF2',margin:'8px 12px'}}/>
+        {!collapsed&&<div style={{fontSize:11,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',padding:'4px 16px 4px'}}>Quick Access</div>}
         {navBottom.map(item=>navItem(item, false))}
       </div>
-      <div style={{borderTop:'1px solid #EEEFF2',padding:collapsed?'10px 0':'10px 14px',flexShrink:0}}>
+      <div style={{borderTop:'1px solid #EEEFF2',padding:collapsed?'10px 0':'10px 12px',flexShrink:0}}>
         {collapsed ? (
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
             <button onClick={onOpenSettings} title='Settings'
-              style={{padding:'5px',borderRadius:6,border:'none',background:'transparent',color:'#9CA3AF',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
+              style={{width:38,height:38,borderRadius:6,border:'none',background:'transparent',color:'#9CA3AF',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}
               onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
-              <Settings2 size={13}/>
+              <Settings2 size={18}/>
             </button>
-            {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
-              <button key={v} onClick={()=>setTheme(v)} title={v+' mode'}
-                style={{padding:'5px',borderRadius:6,border:'none',background:theme===v?'#EBF4FF':'transparent',color:theme===v?'#007AFF':'#9CA3AF',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
-                {icon}
-              </button>
-            ))}
           </div>
         ) : (
           <div>
             <div onClick={onOpenSettings}
               onMouseEnter={e=>{e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}
               onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#9CA3AF'}}
-              style={{padding:'7px 10px',borderRadius:6,margin:'0 6px 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,color:'#9CA3AF',fontSize:12,fontWeight:500,background:'transparent',transition:'all 0.1s'}}>
-              <span style={{opacity:0.75,display:'flex'}}><Settings2 size={15}/></span>
+              style={{height:38,padding:'0 16px',borderRadius:6,margin:'0 0 6px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,color:'#9CA3AF',fontSize:14,fontWeight:500,background:'transparent',transition:'all 0.1s'}}>
+              <Settings2 size={18}/>
               Settings
             </div>
-            <div style={{display:'flex',gap:1,background:'#F3F4F6',borderRadius:8,padding:2,marginBottom:8}}>
+            <div style={{display:'flex',gap:1,background:'#F3F4F6',borderRadius:8,padding:2}}>
               {[{v:'light',icon:<Sun size={13}/>},{v:'dark',icon:<Moon size={13}/>}].map(({v,icon})=>(
                 <button key={v} onClick={()=>setTheme(v)}
                   style={{flex:1,padding:'5px',borderRadius:6,border:'none',background:theme===v?'#FFFFFF':'transparent',color:theme===v?'#007AFF':'#6B7280',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
@@ -446,7 +448,6 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
                 </button>
               ))}
             </div>
-            <div style={{fontSize:10,color:'#9CA3AF'}}>Saved just now</div>
           </div>
         )}
       </div>
@@ -455,6 +456,12 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
 }
 
 const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2']
+
+const RoundedTopBar = ({x, y, width, height, fill}) => {
+  if (!height || height <= 0) return null
+  const r = Math.min(4, height)
+  return <path d={`M${x},${y+height} L${x},${y+r} Q${x},${y} ${x+r},${y} L${x+width-r},${y} Q${x+width},${y} ${x+width},${y+r} L${x+width},${y+height} Z`} fill={fill}/>
+}
 
 function BarChartCard({data}) {
   const [view, setView] = useState('projects')
@@ -469,16 +476,12 @@ function BarChartCard({data}) {
       return sum+(isNaN(num)?0:num*multiplier)
     },0)
 
-  const chartData = useMemo(() => (data.accounts||[]).map((acct, idx) => {
+  const chartData = useMemo(() => (data.accounts||[]).map((acct) => {
     const inFlight = (acct.projects||[]).filter(p=>p.status==='In Flight').length
     const inDiscussion = (acct.projects||[]).filter(p=>p.status==='In Discussion').length
     const gp = getAccountGP(acct)
     return {
       name: acct.short||acct.name,
-      acctId: acct.id,
-      logoImage: acct.logoImage||'',
-      logoColor: LOGO_COLORS[idx%LOGO_COLORS.length],
-      initial: (acct.short||acct.name||'?')[0].toUpperCase(),
       'In Flight': inFlight,
       'In Discussion': inDiscussion,
       gp,
@@ -489,85 +492,40 @@ function BarChartCard({data}) {
   const totalInDiscussion = chartData.reduce((s,d)=>s+d['In Discussion'],0)
   const totalGP = chartData.reduce((s,d)=>s+d.gp,0)
 
-  const CustomXAxisTick = useCallback(({x, y, payload}) => {
-    const acct = (data.accounts||[]).find(a=>a.short===payload.value||a.name===payload.value||(a.short||'').toLowerCase()===payload.value?.toLowerCase())
-    const logoImage = acct?.logoImage||''
-    const initial = acct?.name?.[0]?.toUpperCase()||payload.value?.[0]?.toUpperCase()||'?'
-    const colors = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
-    const idx = (data.accounts||[]).findIndex(a=>a.id===acct?.id)
-    const bgColor = colors[Math.max(0,idx)%colors.length]
-    return (
-      <g transform={`translate(${x},${y})`}>
-        <text x={0} y={0} dy={12} textAnchor="middle" fill="#94a3b8" fontSize={11}>{payload.value}</text>
-        <foreignObject x={-14} y={18} width={28} height={28}>
-          <div xmlns="http://www.w3.org/1999/xhtml" style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',border:'1.5px solid #e2e8f0',background:logoImage?'white':bgColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-            {logoImage&&logoImage.length>10
-              ?<img src={logoImage} style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%',display:'block'}}/>
-              :<span style={{color:'white',fontSize:13,fontWeight:700,lineHeight:1}}>{initial}</span>
-            }
-          </div>
-        </foreignObject>
-      </g>
-    )
-  }, [data.accounts])
-
   const CustomTooltip = ({active, payload, label}) => {
     if (!active||!payload||!payload.length) return null
     return (
-      <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.12)',padding:'10px 14px',minWidth:140}}>
-        <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:5}}>{label}</div>
+      <div style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.10)',padding:'10px 14px',minWidth:140}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#111827',marginBottom:5}}>{label}</div>
         {payload.map((p,i)=>(
           <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
-            <div style={{width:8,height:8,borderRadius:2,background:p.fill,flexShrink:0}}/>
-            <span style={{fontSize:11,color:'#64748b'}}>{p.name}:</span>
-            <span style={{fontSize:11,fontWeight:700,color:'#0f172a'}}>{view==='gp'?formatCompactCurrency(Number(p.value)):p.value}</span>
+            <div style={{width:8,height:8,borderRadius:'50%',background:p.fill,flexShrink:0}}/>
+            <span style={{fontSize:11,color:'#6B7280'}}>{p.name}:</span>
+            <span style={{fontSize:11,fontWeight:700,color:'#111827'}}>{view==='gp'?formatCompactCurrency(Number(p.value)):p.value}</span>
           </div>
         ))}
       </div>
     )
   }
 
-  const SummaryRow = () => view==='projects' ? (
-    <div style={{display:'flex',gap:20,marginBottom:10}}>
-      <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#1a56db',flexShrink:0}}/>
-        <span style={{fontSize:12,color:'#64748b'}}>In Flight</span>
-        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInFlight}</span>
-      </div>
-      <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#74b5ff',flexShrink:0}}/>
-        <span style={{fontSize:12,color:'#64748b'}}>In Discussion</span>
-        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{totalInDiscussion}</span>
-      </div>
-    </div>
-  ) : (
-    <div style={{display:'flex',gap:20,marginBottom:10}}>
-      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-        <div style={{width:10,height:10,borderRadius:2,background:'#0ebc5f',flexShrink:0}}/>
-        <span style={{fontSize:12,color:'#64748b'}}>Closed Won GP</span>
-        <span style={{fontSize:14,fontWeight:800,color:'#0f172a',marginLeft:2}}>{formatCompactCurrency(totalGP)}</span>
-        <span style={{fontSize:10,color:'#94a3b8'}}>(Won projects only)</span>
-      </div>
-    </div>
-  )
-
   const mobChart = typeof window!=='undefined'&&window.innerWidth<768
+
   const ChartBody = ({height=220}) => (
     <div style={mobChart?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
-    <div style={mobChart?{minWidth:Math.max(600,chartData.length*80)}:{}}>
+    <div style={mobChart?{minWidth:Math.max(500,chartData.length*70)}:{}}>
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={chartData} margin={{top:4,right:8,bottom:44,left:0}} barGap={4} style={{overflow:'visible'}}>
-        <CartesianGrid vertical={false} stroke="#f1f5f9" strokeDasharray="3 3"/>
-        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={<CustomXAxisTick/>} interval={0} height={60}/>
-        <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#94a3b8'}} width={36}/>
-        <RechartsTooltip content={<CustomTooltip/>}/>
+      <BarChart data={chartData} margin={{top:8,right:8,bottom:8,left:-20}} barGap={3} barCategoryGap="35%">
+        <CartesianGrid vertical={false} stroke="#F3F4F6" strokeDasharray="3 3"/>
+        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#9CA3AF'}} interval={0}/>
+        <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#9CA3AF'}} width={36} allowDecimals={false}/>
+        <RechartsTooltip content={<CustomTooltip/>} cursor={{fill:'rgba(0,0,0,0.03)'}}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight"    fill="#1a56db" radius={[6,6,0,0]} barSize={16} isAnimationActive={false}/>
-            <Bar dataKey="In Discussion" fill="#74b5ff" radius={[6,6,0,0]} barSize={16} isAnimationActive={false}/>
+            <Bar dataKey="In Flight" shape={<RoundedTopBar fill="#007AFF"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
+            <Bar dataKey="In Discussion" shape={<RoundedTopBar fill="#BFDBFE"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
           </>
         ) : (
-          <Bar dataKey="gp" name="Closed Won GP" fill="#0ebc5f" radius={[6,6,0,0]} barSize={22} isAnimationActive={false}/>
+          <Bar dataKey="gp" name="Closed Won GP" shape={<RoundedTopBar fill="#10B981"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
         )}
       </BarChart>
     </ResponsiveContainer>
@@ -575,24 +533,24 @@ function BarChartCard({data}) {
     </div>
   )
 
-  const Legend = () => view==='projects' ? (
-    <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#1a56db',display:'inline-block'}}/>In Flight</span>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#74b5ff',display:'inline-block'}}/>In Discussion</span>
+  const LegendRow = () => view==='projects' ? (
+    <div style={{display:'flex',gap:16,paddingTop:8}}>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#6B7280'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#007AFF',display:'inline-block',flexShrink:0}}/>In Flight</span>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#6B7280'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#BFDBFE',display:'inline-block',flexShrink:0}}/>In Discussion</span>
     </div>
   ) : (
-    <div style={{display:'flex',gap:16,justifyContent:'center',paddingTop:2}}>
-      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#0ebc5f',display:'inline-block'}}/>Closed Won GP</span>
+    <div style={{display:'flex',gap:16,paddingTop:8}}>
+      <span style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#6B7280'}}><span style={{width:8,height:8,borderRadius:'50%',background:'#10B981',display:'inline-block',flexShrink:0}}/>Closed Won GP</span>
     </div>
   )
 
   const TogglePills = () => (
-    <div style={{display:'flex',gap:4}}>
-      {['projects','gp'].map(v=>(
+    <div style={{display:'flex',gap:4,background:'#F3F4F6',borderRadius:20,padding:3}}>
+      {[{v:'projects',label:'Projects'},{v:'gp',label:'Gross Profit'}].map(({v,label})=>(
         <button key={v} onClick={()=>setView(v)}
-          style={{padding:'4px 12px',borderRadius:20,border:'1px solid',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
-            background:view===v?'#2563eb':'#fff',color:view===v?'#fff':'#64748b',borderColor:view===v?'#2563eb':'#e2e8f0'}}>
-          {v==='projects'?'Projects':'Gross Profit'}
+          style={{padding:'4px 14px',borderRadius:20,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',transition:'all 0.15s',
+            background:view===v?'#007AFF':'transparent',color:view===v?'#FFFFFF':'#6B7280'}}>
+          {label}
         </button>
       ))}
     </div>
@@ -601,40 +559,44 @@ function BarChartCard({data}) {
   return (
     <>
       {showExpanded&&(
-        <div onClick={()=>setShowExpanded(false)} style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.6)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:28,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',width:'90vw',height:'85vh',boxSizing:'border-box',display:'flex',flexDirection:'column'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexShrink:0}}>
-              <div style={{fontSize:17,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
+        <div onClick={()=>setShowExpanded(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#FFFFFF',borderRadius:12,padding:28,boxShadow:'0 20px 60px rgba(0,0,0,0.20)',width:'90vw',height:'85vh',boxSizing:'border-box',display:'flex',flexDirection:'column',border:'1px solid #EEEFF2'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4,flexShrink:0}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:700,color:'#111827'}}>Projects & Pipeline</div>
+                <div style={{fontSize:12,color:'#6B7280'}}>Track active deals by account</div>
+              </div>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <TogglePills/>
-                <button onClick={()=>setShowExpanded(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}}
-                  onMouseEnter={e=>e.currentTarget.style.color='#0f172a'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
+                <button onClick={()=>setShowExpanded(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',padding:'4px',display:'flex',alignItems:'center',borderRadius:6}}
+                  onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
                   <X size={18}/>
                 </button>
               </div>
             </div>
-            <div style={{flexShrink:0}}><SummaryRow/></div>
-            <div style={{flex:1,minHeight:0}}>
-              <ChartBody height={400}/>
+            <div style={{flexShrink:0}}><LegendRow/></div>
+            <div style={{flex:1,minHeight:0,marginTop:8}}>
+              <ChartBody height={460}/>
             </div>
-            <div style={{flexShrink:0}}><Legend/></div>
           </div>
         </div>
       )}
-      <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-          <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Projects & Pipeline</div>
+      <div style={{background:'#FFFFFF',borderRadius:12,padding:20,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #EEEFF2',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:4}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:'#111827'}}>Projects & Pipeline</div>
+            <div style={{fontSize:12,color:'#6B7280'}}>Track active deals by account</div>
+          </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <TogglePills/>
-            <button onClick={()=>setShowExpanded(true)} title="Expand" style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',padding:'2px',display:'flex',alignItems:'center'}}
-              onMouseEnter={e=>e.currentTarget.style.color='#2563eb'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}>
-              <Maximize2 size={16}/>
+            <button onClick={()=>setShowExpanded(true)} title="Expand" style={{background:'transparent',border:'none',cursor:'pointer',color:'#9CA3AF',padding:'4px',display:'flex',alignItems:'center',borderRadius:6}}
+              onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
+              <Maximize2 size={15}/>
             </button>
           </div>
         </div>
-        <SummaryRow/>
+        <LegendRow/>
         <ChartBody height={220}/>
-        <Legend/>
       </div>
     </>
   )
@@ -747,7 +709,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, theme, setTheme, showAccounts, setShowAccounts}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -902,10 +864,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   }
 
   return (
-    <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
+    <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings}/>}
-      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>}
+      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:260),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
       <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
         <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
@@ -2883,7 +2845,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         <div style={{background:isLight?'#eff6ff':'rgba(37,99,235,0.08)',borderBottom:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,flexShrink:0}}>
           <button onClick={()=>setBannerOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'7px 20px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
             <svg width="12" height="12" viewBox="0 0 12 12" style={{flexShrink:0,transform:bannerOpen?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s',color:'#64748b'}}><polyline points="3,2 9,6 3,10" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            <span style={{fontSize:12,color:isLight?'#1d4ed8':'#93c5fd',fontWeight:500}}>Referencing 1,829 GuidePoint named accounts</span>
+            <span style={{fontSize:12,color:isLight?'#1d4ed8':'#93c5fd',fontWeight:500}}>Referencing 1,829 named accounts</span>
             <span style={{fontSize:12,color:S.muted}}>·</span>
             <span style={{fontSize:12,color:S.muted}}>1,234 blocked</span>
             <span style={{fontSize:12,color:S.muted}}>·</span>
@@ -2893,7 +2855,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           </button>
           {bannerOpen&&(
             <div style={{padding:'4px 20px 10px 38px',fontSize:12,color:S.muted,lineHeight:1.7}}>
-              <div>Blocked accounts are named by another GuidePoint rep — you can still track them but cannot pursue them without clearing conflict.</div>
+              <div>Blocked accounts are named by another rep — you can still track them but cannot pursue them without clearing conflict.</div>
               <div>Open accounts (Pete Ballas &amp; Carl Morris) are available for pursuit — they show as available in the tracker.</div>
               <div>Any company not on the named accounts list is always fully available.</div>
             </div>
@@ -3441,7 +3403,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
               {allBlocked?(
                 <div style={{padding:'32px 24px',textAlign:'center'}}>
-                  <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:8}}>All accounts mentioned are already named at GuidePoint.</div>
+                  <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:8}}>All accounts mentioned are already in the named accounts list.</div>
                   <div style={{fontSize:13,color:S.muted,lineHeight:1.6}}>These accounts are covered by other reps. You can still add them to your whitespace tracker for monitoring, but you cannot actively pursue them without clearing the conflict.</div>
                 </div>
               ):(
@@ -4615,6 +4577,7 @@ export default function App() {
   const [showVendors,setShowVendors] = useState(false)
   const [showClientView,setShowClientView] = useState(false)
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
+  const [sidebarCollapsed,setSidebarCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
   const [theme,setTheme] = useState(()=>{
     const t = localStorage.getItem('gp-theme')||'light'
     document.documentElement.setAttribute('data-theme',t)
@@ -4757,6 +4720,8 @@ export default function App() {
       setTheme={handleSetTheme}
       showAccounts={showAccounts}
       setShowAccounts={setShowAccounts}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
     />
   )
 
@@ -4768,7 +4733,7 @@ export default function App() {
   const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   return (
-    <div style={{display:mob?'block':'flex',height:mob?'auto':'100vh',minHeight:mob?'100vh':'auto',overflow:mob?'visible':'hidden',background:S.bg}}>
+    <div style={{height:mob?'auto':'100vh',minHeight:mob?'100vh':'auto',overflow:mob?'visible':'hidden',background:S.bg}}>
       {mob&&(
         <button onClick={()=>setMobileMenuOpen(true)} style={{position:'fixed',top:12,left:12,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'8px 10px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
           <div style={{width:18,height:2,background:S.txt,marginBottom:4,borderRadius:1}}/>
@@ -4791,8 +4756,10 @@ export default function App() {
         onGoHome={()=>{setIsLandingPage(true);setMobileMenuOpen(false)}}
         mobileMenuOpen={mobileMenuOpen}
         onCloseMobileMenu={()=>setMobileMenuOpen(false)}
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
       />
-      <div style={{flex:mob?'none':1,display:'flex',flexDirection:'column',overflow:mob?'visible':'hidden'}}>
+      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:260),transition:'margin-left 0.2s ease',display:'flex',flexDirection:'column',height:mob?'auto':'100vh',overflow:mob?'visible':'hidden'}}>
         <div style={{background:S.isLight?'#ffffff':S.headerBg,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
