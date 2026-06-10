@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Clock, Share2, Zap } from 'lucide-react'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, sendToAppleReminders } from '../utils.js'
+import { saveActionBrief } from '../supabase.js'
 import { Btn, Field, Modal } from './UI.jsx'
 
 // ── Claude API helper (same pattern as TechStack.jsx / IntelLog.jsx) ───────────
@@ -108,46 +109,50 @@ ${wsLine?`\nWHITESPACE ACCOUNTS:\n${wsLine}`:''}`
 // ── AI prompt ─────────────────────────────────────────────────────────────────
 const buildPrompt = (fu, acct, whitespaceAccounts) => {
   const ctx = buildActionContext(fu, acct, whitespaceAccounts)
-  return `You are an AI assistant for a cybersecurity sales CRM. A sales rep is reviewing an action item. Your job is to give them sharp, specific intelligence to take action — not generic advice.
+  return `You are an AI assistant for a cybersecurity sales rep named Mike at GuidePoint Security. Generate a complete Action Brief for this action item.
 
 ${ctx}
 
-Analyze the action and context above. Return ONLY valid JSON with no markdown code fences or extra text:
+Return ONLY valid JSON with no markdown code fences or extra text:
 {
   "quickContext": "One sentence. Why this action matters right now — the specific trigger, deal context, or relationship moment that created it.",
   "progressSinceCreation": {
-    "completed": ["Specific things that have happened since this action was created, based on intel entries. Use real names and details. If nothing relevant, return an empty array."],
-    "outstanding": ["Specific things that are still unresolved or pending. Be concrete. Use real names and deal context."]
+    "completed": ["Specific things that have happened since this action was created, based on intel entries. Use real names and details. Empty array if nothing."],
+    "outstanding": ["Specific things still unresolved or pending. Be concrete. Empty array if nothing."]
   },
-  "recommendedNextAction": {
-    "text": "Start with a strong verb. Be specific — name the person, channel, or deadline. No vague suggestions.",
-    "confidence": 0.85
-  },
+  "recommendedNextAction": "Start with a strong verb. Be specific — name the person, channel, or deadline. No vague suggestions.",
+  "confidenceScore": 85,
   "suggestedRecipients": {
     "to": ["Name (Title) — why they are primary"],
     "cc": ["Name (Title) — why they should be aware"],
-    "internal": ["Name (Title) — internal GuidePoint resource to loop in"]
+    "internalResources": ["Name (Role) — internal GuidePoint resource to loop in"]
   },
   "suggestedSubjectLine": "Concise, professional subject. Reference the deal or account. No filler.",
-  "actionHealth": "Healthy",
+  "draftEmail": "Subject: [subject line]\\n\\nHi [first name],\\n\\n[3-5 lines max. Conversational, direct, human. No filler opener. No marketing language. One clear CTA. Sign off: Best, Mike]",
+  "recommendedAssets": ["Asset name — one sentence on why it's relevant to this action"],
   "meetingRecommendation": {
-    "attendees": ["Name (Title) — reason for including"],
+    "recommended": true,
+    "title": "specific meeting title",
     "duration": "30 minutes",
+    "attendees": ["Name (Title) — why they should attend"],
     "agenda": ["Opening / set context (5 min)", "specific topic 2", "specific topic 3", "Next steps / owners (5 min)"]
   },
-  "recommendedAssets": [
-    {"title": "asset or collateral name", "type": "Case Study|Battle Card|Solution Brief|ROI Calculator|Demo Script|Reference Call", "rationale": "one sentence — why relevant to this action"}
-  ]
+  "actionHealth": {
+    "status": "Healthy",
+    "reason": "Short explanation — reference specific data points"
+  }
 }
 
 Rules:
-- actionHealth must be exactly one of: "Healthy", "Needs Attention", "At Risk", "Critical"
-- Base actionHealth on: days overdue (0=ok, 1-3=Needs Attention, 4-7=At Risk, 8+=Critical), priority (Critical task overdue=Critical), recent contact (no contact in 30+ days with open Critical=At Risk), project status
-- progressSinceCreation.completed should only list things visible in the INTEL LOG since the action was created — not assumptions
-- Keep every string under 120 characters
-- suggestedRecipients.internal can be empty array if no internal resources are relevant
-- meetingRecommendation: attendees relevant to this specific action; duration must be 15/30/45/60 min only; agenda should be action-specific
-- recommendedAssets: max 4 items specific to account's tech stack, vendor interests, and active opportunities — can be empty array
+- actionHealth.status must be exactly one of: "Healthy", "Needs Attention", "At Risk", "Critical"
+- Base health on: days overdue (0=Healthy, 1-3=Needs Attention, 4-7=At Risk, 8+=Critical), priority, last contact date, project status
+- confidenceScore: integer 0-100 reflecting certainty of the recommended next action
+- draftEmail: Write in Mike's style — short sentences, conversational, direct. No "Hope this finds you well", no "I wanted to reach out", no buzzwords ("leverage", "synergize", "solutions"). One clear CTA. Use \\n for line breaks.
+- progressSinceCreation.completed: only list things visible in INTEL LOG since action was created — not assumptions
+- recommendedAssets: array of strings, max 4 items specific to account's tech interests and active projects — can be empty array
+- meetingRecommendation.recommended: set to false and use empty arrays/strings if a meeting is not clearly warranted
+- suggestedRecipients.internalResources: can be empty array if no GuidePoint resources are needed
+- Keep every string under 150 characters except draftEmail
 - All arrays can be empty if nothing specific is known`
 }
 
@@ -169,7 +174,6 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [expandedId,setExpandedId] = useState(null)
   const [generatingId,setGeneratingId] = useState(null)
-  const [generatingEmailId,setGeneratingEmailId] = useState(null)
   const [genError,setGenError] = useState(null)
   const blank={id:'',contact:'',task:'',priority:'High',dueDate:'',status:'Open',context:''}
   const [form,setForm] = useState(blank)
@@ -203,11 +207,8 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       }
       if (intel) {
         intel.generatedAt = new Date().toISOString()
-        setAcct(p=>({...p,followUps:p.followUps.map(x=>{
-          if(x.id!==fu.id)return x
-          const prevEmail=x.aiIntel?.draftEmail
-          return{...x,aiIntel:{...intel,...(prevEmail?{draftEmail:prevEmail}:{})}}
-        })}))
+        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:intel}:x)}))
+        saveActionBrief(acct.id, fu.id, intel)
       } else {
         setGenError('AI returned an unexpected response. Please try again.')
       }
@@ -215,71 +216,6 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Generation failed. Please try again.')
     } finally {
       setGeneratingId(null)
-    }
-  }
-
-  // ── Draft email generation ────────────────────────────────────────────────────
-  const buildEmailPrompt = (fu, acct, whitespaceAccounts) => {
-    const ctx = buildActionContext(fu, acct, whitespaceAccounts)
-    const nextAction = fu.aiIntel?.recommendedNextAction?.text || ''
-    const subjectLine = fu.aiIntel?.suggestedSubjectLine || ''
-    const recipients = fu.aiIntel?.suggestedRecipients
-    const toLine = recipients?.to?.length ? `Primary recipients: ${recipients.to.join(', ')}` : ''
-    return `You are writing an email for Mike, a cybersecurity sales rep at GuidePoint Security.
-
-${ctx}
-${nextAction ? `\nRECOMMENDED NEXT ACTION: ${nextAction}` : ''}
-${subjectLine ? `\nSUGGESTED SUBJECT: ${subjectLine}` : ''}
-${toLine ? `\n${toLine}` : ''}
-
-Write a short email in Mike's style:
-- Conversational and human — reads like a real person wrote it, not a marketing team
-- Short sentences. 3-6 lines max for the body.
-- No filler openers: no "Hope this finds you well", no "I wanted to reach out", no "I'm excited to"
-- No buzzwords: no "leverage", "synergize", "value proposition", "ecosystem", "solutions"
-- One clear CTA — a specific ask or next step
-- Sign off with "Best, Mike" or "Thanks, Mike" or "Talk soon, Mike"
-- Subject line should be specific — reference the deal, account, or technology
-
-Return ONLY valid JSON, no markdown:
-{
-  "subject": "specific subject line",
-  "to": ["Name or Name (Title)"],
-  "cc": [],
-  "body": "full email body with \\n for line breaks"
-}
-
-Rules:
-- body is 3-6 lines, one clear CTA, no AI-sounding language
-- to should use contact names from the context if available
-- subject must not be generic ("Following Up", "Quick Check-in", "Touching Base")`
-  }
-
-  const generateDraftEmail = async (fu) => {
-    if (!apiKey) { setGenError('Add your Anthropic API key in Settings first.'); return }
-    setGenError(null)
-    setGeneratingEmailId(fu.id)
-    try {
-      const prompt = buildEmailPrompt(fu, acct, whitespaceAccounts)
-      const {data:result} = await callClaudeWithRetry(
-        {model:'claude-sonnet-4-6', max_tokens:600, messages:[{role:'user',content:prompt}]},
-        apiKey
-      )
-      const raw = result?.content?.[0]?.text || ''
-      let email = null
-      try { email = JSON.parse(raw) } catch {
-        const m = raw.match(/\{[\s\S]*\}/)
-        if (m) { try { email = JSON.parse(m[0]) } catch {} }
-      }
-      if (email) {
-        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:{...x.aiIntel,draftEmail:email}}:x)}))
-      } else {
-        setGenError('Email generation failed. Please try again.')
-      }
-    } catch(err) {
-      setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Email generation failed. Please try again.')
-    } finally {
-      setGeneratingEmailId(null)
     }
   }
 
@@ -335,7 +271,27 @@ Rules:
   const renderAIPanel = (fu) => {
     const intel = fu.aiIntel
     const isGenerating = generatingId === fu.id
-    const hc = intel?.actionHealth ? HEALTH_CONFIG[intel.actionHealth] || HEALTH_CONFIG['Needs Attention'] : null
+
+    // Handle both old (string) and new (object) actionHealth format
+    const healthStatus = intel?.actionHealth
+      ? (typeof intel.actionHealth === 'string' ? intel.actionHealth : intel.actionHealth.status)
+      : null
+    const hc = healthStatus ? HEALTH_CONFIG[healthStatus] || HEALTH_CONFIG['Needs Attention'] : null
+
+    // Handle both old ({text,confidence}) and new (string) recommendedNextAction
+    const nextActionText = intel?.recommendedNextAction
+      ? (typeof intel.recommendedNextAction === 'string' ? intel.recommendedNextAction : intel.recommendedNextAction.text)
+      : null
+    const confidence = intel?.confidenceScore != null
+      ? intel.confidenceScore
+      : (intel?.recommendedNextAction?.confidence != null ? Math.round(intel.recommendedNextAction.confidence * 100) : null)
+
+    // Handle both old ({subject,to,cc,body}) and new (string) draftEmail
+    const draftEmailText = intel?.draftEmail
+      ? (typeof intel.draftEmail === 'string'
+          ? intel.draftEmail
+          : `Subject: ${intel.draftEmail.subject}\nTo: ${(intel.draftEmail.to||[]).join(', ')}\n\n${intel.draftEmail.body}`)
+      : null
 
     return (
       <div style={{background:S.isLight?'#F8FAFE':'#1a1f2e',borderTop:`1px solid ${S.isLight?'#E8F0FE':'#2d3748'}`,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,padding:'14px 16px 16px'}}>
@@ -354,7 +310,7 @@ Rules:
             style={{display:'inline-flex',alignItems:'center',gap:5,padding:'5px 12px',background:isGenerating?'#F3F4F6':apiKey?'#007AFF':'#F3F4F6',border:'none',borderRadius:6,color:isGenerating||!apiKey?'#9CA3AF':'#fff',fontSize:11,fontWeight:600,cursor:isGenerating||!apiKey?'default':'pointer',transition:'background 0.15s'}}
           >
             <Zap size={11}/>
-            {isGenerating?'Analyzing…':intel?'Refresh':'Analyze'}
+            {isGenerating?'Generating…':intel?'Refresh Brief':'Generate Brief'}
           </button>
         </div>
 
@@ -377,14 +333,13 @@ Rules:
 
             {/* Row 1: Action Health + Quick Context */}
             <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:8,alignItems:'stretch'}}>
-              {/* Action Health */}
               {hc&&(
-                <div style={{background:hc.bg,border:`1px solid ${hc.border}`,borderRadius:8,padding:'10px 14px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',minWidth:100}}>
+                <div style={{background:hc.bg,border:`1px solid ${hc.border}`,borderRadius:8,padding:'10px 14px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',minWidth:110}}>
                   <div style={{fontSize:16,marginBottom:3}}>{hc.icon}</div>
-                  <div style={{fontSize:10,fontWeight:700,color:hc.color,letterSpacing:'0.06em',textTransform:'uppercase',textAlign:'center',whiteSpace:'nowrap'}}>{intel.actionHealth}</div>
+                  <div style={{fontSize:10,fontWeight:700,color:hc.color,letterSpacing:'0.06em',textTransform:'uppercase',textAlign:'center',whiteSpace:'nowrap'}}>{healthStatus}</div>
+                  {intel.actionHealth?.reason&&<div style={{fontSize:9,color:hc.color,textAlign:'center',marginTop:4,lineHeight:1.4,maxWidth:90,opacity:0.9}}>{intel.actionHealth.reason}</div>}
                 </div>
               )}
-              {/* Quick Context */}
               {intel.quickContext&&(
                 <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
                   <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>📋 Quick Context</div>
@@ -425,112 +380,77 @@ Rules:
             )}
 
             {/* Row 3: Recommended Next Action */}
-            {intel.recommendedNextAction?.text&&(
+            {nextActionText&&(
               <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`2px solid ${'#007AFF'}22`,borderLeft:`3px solid #007AFF`,borderRadius:'0 8px 8px 0',padding:'10px 12px'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
                   <div style={{fontSize:10,fontWeight:700,color:'#007AFF',textTransform:'uppercase',letterSpacing:'0.06em'}}>⚡ Recommended Next Action</div>
-                  {intel.recommendedNextAction.confidence!=null&&(
+                  {confidence!=null&&(
                     <span style={{fontSize:10,fontWeight:600,color:'#9CA3AF',background:S.isLight?'#F3F4F6':'#2d3748',borderRadius:999,padding:'1px 7px'}}>
-                      {Math.round(intel.recommendedNextAction.confidence*100)}% confidence
+                      {confidence}% confidence
                     </span>
                   )}
                 </div>
-                <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5}}>{intel.recommendedNextAction.text}</div>
+                <div style={{fontSize:13,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5}}>{nextActionText}</div>
               </div>
             )}
 
             {/* Row 4: Suggested Recipients + Subject Line */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {/* Suggested Recipients */}
-              {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||intel.suggestedRecipients?.internal?.length>0)&&(
+              {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||(intel.suggestedRecipients?.internalResources||intel.suggestedRecipients?.internal||[]).length>0)&&(
                 <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
                   <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>👥 Suggested Recipients</div>
                   {[
                     {key:'to',label:'TO',color:'#007AFF'},
                     {key:'cc',label:'CC',color:'#6B7280'},
-                    {key:'internal',label:'INTERNAL',color:'#8B5CF6'},
-                  ].map(({key,label,color})=> intel.suggestedRecipients[key]?.length>0&&(
-                    <div key={key} style={{marginBottom:5}}>
-                      <span style={{fontSize:9,fontWeight:700,color,letterSpacing:'0.08em'}}>{label} </span>
-                      {intel.suggestedRecipients[key].map((r,i)=>(
-                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,paddingLeft:8}}>{r}</div>
-                      ))}
-                    </div>
-                  ))}
+                    {key:'internalResources',label:'INTERNAL',color:'#8B5CF6'},
+                  ].map(({key,label,color})=>{
+                    const list = key==='internalResources'
+                      ? (intel.suggestedRecipients.internalResources||intel.suggestedRecipients.internal||[])
+                      : (intel.suggestedRecipients[key]||[])
+                    return list.length>0&&(
+                      <div key={key} style={{marginBottom:5}}>
+                        <span style={{fontSize:9,fontWeight:700,color,letterSpacing:'0.08em'}}>{label} </span>
+                        {list.map((r,i)=>(
+                          <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,paddingLeft:8}}>{r}</div>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
-
-              {/* Suggested Subject Line */}
               {intel.suggestedSubjectLine&&(
                 <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px',display:'flex',flexDirection:'column',justifyContent:'center'}}>
                   <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>✉️ Suggested Subject Line</div>
                   <div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5,background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'7px 10px',fontFamily:'monospace'}}>{intel.suggestedSubjectLine}</div>
                   <button
-                    onClick={()=>{navigator.clipboard?.writeText(intel.suggestedSubjectLine)}}
-                    style={{marginTop:6,alignSelf:'flex-start',fontSize:10,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>
-                    Copy
-                  </button>
+                    onClick={()=>navigator.clipboard?.writeText(intel.suggestedSubjectLine)}
+                    style={{marginTop:6,alignSelf:'flex-start',fontSize:10,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>Copy</button>
                 </div>
               )}
             </div>
 
             {/* Row 5: Draft Email */}
-            <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:generatingEmailId===fu.id||intel.draftEmail?8:0}}>
-                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>✉️ Draft Email</div>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                  {intel.draftEmail&&(
-                    <button
-                      onClick={()=>{const txt=`Subject: ${intel.draftEmail.subject}\nTo: ${(intel.draftEmail.to||[]).join(', ')}\n${intel.draftEmail.cc?.length?'CC: '+(intel.draftEmail.cc||[]).join(', ')+'\n':''}\n${intel.draftEmail.body}`;navigator.clipboard?.writeText(txt)}}
-                      style={{fontSize:10,color:'#16a34a',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Copy</button>
-                  )}
-                  <button
-                    onClick={()=>generateDraftEmail(fu)}
-                    disabled={generatingEmailId===fu.id||!apiKey}
-                    style={{fontSize:10,color:generatingEmailId===fu.id||!apiKey?'#9CA3AF':'#007AFF',background:generatingEmailId===fu.id||!apiKey?'#F3F4F6':'transparent',border:`1px solid ${generatingEmailId===fu.id||!apiKey?'#E5E7EB':'#007AFF'}`,borderRadius:5,padding:'3px 8px',cursor:generatingEmailId===fu.id||!apiKey?'default':'pointer',fontWeight:600}}>
-                    {generatingEmailId===fu.id?'Drafting…':intel.draftEmail?'Regenerate':'Generate'}
-                  </button>
-                </div>
-              </div>
-              {generatingEmailId===fu.id&&(
-                <div style={{height:72,background:S.isLight?'#F9FAFB':'#222736',borderRadius:6,overflow:'hidden',position:'relative'}}>
-                  <div style={{position:'absolute',inset:0,background:`linear-gradient(90deg,transparent 0%,${S.isLight?'#F0F7FF':'#2a3247'} 50%,transparent 100%)`,animation:'shimmer 1.2s infinite'}}/>
-                </div>
-              )}
-              {generatingEmailId!==fu.id&&intel.draftEmail&&(
-                <div>
-                  <div style={{fontSize:11,background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'8px 10px',marginBottom:6}}>
-                    <div style={{display:'flex',gap:6,marginBottom:3,flexWrap:'wrap'}}>
-                      <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>Subject:</span>
-                      <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#111827':S.txt,flex:1}}>{intel.draftEmail.subject}</span>
-                    </div>
-                    {intel.draftEmail.to?.length>0&&(
-                      <div style={{display:'flex',gap:6,marginBottom:3,flexWrap:'wrap'}}>
-                        <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>To:</span>
-                        <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,flex:1}}>{intel.draftEmail.to.join(', ')}</span>
-                      </div>
-                    )}
-                    {intel.draftEmail.cc?.length>0&&(
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                        <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>CC:</span>
-                        <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,flex:1}}>{intel.draftEmail.cc.join(', ')}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.7,whiteSpace:'pre-line',background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:6,padding:'10px 12px'}}>{intel.draftEmail.body}</div>
-                </div>
-              )}
-              {generatingEmailId!==fu.id&&!intel.draftEmail&&(
-                <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic',marginTop:2}}>Click Generate to draft an email for this action.</div>
-              )}
-            </div>
-
-            {/* Row 6: Meeting Recommendation */}
-            {intel.meetingRecommendation&&(intel.meetingRecommendation.attendees?.length>0||intel.meetingRecommendation.agenda?.length>0)&&(
+            {draftEmailText&&(
               <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>📅 Meeting Recommendation</div>
-                  {intel.meetingRecommendation.duration&&<span style={{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'2px 7px'}}>{intel.meetingRecommendation.duration}</span>}
+                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>✉️ Draft Email</div>
+                  <button
+                    onClick={()=>navigator.clipboard?.writeText(draftEmailText)}
+                    style={{fontSize:10,color:'#16a34a',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Copy Email</button>
+                </div>
+                <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.75,whiteSpace:'pre-line',background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'10px 12px'}}>{draftEmailText}</div>
+              </div>
+            )}
+
+            {/* Row 6: Meeting Recommendation */}
+            {intel.meetingRecommendation&&intel.meetingRecommendation.recommended!==false&&(intel.meetingRecommendation.attendees?.length>0||intel.meetingRecommendation.agenda?.length>0)&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>📅 Meeting Recommendation</div>
+                    {intel.meetingRecommendation.title&&<div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,marginTop:3}}>{intel.meetingRecommendation.title}</div>}
+                  </div>
+                  {intel.meetingRecommendation.duration&&<span style={{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{intel.meetingRecommendation.duration}</span>}
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                   {intel.meetingRecommendation.attendees?.length>0&&(
@@ -561,8 +481,11 @@ Rules:
             {intel.recommendedAssets?.length>0&&(
               <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>📎 Recommended Assets</div>
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                <div style={{display:'flex',flexDirection:'column',gap:5}}>
                   {intel.recommendedAssets.map((asset,i)=>{
+                    if (typeof asset === 'string') {
+                      return <div key={i} style={{display:'flex',gap:6,fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5}}><span style={{color:'#007AFF',flexShrink:0}}>·</span><span>{asset}</span></div>
+                    }
                     const typeColors={'Case Study':{c:'#15803d',bg:'#dcfce7'},'Battle Card':{c:'#dc2626',bg:'#fee2e2'},'Solution Brief':{c:'#007AFF',bg:'#EBF4FF'},'ROI Calculator':{c:'#7c3aed',bg:'#ede9fe'},'Demo Script':{c:'#d97706',bg:'#fef3c7'},'Reference Call':{c:'#0891b2',bg:'#e0f2fe'}}
                     const tc=typeColors[asset.type]||{c:'#6B7280',bg:'#F9FAFB'}
                     return(
@@ -575,7 +498,6 @@ Rules:
                       </div>
                     )
                   })}
-                  <div style={{fontSize:10,color:'#9CA3AF',marginTop:2,fontStyle:'italic'}}>Asset library integration coming soon.</div>
                 </div>
               </div>
             )}
@@ -585,7 +507,7 @@ Rules:
 
         {!isGenerating&&!intel&&apiKey&&(
           <div style={{textAlign:'center',padding:'20px 0',color:'#9CA3AF',fontSize:12}}>
-            Click <strong style={{color:'#007AFF'}}>Analyze</strong> to generate AI intelligence for this action.
+            Click <strong style={{color:'#007AFF'}}>Generate Brief</strong> to generate an AI Action Brief for this action.
           </div>
         )}
       </div>
@@ -599,7 +521,10 @@ Rules:
     const dueDateColor=dDue===null?S.muted:dDue<0?PC.Critical.c:p.c
     const isSelected=selMode&&selFUs.has(fu.id)
     const isExpanded=expandedId===fu.id
-    const health = fu.aiIntel?.actionHealth ? HEALTH_CONFIG[fu.aiIntel.actionHealth] : null
+    const _hs = fu.aiIntel?.actionHealth
+      ? (typeof fu.aiIntel.actionHealth === 'string' ? fu.aiIntel.actionHealth : fu.aiIntel.actionHealth.status)
+      : null
+    const health = _hs ? HEALTH_CONFIG[_hs] : null
     return (
       <div key={fu.id}>
         <div
@@ -620,7 +545,7 @@ Rules:
                 <span style={{fontSize:13,fontWeight:600,color:S.txt,lineHeight:1.4}}>{fu.task}</span>
                 {extraBadge}
                 {/* Inline health dot if AI has run */}
-                {health&&<span style={{width:7,height:7,borderRadius:'50%',background:health.color,display:'inline-block',flexShrink:0,marginLeft:2}} title={fu.aiIntel.actionHealth}/>}
+                {health&&<span style={{width:7,height:7,borderRadius:'50%',background:health.color,display:'inline-block',flexShrink:0,marginLeft:2}} title={_hs}/>}
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 <span style={{fontSize:10,fontWeight:700,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>

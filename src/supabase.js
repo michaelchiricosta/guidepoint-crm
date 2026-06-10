@@ -140,3 +140,28 @@ export const deleteContactPhoto = async (path) => {
     .remove([path])
   if (error) console.error('[deleteContactPhoto] error:', error.message)
 }
+
+// ─── Action AI briefs ─────────────────────────────────────────────────────────
+// Required table (run once in Supabase SQL editor):
+//   create table if not exists action_ai_briefs (
+//     id uuid primary key default gen_random_uuid(),
+//     account_id text not null,
+//     action_id  text not null,
+//     brief      jsonb not null,
+//     generated_at timestamptz default now(),
+//     unique (account_id, action_id)
+//   );
+
+export const saveActionBrief = async (accountId, actionId, brief) => {
+  try {
+    const { error } = await supabase
+      .from('action_ai_briefs')
+      .upsert(
+        { account_id: accountId, action_id: actionId, brief, generated_at: new Date().toISOString() },
+        { onConflict: 'account_id,action_id' }
+      )
+    if (error) console.warn('[saveActionBrief] write failed (table may not exist yet):', error.message)
+  } catch (e) {
+    console.warn('[saveActionBrief] exception:', e.message)
+  }
+}
