@@ -16,7 +16,7 @@ import AIChatModal from './components/AIChatModal.jsx'
 import Admin from './components/Admin.jsx'
 import Files from './components/Files.jsx'
 import AccountDashboard from './components/AccountDashboard.jsx'
-import FollowUps from './components/FollowUps.jsx'
+import Actions from './components/Actions.jsx'
 import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
@@ -665,7 +665,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
         {[
           {c:'#0ebc5f',label:'Won Projects',           val:`${wonProj} / ${totalProj}`,   ok:wonProj>0},
           {c:'#2563eb',label:'Active Accounts (30d)',   val:`${activeAcc} / ${(data.accounts||[]).length}`, ok:activeAcc>0},
-          {c:'#ea580c',label:'Critical Follow-Ups Cleared', val:`${clearedCrit} / ${Math.max(totalCrit,clearedCrit)}`, ok:clearedCrit>0},
+          {c:'#ea580c',label:'Critical Actions Cleared', val:`${clearedCrit} / ${Math.max(totalCrit,clearedCrit)}`, ok:clearedCrit>0},
         ].map((m,i)=>(
           <div key={i} style={{display:'flex',flexDirection:typeof window!=='undefined'&&window.innerWidth<768?'column':'row',justifyContent:'space-between',alignItems:typeof window!=='undefined'&&window.innerWidth<768?'flex-start':'center',gap:2,padding:'6px 0',borderBottom:'0.5px solid #f1f5f9',fontSize:13}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -848,7 +848,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
             <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}>
               <span style={{fontWeight:600,color:'#0f172a'}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
-              {totalOpenFUs>0&&<> · <span style={{color:'#2563eb',fontWeight:600}}>{totalOpenFUs}</span> open follow-up{totalOpenFUs!==1?'s':''}</>}
+              {totalOpenFUs>0&&<> · <span style={{color:'#2563eb',fontWeight:600}}>{totalOpenFUs}</span> open action{totalOpenFUs!==1?'s':''}</>}
               {criticalItems>0&&<> · <span style={{color:'#dc2626',fontWeight:600}}>{criticalItems} critical</span></>}
               {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
             </div>
@@ -982,7 +982,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     style={{width:'100%',padding:'8px 12px',marginBottom:12,border:`1px solid ${S.bdr}`,borderRadius:8,fontSize:13,color:S.txt,background:S.surf,outline:'none',boxSizing:'border-box'}}/>
                   <div style={{background:S.surf,borderRadius:12,border:`1px solid ${S.bdr}`,overflow:'hidden'}}>
                     <div style={{display:'grid',gridTemplateColumns:'44px 1fr 110px 110px 96px 56px 96px 72px 28px',alignItems:'center',padding:'0 16px',background:S.surf2,borderBottom:`1px solid ${S.bdr}`,height:38}}>
-                      {[{k:'',l:''},{k:'name',l:'Account'},{k:'hq',l:'HQ'},{k:'industry',l:'Industry'},{k:'status',l:'Status'},{k:'health',l:'Health'},{k:'lastContact',l:'Last Contact'},{k:'followUps',l:'Follow-Ups'},{k:'',l:''}].map(({k,l},i)=>(
+                      {[{k:'',l:''},{k:'name',l:'Account'},{k:'hq',l:'HQ'},{k:'industry',l:'Industry'},{k:'status',l:'Status'},{k:'health',l:'Health'},{k:'lastContact',l:'Last Contact'},{k:'followUps',l:'Actions'},{k:'',l:''}].map(({k,l},i)=>(
                         <div key={i} onClick={()=>{if(!k)return;if(listSortKey===k)setListSortDir(d=>d==='asc'?'desc':'asc');else{setListSortKey(k);setListSortDir('asc')}}}
                           style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',cursor:k?'pointer':'default',userSelect:'none',display:'flex',alignItems:'center',gap:2,whiteSpace:'nowrap'}}>
                           {l}{k&&<span style={{color:listSortKey===k?'#2563eb':'#cbd5e1',fontSize:10}}>{listSortKey===k?(listSortDir==='asc'?'↑':'↓'):'↕'}</span>}
@@ -1136,7 +1136,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>accounts total</div>
                 </div>
                 <div onClick={()=>setTodayModal(true)} style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',borderLeft:'3px solid #dc2626',padding:16,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',cursor:'pointer'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Overdue Follow-Ups</div>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Overdue Actions</div>
                   <div style={{fontSize:28,fontWeight:800,color:'#0f172a',lineHeight:1,marginBottom:6}}>{allOverdueFUs.length}</div>
                   <div style={{fontSize:12,color:'#64748b'}}><span style={{color:'#dc2626',fontWeight:600}}>{overdueCritFUs} Critical</span> · <span style={{color:'#ea580c',fontWeight:600}}>{overdueHighFUs} High</span></div>
                   <div style={{fontSize:11,color:oldestOverdueDays>0?'#dc2626':'#94a3b8',marginTop:4}}>{oldestOverdueDays>0?`Oldest: ${oldestOverdueDays} days ago`:'No overdue items'}</div>
@@ -3546,7 +3546,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Follow-Ups'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Actions'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
 
 function KanbanCard({p, col, updateProject}) {
   const [editingDate, setEditingDate] = useState(false)
@@ -4802,7 +4802,7 @@ export default function App() {
           {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
           {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
-          {tab==='followups'&&<FollowUps acct={acct} setAcct={setAcct}/>}
+          {tab==='followups'&&<Actions acct={acct} setAcct={setAcct}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
           {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} setData={setData} apiKey={data.apiKey}/>}
           {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}

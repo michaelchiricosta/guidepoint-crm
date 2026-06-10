@@ -507,7 +507,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
         })()}
         {/* Metric cards */}
         {[
-          {label:'Open Follow-Ups',val:openFU.length,tab:'followups'},
+          {label:'Open Actions',val:openFU.length,tab:'followups'},
           {label:'Active Projects',val:inFlight,tab:'projects'},
           {label:'Contacts Mapped',val:acct.contacts.length,tab:'contacts'},
           {label:'Days Since Contact',val:lastC,tab:'intel'}
@@ -964,10 +964,10 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       {/* ── PRIORITY FOLLOW-UPS ── */}
       <div style={{marginBottom:20}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-          <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Priority Follow-Ups</span>
+          <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Priority Actions</span>
           {setTab&&<button onClick={()=>setTab('followups')} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:0}}>View All →</button>}
         </div>
-        {openFU.length===0&&<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',background:S.isLight?'#f0fdf4':S.surf,borderRadius:10,border:`1px solid ${S.isLight?'#bbf7d0':S.bdr}`}}><span style={{color:S.isLight?'#16a34a':S.green,fontSize:16}}>✓</span><span style={{fontSize:13,color:S.isLight?'#16a34a':S.green,fontWeight:600}}>All follow-ups complete — great work!</span></div>}
+        {openFU.length===0&&<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',background:S.isLight?'#f0fdf4':S.surf,borderRadius:10,border:`1px solid ${S.isLight?'#bbf7d0':S.bdr}`}}><span style={{color:S.isLight?'#16a34a':S.green,fontSize:16}}>✓</span><span style={{fontSize:13,color:S.isLight?'#16a34a':S.green,fontWeight:600}}>All actions complete — great work!</span></div>}
         {[...openFU].sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)).slice(0,5).map(f=>{
           const p=PC[f.priority]||PC.Low
           const d=f.dueDate?daysUntil(f.dueDate):null
@@ -1000,7 +1000,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               <div style={{flexShrink:0}}>
                 <button
                   onClick={e=>{e.stopPropagation();if(fuSnoozeId===f.id){setFuSnoozeId(null);setFuSnoozePos(null);setFuSnoozeCustomDate('')}else{const r=e.currentTarget.getBoundingClientRect();setFuSnoozePos({top:r.bottom+4,right:window.innerWidth-r.right});setFuSnoozeId(f.id);setFuSnoozeCustomDate('')}}}
-                  title='Snooze follow-up'
+                  title='Snooze action'
                   style={{background:'transparent',border:'none',color:fuSnoozeId===f.id?p.c:'#9CA3AF',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0,opacity:hoveredFuId===f.id||fuSnoozeId===f.id?1:0,transition:'opacity 0.15s'}}
                   onMouseEnter={e=>e.currentTarget.style.color=p.c}
                   onMouseLeave={e=>e.currentTarget.style.color=fuSnoozeId===f.id?p.c:'#9CA3AF'}>
@@ -1064,7 +1064,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
         const levelLabel = alertModal.level==='critical'?'● Critical':alertModal.level==='high'?'▲ High Priority':'◆ Medium Priority'
         const title = alertModal.type==='renewal'?`${alertModal.t.vendor} — Renewal Upcoming`
           :alertModal.type==='replacing'?`${alertModal.t.vendor} — Marked for Replacement`
-          :alertModal.type==='overdue'?'Overdue Follow-Up'
+          :alertModal.type==='overdue'?'Overdue Action'
           :alertModal.type==='attention'?'Relationship Needs Attention'
           :alertModal.type==='stalled'?`${alertModal.p.name} — Stalled`
           :'Alert Detail'
@@ -1089,7 +1089,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 {t.notes&&<div style={{marginTop:12,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{t.notes}</div>}
                 <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
                   <Btn variant='primary' onClick={()=>{setTab('stack');setAlertModal(null)}}>View in Tech Stack</Btn>
-                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Renew ${t.vendor} contract`,t.clientOwner||'')}}>+ Add Follow-Up</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Renew ${t.vendor} contract`,t.clientOwner||'')}}>+ Add Action</Btn>
                 </div>
               </>
             })()}
@@ -1112,7 +1112,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 </div>}
                 <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
                   <Btn variant='primary' onClick={()=>{setTab('stack');setAlertModal(null)}}>View in Tech Stack</Btn>
-                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Plan ${t.vendor} replacement`,t.clientOwner||'')}}>+ Add Follow-Up</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Plan ${t.vendor} replacement`,t.clientOwner||'')}}>+ Add Action</Btn>
                 </div>
               </>
             })()}
@@ -1132,7 +1132,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
                   <Btn variant='primary' onClick={()=>{setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,status:'Done'}:f)}));setAlertModal(null)}}>✓ Mark Complete</Btn>
                   <Btn onClick={()=>{const nd=new Date();nd.setDate(nd.getDate()+3);const ds=nd.toISOString().split('T')[0];setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,dueDate:ds}:f)}));setAlertModal(null)}}>Snooze 3 Days</Btn>
-                  <Btn onClick={()=>{setTab('followups');setAlertModal(null)}}>Go to Follow-Ups</Btn>
+                  <Btn onClick={()=>{setTab('followups');setAlertModal(null)}}>Go to Actions</Btn>
                 </div>
               </>
             })()}
@@ -1184,7 +1184,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 {p.notes&&<div style={{marginTop:10,fontSize:12,color:S.secondary,background:S.surf2,borderRadius:6,padding:'10px 12px',lineHeight:1.6}}>{p.notes}</div>}
                 <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
                   <Btn variant='primary' onClick={()=>{setTab('projects');setAlertModal(null)}}>Go to Projects</Btn>
-                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Unstall: ${p.name}`,p.primaryContact||'')}}>+ Add Follow-Up</Btn>
+                  <Btn onClick={()=>{setAlertModal(null);openAddFU(`Unstall: ${p.name}`,p.primaryContact||'')}}>+ Add Action</Btn>
                 </div>
               </>
             })()}
@@ -1197,7 +1197,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
 
       {/* Quick add follow-up modal */}
       {showAddFU&&(
-        <Modal title='Add Follow-Up' onClose={()=>setShowAddFU(false)} width={480}>
+        <Modal title='Add Action' onClose={()=>setShowAddFU(false)} width={480}>
           <Field label='Task' value={fuForm.task} onChange={v=>setFuForm(p=>({...p,task:v}))}/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
             <Field label='Priority' value={fuForm.priority} onChange={v=>setFuForm(p=>({...p,priority:v}))} options={['Critical','High','Medium','Low']}/>
@@ -1206,7 +1206,7 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
           </div>
           <Field label='Context / Notes' value={fuForm.context} onChange={v=>setFuForm(p=>({...p,context:v}))} multiline/>
           <div style={{display:'flex',gap:8,marginTop:4}}>
-            <Btn variant='primary' onClick={saveQuickFU}>Save Follow-Up</Btn>
+            <Btn variant='primary' onClick={saveQuickFU}>Save Action</Btn>
             <Btn onClick={()=>setShowAddFU(false)}>Cancel</Btn>
           </div>
         </Modal>
