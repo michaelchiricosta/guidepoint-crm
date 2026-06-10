@@ -168,7 +168,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   if(isMobile&&mobileMenuOpen) return (
     <>
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:150}}/>
-      <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
+      <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:221,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
           <img src="/Ledgr-full-logo.png" style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
@@ -201,7 +201,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   const SM = '#6B7280', SH2 = '#F9FAFB', SA = '#F0F7FF'
 
   return (
-    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',transition:'width 0.2s ease',overflow:'hidden'}}>
+    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:221,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',transition:'width 0.2s ease',overflow:'hidden'}}>
       {/* Logo area */}
       <div style={{padding:collapsed?'14px 0 10px':'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
         {!collapsed?(
@@ -369,7 +369,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   )
 
   return (
-    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',overflow:'hidden',transition:'width 0.2s ease'}}>
+    <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:221,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
         <div style={{padding:'14px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,borderBottom:'1px solid #EEEFF2'}}>
           <img src="/Ledgr-L-logo.png" style={{width:'36px',height:'36px',objectFit:'contain'}} alt="Ledgr."/>
@@ -840,7 +840,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>}
-      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:260),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
       <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
         <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
@@ -4761,7 +4761,7 @@ export default function App() {
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
       />
-      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:260),transition:'margin-left 0.2s ease',display:'flex',flexDirection:'column',height:mob?'auto':'100vh',overflow:mob?'visible':'hidden'}}>
+      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',display:'flex',flexDirection:'column',height:mob?'auto':'100vh',overflow:mob?'visible':'hidden'}}>
         <div style={{background:S.isLight?'#ffffff':S.headerBg,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>

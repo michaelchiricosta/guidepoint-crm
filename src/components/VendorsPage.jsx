@@ -226,7 +226,7 @@ ${text}`
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Sidebar */}
-      <div style={{width:260,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
+      <div style={{width:221,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
         <div style={{padding:'12px 14px 10px',borderBottom:'1px solid #EEEFF2',flexShrink:0}}>
           <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:'none',cursor:'pointer',color:'#6B7280',fontSize:12,fontWeight:600,padding:'2px 0',marginBottom:8}}
             onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#6B7280'}>
