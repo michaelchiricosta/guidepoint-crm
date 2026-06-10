@@ -171,9 +171,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
-            </div>
+            <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
             <div>
               <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
               <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
@@ -216,9 +214,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
             <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
-                </div>
+                <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
                 <div>
                   <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
                   <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
@@ -233,9 +229,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
-              </div>
+              <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',display:'block'}} alt="Ledgr."/>
             </button>
             <button onClick={toggleCollapsed} title="Expand"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
@@ -390,9 +384,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
         <div style={{padding:'14px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
-          </div>
+          <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover'}} alt="Ledgr."/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
             style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s',fontSize:16}}
             onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>›</button>
@@ -401,9 +393,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
         <div style={{padding:'14px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <div style={{width:40,height:40,borderRadius:10,background:'#007AFF',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <span style={{color:'#FFFFFF',fontSize:20,fontWeight:700,lineHeight:1}}>L</span>
-              </div>
+              <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
               <div>
                 <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
                 <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
@@ -1195,14 +1185,18 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       {/* Today's Tasks modal */}
       {todayModal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}} onClick={()=>{setTodayModal(false);closeDetail()}}>
-          <div style={{width:mob?'100%':'70vw',height:mob?'100%':'75vh',background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:'3px solid #6366f1',borderRadius:mob?0:12,display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
-              <div>
-                <div style={{fontSize:16,fontWeight:700,color:S.txt}}>Today's Tasks</div>
-                <div style={{fontSize:12,color:S.muted,marginTop:2}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}</div>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}} onClick={()=>{setTodayModal(false);closeDetail()}}>
+          <div style={{background:'#FFFFFF',borderRadius:mob?0:16,boxShadow:'0 8px 40px rgba(0,0,0,0.12)',maxWidth:mob?'100%':680,width:'90vw',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column',height:mob?'100%':'auto'}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'24px 28px 20px',borderBottom:'1px solid #F3F4F6',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center'}}>
+                <span style={{fontSize:16,fontWeight:600,color:'#111827'}}>Today's Tasks</span>
+                <span style={{fontSize:12,fontWeight:500,color:'#6B7280',background:'#F3F4F6',borderRadius:20,padding:'2px 10px',marginLeft:10}}>{todayTasksCount}</span>
               </div>
-              <button onClick={()=>{setTodayModal(false);closeDetail()}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px',marginTop:-2}}>×</button>
+              <button onClick={()=>{setTodayModal(false);closeDetail()}}
+                style={{width:32,height:32,borderRadius:8,background:'#F9FAFB',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#6B7280',flexShrink:0}}
+                onMouseEnter={e=>e.currentTarget.style.background='#F3F4F6'} onMouseLeave={e=>e.currentTarget.style.background='#F9FAFB'}>
+                <X size={16}/>
+              </button>
             </div>
             <div style={{flex:1,overflowY:'auto'}} onClick={()=>taskSnoozeOpen&&setTaskSnoozeOpen(false)}>
               {selectedTask&&taskForm ? (
@@ -1263,49 +1257,54 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 </div>
               ) : todayGrouped.length===0 ? (
                 /* ── Empty state ── */
-                <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14,padding:40}}>
-                  <div style={{width:56,height:56,borderRadius:'50%',background:'rgba(34,197,94,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,color:S.green}}>✓</div>
-                  <div style={{fontSize:18,fontWeight:700,color:S.txt}}>All clear today!</div>
-                  <div style={{fontSize:13,color:S.muted,textAlign:'center'}}>No tasks due today across any of your accounts.</div>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:48,gap:12}}>
+                  <div style={{width:48,height:48,borderRadius:'50%',background:'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <span style={{fontSize:14,color:'#9CA3AF'}}>No items</span>
                 </div>
               ) : (
                 /* ── Task list ── */
                 todayGrouped.map(g=>{
-                  const sc=({Strategic:'#a855f7',Active:S.green,Prospect:S.blue,'At Risk':S.red})[g.account.status]||S.muted
                   return (
-                    <div key={g.account.id} style={{borderBottom:`1px solid ${S.bdr}`}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 20px 8px',background:S.surf2}}>
-                        <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{g.account.name}</span>
-                        <span style={{fontSize:10,fontWeight:700,color:sc,background:sc+'1a',borderRadius:999,padding:'1px 8px'}}>{g.account.status}</span>
-                        <span style={{fontSize:10,color:S.muted,marginLeft:'auto'}}>{g.tasks.length} task{g.tasks.length!==1?'s':''}</span>
+                    <div key={g.account.id}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 28px 6px',background:'#FAFAFA'}}>
+                        <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{g.account.name}</span>
+                        <span style={{fontSize:10,color:'#9CA3AF',marginLeft:'auto'}}>{g.tasks.length} task{g.tasks.length!==1?'s':''}</span>
                       </div>
                       {g.tasks.map(fu=>{
                         const p=PC[fu.priority]||PC.Low
                         const isOverdue=fu.dueDate<lpTodayStr
                         const daysOver=isOverdue?Math.round((new Date()-new Date(fu.dueDate+'T12:00:00'))/86400000):0
                         const isEditingThis = todayEditRow?.fuId===fu.id
+                        const priorityBg = fu.priority==='Critical'?'#FEE2E2':fu.priority==='High'?'#FEF3C7':'#F3F4F6'
+                        const priorityColor = fu.priority==='Critical'?'#DC2626':fu.priority==='High'?'#D97706':'#6B7280'
                         return (
                           <div key={fu.id}>
-                            <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 20px',borderLeft:`3px solid ${p.c}`,marginLeft:20,borderBottom:isEditingThis?'none':`1px solid ${S.bdr}22`}}>
-                              <button onClick={()=>markTaskDone(g.account.id,fu.id)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}} title='Mark complete'/>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:2}}>
-                                  <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{fu.task}</span>
-                                  <Badge label={fu.priority} color={p.c} bg={p.b}/>
-                                  {isOverdue&&<Badge label={`${daysOver}d overdue`} color={S.red} bg='rgba(239,68,68,0.12)'/>}
-                                  {!isOverdue&&<Badge label='Due Today' color={S.orange} bg='rgba(249,115,22,0.12)'/>}
-                                </div>
-                                {fu.contact&&<div style={{fontSize:11,color:S.muted}}>{fu.contact}</div>}
+                            <div style={{display:'flex',alignItems:'center',gap:0,minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                              onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
+                              onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
+                              <button onClick={()=>markTaskDone(g.account.id,fu.id)} title='Mark complete'
+                                style={{width:16,height:16,borderRadius:4,border:'1.5px solid #D1D5DB',background:'#FFFFFF',flexShrink:0,marginRight:16,cursor:'pointer'}}/>
+                              <span style={{width:48,minWidth:48,background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:600,textTransform:'uppercase',borderRadius:6,padding:'4px 0',textAlign:'center',marginRight:16,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(g.account.short||g.account.name||'').slice(0,6)}</span>
+                              <div style={{flex:1,minWidth:0,marginRight:12}}>
+                                <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{fu.task}</div>
+                                <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{fu.contact&&<span>{fu.contact}{isOverdue||true?' · ':''}</span>}{isOverdue?<span style={{color:'#DC2626'}}>{daysOver}d overdue</span>:<span>Due today</span>}</div>
                               </div>
-                              <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center'}}>
-                                {todayEditFlash===fu.id&&<span style={{fontSize:11,color:S.green,fontWeight:700,alignSelf:'center'}}>Saved!</span>}
-                                <button onClick={()=>openTaskDetail(g.account.id,fu)} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
-                                <button onClick={e=>{e.stopPropagation();openTodayEdit(g.account.id,fu)}} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏ Edit</button>
+                              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                                {todayEditFlash===fu.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
+                                <span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{isOverdue?`${daysOver}d overdue`:'Today'}</span>
+                                <span style={{background:priorityBg,color:priorityColor,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{fu.priority}</span>
+                                <button onClick={()=>openTaskDetail(g.account.id,fu)}
+                                  style={{background:'#FFFFFF',border:'1px solid #EEEFF2',color:'#374151',fontSize:12,borderRadius:6,padding:'4px 12px',cursor:'pointer',whiteSpace:'nowrap'}}
+                                  onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'} onMouseLeave={e=>e.currentTarget.style.background='#FFFFFF'}>View</button>
+                                <button onClick={e=>{e.stopPropagation();openTodayEdit(g.account.id,fu)}} title='Edit'
+                                  style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
+                                  onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Pencil size={14}/></button>
                                 <button onClick={()=>{sendToAppleReminders(fu,g.account.name);setRemindersToast(true);setTimeout(()=>setRemindersToast(false),2000)}}
                                   title='Send to Apple Reminders'
-                                  style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',padding:'3px',display:'flex',alignItems:'center',flexShrink:0}}
-                                  onMouseEnter={e=>e.currentTarget.style.color='#475569'}
-                                  onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Share2 size={14}/></button>
+                                  style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
+                                  onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Share2 size={14}/></button>
                               </div>
                             </div>
                             {isEditingThis&&todayEditRow&&(
@@ -1345,9 +1344,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               )}
             </div>
             {!selectedTask&&todayGrouped.length>0&&(
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 20px',borderTop:`1px solid ${S.bdr}`,flexShrink:0,background:S.surf2}}>
-                <span style={{fontSize:12,color:S.muted}}>{todayTasksCount} task{todayTasksCount!==1?'s':''} across {todayGrouped.length} account{todayGrouped.length!==1?'s':''}</span>
-                <button onClick={markAllTodayDone} style={{fontSize:12,color:S.green,background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.25)',borderRadius:6,padding:'6px 14px',cursor:'pointer',fontWeight:600}}>Mark All Complete</button>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 28px',borderTop:'1px solid #F3F4F6',flexShrink:0,background:'#FFFFFF'}}>
+                <span style={{fontSize:12,color:'#9CA3AF'}}>{todayTasksCount} task{todayTasksCount!==1?'s':''} across {todayGrouped.length} account{todayGrouped.length!==1?'s':''}</span>
+                <button onClick={markAllTodayDone} style={{fontSize:12,color:'#059669',background:'#D1FAE5',border:'none',borderRadius:8,padding:'7px 16px',cursor:'pointer',fontWeight:600}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#A7F3D0'} onMouseLeave={e=>e.currentTarget.style.background='#D1FAE5'}>Mark All Complete</button>
               </div>
             )}
           </div>
@@ -1371,42 +1371,60 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       {/* Stat detail modal */}
       {statModal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.78)',display:'flex',alignItems:mob?'stretch':'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}}
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:mob?0:20}}
           onClick={()=>{setStatModal(null);setEditingItem(null)}}>
-          <div style={{background:S.surf,border:mob?'none':`1px solid ${S.bdr}`,borderTop:`3px solid ${statModal.color}`,borderRadius:mob?0:12,width:'100%',maxWidth:mob?'100%':860,height:mob?'100%':'auto',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column'}}
+          <div style={{background:'#FFFFFF',borderRadius:mob?0:16,boxShadow:'0 8px 40px rgba(0,0,0,0.12)',maxWidth:mob?'100%':680,width:'90vw',maxHeight:mob?'100%':'80vh',overflow:'hidden',display:'flex',flexDirection:'column',height:mob?'100%':'auto'}}
             onClick={e=>e.stopPropagation()}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:`1px solid ${S.bdr}`,flexShrink:0}}>
-              <div>
-                <span style={{fontSize:16,fontWeight:700,color:statModal.color}}>{statModal.label}</span>
-                <span style={{fontSize:13,color:S.muted,marginLeft:10}}>{statModal.items.length} item{statModal.items.length!==1?'s':''}</span>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'24px 28px 20px',borderBottom:'1px solid #F3F4F6',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center'}}>
+                <span style={{fontSize:16,fontWeight:600,color:'#111827'}}>{statModal.label}</span>
+                <span style={{fontSize:12,fontWeight:500,color:'#6B7280',background:'#F3F4F6',borderRadius:20,padding:'2px 10px',marginLeft:10}}>{statModal.items.length}</span>
               </div>
-              <button onClick={()=>{setStatModal(null);setEditingItem(null)}} style={{background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
+              <button onClick={()=>{setStatModal(null);setEditingItem(null)}}
+                style={{width:32,height:32,borderRadius:8,background:'#F9FAFB',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#6B7280',flexShrink:0}}
+                onMouseEnter={e=>e.currentTarget.style.background='#F3F4F6'} onMouseLeave={e=>e.currentTarget.style.background='#F9FAFB'}>
+                <X size={16}/>
+              </button>
             </div>
-            <div style={{overflow:'auto',flex:1,padding:'4px 0'}}>
-              {statModal.items.length===0&&<div style={{padding:'32px 20px',textAlign:'center',color:S.muted,fontSize:13}}>No items in this category.</div>}
+            <div style={{overflowY:'auto',flex:1,padding:'8px 0'}}>
+              {statModal.items.length===0&&(
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:48,gap:12}}>
+                  <div style={{width:48,height:48,borderRadius:'50%',background:'#F3F4F6',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <span style={{fontSize:14,color:'#9CA3AF'}}>No items</span>
+                </div>
+              )}
               {(statModal.type==='followups'||statModal.type==='critical')&&statModal.items.map((item,i)=>{
                 const p=PC[item.priority]||PC.Low
                 const d=item.dueDate?daysUntil(item.dueDate):null
                 const urgLabel=d!==null?(d<0?`${Math.abs(d)}d overdue`:d===0?'Today':d===1?'Tomorrow':`In ${d}d`):null
-                const urgColor=d!==null&&d<0?PC.Critical.c:d===0?PC.High.c:PC.Medium.c
                 const isEditingThis = editingItem?.itemId===item.id
                 const ef = isEditingThis ? editingItem.form : null
+                const priorityBg = item.priority==='Critical'?'#FEE2E2':item.priority==='High'?'#FEF3C7':'#F3F4F6'
+                const priorityColor = item.priority==='Critical'?'#DC2626':item.priority==='High'?'#D97706':'#6B7280'
                 return (
                   <div key={item.id||i}>
-                    <div style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 16px',borderBottom:isEditingThis?'none':`1px solid ${S.bdr}`,borderLeft:`3px solid ${p.c}`}}>
+                    <div style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                      onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
+                      onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
                       <button onClick={()=>completeFUInModal(item.accountId,item.id)} title='Mark complete'
-                        style={{width:18,height:18,borderRadius:4,border:`2px solid ${p.c}`,background:'transparent',flexShrink:0,marginTop:2,cursor:'pointer'}}/>
-                      <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.task}</div>
-                        <div style={{fontSize:11,color:S.muted}}>{item.contact&&<span>{item.contact} · </span>}{d!==null&&<span style={{color:d<0?S.red:S.muted}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
+                        style={{width:16,height:16,borderRadius:4,border:'1.5px solid #D1D5DB',background:'#FFFFFF',flexShrink:0,marginRight:16,cursor:'pointer'}}/>
+                      <span style={{width:48,minWidth:48,background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:600,textTransform:'uppercase',borderRadius:6,padding:'4px 0',textAlign:'center',marginRight:16,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.accountName||'').slice(0,6)}</span>
+                      <div style={{flex:1,minWidth:0,marginRight:12}}>
+                        <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{item.task}</div>
+                        <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{item.contact&&<span>{item.contact}{d!==null?' · ':''}</span>}{d!==null&&<span style={{color:d<0?'#DC2626':'#9CA3AF'}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
                       </div>
-                      {urgLabel&&<span style={{fontSize:11,fontWeight:700,color:urgColor,background:S.isLight?urgColor+'15':urgColor+'22',borderRadius:5,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0,border:`1px solid ${urgColor}33`}}>{urgLabel}</span>}
-                      <Badge label={item.priority} color={p.c} bg={p.b}/>
-                      <div style={{display:'flex',gap:5,flexShrink:0}}>
-                        {saveFlash===item.id&&<span style={{fontSize:11,color:S.green,fontWeight:700,alignSelf:'center'}}>Saved!</span>}
-                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
-                        <button onClick={()=>openEditItem('followup',item.accountId,item)} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏</button>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                        {saveFlash===item.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
+                        {urgLabel&&<span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{urgLabel}</span>}
+                        <span style={{background:priorityBg,color:priorityColor,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{item.priority}</span>
+                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
+                          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',color:'#374151',fontSize:12,borderRadius:6,padding:'4px 12px',cursor:'pointer',whiteSpace:'nowrap'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'} onMouseLeave={e=>e.currentTarget.style.background='#FFFFFF'}>View</button>
+                        <button onClick={()=>openEditItem('followup',item.accountId,item)} title='Edit'
+                          style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Pencil size={14}/></button>
                       </div>
                     </div>
                     {isEditingThis&&ef&&(
@@ -1441,28 +1459,32 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 )
               })}
               {statModal.type==='renewals'&&statModal.items.map((item,i)=>{
-                const dc=item.daysLeft<30?S.red:item.daysLeft<60?S.orange:S.yellow
+                const dc=item.daysLeft<30?'#DC2626':item.daysLeft<60?'#D97706':'#D97706'
+                const dcBg=item.daysLeft<30?'#FEE2E2':'#FEF3C7'
                 const isEditingThis = editingItem?.itemId===item.id
                 const ef = isEditingThis ? editingItem.form : null
                 return (
                   <div key={item.id||i}>
-                    <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:isEditingThis?'none':`1px solid ${S.bdr}`}}>
-                      <button onClick={()=>setStatModal(prev=>prev?{...prev,items:prev.items.filter(it=>it.id!==item.id)}:null)} title='Acknowledge'
-                        style={{width:18,height:18,borderRadius:4,border:`2px solid ${dc}`,background:'transparent',flexShrink:0,cursor:'pointer'}} title='Acknowledge renewal'/>
-                      <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.vendor}</div>
-                        {item.products&&<div style={{fontSize:11,color:S.muted}}>{item.products}</div>}
+                    <div style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                      onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
+                      onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
+                      <button onClick={()=>setStatModal(prev=>prev?{...prev,items:prev.items.filter(it=>it.id!==item.id)}:null)} title='Acknowledge renewal'
+                        style={{width:16,height:16,borderRadius:4,border:'1.5px solid #D1D5DB',background:'#FFFFFF',flexShrink:0,marginRight:16,cursor:'pointer'}}/>
+                      <span style={{width:48,minWidth:48,background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:600,textTransform:'uppercase',borderRadius:6,padding:'4px 0',textAlign:'center',marginRight:16,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.accountName||'').slice(0,6)}</span>
+                      <div style={{flex:1,minWidth:0,marginRight:12}}>
+                        <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{item.vendor}</div>
+                        <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{item.products&&<span>{item.products} · </span>}{fmtDate(item.renewalDate)}{item.cost&&<span> · {item.cost}</span>}</div>
                       </div>
-                      <div style={{textAlign:'right',flexShrink:0}}>
-                        <div style={{fontSize:14,fontWeight:700,color:dc}}>{item.daysLeft}d</div>
-                        <div style={{fontSize:11,color:S.muted}}>{fmtDate(item.renewalDate)}</div>
-                        {item.cost&&<div style={{fontSize:11,color:S.muted}}>{item.cost}</div>}
-                      </div>
-                      <div style={{display:'flex',gap:5,flexShrink:0}}>
-                        {saveFlash===item.id&&<span style={{fontSize:11,color:S.green,fontWeight:700}}>Saved!</span>}
-                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}} style={{fontSize:11,color:'#6366f1',background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.25)',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>View</button>
-                        <button onClick={()=>openEditItem('techstack',item.accountId,item)} style={{fontSize:11,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'3px 8px',cursor:'pointer',whiteSpace:'nowrap'}}>✏</button>
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                        {saveFlash===item.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
+                        <span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>In {item.daysLeft}d</span>
+                        <span style={{background:dcBg,color:dc,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{item.daysLeft<30?'Critical':'Upcoming'}</span>
+                        <button onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
+                          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',color:'#374151',fontSize:12,borderRadius:6,padding:'4px 12px',cursor:'pointer',whiteSpace:'nowrap'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'} onMouseLeave={e=>e.currentTarget.style.background='#FFFFFF'}>View</button>
+                        <button onClick={()=>openEditItem('techstack',item.accountId,item)} title='Edit'
+                          style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Pencil size={14}/></button>
                       </div>
                     </div>
                     {isEditingThis&&ef&&(
@@ -1498,19 +1520,22 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 const comp=item.timeline?item.timeline.filter(s=>s.status==='completed').length:0
                 return (
                   <div key={i} onClick={()=>{onNavigateTo(item.accountId,statModal.tab);setStatModal(null)}}
-                    style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 20px',borderBottom:`1px solid ${S.bdr}`,cursor:'pointer',transition:'background 0.1s'}}
-                    onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                    style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',cursor:'pointer',transition:'background 0.1s'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='#FAFAFA'}
                     onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <span style={{fontSize:11,fontWeight:700,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0}}>{item.accountName}</span>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>{item.name}</div>
-                      <div style={{fontSize:11,color:S.muted}}>
+                    <span style={{width:48,minWidth:48,background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:600,textTransform:'uppercase',borderRadius:6,padding:'4px 0',textAlign:'center',marginRight:16,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(item.accountName||'').slice(0,6)}</span>
+                    <div style={{flex:1,minWidth:0,marginRight:12}}>
+                      <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{item.name}</div>
+                      <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>
                         {item.vendor&&<span>{item.vendor} · </span>}
-                        {item.primaryContact&&<span>{item.primaryContact} · </span>}
-                        {item.closeDate&&<span>Close: {fmtDate(item.closeDate)}</span>}
+                        {item.primaryContact&&<span>{item.primaryContact}</span>}
+                        {item.closeDate&&<span> · Close: {fmtDate(item.closeDate)}</span>}
                       </div>
                     </div>
-                    <div style={{fontSize:11,fontWeight:700,color:S.green,flexShrink:0}}>{comp}/{STAGES.length} stages</div>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                      <span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{comp}/{STAGES.length} stages</span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
                   </div>
                 )
               })}
