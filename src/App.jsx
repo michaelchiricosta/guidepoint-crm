@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
 import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
@@ -172,10 +172,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-            <div>
-              <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
-              <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
-            </div>
+            <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
           </div>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
@@ -215,10 +212,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
             <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-                <div>
-                  <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
-                  <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
-                </div>
+                <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
               </div>
             </button>
             <button onClick={toggleCollapsed} title="Collapse"
@@ -394,10 +388,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-              <div>
-                <div style={{fontSize:17,fontWeight:700,color:'#111827',lineHeight:1.2}}>Ledgr.</div>
-                <div style={{fontSize:11,color:'#9CA3AF',lineHeight:1.3}}>your book of business. organized.</div>
-              </div>
+              <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
             </div>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s',marginTop:2}}
@@ -453,9 +444,11 @@ const RoundedTopBar = ({x, y, width, height, fill}) => {
   return <path d={`M${x},${y+height} L${x},${y+r} Q${x},${y} ${x+r},${y} L${x+width-r},${y} Q${x+width},${y} ${x+width},${y+r} L${x+width},${y+height} Z`} fill={fill}/>
 }
 
-function BarChartCard({data}) {
+const BarChartCard = memo(function BarChartCard({data}) {
   const [view, setView] = useState('projects')
   const [showExpanded, setShowExpanded] = useState(false)
+  const [animated, setAnimated] = useState(true)
+  useEffect(() => { const t = setTimeout(() => setAnimated(false), 1200); return () => clearTimeout(t) }, [])
 
   const getAccountGP = (acct) => (acct.projects||[])
     .filter(p=>p.status==='Won')
@@ -511,11 +504,11 @@ function BarChartCard({data}) {
         <RechartsTooltip content={<CustomTooltip/>} cursor={{fill:'rgba(0,0,0,0.03)'}}/>
         {view==='projects' ? (
           <>
-            <Bar dataKey="In Flight" shape={<RoundedTopBar fill="#007AFF"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
-            <Bar dataKey="In Discussion" shape={<RoundedTopBar fill="#BFDBFE"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
+            <Bar dataKey="In Flight" shape={<RoundedTopBar fill="#007AFF"/>} maxBarSize={10} isAnimationActive={animated} animationDuration={800}/>
+            <Bar dataKey="In Discussion" shape={<RoundedTopBar fill="#BFDBFE"/>} maxBarSize={10} isAnimationActive={animated} animationDuration={800}/>
           </>
         ) : (
-          <Bar dataKey="gp" name="Closed Won GP" shape={<RoundedTopBar fill="#10B981"/>} maxBarSize={10} isAnimationActive={true} animationDuration={800}/>
+          <Bar dataKey="gp" name="Closed Won GP" shape={<RoundedTopBar fill="#10B981"/>} maxBarSize={10} isAnimationActive={animated} animationDuration={800}/>
         )}
       </BarChart>
     </ResponsiveContainer>
@@ -590,7 +583,7 @@ function BarChartCard({data}) {
       </div>
     </>
   )
-}
+})
 
 function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   const quotaTarget = data.quotaTarget || 0
@@ -703,7 +696,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
-  const [hoveredStat, setHoveredStat] = useState(null)
   const [statModal, setStatModal] = useState(null)
   const [viewMode, setViewMode] = useState(()=>localStorage.getItem('accounts-view-mode')||'grid')
   const [listSearch, setListSearch] = useState('')
@@ -888,20 +880,20 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           {/* Today's Tasks — hero tile (blue gradient) */}
           <button
             onClick={()=>setTodayModal(true)}
-            onMouseEnter={()=>setHoveredStat('today')}
-            onMouseLeave={()=>setHoveredStat(null)}
+            onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(37,99,235,0.4)';e.currentTarget.style.transform='translateY(-2px)'}}
+            onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 2px 8px rgba(37,99,235,0.25)';e.currentTarget.style.transform='translateY(0)'}}
             style={S.isLight?{
               background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 60%,#3b82f6 100%)',
               border:'none',
-              boxShadow:hoveredStat==='today'?'0 8px 24px rgba(37,99,235,0.4)':'0 2px 8px rgba(37,99,235,0.25)',
+              boxShadow:'0 2px 8px rgba(37,99,235,0.25)',
               borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
-              transform:hoveredStat==='today'?'translateY(-2px)':'translateY(0)',
+              transform:'translateY(0)',
               minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
             }:{
               background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',
-              border:`1px solid ${hoveredStat==='today'?'#6366f1':S.bdr}`,
-              boxShadow:hoveredStat==='today'?'0 4px 16px rgba(99,102,241,0.35)':'none',
+              border:`1px solid ${S.bdr}`,
+              boxShadow:'none',
               borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
               minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
@@ -920,21 +912,21 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           {STAT_DEFS.map(stat=>(
             <button key={stat.label}
               onClick={()=>stat.type==='projects'&&onGoAllProjects?onGoAllProjects():setStatModal({...stat,items:stat.buildData()})}
-              onMouseEnter={()=>setHoveredStat(stat.label)}
-              onMouseLeave={()=>setHoveredStat(null)}
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-2px)'}}
+              onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)';e.currentTarget.style.transform='translateY(0)'}}
               style={S.isLight?{
                 background:'#ffffff',
                 border:'1px solid #e2e8f0',
                 borderTop:'none',
-                boxShadow:hoveredStat===stat.label?'0 8px 24px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
+                boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
                 borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
-                transform:hoveredStat===stat.label?'translateY(-2px)':'translateY(0)',
+                transform:'translateY(0)',
                 minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
                 flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
               }:{
                 background:S.surf,
-                border:`1px solid ${hoveredStat===stat.label?stat.color:S.bdr}`,
-                boxShadow:hoveredStat===stat.label?`0 4px 16px ${stat.color}22`:'none',
+                border:`1px solid ${S.bdr}`,
+                boxShadow:'none',
                 borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
                 minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
                 flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
@@ -4788,11 +4780,11 @@ export default function App() {
         <div style={{background:S.isLight?'#ffffff':S.headerBg,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.blue,cursor:'pointer',fontSize:11,fontWeight:600,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>← All Accounts</button>
+              <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:'1px solid #EEEFF2',borderRadius:6,color:'#9CA3AF',cursor:'pointer',fontSize:12,fontWeight:500,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>‹ All Accounts</button>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 {acct.logoImage&&<div style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:`1px solid ${S.bdr}`}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
                 <div>
-                  <div style={{fontSize:S.isLight?20:17,fontWeight:800,color:S.txt,lineHeight:1.2}}>{acct.name}</div>
+                  <div style={{fontSize:20,fontWeight:700,color:'#111827',lineHeight:1.2}}>{acct.name}</div>
                 </div>
               </div>
             </div>

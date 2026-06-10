@@ -214,7 +214,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   const [showAIChat,setShowAIChat] = useState(false)
   const [showHealthModal,setShowHealthModal] = useState(false)
   const [completingFU,setCompletingFU] = useState(null)
-  const [hoveredCard,setHoveredCard] = useState(null)
   const [showAddDate,setShowAddDate] = useState(false)
   const [dateForm,setDateForm] = useState({title:'',date:'',type:'Meeting',notes:''})
   const [showMoreDates,setShowMoreDates] = useState(false)
@@ -485,14 +484,11 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':typeof window!=='undefined'&&window.innerWidth<1200?'repeat(4,1fr)':'repeat(8,1fr)',gap:8,marginBottom:16}}>
         {/* AI Intelligence — first / leftmost */}
         <div onClick={()=>setShowAIChat(true)}
-          style={{background:'linear-gradient(135deg,#0a1628 0%,#0066cc 50%,#0ea5e9 100%)',border:'1px solid rgba(14,165,233,0.3)',borderRadius:8,padding:'14px 16px',cursor:'pointer',transition:'box-shadow 0.2s',boxShadow:'0 2px 8px rgba(0,0,0,0.3)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
-          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 0 20px rgba(14,165,233,0.4)'}
-          onMouseLeave={e=>e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.3)'}>
-          <div style={{fontSize:22,animation:'aiPulse 3s infinite',lineHeight:1}}>✦</div>
-          <div>
-            <div style={{fontSize:15,fontWeight:800,color:'#fff',marginBottom:3}}>AI Intelligence</div>
-            <div style={{fontSize:12,color:'rgba(255,255,255,0.6)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Account Intel</div>
-          </div>
+          style={{background:'#F0F7FF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,122,255,0.12)'}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+          <div style={{fontSize:18,color:'#007AFF',lineHeight:1,marginBottom:4}}>✦</div>
+          <div style={{fontSize:11,fontWeight:600,color:'#007AFF'}}>AI Intelligence</div>
         </div>
         {/* Health Score card — second */}
         {(()=>{
@@ -501,62 +497,48 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
           const hg=`linear-gradient(135deg,#0a1628 0%,${hc} 100%)`
           return (
             <div onClick={()=>setShowHealthModal(true)}
-              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:`3px solid ${hc}`,borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
-              onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)';e.currentTarget.style.transform='translateY(-1px)'}}
-              onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)';e.currentTarget.style.transform='translateY(0)'}}>
-              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}}>Health Score</div>
-              <div style={{fontSize:36,fontWeight:900,color:'#111827',lineHeight:1}}>{hs}</div>
+              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
+              onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+              <div style={{fontSize:22,fontWeight:700,color:hc}}>{hs}</div>
+              <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Health Score</div>
             </div>
           )
         })()}
         {/* Metric cards */}
         {[
-          {label:'Open Follow-Ups',val:openFU.length,c:'#007AFF',tab:'followups',type:'followups'},
-          {label:'Active Projects',val:inFlight,c:'#16a34a',tab:'projects',type:'projects'},
-          {label:'Contacts Mapped',val:acct.contacts.length,c:'#7c3aed',tab:'contacts',type:'contacts'},
-          {label:'Days Since Contact',val:lastC,c:typeof lastC==='number'&&lastC>14?'#ea580c':'#16a34a',tab:'intel',type:'contact-days'}
-        ].map(m=>{
-          const isHov = hoveredCard===m.label
-          return (
-            <div key={m.label}
-              onClick={()=>setTab(m.tab)}
-              onMouseEnter={()=>setHoveredCard(m.label)}
-              onMouseLeave={()=>setHoveredCard(null)}
-              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:`3px solid ${m.c}`,borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
-              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>{m.label}</div>
-              <div style={{fontSize:36,fontWeight:900,color:'#111827',lineHeight:1}}>{m.val}</div>
-            </div>
-          )
-        })}
+          {label:'Open Follow-Ups',val:openFU.length,tab:'followups'},
+          {label:'Active Projects',val:inFlight,tab:'projects'},
+          {label:'Contacts Mapped',val:acct.contacts.length,tab:'contacts'},
+          {label:'Days Since Contact',val:lastC,tab:'intel'}
+        ].map(m=>(
+          <div key={m.label}
+            onClick={()=>setTab(m.tab)}
+            style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
+            onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
+            onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+            <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{m.val}</div>
+            <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{m.label}</div>
+          </div>
+        ))}
         {/* Annual Spend card */}
-        {(()=>{
-          const isHov=hoveredCard==='ANNUAL SPEND'
-          return (
-            <div
-              onClick={()=>setShowSpendModal(true)}
-              onMouseEnter={()=>setHoveredCard('ANNUAL SPEND')}
-              onMouseLeave={()=>setHoveredCard(null)}
-              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:'3px solid #8B5CF6',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
-              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Annual Spend</div>
-              <div style={{fontSize:22,fontWeight:900,color:'#111827',lineHeight:1}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
-            </div>
-          )
-        })()}
+        <div
+          onClick={()=>setShowSpendModal(true)}
+          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+          <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
+          <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Annual Spend</div>
+        </div>
         {/* Pipeline card */}
-        {(()=>{
-          const isHov=hoveredCard==='PIPELINE'
-          return (
-            <div
-              onClick={()=>setShowPipelineModal(true)}
-              onMouseEnter={()=>setHoveredCard('PIPELINE')}
-              onMouseLeave={()=>setHoveredCard(null)}
-              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderTop:'3px solid #0891b2',borderRadius:12,padding:'14px 16px',boxShadow:isHov?'0 4px 12px rgba(0,0,0,0.10)':'0 1px 4px rgba(0,0,0,0.06)',minHeight:80,display:'flex',flexDirection:'column',justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s',transform:isHov?'translateY(-1px)':'translateY(0)'}}>
-              <div style={{fontSize:10,color:'#9CA3AF',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.08em'}}>Pipeline</div>
-              <div style={{fontSize:22,fontWeight:900,color:'#111827',lineHeight:1}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
-              {totalWeightedPipeline>0&&<div style={{fontSize:9,color:'#9CA3AF',marginTop:1}}>weighted by stage</div>}
-            </div>
-          )
-        })()}
+        <div
+          onClick={()=>setShowPipelineModal(true)}
+          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+          <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
+          <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Pipeline</div>
+        </div>
       </div>
       {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
       {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
@@ -653,15 +635,14 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       })()}
       {alerts.length>0&&(
         <div style={{marginBottom:20}}>
-          <div style={{background:'#FFFFFF',borderRadius:12,border:`1px solid ${visibleAlerts.length===0?'#A7F3D0':'#FECACA'}`,boxShadow:visibleAlerts.length===0?'0 2px 8px rgba(16,185,129,0.08)':'0 2px 8px rgba(239,68,68,0.08)',overflow:'hidden'}}>
+          <div style={{background:'#FFFFFF',borderRadius:12,border:'1px solid #EEEFF2',overflow:'hidden'}}>
             {/* Header inside container */}
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${visibleAlerts.length===0?(S.isLight?'#dcfce7':S.bdr):(S.isLight?'#fef2f2':S.bdr)}`}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid #EEEFF2'}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:8}}>
-                <span style={{width:7,height:7,borderRadius:'50%',background:visibleAlerts.length===0?'#16a34a':'#dc2626',display:'inline-block',animation:'alertPulse 2s infinite',flexShrink:0}}/>
-                <span style={{fontSize:11,fontWeight:800,color:visibleAlerts.length===0?(S.isLight?'#16a34a':S.green):(S.isLight?'#dc2626':S.red),letterSpacing:'0.1em',textTransform:'uppercase'}}>Alerts</span>
-                {visibleAlerts.length>0&&<span style={{background:S.isLight?'#fee2e2':'rgba(239,68,68,0.2)',color:S.isLight?'#dc2626':'#ef4444',fontSize:11,fontWeight:700,padding:'1px 8px',borderRadius:999}}>{visibleAlerts.length}</span>}
+                <span style={{fontSize:11,fontWeight:600,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase'}}>ALERTS</span>
+                {visibleAlerts.length>0&&<span style={{background:'#FEE2E2',color:'#DC2626',fontSize:11,fontWeight:700,padding:'1px 8px',borderRadius:999}}>{visibleAlerts.length}</span>}
               </div>
-              {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:S.isLight?'#64748b':S.muted,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Clear All</button>}
+              {visibleAlerts.length>0&&<button onClick={clearAll} style={{fontSize:11,color:'#9CA3AF',background:'transparent',border:'1px solid #EEEFF2',borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Clear All</button>}
             </div>
             {/* Alert rows / empty state */}
             {visibleAlerts.length===0
@@ -681,21 +662,18 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                         onClick={()=>openAlertDetail(a)}
                         onMouseEnter={()=>setHoveredAlert(a.id)}
                         onMouseLeave={()=>setHoveredAlert(null)}
-                        style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderBottom:isLast?'none':`1px solid ${S.isLight?'#fef2f2':S.bdr}`,background:isHov?(S.isLight?'#fef9f9':'rgba(255,255,255,0.03)'):'transparent',cursor:'pointer',transition:'background 0.1s'}}>
-                        {/* Colored severity bar */}
-                        <div style={{width:4,borderRadius:2,background:c,alignSelf:'stretch',flexShrink:0,minHeight:24}}/>
-                        <span style={{fontSize:13,color:S.isLight?'#374151':S.secondary,flex:1,lineHeight:1.5}}>{a.text}</span>
-                        <span style={{fontSize:11,color:S.muted,opacity:isHov?1:0,transition:'opacity 0.15s',flexShrink:0,whiteSpace:'nowrap',marginRight:2}}>→ details</span>
+                        style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',marginBottom:isLast?0:4,borderLeft:'3px solid #EF4444',borderRadius:'0 8px 8px 0',background:isHov?'#FAFAFA':'#FFFFFF',cursor:'pointer',transition:'background 0.1s'}}>
+                        <span style={{fontSize:13,color:'#374151',flex:1,lineHeight:1.5}}>{a.text}</span>
                         <button onClick={e=>{e.stopPropagation();setSnoozeOpenFor(isSnoozeOpen?null:a.id)}} title='Snooze alert'
-                          style={{background:'transparent',border:'none',color:isSnoozeOpen?c:S.dim,cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center',borderRadius:4,transition:'color 0.15s'}}
-                          onMouseEnter={e=>e.currentTarget.style.color=c}
-                          onMouseLeave={e=>e.currentTarget.style.color=isSnoozeOpen?c:S.dim}>
+                          style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px 4px',lineHeight:1,flexShrink:0,display:'flex',alignItems:'center',borderRadius:4,transition:'color 0.15s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#9CA3AF'}
+                          onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}>
                           <Clock size={13}/>
                         </button>
                         <button onClick={e=>{e.stopPropagation();dismiss(a.id)}} title='Dismiss alert'
-                          style={{background:'transparent',border:'none',color:S.dim,cursor:'pointer',fontSize:16,padding:'2px 4px',lineHeight:1,flexShrink:0,borderRadius:4,transition:'color 0.15s'}}
-                          onMouseEnter={e=>e.currentTarget.style.color=c}
-                          onMouseLeave={e=>e.currentTarget.style.color=S.dim}>×</button>
+                          style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',fontSize:16,padding:'2px 4px',lineHeight:1,flexShrink:0,borderRadius:4,transition:'color 0.15s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#9CA3AF'}
+                          onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}>×</button>
                       </div>
                       {isSnoozeOpen&&(
                         <div onClick={e=>e.stopPropagation()} style={{position:'absolute',right:0,top:'calc(100% + 4px)',zIndex:100,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',minWidth:220,overflow:'hidden'}}>
@@ -738,8 +716,14 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
             </div>}
             {/* Footer toggles */}
             {(hiddenAlerts.length>0||snoozedAlertsList.length>0)&&<div style={{padding:'8px 16px',borderTop:`1px solid ${S.isLight?'#fef2f2':S.bdr}`,display:'flex',gap:12}}>
-              {hiddenAlerts.length>0&&<button onClick={()=>setShowDismissed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',textDecoration:'underline'}}>{showDismissed?'Hide dismissed':`${hiddenAlerts.length} dismissed`}</button>}
-              {snoozedAlertsList.length>0&&<button onClick={()=>setShowSnoozed(v=>!v)} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',textDecoration:'underline'}}>{showSnoozed?'Hide snoozed':`${snoozedAlertsList.length} snoozed`}</button>}
+              {hiddenAlerts.length>0&&<button onClick={()=>setShowDismissed(v=>!v)}
+                style={{fontSize:12,color:'#9CA3AF',background:'transparent',border:'none',cursor:'pointer',transition:'color 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.color='#007AFF'}
+                onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>{showDismissed?'Hide dismissed':`${hiddenAlerts.length} dismissed`}</button>}
+              {snoozedAlertsList.length>0&&<button onClick={()=>setShowSnoozed(v=>!v)}
+                style={{fontSize:12,color:'#9CA3AF',background:'transparent',border:'none',cursor:'pointer',transition:'color 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.color='#007AFF'}
+                onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>{showSnoozed?'Hide snoozed':`${snoozedAlertsList.length} snoozed`}</button>}
             </div>}
           </div>
         </div>
@@ -748,19 +732,19 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       <div style={{marginBottom:20}}>
         <div style={{background:S.surf,borderRadius:12,border:`1px solid ${'#EEEFF2'}`,boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
           {/* Header */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #EEEFF2'}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{color:'#007AFF',fontSize:16,lineHeight:1}}>✦</span>
-              <span style={{fontSize:14,fontWeight:700,color:S.txt}}>Account Intelligence Summary</span>
+              <span style={{fontSize:16,fontWeight:600,color:'#111827'}}>Account Intelligence Summary</span>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               {acct.aiSummary?.generatedAt&&!summaryLoading&&(
-                <span style={{fontSize:11,color:S.muted}}>Generated {formatSummaryAge(acct.aiSummary.generatedAt)}</span>
+                <span style={{fontSize:12,color:'#9CA3AF'}}>Generated {formatSummaryAge(acct.aiSummary.generatedAt)}</span>
               )}
               <button onClick={generateSummary} disabled={summaryLoading} title='Refresh summary'
-                style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:`1px solid ${'#EEEFF2'}`,borderRadius:6,padding:'4px 10px',cursor:summaryLoading?'default':'pointer',color:S.muted,fontSize:12,fontWeight:500,transition:'all 0.15s'}}
-                onMouseEnter={e=>{if(!summaryLoading)e.currentTarget.style.borderColor=S.blue;if(!summaryLoading)e.currentTarget.style.color=S.blue}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='#EEEFF2';e.currentTarget.style.color=S.muted}}>
+                style={{display:'flex',alignItems:'center',gap:5,background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:6,padding:'5px 12px',cursor:summaryLoading?'default':'pointer',color:'#9CA3AF',fontSize:12,fontWeight:500,transition:'all 0.15s'}}
+                onMouseEnter={e=>{if(!summaryLoading)e.currentTarget.style.borderColor='#007AFF';if(!summaryLoading)e.currentTarget.style.color='#007AFF'}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='#EEEFF2';e.currentTarget.style.color='#9CA3AF'}}>
                 <span style={{display:'inline-block',animation:summaryLoading?'spin 1s linear infinite':'none',fontSize:13}}>↺</span>
                 Refresh
               </button>
@@ -798,25 +782,29 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
               const parsed = parseSummary(acct.aiSummary.content)
               const summaryBlock = parsed.find(s=>s.isSummary)
               const secMap = Object.fromEntries(parsed.filter(s=>!s.isSummary).map(s=>[s.key,s]))
+              const dotColors = {now:'#007AFF',coming:'#10B981',watch:'#F59E0B',momentum:'#8B5CF6'}
               const renderSec = sec => !sec ? null : sec.isNext ? (
-                <div key={sec.key} style={{background:S.isLight?'#fffbeb':'rgba(146,64,14,0.12)',border:`1px solid ${S.isLight?'#fde68a':'rgba(253,230,138,0.25)'}`,borderRadius:8,padding:'10px 14px',height:'100%',boxSizing:'border-box'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#92400e',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>⚡ {sec.title}</div>
-                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:13,fontWeight:700,color:S.isLight?'#92400e':'#fbbf24',lineHeight:1.55}}>→ {b}</div>)}
+                <div key={sec.key} style={{background:'#FFFFFF',borderLeft:'3px solid #007AFF',borderRadius:'0 10px 10px 0',padding:'16px 20px',boxSizing:'border-box'}}>
+                  <div style={{fontSize:10,fontWeight:600,color:'#007AFF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>RECOMMENDED NEXT MOVE</div>
+                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.6}}>→ {b}</div>)}
                 </div>
               ) : (
-                <div key={sec.key} style={{background:S.isLight?sec.lightBg:sec.darkBg,borderLeft:`3px solid ${sec.color}`,borderRadius:8,padding:'10px 14px',height:'100%',boxSizing:'border-box'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:sec.color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>{sec.title}</div>
-                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:12,color:S.isLight?'#374151':S.secondary,lineHeight:1.6,marginBottom:i<sec.bullets.length-1?3:0}}>• {b}</div>)}
+                <div key={sec.key} style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'20px',height:'100%',boxSizing:'border-box'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+                    <div style={{width:8,height:8,borderRadius:'50%',background:dotColors[sec.key]||sec.color,flexShrink:0}}/>
+                    <span style={{fontSize:11,fontWeight:600,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase'}}>{sec.title}</span>
+                  </div>
+                  {sec.bullets.map((b,i)=><div key={i} style={{fontSize:13,color:'#374151',lineHeight:1.6,marginBottom:i<sec.bullets.length-1?4:0}}>• {b}</div>)}
                 </div>
               )
               return (
                 <div>
                   {summaryBlock?.text&&(
-                    <div style={{fontSize:14,color:S.txt,lineHeight:1.7,padding:'14px 16px',borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`}}>
+                    <div style={{fontSize:14,color:'#374151',lineHeight:1.7,padding:'16px 20px',borderBottom:'1px solid #EEEFF2'}}>
                       {summaryBlock.text}
                     </div>
                   )}
-                  <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
                     <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:10,alignItems:'stretch'}}>
                       {renderSec(secMap.now)}
                       {renderSec(secMap.coming)}
