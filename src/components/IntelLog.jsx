@@ -78,6 +78,8 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [pendingDate, setPendingDate] = useState('')
   const [retryStatus, setRetryStatus] = useState('')
   const [detectedCompanies, setDetectedCompanies] = useState([])
+  const [generatingActionId, setGeneratingActionId] = useState(null)
+  const [pendingActionFromIntel, setPendingActionFromIntel] = useState(null)
   const dismissedCompaniesRef = useRef(new Set())
   const [pendingTechSuggestions, setPendingTechSuggestions] = useState(null)
   const [techSugSelections, setTechSugSelections] = useState(new Set())
@@ -509,6 +511,75 @@ ${inputText}`}]
     }
   }
 
+  const generateActionFromIntel = async (entry) => {
+    if (!effectiveKey) { setError('Add your Anthropic API key in Settings first.'); return }
+    setGeneratingActionId(entry.id)
+    const today = new Date().toISOString().split('T')[0]
+    const contacts = (acct.contacts||[]).map(c=>`${c.name} (${c.title||'?'})`).join(', ')
+    const projects = (acct.projects||[]).filter(p=>p.status!=='Lost').map(p=>`${p.name} [${p.status}]`).join(', ')
+    const prompt = `You are an AI assistant for a cybersecurity sales CRM at GuidePoint Security. Generate a specific action item from this intel entry.
+
+ACCOUNT: ${acct.name}
+CONTACTS: ${contacts||'none'}
+ACTIVE PROJECTS: ${projects||'none'}
+
+INTEL ENTRY:
+Date: ${entry.date||'?'}
+Type: ${entry.type||'Note'}
+Participants: ${entry.participants||'none'}
+Summary: ${entry.summary||''}
+Insights: ${(entry.insights||[]).join('; ')||'none'}
+Risks: ${(entry.risks||[]).join('; ')||'none'}
+Opportunities: ${(entry.opportunities||[]).join('; ')||'none'}
+
+Today is ${today}. Generate a concrete action item from this intel. Return ONLY valid JSON:
+{
+  "task": "3-8 word action item starting with a strong verb — reads like a sticky note",
+  "priority": "Critical|High|Medium|Low",
+  "dueDate": "YYYY-MM-DD (7-14 days out for High/Critical, blank for Low)",
+  "contact": "first and last name of most relevant contact from this intel",
+  "quickContext": "one sentence — why this action matters right now",
+  "recommendedNextAction": "specific next step starting with a strong verb, names person or channel",
+  "suggestedRecipients": {
+    "to": ["Name (Title)"],
+    "cc": []
+  },
+  "draftEmail": {
+    "subject": "specific subject — reference the account or deal, not generic",
+    "to": ["Name or Name (Title)"],
+    "cc": [],
+    "body": "3-5 lines, conversational, no filler opener, clear CTA, sign off: Best, Mike. Use \\n for line breaks."
+  }
+}
+
+Rules:
+- task should name the person and action: 'Call Rudy about NetSpy demo' not 'Follow up with stakeholder'
+- draftEmail body has NO filler opener ('Hope this finds you well' etc.), one clear ask, human tone`
+
+    try {
+      const {data} = await callClaudeWithRetry(
+        {model:'claude-sonnet-4-6', max_tokens:700, messages:[{role:'user',content:prompt}]},
+        effectiveKey, null
+      )
+      if (data.error) throw new Error(data.error.message || 'API error')
+      const raw = data.content?.[0]?.text || ''
+      let parsed = null
+      try { parsed = JSON.parse(raw) } catch {
+        const m = raw.match(/\{[\s\S]*\}/)
+        if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
+      }
+      if (parsed) {
+        setPendingActionFromIntel({...parsed, _sourceEntryId: entry.id, _today: today})
+      } else {
+        setError('Could not generate action. Please try again.')
+      }
+    } catch(err) {
+      setError(err.message==='OVERLOADED'?'API busy — try again in a moment.':'Action generation failed. Please try again.')
+    } finally {
+      setGeneratingActionId(null)
+    }
+  }
+
   const deleteEntry = id => {
     if(!window.confirm('Delete this intel entry? This cannot be undone.')) return
     setAcct(p=>({...p,intelLog:(p.intelLog||[]).filter(e=>e.id!==id)}))
@@ -741,9 +812,18 @@ ${inputText}`}]
                 {e.participants&&<span style={{fontSize:12,color:'#64748b',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>· {e.participants}</span>}
                 {hasDetail&&<span style={{marginLeft:'auto',color:'#94a3b8',fontSize:12,flexShrink:0}}>{isExp?'▲':'▼'}</span>}
                 <button
+                  onClick={ev=>{ev.stopPropagation();generateActionFromIntel(e)}}
+                  disabled={generatingActionId===e.id}
+                  title='Generate action from this intel'
+                  style={{display:'inline-flex',alignItems:'center',gap:3,background:'transparent',border:'1px solid #EEEFF2',color:'#9CA3AF',cursor:generatingActionId===e.id?'default':'pointer',fontSize:10,padding:'3px 7px',borderRadius:5,flexShrink:0,...(!hasDetail?{marginLeft:'auto'}:{})}}
+                  onMouseEnter={ev=>{if(generatingActionId!==e.id){ev.currentTarget.style.color='#007AFF';ev.currentTarget.style.borderColor='#007AFF'}}}
+                  onMouseLeave={ev=>{ev.currentTarget.style.color='#9CA3AF';ev.currentTarget.style.borderColor='#EEEFF2'}}>
+                  {generatingActionId===e.id?'…':'⚡'}
+                </button>
+                <button
                   onClick={ev=>{ev.stopPropagation();deleteEntry(e.id)}}
                   title='Delete entry'
-                  style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center',flexShrink:0,...(!hasDetail?{marginLeft:'auto'}:{})}}
+                  style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center',flexShrink:0}}
                   onMouseEnter={ev=>ev.currentTarget.style.color='#dc2626'}
                   onMouseLeave={ev=>ev.currentTarget.style.color='#94a3b8'}>
                   <Trash2 size={16}/>
@@ -1018,6 +1098,112 @@ ${inputText}`}]
           </div>
         )
       })()}
+
+      {pendingActionFromIntel&&!pendingParsed&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{width:'70vw',maxWidth:680,maxHeight:'85vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                <span style={{fontSize:16}}>⚡</span>
+                <span style={{fontSize:16,fontWeight:700,color:'#111827',flex:1}}>New Action from Intel</span>
+                <button onClick={()=>setPendingActionFromIntel(null)} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px'}}>×</button>
+              </div>
+              <p style={{fontSize:12,color:'#64748b',margin:0}}>Review and edit before saving to Actions.</p>
+            </div>
+            <div style={{overflowY:'auto',flex:1,padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Task</div>
+                <input
+                  value={pendingActionFromIntel.task||''}
+                  onChange={e=>setPendingActionFromIntel(p=>({...p,task:e.target.value}))}
+                  style={{width:'100%',boxSizing:'border-box',fontSize:13,fontWeight:600,color:'#111827',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:7,padding:'8px 12px',outline:'none'}}
+                  onFocus={e=>{e.target.style.borderColor='#007AFF';e.target.style.background='#fff'}}
+                  onBlur={e=>{e.target.style.borderColor='#e2e8f0';e.target.style.background='#F9FAFB'}}/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Priority</div>
+                  <select value={pendingActionFromIntel.priority||'High'} onChange={e=>setPendingActionFromIntel(p=>({...p,priority:e.target.value}))}
+                    style={{width:'100%',fontSize:12,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:7,color:'#374151',cursor:'pointer'}}>
+                    {['Critical','High','Medium','Low'].map(p=><option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Due Date</div>
+                  <input type='date' value={pendingActionFromIntel.dueDate||''} onChange={e=>setPendingActionFromIntel(p=>({...p,dueDate:e.target.value}))}
+                    style={{width:'100%',fontSize:12,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:7,color:'#374151'}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Contact</div>
+                  <input value={pendingActionFromIntel.contact||''} onChange={e=>setPendingActionFromIntel(p=>({...p,contact:e.target.value}))}
+                    style={{width:'100%',fontSize:12,padding:'7px 10px',background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:7,color:'#374151',outline:'none'}}
+                    onFocus={e=>e.target.style.borderColor='#007AFF'}
+                    onBlur={e=>e.target.style.borderColor='#e2e8f0'}/>
+                </div>
+              </div>
+              {pendingActionFromIntel.quickContext&&(
+                <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#0066CC',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>📋 Quick Context</div>
+                  <div style={{fontSize:12,color:'#1e3a5f',lineHeight:1.6}}>{pendingActionFromIntel.quickContext}</div>
+                </div>
+              )}
+              {pendingActionFromIntel.recommendedNextAction&&(
+                <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#15803d',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>⚡ Recommended Next Action</div>
+                  <div style={{fontSize:12,color:'#166534',lineHeight:1.6,fontWeight:500}}>{pendingActionFromIntel.recommendedNextAction}</div>
+                </div>
+              )}
+              {pendingActionFromIntel.draftEmail&&(
+                <div style={{background:'#F9FAFB',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>✉️ Draft Email (pre-loaded)</div>
+                  <div style={{fontSize:11,marginBottom:3}}>
+                    <span style={{fontWeight:700,color:'#374151'}}>Subject: </span>
+                    <span style={{color:'#374151'}}>{pendingActionFromIntel.draftEmail.subject}</span>
+                  </div>
+                  {pendingActionFromIntel.draftEmail.to?.length>0&&(
+                    <div style={{fontSize:11,marginBottom:8}}>
+                      <span style={{fontWeight:700,color:'#374151'}}>To: </span>
+                      <span style={{color:'#374151'}}>{pendingActionFromIntel.draftEmail.to.join(', ')}</span>
+                    </div>
+                  )}
+                  <div style={{fontSize:11,color:'#374151',lineHeight:1.6,whiteSpace:'pre-line',borderTop:'1px solid #e2e8f0',paddingTop:6}}>{pendingActionFromIntel.draftEmail.body}</div>
+                </div>
+              )}
+            </div>
+            <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8,background:'#fff',flexShrink:0}}>
+              <button onClick={()=>setPendingActionFromIntel(null)} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button
+                onClick={()=>{
+                  if(!pendingActionFromIntel.task?.trim())return
+                  const now=new Date().toISOString().split('T')[0]
+                  const newAction={
+                    id:uid(),
+                    task:pendingActionFromIntel.task,
+                    priority:pendingActionFromIntel.priority||'High',
+                    dueDate:pendingActionFromIntel.dueDate||'',
+                    contact:pendingActionFromIntel.contact||'',
+                    status:'Open',
+                    context:pendingActionFromIntel.quickContext||'',
+                    createdAt:now,
+                    aiIntel:{
+                      quickContext:pendingActionFromIntel.quickContext||'',
+                      recommendedNextAction:{text:pendingActionFromIntel.recommendedNextAction||'',confidence:0.9},
+                      suggestedRecipients:{...(pendingActionFromIntel.suggestedRecipients||{}),internal:[]},
+                      draftEmail:pendingActionFromIntel.draftEmail||null,
+                      generatedAt:new Date().toISOString()
+                    }
+                  }
+                  setAcct(p=>({...p,followUps:[...(p.followUps||[]),newAction]}))
+                  setPendingActionFromIntel(null)
+                }}
+                disabled={!pendingActionFromIntel.task?.trim()}
+                style={{padding:'8px 16px',background:pendingActionFromIntel.task?.trim()?'#007AFF':'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:pendingActionFromIntel.task?.trim()?'pointer':'not-allowed'}}>
+                Save Action
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDate&&<Modal title={dateModalIsFile?'When did this document originate?':'Date this entry'} onClose={()=>setShowDate(false)} width={380}>
         <p style={{fontSize:13,color:S.secondary,marginBottom:10}}>{dateModalIsFile?'When was this document created or the event it describes occurred?':'Is this a new entry from today, or are you uploading an older transcript or note?'}</p>

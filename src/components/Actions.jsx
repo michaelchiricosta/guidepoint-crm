@@ -129,7 +129,15 @@ Analyze the action and context above. Return ONLY valid JSON with no markdown co
     "internal": ["Name (Title) — internal GuidePoint resource to loop in"]
   },
   "suggestedSubjectLine": "Concise, professional subject. Reference the deal or account. No filler.",
-  "actionHealth": "Healthy"
+  "actionHealth": "Healthy",
+  "meetingRecommendation": {
+    "attendees": ["Name (Title) — reason for including"],
+    "duration": "30 minutes",
+    "agenda": ["Opening / set context (5 min)", "specific topic 2", "specific topic 3", "Next steps / owners (5 min)"]
+  },
+  "recommendedAssets": [
+    {"title": "asset or collateral name", "type": "Case Study|Battle Card|Solution Brief|ROI Calculator|Demo Script|Reference Call", "rationale": "one sentence — why relevant to this action"}
+  ]
 }
 
 Rules:
@@ -138,6 +146,8 @@ Rules:
 - progressSinceCreation.completed should only list things visible in the INTEL LOG since the action was created — not assumptions
 - Keep every string under 120 characters
 - suggestedRecipients.internal can be empty array if no internal resources are relevant
+- meetingRecommendation: attendees relevant to this specific action; duration must be 15/30/45/60 min only; agenda should be action-specific
+- recommendedAssets: max 4 items specific to account's tech stack, vendor interests, and active opportunities — can be empty array
 - All arrays can be empty if nothing specific is known`
 }
 
@@ -159,6 +169,7 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [expandedId,setExpandedId] = useState(null)
   const [generatingId,setGeneratingId] = useState(null)
+  const [generatingEmailId,setGeneratingEmailId] = useState(null)
   const [genError,setGenError] = useState(null)
   const blank={id:'',contact:'',task:'',priority:'High',dueDate:'',status:'Open',context:''}
   const [form,setForm] = useState(blank)
@@ -181,7 +192,7 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
     try {
       const prompt = buildPrompt(fu, acct, whitespaceAccounts)
       const {data:result} = await callClaudeWithRetry(
-        {model:'claude-sonnet-4-6', max_tokens:1200, messages:[{role:'user',content:prompt}]},
+        {model:'claude-sonnet-4-6', max_tokens:1700, messages:[{role:'user',content:prompt}]},
         apiKey
       )
       const raw = result?.content?.[0]?.text || ''
@@ -192,7 +203,11 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       }
       if (intel) {
         intel.generatedAt = new Date().toISOString()
-        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:intel}:x)}))
+        setAcct(p=>({...p,followUps:p.followUps.map(x=>{
+          if(x.id!==fu.id)return x
+          const prevEmail=x.aiIntel?.draftEmail
+          return{...x,aiIntel:{...intel,...(prevEmail?{draftEmail:prevEmail}:{})}}
+        })}))
       } else {
         setGenError('AI returned an unexpected response. Please try again.')
       }
@@ -200,6 +215,71 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Generation failed. Please try again.')
     } finally {
       setGeneratingId(null)
+    }
+  }
+
+  // ── Draft email generation ────────────────────────────────────────────────────
+  const buildEmailPrompt = (fu, acct, whitespaceAccounts) => {
+    const ctx = buildActionContext(fu, acct, whitespaceAccounts)
+    const nextAction = fu.aiIntel?.recommendedNextAction?.text || ''
+    const subjectLine = fu.aiIntel?.suggestedSubjectLine || ''
+    const recipients = fu.aiIntel?.suggestedRecipients
+    const toLine = recipients?.to?.length ? `Primary recipients: ${recipients.to.join(', ')}` : ''
+    return `You are writing an email for Mike, a cybersecurity sales rep at GuidePoint Security.
+
+${ctx}
+${nextAction ? `\nRECOMMENDED NEXT ACTION: ${nextAction}` : ''}
+${subjectLine ? `\nSUGGESTED SUBJECT: ${subjectLine}` : ''}
+${toLine ? `\n${toLine}` : ''}
+
+Write a short email in Mike's style:
+- Conversational and human — reads like a real person wrote it, not a marketing team
+- Short sentences. 3-6 lines max for the body.
+- No filler openers: no "Hope this finds you well", no "I wanted to reach out", no "I'm excited to"
+- No buzzwords: no "leverage", "synergize", "value proposition", "ecosystem", "solutions"
+- One clear CTA — a specific ask or next step
+- Sign off with "Best, Mike" or "Thanks, Mike" or "Talk soon, Mike"
+- Subject line should be specific — reference the deal, account, or technology
+
+Return ONLY valid JSON, no markdown:
+{
+  "subject": "specific subject line",
+  "to": ["Name or Name (Title)"],
+  "cc": [],
+  "body": "full email body with \\n for line breaks"
+}
+
+Rules:
+- body is 3-6 lines, one clear CTA, no AI-sounding language
+- to should use contact names from the context if available
+- subject must not be generic ("Following Up", "Quick Check-in", "Touching Base")`
+  }
+
+  const generateDraftEmail = async (fu) => {
+    if (!apiKey) { setGenError('Add your Anthropic API key in Settings first.'); return }
+    setGenError(null)
+    setGeneratingEmailId(fu.id)
+    try {
+      const prompt = buildEmailPrompt(fu, acct, whitespaceAccounts)
+      const {data:result} = await callClaudeWithRetry(
+        {model:'claude-sonnet-4-6', max_tokens:600, messages:[{role:'user',content:prompt}]},
+        apiKey
+      )
+      const raw = result?.content?.[0]?.text || ''
+      let email = null
+      try { email = JSON.parse(raw) } catch {
+        const m = raw.match(/\{[\s\S]*\}/)
+        if (m) { try { email = JSON.parse(m[0]) } catch {} }
+      }
+      if (email) {
+        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:{...x.aiIntel,draftEmail:email}}:x)}))
+      } else {
+        setGenError('Email generation failed. Please try again.')
+      }
+    } catch(err) {
+      setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Email generation failed. Please try again.')
+    } finally {
+      setGeneratingEmailId(null)
     }
   }
 
@@ -393,6 +473,112 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
                 </div>
               )}
             </div>
+
+            {/* Row 5: Draft Email */}
+            <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:generatingEmailId===fu.id||intel.draftEmail?8:0}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>✉️ Draft Email</div>
+                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                  {intel.draftEmail&&(
+                    <button
+                      onClick={()=>{const txt=`Subject: ${intel.draftEmail.subject}\nTo: ${(intel.draftEmail.to||[]).join(', ')}\n${intel.draftEmail.cc?.length?'CC: '+(intel.draftEmail.cc||[]).join(', ')+'\n':''}\n${intel.draftEmail.body}`;navigator.clipboard?.writeText(txt)}}
+                      style={{fontSize:10,color:'#16a34a',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Copy</button>
+                  )}
+                  <button
+                    onClick={()=>generateDraftEmail(fu)}
+                    disabled={generatingEmailId===fu.id||!apiKey}
+                    style={{fontSize:10,color:generatingEmailId===fu.id||!apiKey?'#9CA3AF':'#007AFF',background:generatingEmailId===fu.id||!apiKey?'#F3F4F6':'transparent',border:`1px solid ${generatingEmailId===fu.id||!apiKey?'#E5E7EB':'#007AFF'}`,borderRadius:5,padding:'3px 8px',cursor:generatingEmailId===fu.id||!apiKey?'default':'pointer',fontWeight:600}}>
+                    {generatingEmailId===fu.id?'Drafting…':intel.draftEmail?'Regenerate':'Generate'}
+                  </button>
+                </div>
+              </div>
+              {generatingEmailId===fu.id&&(
+                <div style={{height:72,background:S.isLight?'#F9FAFB':'#222736',borderRadius:6,overflow:'hidden',position:'relative'}}>
+                  <div style={{position:'absolute',inset:0,background:`linear-gradient(90deg,transparent 0%,${S.isLight?'#F0F7FF':'#2a3247'} 50%,transparent 100%)`,animation:'shimmer 1.2s infinite'}}/>
+                </div>
+              )}
+              {generatingEmailId!==fu.id&&intel.draftEmail&&(
+                <div>
+                  <div style={{fontSize:11,background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'8px 10px',marginBottom:6}}>
+                    <div style={{display:'flex',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                      <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>Subject:</span>
+                      <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#111827':S.txt,flex:1}}>{intel.draftEmail.subject}</span>
+                    </div>
+                    {intel.draftEmail.to?.length>0&&(
+                      <div style={{display:'flex',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>To:</span>
+                        <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,flex:1}}>{intel.draftEmail.to.join(', ')}</span>
+                      </div>
+                    )}
+                    {intel.draftEmail.cc?.length>0&&(
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:52}}>CC:</span>
+                        <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,flex:1}}>{intel.draftEmail.cc.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.7,whiteSpace:'pre-line',background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:6,padding:'10px 12px'}}>{intel.draftEmail.body}</div>
+                </div>
+              )}
+              {generatingEmailId!==fu.id&&!intel.draftEmail&&(
+                <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic',marginTop:2}}>Click Generate to draft an email for this action.</div>
+              )}
+            </div>
+
+            {/* Row 6: Meeting Recommendation */}
+            {intel.meetingRecommendation&&(intel.meetingRecommendation.attendees?.length>0||intel.meetingRecommendation.agenda?.length>0)&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>📅 Meeting Recommendation</div>
+                  {intel.meetingRecommendation.duration&&<span style={{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'2px 7px'}}>{intel.meetingRecommendation.duration}</span>}
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  {intel.meetingRecommendation.attendees?.length>0&&(
+                    <div>
+                      <div style={{fontSize:10,fontWeight:600,color:'#6B7280',marginBottom:4}}>ATTENDEES</div>
+                      {intel.meetingRecommendation.attendees.map((a,i)=>(
+                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:2,display:'flex',gap:4}}>
+                          <span style={{color:'#007AFF',flexShrink:0}}>·</span><span>{a}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {intel.meetingRecommendation.agenda?.length>0&&(
+                    <div>
+                      <div style={{fontSize:10,fontWeight:600,color:'#6B7280',marginBottom:4}}>AGENDA</div>
+                      {intel.meetingRecommendation.agenda.map((item,i)=>(
+                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:2,display:'flex',gap:4}}>
+                          <span style={{color:'#9CA3AF',flexShrink:0,fontWeight:700}}>{i+1}.</span><span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Row 7: Recommended Assets */}
+            {intel.recommendedAssets?.length>0&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>📎 Recommended Assets</div>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {intel.recommendedAssets.map((asset,i)=>{
+                    const typeColors={'Case Study':{c:'#15803d',bg:'#dcfce7'},'Battle Card':{c:'#dc2626',bg:'#fee2e2'},'Solution Brief':{c:'#007AFF',bg:'#EBF4FF'},'ROI Calculator':{c:'#7c3aed',bg:'#ede9fe'},'Demo Script':{c:'#d97706',bg:'#fef3c7'},'Reference Call':{c:'#0891b2',bg:'#e0f2fe'}}
+                    const tc=typeColors[asset.type]||{c:'#6B7280',bg:'#F9FAFB'}
+                    return(
+                      <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                        {asset.type&&<span style={{fontSize:9,fontWeight:700,color:tc.c,background:tc.bg,borderRadius:999,padding:'2px 7px',whiteSpace:'nowrap',flexShrink:0,marginTop:1}}>{asset.type}</span>}
+                        <div style={{flex:1,minWidth:0}}>
+                          {asset.title&&<div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.4}}>{asset.title}</div>}
+                          {asset.rationale&&<div style={{fontSize:11,color:S.isLight?'#6B7280':S.muted,lineHeight:1.4,marginTop:1}}>{asset.rationale}</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <div style={{fontSize:10,color:'#9CA3AF',marginTop:2,fontStyle:'italic'}}>Asset library integration coming soon.</div>
+                </div>
+              </div>
+            )}
 
           </div>
         )}
