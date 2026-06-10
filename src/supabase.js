@@ -44,6 +44,10 @@ const sanitizeFileName = name => {
   return base || 'file'
 }
 
+// ─── Feature flag ─────────────────────────────────────────────────────────────
+// Set to false to disable normalized dual-write without touching any other logic.
+const ENABLE_NORMALIZED_DUAL_WRITE = true
+
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 export const loadData = async () => {
@@ -67,6 +71,14 @@ export const saveData = async (appData) => {
     .from('accounts')
     .upsert({ id: 'user-data', data: appData, updated_at: new Date().toISOString() })
   if (error) console.error('[saveData] error:', error.message)
+  // Dual-write: sync normalized tables after a successful blob save.
+  // Best-effort, fire-and-forget — blob result is returned immediately regardless
+  // of sync outcome. Toggle off via ENABLE_NORMALIZED_DUAL_WRITE above.
+  if (!error && ENABLE_NORMALIZED_DUAL_WRITE) {
+    syncAppDataToNormalized(appData).catch(e =>
+      console.warn('[saveData] normalized sync failed (non-fatal):', e.message)
+    )
+  }
   return { error }
 }
 
@@ -164,4 +176,534 @@ export const saveActionBrief = async (accountId, actionId, brief) => {
   } catch (e) {
     console.warn('[saveActionBrief] exception:', e.message)
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FUTURE MIGRATION HELPERS — Phase 1+
+//
+// These functions target the normalized schema defined in
+// supabase/migrations/001_normalized_schema.sql.
+//
+// They are NOT called anywhere in the application. The blob architecture
+// (loadData / saveData) remains the sole source of truth until a future
+// dual-write migration phase explicitly wires these in.
+//
+// API KEY NOTE
+// ─────────────────────────────────────────────────────────────────────────────
+// Current state:  data.apiKey lives inside the JSONB blob, plaintext.
+// Risks:          - Visible in all Supabase exports and row-level dumps
+//                 - Travels with every saveData() write
+//                 - No encryption, no rotation, no per-user isolation
+// Recommended:    Move to the `workspaces.api_key_enc` column (AES-256 via
+//                 Supabase Vault) or read from a server-side environment
+//                 variable so the key never reaches the browser.
+//                 See: https://supabase.com/docs/guides/database/vault
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Accounts ──────────────────────────────────────────────────────────────────
+
+export const getNormalizedAccounts = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('accounts_normalized')
+      .select('*')
+      .order('name')
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.warn('[getNormalizedAccounts] error:', e.message)
+    return []
+  }
+}
+
+export const upsertNormalizedAccount = async (account) => {
+  try {
+    const { error } = await supabase
+      .from('accounts_normalized')
+      .upsert({ ...account, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertNormalizedAccount] error:', e.message)
+  }
+}
+
+// ── Contacts ──────────────────────────────────────────────────────────────────
+
+export const getContactsByAccount = async (accountId) => {
+  try {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('name')
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.warn('[getContactsByAccount] error:', e.message)
+    return []
+  }
+}
+
+export const upsertContact = async (contact) => {
+  try {
+    const { error } = await supabase
+      .from('contacts')
+      .upsert({ ...contact, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertContact] error:', e.message)
+  }
+}
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+
+export const getProjectsByAccount = async (accountId) => {
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('name')
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.warn('[getProjectsByAccount] error:', e.message)
+    return []
+  }
+}
+
+export const upsertProject = async (project) => {
+  try {
+    const { error } = await supabase
+      .from('projects')
+      .upsert({ ...project, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertProject] error:', e.message)
+  }
+}
+
+// ── Actions (follow-ups) ──────────────────────────────────────────────────────
+
+export const getActionsByAccount = async (accountId) => {
+  try {
+    const { data, error } = await supabase
+      .from('actions')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('due_date', { ascending: true, nullsFirst: false })
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.warn('[getActionsByAccount] error:', e.message)
+    return []
+  }
+}
+
+export const upsertAction = async (action) => {
+  try {
+    const { error } = await supabase
+      .from('actions')
+      .upsert({ ...action, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertAction] error:', e.message)
+  }
+}
+
+// ── Intel Log ────────────────────────────────────────────────────────────────
+
+export const getIntelLogsByAccount = async (accountId) => {
+  try {
+    const { data, error } = await supabase
+      .from('intel_logs')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('date', { ascending: false })
+    if (error) throw error
+    return data || []
+  } catch (e) {
+    console.warn('[getIntelLogsByAccount] error:', e.message)
+    return []
+  }
+}
+
+export const upsertIntelLog = async (entry) => {
+  try {
+    const { error } = await supabase
+      .from('intel_logs')
+      .upsert(entry, { onConflict: 'id' })
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertIntelLog] error:', e.message)
+  }
+}
+
+// ── Action AI Briefs (normalized read path) ───────────────────────────────────
+
+export const getActionBrief = async (accountId, actionId) => {
+  try {
+    const { data, error } = await supabase
+      .from('action_ai_briefs')
+      .select('brief, generated_at')
+      .eq('account_id', accountId)
+      .eq('action_id', actionId)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  } catch (e) {
+    console.warn('[getActionBrief] error:', e.message)
+    return null
+  }
+}
+
+export const upsertActionBrief = async (accountId, actionId, brief) => {
+  try {
+    const { error } = await supabase
+      .from('action_ai_briefs')
+      .upsert(
+        { account_id: accountId, action_id: actionId, brief, generated_at: new Date().toISOString() },
+        { onConflict: 'account_id,action_id' }
+      )
+    if (error) throw error
+  } catch (e) {
+    console.warn('[upsertActionBrief] error:', e.message)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 1 — DUAL-WRITE SYNC
+// syncAppDataToNormalized is called by saveData() after every successful blob
+// write. It is fire-and-forget — failures are logged but never propagate back.
+// This entire block will be removed once reads are migrated off the blob.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Coerce empty strings to null for PostgreSQL date/timestamptz columns.
+const _toDate = v => (v && typeof v === 'string' && v.trim()) ? v.trim() : null
+
+// Coerce empty strings / non-numbers to null for numeric columns.
+const _toNum = v => {
+  if (v === '' || v === null || v === undefined) return null
+  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ''))
+  return isNaN(n) ? null : n
+}
+
+// ── Field mappers (blob camelCase → normalized snake_case) ────────────────────
+
+const _mapAccount = a => ({
+  id: a.id,
+  name: a.name || '',
+  short: a.short || '',
+  industry: a.industry || '',
+  hq: a.hq || '',
+  status: a.status || '',
+  cloud: a.cloud || '',
+  users: a.users || '',
+  relationship: a.relationship || '',
+  last_contact: _toDate(a.lastContact),
+  notes: a.notes || '',
+  endpoints: a.endpoints || '',
+  logo_image: a.logoImage || '',
+  admin_data: a.adminData || {},
+  org_chart: a.orgChart || { nodes: [] },
+  health_score_overrides: a.healthScoreOverrides || {},
+  upcoming_dates: a.upcomingDates || [],
+  unknown_mentions: a.unknownMentions || [],
+  rel_suggestions: a.relSuggestions || [],
+  contact_suggestions: a.contactSuggestions || [],
+  dismissed_alerts: a.dismissedAlerts || [],
+  snoozed_alerts: a.snoozedAlerts || [],
+  saved_links: a.savedLinks || [],
+  updated_at: new Date().toISOString()
+})
+
+const _mapContact = (c, accountId) => ({
+  id: c.id,
+  account_id: accountId,
+  contact_type: c.contactType || '',
+  name: c.name || '',
+  title: c.title || '',
+  email: c.email || '',
+  cell: c.cell || '',
+  linkedin: c.linkedin || '',
+  location: c.location || '',
+  dept: c.dept || '',
+  influence: c.influence || '',
+  sentiment: c.sentiment || '',
+  rel_status: c.relStatus || '',
+  tools_own: c.toolsOwn || '',
+  goals: c.goals || '',
+  pains: c.pains || '',
+  notes: c.notes || '',
+  personal_notes: c.personalNotes || '',
+  last_interacted: _toDate(c.lastInteracted),
+  vendor_company: c.vendorCompany || '',
+  contact_photo: c.contactPhoto || '',
+  added_manually: !!c.addedManually,
+  internal_meetings: c.internalMeetings || [],
+  updated_at: new Date().toISOString()
+})
+
+const _mapTechStack = (t, accountId) => ({
+  id: t.id,
+  account_id: accountId,
+  vendor: t.vendor || '',
+  products: t.products || '',
+  category: t.category || '',
+  status: t.status || '',
+  renewal_date: _toDate(t.renewalDate),
+  cost: t.cost || '',
+  vendor_rep: t.vendorRep || '',
+  vendor_rep_email: t.vendorRepEmail || '',
+  client_owner: t.clientOwner || '',
+  replacement_options: t.replacementOptions || '',
+  notes: t.notes || '',
+  updated_at: new Date().toISOString()
+})
+
+const _mapProject = (p, accountId) => ({
+  id: p.id,
+  account_id: accountId,
+  name: p.name || '',
+  category: p.category || '',
+  vendor: p.vendor || '',
+  status: p.status || '',
+  description: p.description || '',
+  goals: p.goals || '',
+  pains: p.pains || '',
+  primary_contact: p.primaryContact || '',
+  has_budget: !!p.budget,
+  close_date: _toDate(p.closeDate),
+  notes: p.notes || '',
+  waiting_on: p.waitingOn || '',
+  next_action: p.nextAction || '',
+  estimated_revenue: _toNum(p.estimatedRevenue),
+  estimated_gross_profit: _toNum(p.estimatedGrossProfit),
+  client_target_date: _toDate(p.clientTargetDate),
+  timeline: p.timeline || [],
+  updated_at: new Date().toISOString()
+})
+
+const _mapAction = (fu, accountId) => ({
+  id: fu.id,
+  account_id: accountId,
+  contact: fu.contact || '',
+  task: fu.task || '',
+  priority: fu.priority || '',
+  due_date: _toDate(fu.dueDate),
+  status: fu.status || 'Open',
+  context: fu.context || '',
+  ai_intel: fu.aiIntel || null,
+  updated_at: new Date().toISOString()
+})
+
+const _mapIntelLog = (e, accountId) => ({
+  id: e.id,
+  account_id: accountId,
+  date: _toDate(e.date),
+  type: e.type || '',
+  participants: e.participants || '',
+  summary: e.summary || '',
+  insights: Array.isArray(e.insights) ? e.insights : [],
+  risks: Array.isArray(e.risks) ? e.risks : [],
+  opportunities: Array.isArray(e.opportunities) ? e.opportunities : [],
+  raw_text: e.rawText || null
+})
+
+const _mapInteraction = (i, accountId) => ({
+  id: i.id,
+  account_id: accountId,
+  contact: i.contact || '',
+  type: i.type || '',
+  date: _toDate(i.date),
+  duration: typeof i.duration === 'number' ? i.duration : null,
+  topics: i.topics || '',
+  summary: i.summary || ''
+})
+
+const _mapFile = (f, accountId) => ({
+  id: f.id,
+  account_id: accountId,
+  name: f.name || '',
+  type: f.type || '',
+  size: typeof f.size === 'number' ? f.size : null,
+  uploaded_at: f.uploadedAt || null,
+  category: f.category || '',
+  notes: f.notes || '',
+  path: f.path || ''
+})
+
+const _mapWhitespaceAccount = ws => ({
+  id: ws.id,
+  name: ws.name || '',
+  hq: ws.hq || '',
+  industry: ws.industry || '',
+  employees: ws.employees || '',
+  revenue: ws.revenue || '',
+  status: ws.status || '',
+  notes: Array.isArray(ws.notes) ? ws.notes : [],
+  contacts: ws.contacts || [],
+  technologies: ws.technologies || [],
+  intel_log: ws.intelLog || [],
+  ai_opportunity_score: typeof ws.ai_opportunity_score === 'number' ? ws.ai_opportunity_score : null,
+  ai_score_reasoning: ws.ai_score_reasoning || null,
+  ai_score_updated_at: ws.ai_score_updated_at || null,
+  added_at: ws.addedAt || new Date().toISOString(),
+  updated_at: ws.updatedAt || new Date().toISOString()
+})
+
+// Blob stores full chat SESSIONS (not individual messages). Each session has:
+// {id (uid string), date (ISO), title, messages (array), pinned, pinnedMessages}.
+// The per-message prompt/response/model columns are kept null for now —
+// they exist for a future per-message write path.
+const _mapAIHistory = (session, accountId) => ({
+  id: session.id,
+  account_id: accountId,
+  date: session.date || null,
+  title: session.title || '',
+  messages: Array.isArray(session.messages) ? session.messages : [],
+  pinned: !!session.pinned,
+  pinned_messages: Array.isArray(session.pinnedMessages) ? session.pinnedMessages : [],
+  type: 'chat',
+  prompt: null,
+  response: null,
+  model: null
+})
+
+// Blob entries are {date, score} with no ID. Upserted on (account_id, recorded_at).
+// The uuid PK is generated by Postgres on insert and not touched on update.
+const _mapHealthScore = (entry, accountId) => ({
+  account_id: accountId,
+  score: typeof entry.score === 'number' ? entry.score : (parseInt(entry.score) || 0),
+  breakdown: entry.breakdown || null,
+  recorded_at: entry.date || new Date().toISOString().split('T')[0]
+})
+
+// ── Batch upsert ──────────────────────────────────────────────────────────────
+const _batchUpsert = async (table, rows, onConflict = 'id') => {
+  if (!rows.length) return
+  const { error } = await supabase.from(table).upsert(rows, { onConflict })
+  if (error) throw new Error(`${table}: ${error.message}`)
+}
+
+// ── Orchestrator ──────────────────────────────────────────────────────────────
+
+export const syncAppDataToNormalized = async (appData) => {
+  const t0 = Date.now()
+  const accounts = appData.accounts || []
+  const errors = []
+
+  // accounts_normalized
+  try {
+    await _batchUpsert('accounts_normalized', accounts.filter(a => a.id).map(_mapAccount))
+  } catch (e) { errors.push(e.message) }
+
+  // contacts
+  try {
+    const rows = accounts.flatMap(a => (a.contacts || []).filter(c => c.id).map(c => _mapContact(c, a.id)))
+    await _batchUpsert('contacts', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // tech_stack
+  try {
+    const rows = accounts.flatMap(a => (a.techStack || []).filter(t => t.id).map(t => _mapTechStack(t, a.id)))
+    await _batchUpsert('tech_stack', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // projects
+  try {
+    const rows = accounts.flatMap(a => (a.projects || []).filter(p => p.id).map(p => _mapProject(p, a.id)))
+    await _batchUpsert('projects', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // actions (blob field: followUps)
+  try {
+    const rows = accounts.flatMap(a => (a.followUps || []).filter(f => f.id).map(f => _mapAction(f, a.id)))
+    await _batchUpsert('actions', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // intel_logs
+  try {
+    const rows = accounts.flatMap(a => (a.intelLog || []).filter(e => e.id).map(e => _mapIntelLog(e, a.id)))
+    await _batchUpsert('intel_logs', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // interactions
+  try {
+    const rows = accounts.flatMap(a => (a.interactions || []).filter(i => i.id).map(i => _mapInteraction(i, a.id)))
+    await _batchUpsert('interactions', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // account_files
+  try {
+    const rows = accounts.flatMap(a => (a.files || []).filter(f => f.id && f.path).map(f => _mapFile(f, a.id)))
+    await _batchUpsert('account_files', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // whitespace_accounts
+  try {
+    const rows = (appData.whitespaceAccounts || []).filter(a => a.id).map(_mapWhitespaceAccount)
+    await _batchUpsert('whitespace_accounts', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // ai_history (blob field: aiHistory) — session-level records, text PK from uid()
+  try {
+    const rows = accounts.flatMap(a => (a.aiHistory || []).filter(s => s.id).map(s => _mapAIHistory(s, a.id)))
+    await _batchUpsert('ai_history', rows)
+  } catch (e) { errors.push(e.message) }
+
+  // health_score_history — no IDs in blob; upsert on (account_id, recorded_at)
+  try {
+    const rows = accounts.flatMap(a => (a.healthScoreHistory || []).filter(e => e.date).map(e => _mapHealthScore(e, a.id)))
+    await _batchUpsert('health_score_history', rows, 'account_id,recorded_at')
+  } catch (e) { errors.push(e.message) }
+
+  if (errors.length) {
+    console.warn(`[syncAppDataToNormalized] ${errors.length} error(s) in ${Date.now() - t0}ms:`, errors)
+  } else {
+    console.debug(`[syncAppDataToNormalized] OK (${Date.now() - t0}ms)`)
+  }
+}
+
+// ── Developer validation utility ──────────────────────────────────────────────
+// Usage from browser devtools:
+//   const m = await import('/src/supabase.js')
+//   await m.validateNormalizedSync(window.__debugAppData)
+// (Expose window.__debugAppData from App.jsx when needed.)
+
+export const validateNormalizedSync = async (appData) => {
+  const accounts = appData.accounts || []
+  const blobCounts = {
+    accounts:  accounts.length,
+    contacts:  accounts.reduce((s, a) => s + (a.contacts  || []).length, 0),
+    projects:  accounts.reduce((s, a) => s + (a.projects  || []).length, 0),
+    actions:   accounts.reduce((s, a) => s + (a.followUps || []).length, 0),
+    intelLogs: accounts.reduce((s, a) => s + (a.intelLog  || []).length, 0),
+    files:     accounts.reduce((s, a) => s + (a.files     || []).length, 0)
+  }
+
+  const [acctR, cntcR, projR, actnR, intlR, fileR] = await Promise.all([
+    supabase.from('accounts_normalized').select('*', { count: 'exact', head: true }),
+    supabase.from('contacts').select('*',            { count: 'exact', head: true }),
+    supabase.from('projects').select('*',            { count: 'exact', head: true }),
+    supabase.from('actions').select('*',             { count: 'exact', head: true }),
+    supabase.from('intel_logs').select('*',          { count: 'exact', head: true }),
+    supabase.from('account_files').select('*',       { count: 'exact', head: true })
+  ])
+
+  const normCounts = {
+    accounts:  acctR.count ?? '?',
+    contacts:  cntcR.count ?? '?',
+    projects:  projR.count ?? '?',
+    actions:   actnR.count ?? '?',
+    intelLogs: intlR.count ?? '?',
+    files:     fileR.count ?? '?'
+  }
+
+  console.group('[validateNormalizedSync] Blob vs Normalized counts')
+  Object.keys(blobCounts).forEach(k => {
+    const ok = blobCounts[k] === normCounts[k]
+    console.log(`  ${ok ? '✓' : '✗'} ${k.padEnd(12)}: blob=${blobCounts[k]}  normalized=${normCounts[k]}`)
+  })
+  console.groupEnd()
 }
