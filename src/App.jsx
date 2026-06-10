@@ -2741,12 +2741,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:isLight?'#f1f5f9':S.bg}}>
       {/* SIDEBAR */}
       <div style={{width:240,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',borderRight:'1px solid #EEEFF2'}}>
-        <div style={{padding:'12px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:65,height:65,objectFit:'contain',borderRadius:6,flexShrink:0}}/>
-            <div>
-              <div style={{fontSize:28,fontWeight:700,color:'#111827',lineHeight:1}}>Ledgr.</div>
-            </div>
+        <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
+          <div style={{display:'flex',justifyContent:'center',alignItems:'center'}}>
+            <img src="/Ledgr-full-logo.png" alt="Ledgr." style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}}/>
           </div>
         </div>
         <div style={{padding:'12px 12px 4px',flexShrink:0}}>
@@ -4243,12 +4240,9 @@ function AllProjectsPage({data, setData, onBack}) {
 `}</style>
       {/* ── SIDEBAR ── */}
       <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
-        <div style={{padding:'10px 14px 8px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <img src="/letterl.png" alt="Ledgr." style={{width:42,height:42,objectFit:'contain',borderRadius:4}}/>
-            <div>
-              <span style={{fontSize:28,fontWeight:700,color:'#111827',letterSpacing:'-0.01em'}}>Ledgr.</span>
-            </div>
+        <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
+          <div style={{display:'flex',justifyContent:'center',alignItems:'center'}}>
+            <img src="/Ledgr-full-logo.png" alt="Ledgr." style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}}/>
           </div>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'8px 0'}}>
