@@ -170,10 +170,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       <div onClick={onCloseMobileMenu} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:150}}/>
       <div style={{position:'fixed',left:0,top:0,height:'100vh',zIndex:160,width:260,background:'#FFFFFF',display:'flex',flexDirection:'column',boxShadow:'4px 0 20px rgba(0,0,0,0.10)',overflowY:'auto',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #EEEFF2'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-            <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
-          </div>
+          <img src="/Ledgr-full-logo.png" style={{height:'34px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
           <button onClick={onCloseMobileMenu} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:22,lineHeight:1,padding:'0 4px'}}>×</button>
         </div>
         <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'12px 16px 4px',flexShrink:0}}>My Accounts</div>
@@ -210,10 +207,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         {!collapsed?(
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
             <button onClick={onGoHome} style={{background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-                <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
-              </div>
+              <img src="/Ledgr-full-logo.png" style={{height:'34px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
             </button>
             <button onClick={toggleCollapsed} title="Collapse"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s',marginTop:2}}
@@ -223,7 +217,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
         ):(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
             <button onClick={onGoHome} title="Home" style={{background:'none',border:'none',cursor:'pointer',padding:0}}>
-              <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',display:'block'}} alt="Ledgr."/>
+              <img src="/Ledgr-L-logo.png" style={{width:'36px',height:'36px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
             </button>
             <button onClick={toggleCollapsed} title="Expand"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:16,padding:'2px',lineHeight:1,transition:'color 0.15s'}}
@@ -378,7 +372,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     <div style={{position:'fixed',top:0,left:0,height:'100vh',zIndex:100,width:collapsed?64:260,background:'#FFFFFF',borderRight:'1px solid #EEEFF2',display:'flex',flexDirection:'column',overflow:'hidden',transition:'width 0.2s ease'}}>
       {collapsed ? (
         <div style={{padding:'14px 0 10px',flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',gap:8,borderBottom:'1px solid #EEEFF2'}}>
-          <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover'}} alt="Ledgr."/>
+          <img src="/Ledgr-L-logo.png" style={{width:'36px',height:'36px',objectFit:'contain'}} alt="Ledgr."/>
           <button onClick={toggleCollapsed} title="Expand sidebar"
             style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',justifyContent:'center',transition:'color 0.15s',fontSize:16}}
             onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>›</button>
@@ -386,10 +380,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
       ) : (
         <div style={{padding:'14px 16px 10px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <img src="/letterl.png" style={{width:'40px',height:'40px',borderRadius:'10px',objectFit:'cover',flexShrink:0}} alt="Ledgr."/>
-              <div style={{fontSize:17,fontWeight:700,color:'#111827'}}>Ledgr.</div>
-            </div>
+            <img src="/Ledgr-full-logo.png" style={{height:'34px',width:'auto',maxWidth:'160px',objectFit:'contain',display:'block'}} alt="Ledgr."/>
             <button onClick={toggleCollapsed} title="Collapse sidebar"
               style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',padding:'4px',lineHeight:1,flexShrink:0,transition:'color 0.15s',marginTop:2}}
               onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>‹</button>
