@@ -29,13 +29,6 @@ const callClaudeWithRetry = async (body, apiKey, maxRetries=3) => {
   throw new Error('OVERLOADED')
 }
 
-// ── Action health config ───────────────────────────────────────────────────────
-const HEALTH_CONFIG = {
-  'Healthy':         { color:'#16a34a', bg:'#dcfce7', border:'#bbf7d0', icon:'✓' },
-  'Needs Attention': { color:'#d97706', bg:'#fef3c7', border:'#fde68a', icon:'▲' },
-  'At Risk':         { color:'#dc2626', bg:'#fee2e2', border:'#fecaca', icon:'⚠' },
-  'Critical':        { color:'#9f1239', bg:'#ffe4e6', border:'#fecdd3', icon:'🔴' },
-}
 
 // ── Build account context string for AI prompt ─────────────────────────────────
 const buildActionContext = (fu, acct, whitespaceAccounts) => {
@@ -272,12 +265,6 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
     const intel = fu.aiIntel
     const isGenerating = generatingId === fu.id
 
-    // Handle both old (string) and new (object) actionHealth format
-    const healthStatus = intel?.actionHealth
-      ? (typeof intel.actionHealth === 'string' ? intel.actionHealth : intel.actionHealth.status)
-      : null
-    const hc = healthStatus ? HEALTH_CONFIG[healthStatus] || HEALTH_CONFIG['Needs Attention'] : null
-
     // Handle both old ({text,confidence}) and new (string) recommendedNextAction
     const nextActionText = intel?.recommendedNextAction
       ? (typeof intel.recommendedNextAction === 'string' ? intel.recommendedNextAction : intel.recommendedNextAction.text)
@@ -331,22 +318,13 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
         {!isGenerating&&intel&&(
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
 
-            {/* Row 1: Action Health + Quick Context */}
-            <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:8,alignItems:'stretch'}}>
-              {hc&&(
-                <div style={{background:hc.bg,border:`1px solid ${hc.border}`,borderRadius:8,padding:'10px 14px',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',minWidth:110}}>
-                  <div style={{fontSize:16,marginBottom:3}}>{hc.icon}</div>
-                  <div style={{fontSize:10,fontWeight:700,color:hc.color,letterSpacing:'0.06em',textTransform:'uppercase',textAlign:'center',whiteSpace:'nowrap'}}>{healthStatus}</div>
-                  {intel.actionHealth?.reason&&<div style={{fontSize:9,color:hc.color,textAlign:'center',marginTop:4,lineHeight:1.4,maxWidth:90,opacity:0.9}}>{intel.actionHealth.reason}</div>}
-                </div>
-              )}
-              {intel.quickContext&&(
-                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>📋 Quick Context</div>
-                  <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.55}}>{intel.quickContext}</div>
-                </div>
-              )}
-            </div>
+            {/* Quick Context */}
+            {intel.quickContext&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>📋 Quick Context</div>
+                <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.55}}>{intel.quickContext}</div>
+              </div>
+            )}
 
             {/* Row 2: Progress Since Creation */}
             {(intel.progressSinceCreation?.completed?.length>0||intel.progressSinceCreation?.outstanding?.length>0)&&(
@@ -394,11 +372,11 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
               </div>
             )}
 
-            {/* Row 4: Suggested Recipients + Subject Line */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||(intel.suggestedRecipients?.internalResources||intel.suggestedRecipients?.internal||[]).length>0)&&(
-                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>👥 Suggested Recipients</div>
+            {/* Suggested Recipients */}
+            {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||(intel.suggestedRecipients?.internalResources||intel.suggestedRecipients?.internal||[]).length>0)&&(
+              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>👥 Suggested Recipients</div>
+                <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
                   {[
                     {key:'to',label:'TO',color:'#007AFF'},
                     {key:'cc',label:'CC',color:'#6B7280'},
@@ -408,7 +386,7 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
                       ? (intel.suggestedRecipients.internalResources||intel.suggestedRecipients.internal||[])
                       : (intel.suggestedRecipients[key]||[])
                     return list.length>0&&(
-                      <div key={key} style={{marginBottom:5}}>
+                      <div key={key}>
                         <span style={{fontSize:9,fontWeight:700,color,letterSpacing:'0.08em'}}>{label} </span>
                         {list.map((r,i)=>(
                           <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,paddingLeft:8}}>{r}</div>
@@ -417,17 +395,8 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
                     )
                   })}
                 </div>
-              )}
-              {intel.suggestedSubjectLine&&(
-                <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px',display:'flex',flexDirection:'column',justifyContent:'center'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>✉️ Suggested Subject Line</div>
-                  <div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5,background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'7px 10px',fontFamily:'monospace'}}>{intel.suggestedSubjectLine}</div>
-                  <button
-                    onClick={()=>navigator.clipboard?.writeText(intel.suggestedSubjectLine)}
-                    style={{marginTop:6,alignSelf:'flex-start',fontSize:10,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>Copy</button>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Row 5: Draft Email */}
             {draftEmailText&&(
@@ -442,42 +411,7 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
               </div>
             )}
 
-            {/* Row 6: Meeting Recommendation */}
-            {intel.meetingRecommendation&&intel.meetingRecommendation.recommended!==false&&(intel.meetingRecommendation.attendees?.length>0||intel.meetingRecommendation.agenda?.length>0)&&(
-              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>📅 Meeting Recommendation</div>
-                    {intel.meetingRecommendation.title&&<div style={{fontSize:12,fontWeight:600,color:S.isLight?'#111827':S.txt,marginTop:3}}>{intel.meetingRecommendation.title}</div>}
-                  </div>
-                  {intel.meetingRecommendation.duration&&<span style={{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{intel.meetingRecommendation.duration}</span>}
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                  {intel.meetingRecommendation.attendees?.length>0&&(
-                    <div>
-                      <div style={{fontSize:10,fontWeight:600,color:'#6B7280',marginBottom:4}}>ATTENDEES</div>
-                      {intel.meetingRecommendation.attendees.map((a,i)=>(
-                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:2,display:'flex',gap:4}}>
-                          <span style={{color:'#007AFF',flexShrink:0}}>·</span><span>{a}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {intel.meetingRecommendation.agenda?.length>0&&(
-                    <div>
-                      <div style={{fontSize:10,fontWeight:600,color:'#6B7280',marginBottom:4}}>AGENDA</div>
-                      {intel.meetingRecommendation.agenda.map((item,i)=>(
-                        <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,marginBottom:2,display:'flex',gap:4}}>
-                          <span style={{color:'#9CA3AF',flexShrink:0,fontWeight:700}}>{i+1}.</span><span>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Row 7: Recommended Assets */}
+            {/* Recommended Assets */}
             {intel.recommendedAssets?.length>0&&(
               <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>📎 Recommended Assets</div>
@@ -521,10 +455,6 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
     const dueDateColor=dDue===null?S.muted:dDue<0?PC.Critical.c:p.c
     const isSelected=selMode&&selFUs.has(fu.id)
     const isExpanded=expandedId===fu.id
-    const _hs = fu.aiIntel?.actionHealth
-      ? (typeof fu.aiIntel.actionHealth === 'string' ? fu.aiIntel.actionHealth : fu.aiIntel.actionHealth.status)
-      : null
-    const health = _hs ? HEALTH_CONFIG[_hs] : null
     return (
       <div key={fu.id}>
         <div
@@ -544,8 +474,6 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:5}}>
                 <span style={{fontSize:13,fontWeight:600,color:S.txt,lineHeight:1.4}}>{fu.task}</span>
                 {extraBadge}
-                {/* Inline health dot if AI has run */}
-                {health&&<span style={{width:7,height:7,borderRadius:'50%',background:health.color,display:'inline-block',flexShrink:0,marginLeft:2}} title={_hs}/>}
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                 <span style={{fontSize:10,fontWeight:700,color:p.c,background:p.b,borderRadius:999,padding:'2px 8px'}}>{fu.priority}</span>
