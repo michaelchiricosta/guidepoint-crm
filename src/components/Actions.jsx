@@ -116,9 +116,8 @@ Return ONLY valid JSON with no markdown code fences or extra text:
   "recommendedNextAction": "Start with a strong verb. Be specific — name the person, channel, or deadline. No vague suggestions.",
   "confidenceScore": 85,
   "suggestedRecipients": {
-    "to": ["Name (Title) — why they are primary"],
-    "cc": ["Name (Title) — why they should be aware"],
-    "internalResources": ["Name (Role) — internal GuidePoint resource to loop in"]
+    "to": ["Name (Title)"],
+    "cc": ["Name (Title) — why they should be aware"]
   },
   "suggestedSubjectLine": "Concise, professional subject. Reference the deal or account. No filler.",
   "draftEmail": "Subject: [subject line]\\n\\nHi [first name],\\n\\n[3-5 lines max. Conversational, direct, human. No filler opener. No marketing language. One clear CTA. Sign off: Best, Mike]",
@@ -144,7 +143,6 @@ Rules:
 - progressSinceCreation.completed: only list things visible in INTEL LOG since action was created — not assumptions
 - recommendedAssets: array of strings, max 4 items specific to account's tech interests and active projects — can be empty array
 - meetingRecommendation.recommended: set to false and use empty arrays/strings if a meeting is not clearly warranted
-- suggestedRecipients.internalResources: can be empty array if no GuidePoint resources are needed
 - Keep every string under 150 characters except draftEmail
 - All arrays can be empty if nothing specific is known`
 }
@@ -167,6 +165,7 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
   const [hoveredFuId,setHoveredFuId] = useState(null)
   const [expandedId,setExpandedId] = useState(null)
   const [generatingId,setGeneratingId] = useState(null)
+  const [generatingEmailId,setGeneratingEmailId] = useState(null)
   const [genError,setGenError] = useState(null)
   const blank={id:'',contact:'',task:'',priority:'High',dueDate:'',status:'Open',context:''}
   const [form,setForm] = useState(blank)
@@ -209,6 +208,46 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Generation failed. Please try again.')
     } finally {
       setGeneratingId(null)
+    }
+  }
+
+  const generateDraftEmail = async (fu) => {
+    if (!apiKey) { setGenError('Add your Anthropic API key in Settings first.'); return }
+    setGenError(null)
+    setGeneratingEmailId(fu.id)
+    try {
+      const ctx = buildActionContext(fu, acct, whitespaceAccounts)
+      const subj = fu.aiIntel?.suggestedSubjectLine || ''
+      const toLine = (fu.aiIntel?.suggestedRecipients?.to || []).join(', ')
+      const prompt = `You are writing an email for Mike, a cybersecurity sales rep at GuidePoint Security.
+
+${ctx}
+${subj ? `\nSUGGESTED SUBJECT: ${subj}` : ''}
+${toLine ? `\nTO: ${toLine}` : ''}
+
+Write a short email body in Mike's style:
+- Conversational and direct — reads like a real person wrote it
+- Short sentences. 3-5 lines max.
+- No filler openers: no "Hope this finds you well", no "I wanted to reach out"
+- No buzzwords: no "leverage", "synergize", "solutions"
+- One clear CTA
+- Sign off: "Best, Mike" or "Thanks, Mike"
+
+Return ONLY the email body starting with the greeting (e.g. "Hi Rudy,"). No subject line. No JSON. No markdown.`
+      const {data:result} = await callClaudeWithRetry(
+        {model:'claude-sonnet-4-6', max_tokens:500, messages:[{role:'user',content:prompt}]},
+        apiKey
+      )
+      const body = result?.content?.[0]?.text?.trim() || ''
+      if (body) {
+        setAcct(p=>({...p,followUps:p.followUps.map(x=>x.id===fu.id?{...x,aiIntel:{...x.aiIntel,draftEmail:body}}:x)}))
+      } else {
+        setGenError('Email regeneration failed. Please try again.')
+      }
+    } catch(err) {
+      setGenError(err.message==='OVERLOADED'?'API is busy — please try again in a moment.':'Email regeneration failed. Please try again.')
+    } finally {
+      setGeneratingEmailId(null)
     }
   }
 
@@ -273,12 +312,26 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
       ? intel.confidenceScore
       : (intel?.recommendedNextAction?.confidence != null ? Math.round(intel.recommendedNextAction.confidence * 100) : null)
 
-    // Handle both old ({subject,to,cc,body}) and new (string) draftEmail
-    const draftEmailText = intel?.draftEmail
+    // Parse email fields — handle both old ({subject,to,cc,body}) and new (string) draftEmail
+    const toList = intel?.suggestedRecipients?.to?.length
+      ? intel.suggestedRecipients.to
+      : (typeof intel?.draftEmail==='object' ? intel.draftEmail?.to||[] : [])
+    const ccList = intel?.suggestedRecipients?.cc?.length
+      ? intel.suggestedRecipients.cc
+      : (typeof intel?.draftEmail==='object' ? intel.draftEmail?.cc||[] : [])
+    const emailSubject = intel?.suggestedSubjectLine || (typeof intel?.draftEmail==='object' ? intel.draftEmail?.subject||'' : '') || ''
+    const emailBody = intel?.draftEmail
       ? (typeof intel.draftEmail === 'string'
-          ? intel.draftEmail
-          : `Subject: ${intel.draftEmail.subject}\nTo: ${(intel.draftEmail.to||[]).join(', ')}\n\n${intel.draftEmail.body}`)
+          ? intel.draftEmail.replace(/^Subject:\s*[^\n]*\n+/,'').trimStart()
+          : intel.draftEmail.body || '')
       : null
+    const copyEmailText = [
+      emailSubject ? `Subject: ${emailSubject}` : null,
+      toList.length ? `To: ${toList.join(', ')}` : null,
+      ccList.length ? `CC: ${ccList.join(', ')}` : null,
+      '',
+      emailBody || '',
+    ].filter(l=>l!==null).join('\n').trimStart()
 
     return (
       <div style={{background:S.isLight?'#F8FAFE':'#1a1f2e',borderTop:`1px solid ${S.isLight?'#E8F0FE':'#2d3748'}`,borderBottom:`1px solid ${S.isLight?'#F9FAFB':S.bdr}`,padding:'14px 16px 16px'}}>
@@ -372,44 +425,60 @@ export default function Actions({acct, setAcct, apiKey, whitespaceAccounts}) {
               </div>
             )}
 
-            {/* Suggested Recipients */}
-            {(intel.suggestedRecipients?.to?.length>0||intel.suggestedRecipients?.cc?.length>0||(intel.suggestedRecipients?.internalResources||intel.suggestedRecipients?.internal||[]).length>0)&&(
-              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>👥 Suggested Recipients</div>
-                <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-                  {[
-                    {key:'to',label:'TO',color:'#007AFF'},
-                    {key:'cc',label:'CC',color:'#6B7280'},
-                    {key:'internalResources',label:'INTERNAL',color:'#8B5CF6'},
-                  ].map(({key,label,color})=>{
-                    const list = key==='internalResources'
-                      ? (intel.suggestedRecipients.internalResources||intel.suggestedRecipients.internal||[])
-                      : (intel.suggestedRecipients[key]||[])
-                    return list.length>0&&(
-                      <div key={key}>
-                        <span style={{fontSize:9,fontWeight:700,color,letterSpacing:'0.08em'}}>{label} </span>
-                        {list.map((r,i)=>(
-                          <div key={i} style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5,paddingLeft:8}}>{r}</div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Row 5: Draft Email */}
-            {draftEmailText&&(
-              <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>✉️ Draft Email</div>
+            {/* Draft Email — unified communication workspace */}
+            <div style={{background:S.isLight?'#FFFFFF':S.surf,border:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`,borderRadius:8,padding:'10px 12px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:emailBody||generatingEmailId===fu.id?8:4}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.06em'}}>✉️ Draft Email</div>
+                <div style={{display:'flex',gap:6}}>
+                  {emailBody&&(
+                    <button
+                      onClick={()=>navigator.clipboard?.writeText(copyEmailText)}
+                      style={{fontSize:10,color:'#16a34a',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Copy Email</button>
+                  )}
                   <button
-                    onClick={()=>navigator.clipboard?.writeText(draftEmailText)}
-                    style={{fontSize:10,color:'#16a34a',background:'#dcfce7',border:'1px solid #bbf7d0',borderRadius:5,padding:'3px 8px',cursor:'pointer',fontWeight:600}}>Copy Email</button>
+                    onClick={()=>generateDraftEmail(fu)}
+                    disabled={generatingEmailId===fu.id||!apiKey}
+                    style={{fontSize:10,color:generatingEmailId===fu.id||!apiKey?'#9CA3AF':'#007AFF',background:'transparent',border:`1px solid ${generatingEmailId===fu.id||!apiKey?'#E5E7EB':'#007AFF'}`,borderRadius:5,padding:'3px 8px',cursor:generatingEmailId===fu.id||!apiKey?'default':'pointer',fontWeight:600}}>
+                    {generatingEmailId===fu.id?'Drafting…':'Regenerate Email'}
+                  </button>
                 </div>
-                <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.75,whiteSpace:'pre-line',background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'10px 12px'}}>{draftEmailText}</div>
               </div>
-            )}
+              {generatingEmailId===fu.id&&(
+                <div style={{height:80,background:S.isLight?'#F9FAFB':'#222736',borderRadius:6,overflow:'hidden',position:'relative'}}>
+                  <div style={{position:'absolute',inset:0,background:`linear-gradient(90deg,transparent 0%,${S.isLight?'#F0F7FF':'#2a3247'} 50%,transparent 100%)`,animation:'shimmer 1.2s infinite'}}/>
+                </div>
+              )}
+              {generatingEmailId!==fu.id&&emailBody&&(
+                <div style={{background:S.isLight?'#F8FAFC':'#222736',borderRadius:6,padding:'10px 12px'}}>
+                  {(toList.length>0||ccList.length>0||emailSubject)&&(
+                    <div style={{marginBottom:8,paddingBottom:8,borderBottom:`1px solid ${S.isLight?'#EEEFF2':S.bdr}`}}>
+                      {toList.length>0&&(
+                        <div style={{display:'flex',gap:8,marginBottom:3,alignItems:'flex-start'}}>
+                          <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:36,paddingTop:1,flexShrink:0}}>TO</span>
+                          <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5}}>{toList.join(', ')}</span>
+                        </div>
+                      )}
+                      {ccList.length>0&&(
+                        <div style={{display:'flex',gap:8,marginBottom:3,alignItems:'flex-start'}}>
+                          <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:36,paddingTop:1,flexShrink:0}}>CC</span>
+                          <span style={{fontSize:11,color:S.isLight?'#374151':S.txt,lineHeight:1.5}}>{ccList.join(', ')}</span>
+                        </div>
+                      )}
+                      {emailSubject&&(
+                        <div style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                          <span style={{fontSize:10,fontWeight:700,color:'#9CA3AF',minWidth:36,paddingTop:1,flexShrink:0}}>SUBJ</span>
+                          <span style={{fontSize:11,fontWeight:600,color:S.isLight?'#111827':S.txt,lineHeight:1.5}}>{emailSubject}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div style={{fontSize:12,color:S.isLight?'#374151':S.txt,lineHeight:1.75,whiteSpace:'pre-line'}}>{emailBody}</div>
+                </div>
+              )}
+              {generatingEmailId!==fu.id&&!emailBody&&(
+                <div style={{fontSize:11,color:'#9CA3AF',fontStyle:'italic'}}>Click Regenerate Email to draft a communication for this action.</div>
+              )}
+            </div>
 
             {/* Recommended Assets */}
             {intel.recommendedAssets?.length>0&&(
