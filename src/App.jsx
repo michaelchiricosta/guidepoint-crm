@@ -694,6 +694,23 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [listSortDir, setListSortDir] = useState('asc')
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const [mobNavOpen, setMobNavOpen] = useState(false)
+  const scrollRef = useRef(null)
+  const [logoScale, setLogoScale] = useState(1)
+  useEffect(()=>{
+    if(!mob)return
+    const el=scrollRef.current
+    if(!el)return
+    let rafId=null
+    const onScroll=()=>{
+      if(rafId)return
+      rafId=requestAnimationFrame(()=>{
+        setLogoScale(Math.max(0.4,1-el.scrollTop/150))
+        rafId=null
+      })
+    }
+    el.addEventListener('scroll',onScroll,{passive:true})
+    return()=>{el.removeEventListener('scroll',onScroll);if(rafId)cancelAnimationFrame(rafId)}
+  },[mob])
   const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
 
   const hour = new Date().getHours()
@@ -875,12 +892,12 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </div>
         </>}
       </>}
-      <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
           <img src="/ledgr-mobile.png" alt="Ledgr."
-            style={{height:44,maxWidth:'60%',objectFit:'contain',display:'block'}}
+            style={{height:44,maxWidth:'60%',objectFit:'contain',display:'block',transform:`scale(${logoScale})`,transformOrigin:'center center',transition:'transform 120ms ease-out'}}
             onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextSibling.style.display='block'}}/>
           <span style={{display:'none',fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.02em'}}>Ledgr.</span>
         </div>
