@@ -29,6 +29,78 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
 const PRI_COLOR = {Critical:'#dc2626',High:'#ea580c',Medium:'#2563eb',Low:'#64748b'}
 const PRI_BG    = {Critical:'#fef2f2',High:'#fff7ed',Medium:'#eff6ff',Low:'#f8fafc'}
 
+function IntelSection({entry, approved, onToggle, onField}) {
+  return (
+    <div style={{background:'#f8fafc',borderRadius:8,padding:12,marginBottom:8,border:'1px solid #e2e8f0'}}>
+      <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:approved?12:0,cursor:'pointer'}}>
+        <input type='checkbox' checked={approved} onChange={()=>onToggle(!approved)}
+          style={{width:16,height:16,accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
+        <span style={{fontSize:12,fontWeight:700,color:'#111827',textTransform:'uppercase',letterSpacing:'0.06em'}}>Intel Log Entry</span>
+      </label>
+      {approved&&(
+        <div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Date</div>
+              <input type='date' value={entry.date} onChange={e=>onField('date',e.target.value)}
+                style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',boxSizing:'border-box'}}/>
+            </div>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Type</div>
+              <select value={entry.type} onChange={e=>onField('type',e.target.value)}
+                style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff'}}>
+                {['Call','Meeting','Email','Note'].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Participants</div>
+            <input value={entry.participants} onChange={e=>onField('participants',e.target.value)} placeholder='Names…'
+              style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',boxSizing:'border-box'}}/>
+          </div>
+          <div style={{marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Summary</div>
+            <textarea value={entry.summary} onChange={e=>onField('summary',e.target.value)} rows={3}
+              style={{width:'100%',fontSize:12,padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.5}}/>
+          </div>
+          {[['insights','#0066CC'],['risks','#dc2626'],['opportunities','#15803d']].map(([field,color])=>(
+            <div key={field} style={{marginBottom:6}}>
+              <div style={{fontSize:10,fontWeight:700,color,textTransform:'uppercase',marginBottom:3}}>{field}</div>
+              <textarea value={entry[field]} onChange={e=>onField(field,e.target.value)} rows={2}
+                placeholder={`One ${field.slice(0,-1)} per line…`}
+                style={{width:'100%',fontSize:11,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#374151',background:'#fff',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.4}}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActionsSection({actions, onUpdate}) {
+  if (!actions?.length) return null
+  return (
+    <div>
+      <div style={{fontSize:11,fontWeight:700,color:'#111827',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Proposed Actions</div>
+      {actions.map(action=>(
+        <label key={action._id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',background:action.approved?'#f0f9ff':'#f8fafc',borderRadius:7,marginBottom:4,border:`1px solid ${action.approved?'#bfdbfe':'#e2e8f0'}`,cursor:'pointer',transition:'all 0.12s'}}>
+          <input type='checkbox' checked={action.approved} onChange={()=>onUpdate(action._id,{approved:!action.approved})}
+            style={{width:15,height:15,marginTop:2,accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0,opacity:action.approved?1:0.5}}>
+            <div style={{fontSize:13,fontWeight:500,color:'#111827',lineHeight:1.4,marginBottom:3}}>{action.task}</div>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+              <span style={{fontSize:10,fontWeight:700,color:PRI_COLOR[action.priority]||'#64748b',background:PRI_BG[action.priority]||'#f8fafc',borderRadius:4,padding:'1px 6px'}}>{action.priority}</span>
+              {action.contact&&<span style={{fontSize:11,color:'#64748b'}}>{action.contact}</span>}
+              {action.dueDate&&<span style={{fontSize:11,color:'#64748b'}}>Due {action.dueDate}</span>}
+            </div>
+            {action.context&&<div style={{fontSize:11,color:'#64748b',marginTop:3,lineHeight:1.4}}>{action.context}</div>}
+          </div>
+        </label>
+      ))}
+    </div>
+  )
+}
+
 export default function IntelInbox({data, setData, apiKey, onClose}) {
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const effectiveKey = apiKey||''
@@ -268,78 +340,6 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
   })()
 
   const hasFooter = step==='review'&&(reviewItems.length>0||Object.values(lowConfSels).some(s=>s&&s!=='skip'))
-
-  // ── Shared section renderers ──────────────────────────────────────────────────
-
-  const IntelSection = ({entry, approved, onToggle, onField}) => (
-    <div style={{background:'#f8fafc',borderRadius:8,padding:12,marginBottom:8,border:'1px solid #e2e8f0'}}>
-      <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:approved?12:0,cursor:'pointer'}}>
-        <input type='checkbox' checked={approved} onChange={()=>onToggle(!approved)}
-          style={{width:16,height:16,accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-        <span style={{fontSize:12,fontWeight:700,color:'#111827',textTransform:'uppercase',letterSpacing:'0.06em'}}>Intel Log Entry</span>
-      </label>
-      {approved&&(
-        <div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-            <div>
-              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Date</div>
-              <input type='date' value={entry.date} onChange={e=>onField('date',e.target.value)}
-                style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',boxSizing:'border-box'}}/>
-            </div>
-            <div>
-              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Type</div>
-              <select value={entry.type} onChange={e=>onField('type',e.target.value)}
-                style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff'}}>
-                {['Call','Meeting','Email','Note'].map(t=><option key={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{marginBottom:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Participants</div>
-            <input value={entry.participants} onChange={e=>onField('participants',e.target.value)} placeholder='Names…'
-              style={{width:'100%',fontSize:12,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',boxSizing:'border-box'}}/>
-          </div>
-          <div style={{marginBottom:8}}>
-            <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:3}}>Summary</div>
-            <textarea value={entry.summary} onChange={e=>onField('summary',e.target.value)} rows={3}
-              style={{width:'100%',fontSize:12,padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#111827',background:'#fff',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.5}}/>
-          </div>
-          {[['insights','#0066CC'],['risks','#dc2626'],['opportunities','#15803d']].map(([field,color])=>(
-            <div key={field} style={{marginBottom:6}}>
-              <div style={{fontSize:10,fontWeight:700,color,textTransform:'uppercase',marginBottom:3}}>{field}</div>
-              <textarea value={entry[field]} onChange={e=>onField(field,e.target.value)} rows={2}
-                placeholder={`One ${field.slice(0,-1)} per line…`}
-                style={{width:'100%',fontSize:11,padding:'5px 8px',border:'1px solid #e2e8f0',borderRadius:5,color:'#374151',background:'#fff',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit',lineHeight:1.4}}/>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-
-  const ActionsSection = ({actions, onUpdate}) => {
-    if (!actions?.length) return null
-    return (
-      <div>
-        <div style={{fontSize:11,fontWeight:700,color:'#111827',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Proposed Actions</div>
-        {actions.map(action=>(
-          <label key={action._id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'8px 10px',background:action.approved?'#f0f9ff':'#f8fafc',borderRadius:7,marginBottom:4,border:`1px solid ${action.approved?'#bfdbfe':'#e2e8f0'}`,cursor:'pointer',transition:'all 0.12s'}}>
-            <input type='checkbox' checked={action.approved} onChange={()=>onUpdate(action._id,{approved:!action.approved})}
-              style={{width:15,height:15,marginTop:2,accentColor:'#2563eb',cursor:'pointer',flexShrink:0}}/>
-            <div style={{flex:1,minWidth:0,opacity:action.approved?1:0.5}}>
-              <div style={{fontSize:13,fontWeight:500,color:'#111827',lineHeight:1.4,marginBottom:3}}>{action.task}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                <span style={{fontSize:10,fontWeight:700,color:PRI_COLOR[action.priority]||'#64748b',background:PRI_BG[action.priority]||'#f8fafc',borderRadius:4,padding:'1px 6px'}}>{action.priority}</span>
-                {action.contact&&<span style={{fontSize:11,color:'#64748b'}}>{action.contact}</span>}
-                {action.dueDate&&<span style={{fontSize:11,color:'#64748b'}}>Due {action.dueDate}</span>}
-              </div>
-              {action.context&&<div style={{fontSize:11,color:'#64748b',marginTop:3,lineHeight:1.4}}>{action.context}</div>}
-            </div>
-          </label>
-        ))}
-      </div>
-    )
-  }
 
   // ── RENDER ────────────────────────────────────────────────────────────────────
 
