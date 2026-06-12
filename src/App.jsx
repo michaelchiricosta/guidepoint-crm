@@ -22,6 +22,7 @@ import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
+import IntelInbox from './components/IntelInbox.jsx'
 import Overview from './components/Overview.jsx'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
@@ -718,6 +719,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const dateStr = new Date().toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'})
 
   const [todayModal, setTodayModal] = useState(false)
+  const [intelInboxOpen, setIntelInboxOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState(null)
   const [taskForm, setTaskForm] = useState(null)
   const [taskSnoozeOpen, setTaskSnoozeOpen] = useState(false)
@@ -913,14 +915,26 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
               </div>
             </div>
-            {todayTasksCount>0&&(
-              <div style={{display:'flex',gap:8,flexShrink:0}}>
-                <div style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:10,padding:'8px 16px'}}>
-                  <div style={{fontSize:11,color:'#64748b',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Due Today</div>
-                  <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1}}>{todayTasksCount}</div>
-                </div>
-              </div>
-            )}
+            <div style={{display:'flex',gap:8,flexShrink:0}}>
+              <button
+                onClick={()=>setIntelInboxOpen(true)}
+                onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 16px rgba(15,23,42,0.3)';e.currentTarget.style.transform='translateY(-1px)'}}
+                onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(15,23,42,0.15)';e.currentTarget.style.transform='translateY(0)'}}
+                style={{
+                  background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#1d4ed8 100%)',
+                  border:'none',
+                  boxShadow:'0 1px 4px rgba(15,23,42,0.15)',
+                  borderRadius:10,
+                  padding:'10px 18px',
+                  cursor:'pointer',
+                  textAlign:'left',
+                  transition:'all 0.2s',
+                  transform:'translateY(0)',
+                }}>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Intel Inbox</div>
+                <div style={{fontSize:12,color:'rgba(255,255,255,0.65)',lineHeight:1.3}}>Capture intelligence once and<br/>distribute it across accounts →</div>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1222,6 +1236,16 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           )
         )}
       </div>
+
+      {/* Intel Inbox modal */}
+      {intelInboxOpen&&(
+        <IntelInbox
+          data={data}
+          setData={setData}
+          apiKey={data.apiKey}
+          onClose={()=>setIntelInboxOpen(false)}
+        />
+      )}
 
       {/* Today's Tasks modal */}
       {todayModal&&(
