@@ -555,7 +555,7 @@ const BarChartCard = memo(function BarChartCard({data}) {
           </div>
         </div>
       )}
-      <div style={{background:'#FFFFFF',borderRadius:12,padding:20,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #EEEFF2',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
+      <div className="lp-chart-bar" style={{background:'#FFFFFF',borderRadius:12,padding:20,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #EEEFF2',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:4}}>
           <div>
             <div style={{fontSize:15,fontWeight:700,color:'#111827'}}>Projects & Pipeline</div>
@@ -620,7 +620,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   }
 
   return (
-    <div style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box'}}>
+    <div className="lp-chart-perf" style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
         <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
         <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
@@ -693,6 +693,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [listSortKey, setListSortKey] = useState('name')
   const [listSortDir, setListSortDir] = useState('asc')
   const mob = typeof window!=='undefined'&&window.innerWidth<768
+  const [mobNavOpen, setMobNavOpen] = useState(false)
   const LOGO_COLORS = ['#2563eb','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
 
   const hour = new Date().getHours()
@@ -840,9 +841,43 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>}
+      {mob&&<>
+        <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
+          style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
+          <div style={{width:18,height:2,background:'#111827',borderRadius:1}}/>
+          <div style={{width:18,height:2,background:'#111827',borderRadius:1}}/>
+          <div style={{width:18,height:2,background:'#111827',borderRadius:1}}/>
+        </button>
+        {mobNavOpen&&<>
+          <div onClick={()=>setMobNavOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:250}}/>
+          <div style={{position:'fixed',left:0,top:0,height:'100vh',width:270,zIndex:260,background:'#FFFFFF',boxShadow:'4px 0 24px rgba(0,0,0,0.12)',display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'18px 20px 14px',borderBottom:'1px solid #EEEFF2',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+              <img src="/Ledgr-full-logo.png" style={{height:44,objectFit:'contain',display:'block'}} alt="Ledgr."/>
+              <button onClick={()=>setMobNavOpen(false)} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:24,lineHeight:1,padding:'0 4px'}}>×</button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',paddingTop:8}}>
+              {[
+                {label:'Dashboard',   action:()=>{setShowAccounts(false);setMobNavOpen(false)}},
+                {label:'Accounts',    action:()=>{setShowAccounts(true); setMobNavOpen(false)}},
+                {label:'All Projects',action:()=>{onGoAllProjects&&onGoAllProjects();setMobNavOpen(false)}},
+                {label:'Whitespace',  action:()=>{onGoWhitespace&&onGoWhitespace();  setMobNavOpen(false)}},
+                {label:'Vendors',     action:()=>{onGoVendors&&onGoVendors();         setMobNavOpen(false)}},
+                {label:'Settings',    action:()=>{onOpenSettings&&onOpenSettings();   setMobNavOpen(false)}},
+              ].map(item=>(
+                <button key={item.label} onClick={item.action}
+                  style={{display:'block',width:'100%',textAlign:'left',padding:'15px 24px',background:'transparent',border:'none',borderBottom:'1px solid #F9FAFB',fontSize:15,fontWeight:500,color:'#111827',cursor:'pointer',boxSizing:'border-box'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>}
+      </>}
       <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
-      <div style={{background:'#ffffff',padding:mob?'12px 16px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
+      <div style={{background:'#ffffff',padding:mob?'14px 16px 12px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
         <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
           <div>
             <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
@@ -867,7 +902,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       <div style={{maxWidth:1160,margin:'0 auto',padding:mob?'20px 16px 60px':'28px 32px 80px'}}>
 
         {/* STATS ROW */}
-        <div className={mob?'scroll-no-bar':undefined} style={{display:mob?'flex':'grid',gridTemplateColumns:mob?undefined:'repeat(5,1fr)',flexDirection:mob?'row':undefined,gap:12,marginBottom:mob?28:36,overflowX:mob?'auto':'visible',paddingBottom:mob?8:0,WebkitOverflowScrolling:mob?'touch':undefined}}>
+        <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:mob?8:12,marginBottom:mob?20:36}}>
           {/* Today's Tasks — hero tile (blue gradient) */}
           <button
             onClick={()=>setTodayModal(true)}
@@ -877,17 +912,15 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 60%,#3b82f6 100%)',
               border:'none',
               boxShadow:'0 2px 8px rgba(37,99,235,0.25)',
-              borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
+              borderRadius:12,padding:mob?'12px 14px':'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
               transform:'translateY(0)',
-              minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
-              flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
+              minHeight:mob?80:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
             }:{
               background:'linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#6366f1 100%)',
               border:`1px solid ${S.bdr}`,
               boxShadow:'none',
-              borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
-              minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
-              flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
+              borderRadius:12,padding:mob?'12px 14px':'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
+              minHeight:mob?80:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
             }}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <span style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>Today's Tasks</span>
@@ -896,7 +929,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
               </div>
             </div>
             <div>
-              <div style={{fontSize:40,fontWeight:900,color:'#ffffff',lineHeight:1,marginBottom:3}}>{todayTasksCount}</div>
+              <div style={{fontSize:mob?28:40,fontWeight:900,color:'#ffffff',lineHeight:1,marginBottom:3}}>{todayTasksCount}</div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.6)'}}>tasks due or overdue</div>
             </div>
           </button>
@@ -910,28 +943,26 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 border:'1px solid #e2e8f0',
                 borderTop:'none',
                 boxShadow:'0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)',
-                borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
+                borderRadius:12,padding:mob?'12px 14px':'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.2s',
                 transform:'translateY(0)',
-                minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
-                flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
+                minHeight:mob?80:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               }:{
                 background:S.surf,
                 border:`1px solid ${S.bdr}`,
                 boxShadow:'none',
-                borderRadius:12,padding:'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
-                minHeight:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
-                flexShrink:mob?0:undefined,width:mob?160:undefined,minWidth:mob?160:undefined
+                borderRadius:12,padding:mob?'12px 14px':'18px 20px',textAlign:'left',cursor:'pointer',transition:'all 0.15s',
+                minHeight:mob?80:110,display:'flex',flexDirection:'column',justifyContent:'space-between',
               }}>
               {S.isLight?(
                 <>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <span style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{stat.label}</span>
-                    <div style={{width:36,height:36,borderRadius:10,background:stat.color+'15',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {!mob&&<div style={{width:36,height:36,borderRadius:10,background:stat.color+'15',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                       <StatIconLg type={stat.type} color={stat.color} iconColor={stat.iconColor}/>
-                    </div>
+                    </div>}
                   </div>
                   <div>
-                    <div style={{fontSize:36,fontWeight:900,color:'#0f172a',lineHeight:1,marginBottom:3}}>{stat.value}</div>
+                    <div style={{fontSize:mob?24:36,fontWeight:900,color:'#0f172a',lineHeight:1,marginBottom:3}}>{stat.value}</div>
                     <div style={{fontSize:11,color:'#94a3b8'}}>{stat.ctx}</div>
                   </div>
                 </>
@@ -943,7 +974,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                       <StatIconLg type={stat.type} color={stat.color} iconColor={stat.iconColor}/>
                     </div>
                   </div>
-                  <div style={{fontSize:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
+                  <div style={{fontSize:mob?24:36,fontWeight:800,color:stat.color,lineHeight:1}}>{stat.value}</div>
                 </>
               )}
             </button>
@@ -1034,7 +1065,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   </div>
                 </div>
               ):(
-              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<600)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14,gridAutoRows:'1fr'}}>
+              <div style={{display:'grid',gridTemplateColumns:(()=>{const w=typeof window!=='undefined'?window.innerWidth:1400;if(w<360)return '1fr';if(w<900)return 'repeat(2,1fr)';if(w<1200)return 'repeat(3,1fr)';return 'repeat(4,1fr)'})(),gap:14,gridAutoRows:'1fr'}}>
                 {[...(data.accounts||[])].sort((a,b)=>a.name.localeCompare(b.name)).map((acct,acctIdx)=>{
                   const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open').length
                   const critFUs=(acct.followUps||[]).filter(f=>f.status==='Open'&&f.priority==='Critical').length
@@ -4783,7 +4814,7 @@ export default function App() {
             </button>
           </div>
           <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
-          <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch',position:'sticky',top:0,zIndex:10}}>
+          <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch',position:mob?'relative':'sticky',top:mob?undefined:0,zIndex:mob?undefined:10}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
                 onMouseEnter={e=>{if(tab!==t.id)e.currentTarget.style.color=S.txt}}

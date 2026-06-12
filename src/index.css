@@ -53,3 +53,23 @@ textarea { resize: vertical; }
   html, body, #root { height: auto; min-height: 100vh; overflow-x: hidden; overflow-y: auto; }
   body { overflow: visible; }
 }
+
+/* ── Mobile responsive (≤ 1199px): charts stack vertically ───── */
+@media (max-width: 1199px) {
+  .lp-chart-bar,
+  .lp-chart-perf {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* ── Mobile only (≤ 767px) ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Prevent any top-level overflow */
+  .lp-root { overflow-x: hidden; }
+
+  /* Contact card badge row: wrap tighter, hide health dot label on very small */
+  .contact-badges-row { flex-wrap: wrap; gap: 4px !important; }
+  .contact-health-label { display: none !important; }
+}
