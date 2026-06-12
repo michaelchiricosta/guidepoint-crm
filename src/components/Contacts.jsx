@@ -243,7 +243,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
     const avatarColor=isInternal?S.blue:isVendor?S.purple:inf.c
     return (
       <Card key={c.id}>
-        <div onClick={()=>setExp(isOpen?null:c.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
+        <div onClick={()=>setExp(isOpen?null:c.id)} className="contact-card-inner" style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer'}}>
           <div style={{width:36,height:36,borderRadius:'50%',background:avatarBg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:avatarColor,flexShrink:0,position:'relative'}}>
             {c.contactPhoto?<img src={c.contactPhoto} style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:initials(c.name)}
             {isInternal&&<span style={{position:'absolute',bottom:-2,right:-2,width:12,height:12,borderRadius:'50%',background:S.blue,display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',border:`1px solid ${S.surf}`}}>G</span>}
@@ -258,14 +258,14 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
               title="Open LinkedIn profile"
             >in</a>
           )}
-          <div style={{flex:1,minWidth:0}}>
+          <div className="contact-card-name" style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-              <span style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</span>
+              <span className="contact-name-text" style={{fontSize:13,fontWeight:600,color:S.txt}}>{c.name}</span>
               {!isInternal&&<span style={{width:7,height:7,borderRadius:'50%',background:sentC[c.sentiment]||S.muted,flexShrink:0}} title={c.sentiment}/>}
               {isInternal&&<Badge label='GP Internal' color={S.blue} bg='rgba(59,130,246,0.12)' size={10}/>}
               {isVendor&&c.vendorCompany&&<Badge label={c.vendorCompany} color={S.purple} bg='rgba(168,85,247,0.12)' size={10}/>}
             </div>
-            <div style={{fontSize:11,color:S.muted}}>{c.title}{c.dept?` · ${c.dept}`:''}</div>
+            <div className="contact-title-text" style={{fontSize:11,color:S.muted}}>{c.title}{c.dept?` · ${c.dept}`:''}</div>
           </div>
           <div className="contact-badges-row" style={{display:'flex',gap:5,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
             {!isInternal&&<Badge label={c.influence} color={inf.c} bg={inf.b}/>}

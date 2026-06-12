@@ -1295,7 +1295,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         const priorityColor = fu.priority==='Critical'?'#DC2626':fu.priority==='High'?'#D97706':'#6B7280'
                         return (
                           <div key={fu.id}>
-                            <div style={{display:'flex',alignItems:'center',gap:0,minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                            <div className="mob-modal-row" style={{display:'flex',alignItems:'center',gap:0,minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
                               onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
                               onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
                               <button onClick={()=>markTaskDone(g.account.id,fu.id)} title='Mark complete'
@@ -1305,7 +1305,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                                 <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{fu.task}</div>
                                 <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{fu.contact&&<span>{fu.contact}{isOverdue||true?' · ':''}</span>}{isOverdue?<span style={{color:'#DC2626'}}>{daysOver}d overdue</span>:<span>Due today</span>}</div>
                               </div>
-                              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                              <div className="mob-modal-actions" style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                                 {todayEditFlash===fu.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
                                 <span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{isOverdue?`${daysOver}d overdue`:'Today'}</span>
                                 <span style={{background:priorityBg,color:priorityColor,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{fu.priority}</span>
@@ -1419,7 +1419,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 const priorityColor = item.priority==='Critical'?'#DC2626':item.priority==='High'?'#D97706':'#6B7280'
                 return (
                   <div key={item.id||i}>
-                    <div style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                    <div className="mob-modal-row" style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
                       onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
                       onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
                       <button onClick={()=>completeFUInModal(item.accountId,item.id)} title='Mark complete'
@@ -1429,7 +1429,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{item.task}</div>
                         <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{item.contact&&<span>{item.contact}{d!==null?' · ':''}</span>}{d!==null&&<span style={{color:d<0?'#DC2626':'#9CA3AF'}}>{d<0?`Overdue ${Math.abs(d)}d`:fmtDate(item.dueDate)}</span>}</div>
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                      <div className="mob-modal-actions" style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                         {saveFlash===item.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
                         {urgLabel&&<span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{urgLabel}</span>}
                         <span style={{background:priorityBg,color:priorityColor,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{item.priority}</span>
@@ -1479,7 +1479,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 const ef = isEditingThis ? editingItem.form : null
                 return (
                   <div key={item.id||i}>
-                    <div style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
+                    <div className="mob-modal-row" style={{display:'flex',alignItems:'center',minHeight:64,padding:'12px 28px',borderBottom:'1px solid #F9FAFB',transition:'background 0.1s'}}
                       onMouseEnter={e=>{if(!isEditingThis)e.currentTarget.style.background='#FAFAFA'}}
                       onMouseLeave={e=>{if(!isEditingThis)e.currentTarget.style.background='transparent'}}>
                       <button onClick={()=>setStatModal(prev=>prev?{...prev,items:prev.items.filter(it=>it.id!==item.id)}:null)} title='Acknowledge renewal'
@@ -1489,7 +1489,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                         <div style={{fontSize:14,fontWeight:500,color:'#111827',lineHeight:1.3}}>{item.vendor}</div>
                         <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>{item.products&&<span>{item.products} · </span>}{fmtDate(item.renewalDate)}{item.cost&&<span> · {item.cost}</span>}</div>
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                      <div className="mob-modal-actions" style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                         {saveFlash===item.id&&<span style={{fontSize:11,color:'#10B981',fontWeight:700}}>Saved!</span>}
                         <span style={{background:'#F0F7FF',color:'#007AFF',fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>In {item.daysLeft}d</span>
                         <span style={{background:dcBg,color:dc,fontSize:11,fontWeight:500,borderRadius:20,padding:'3px 10px',whiteSpace:'nowrap'}}>{item.daysLeft<30?'Critical':'Upcoming'}</span>
@@ -4283,6 +4283,8 @@ function AllProjectsPage({data, setData, onBack}) {
   const [addModal,setAddModal] = useState(false)
   const [addForm,setAddForm] = useState({})
   const [addAcctId,setAddAcctId] = useState(data.accounts[0]?.id||'')
+  const mob = typeof window !== 'undefined' && window.innerWidth < 768
+  const [mobFilterOpen, setMobFilterOpen] = useState(false)
 
   const allWithAcct = data.accounts.flatMap(a=>(a.projects||[]).map(p=>({...p,_aid:a.id,_aname:a.short||a.name})))
 
@@ -4345,7 +4347,7 @@ function AllProjectsPage({data, setData, onBack}) {
   const fa=k=>v=>setAddForm(p=>({...p,[k]:v}))
 
   return(
-    <div style={{height:'100vh',background:S.bg,color:S.txt,display:'flex',overflow:'hidden'}}>
+    <div style={{height:mob?'auto':'100vh',minHeight:mob?'100vh':undefined,background:S.bg,color:S.txt,display:'flex',flexDirection:mob?'column':'row',overflow:mob?'visible':'hidden'}}>
       <style>{`
   .all-projects-sidebar * {
     color: #111827 !important;
@@ -4363,7 +4365,7 @@ function AllProjectsPage({data, setData, onBack}) {
   }
 `}</style>
       {/* ── SIDEBAR ── */}
-      <div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
+      {!mob&&<div className="all-projects-sidebar" style={{width:220,height:'100vh',flexShrink:0,display:'flex',flexDirection:'column',background:'#FFFFFF',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
         <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',justifyContent:'center',alignItems:'center'}}>
             <img src="/Ledgr-full-logo.png" alt="Ledgr." style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}}/>
@@ -4412,31 +4414,111 @@ function AllProjectsPage({data, setData, onBack}) {
               style={{width:'100%',fontSize:11,padding:'5px 8px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:5,color:'#111827',boxSizing:'border-box'}}/>
           </div>
         </div>
-      </div>
+      </div>}
+
+      {/* ── Mobile filter drawer ── */}
+      {mob&&mobFilterOpen&&<>
+        <div onClick={()=>setMobFilterOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:300}}/>
+        <div style={{position:'fixed',left:0,top:0,height:'100vh',width:280,zIndex:310,background:'#FFFFFF',boxShadow:'4px 0 24px rgba(0,0,0,0.12)',display:'flex',flexDirection:'column',overflowY:'auto'}}>
+          <div style={{padding:'18px 16px 14px',borderBottom:'1px solid #EEEFF2',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+            <span style={{fontSize:15,fontWeight:700,color:'#111827'}}>Filters</span>
+            <button onClick={()=>setMobFilterOpen(false)} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:24,lineHeight:1,padding:'0 4px'}}>×</button>
+          </div>
+          <div style={{padding:'14px 16px',flex:1,overflowY:'auto'}}>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Search</div>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search projects…'
+                style={{width:'100%',fontSize:13,padding:'8px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',boxSizing:'border-box',outline:'none'}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Sort By</div>
+              <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:'100%',fontSize:13,padding:'8px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',boxSizing:'border-box'}}>
+                {['Account','Status','Close Date'].map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Vendor Filter</div>
+              <input value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)} placeholder='Filter by vendor...'
+                style={{width:'100%',fontSize:13,padding:'8px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',boxSizing:'border-box',outline:'none'}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Accounts</div>
+              {data.accounts.map(a=>(
+                <label key={a.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',cursor:'pointer',color:'#111827'}}>
+                  <input type='checkbox' checked={accountFilter.has(a.id)}
+                    onChange={e=>{setAccountFilter(prev=>{const n=new Set(prev);e.target.checked?n.add(a.id):n.delete(a.id);return n})}}
+                    style={{accentColor:'#007AFF',cursor:'pointer',flexShrink:0}}/>
+                  <span style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.short||a.name}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Status</div>
+              {(()=>{
+                const PCOL={'In Flight':'#007AFF','In Discussion':'#8B5CF6','Not Started':'#9CA3AF','Stalled':'#F97316','Won':'#10B981','Lost':'#EF4444'}
+                return PROJ_STATS.map(s=>{const sc=PCOL[s]||'#9CA3AF';const act=statusFilter.has(s);return(
+                  <button key={s} onClick={()=>setStatusFilter(prev=>{const n=new Set(prev);if(n.has(s)){if(n.size>1)n.delete(s)}else n.add(s);return n})}
+                    style={{display:'block',width:'100%',margin:'3px 0',padding:'8px 10px',borderRadius:6,border:`1px solid ${act?sc:'#EEEFF2'}`,background:act?sc+'1A':'transparent',color:act?sc:'#6B7280',fontSize:13,fontWeight:600,cursor:'pointer',textAlign:'left'}}>
+                    {s}
+                  </button>
+                )})
+              })()}
+            </div>
+            <div style={{fontSize:11,color:'#9CA3AF'}}>{filtered.length} project{filtered.length!==1?'s':''}</div>
+          </div>
+          <div style={{padding:'12px 16px',borderTop:'1px solid #EEEFF2',flexShrink:0}}>
+            <button onClick={()=>{setAddForm({...projBlank,status:'Not Started'});setAddModal(true);setMobFilterOpen(false)}}
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,width:'100%',padding:'11px 12px',background:'#007AFF',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              + Add Project
+            </button>
+          </div>
+        </div>
+      </>}
 
       {/* ── MAIN ── */}
-      <div style={{flex:1,overflowY:'auto',background:S.isLight?'#f1f5f9':S.bg}}>
+      <div style={{flex:1,overflowY:mob?'visible':'auto',background:S.isLight?'#f1f5f9':S.bg}}>
         {/* Header bar */}
-        <div style={{background:S.surf,padding:'14px 24px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:100,flexWrap:'wrap'}}>
-          <h1 style={{fontSize:20,fontWeight:800,color:S.txt,margin:0,flex:1,minWidth:120}}>All Projects</h1>
-          <span style={{fontSize:12,fontWeight:600,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 10px'}}>{filtered.length}</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search...'
-            style={{fontSize:12,padding:'6px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,width:160}}/>
-          <select value={sort} onChange={e=>setSort(e.target.value)} style={{fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
-            {['Account','Status','Close Date'].map(o=><option key={o} value={o}>{o}</option>)}
-          </select>
-          <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,border:`1px solid ${S.bdr}`}}>
-            {[{v:'timeline',l:'Timeline'},{v:'pipeline',l:'Pipeline'}].map(({v,l})=>(
-              <button key={v} onClick={()=>setView(v)} style={{padding:'4px 12px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{l}</button>
-            ))}
-          </div>
-          <button onClick={()=>{setAddForm({...projBlank,status:'Not Started'});setAddModal(true)}}
-            style={{padding:'6px 14px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>+ Add Project</button>
+        <div style={{background:S.surf,padding:mob?'12px 14px':'14px 24px',display:'flex',alignItems:'center',gap:mob?8:12,position:'sticky',top:0,zIndex:100,flexWrap:'nowrap'}}>
+          {mob?(
+            <>
+              <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:7,color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 10px',flexShrink:0,whiteSpace:'nowrap'}}>
+                <ArrowLeft size={12}/>Back
+              </button>
+              <h1 style={{fontSize:16,fontWeight:800,color:S.txt,margin:0,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>All Projects</h1>
+              <span style={{fontSize:11,fontWeight:700,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{filtered.length}</span>
+              <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,border:`1px solid ${S.bdr}`,flexShrink:0}}>
+                {[{v:'timeline',l:'⊟'},{v:'pipeline',l:'⊞'}].map(({v,l})=>(
+                  <button key={v} onClick={()=>setView(v)} title={v} style={{padding:'5px 8px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:13,fontWeight:600,cursor:'pointer'}}>{l}</button>
+                ))}
+              </div>
+              <button onClick={()=>setMobFilterOpen(true)}
+                style={{display:'inline-flex',alignItems:'center',gap:4,padding:'7px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                ⚙{(search||vendorSearch||statusFilter.size<6)?<span style={{width:6,height:6,borderRadius:'50%',background:S.blue,display:'inline-block'}}/>:null}
+              </button>
+            </>
+          ):(
+            <>
+              <h1 style={{fontSize:20,fontWeight:800,color:S.txt,margin:0,flex:1,minWidth:120}}>All Projects</h1>
+              <span style={{fontSize:12,fontWeight:600,color:S.blue,background:S.isLight?'#dbeafe':'rgba(59,130,246,0.15)',borderRadius:999,padding:'2px 10px'}}>{filtered.length}</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search...'
+                style={{fontSize:12,padding:'6px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,width:160}}/>
+              <select value={sort} onChange={e=>setSort(e.target.value)} style={{fontSize:12,padding:'5px 8px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt}}>
+                {['Account','Status','Close Date'].map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+              <div style={{display:'flex',gap:2,background:S.surf2,borderRadius:7,padding:2,border:`1px solid ${S.bdr}`}}>
+                {[{v:'timeline',l:'Timeline'},{v:'pipeline',l:'Pipeline'}].map(({v,l})=>(
+                  <button key={v} onClick={()=>setView(v)} style={{padding:'4px 12px',borderRadius:5,border:'none',background:view===v?S.blue:'transparent',color:view===v?'#fff':S.muted,fontSize:12,fontWeight:600,cursor:'pointer'}}>{l}</button>
+                ))}
+              </div>
+              <button onClick={()=>{setAddForm({...projBlank,status:'Not Started'});setAddModal(true)}}
+                style={{padding:'6px 14px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>+ Add Project</button>
+            </>
+          )}
         </div>
 
         <div style={{padding:'16px 24px'}}>
           {/* Stats row */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}}>
+          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?8:10,marginBottom:mob?14:20}}>
             {[
               {label:'Active Projects',value:totalActive,color:'#16a34a',sub:'In Flight + In Discussion'},
               {label:'Weighted Pipeline',value:formatCompactCurrency(totalWeighted),color:'#0891b2',sub:'stage-weighted revenue'},
@@ -4463,7 +4545,7 @@ function AllProjectsPage({data, setData, onBack}) {
               {grouped.map(({a:acct,projs})=>{
                 const isCol=collapsed.has(acct.id)
                 return(
-                  <div key={acct.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:'visible',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
+                  <div key={acct.id} className={mob?'ap-project-scroll':undefined} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,overflow:mob?'auto':'visible',boxShadow:S.isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
                     {/* Account section header */}
                     <div onClick={()=>setCollapsed(prev=>{const n=new Set(prev);n.has(acct.id)?n.delete(acct.id):n.add(acct.id);return n})}
                       style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',cursor:'pointer',background:S.isLight?'#f8fafc':S.surf2,borderBottom:isCol?'none':`1px solid ${S.bdr}`,borderRadius:isCol?12:'12px 12px 0 0'}}>
@@ -4474,7 +4556,7 @@ function AllProjectsPage({data, setData, onBack}) {
                     {!isCol&&projs.map(p=>{
                       const sc=PSC[p.status]||S.muted
                       return(
-                        <div key={p.id} style={{padding:'10px 16px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',gap:12,transition:'background 0.1s'}}
+                        <div key={p.id} className="ap-project-row" style={{padding:'10px 16px',borderBottom:`1px solid ${S.bdr}`,display:'flex',alignItems:'center',gap:12,transition:'background 0.1s'}}
                           onMouseEnter={e=>e.currentTarget.style.background=S.isLight?'#f8fafc':S.surf2+'80'}
                           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                           {/* Left label col */}
@@ -4557,7 +4639,7 @@ function AllProjectsPage({data, setData, onBack}) {
           {/* ── PIPELINE VIEW ── */}
           {view==='pipeline'&&filtered.length>0&&(
             <div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:12}}>
+              <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?8:12,marginBottom:mob?8:12}}>
                 {['In Flight','In Discussion','Not Started','Stalled'].map(status=>{
                   const projs=sorted.filter(p=>p.status===status);const sc=PSC[status]||S.muted
                   return(

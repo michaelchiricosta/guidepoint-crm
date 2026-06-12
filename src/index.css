@@ -72,4 +72,27 @@ textarea { resize: vertical; }
   /* Contact card badge row: wrap tighter, hide health dot label on very small */
   .contact-badges-row { flex-wrap: wrap; gap: 4px !important; }
   .contact-health-label { display: none !important; }
+
+  /* Contact card: avatar row stays first line, badges wrap to second line */
+  .contact-card-inner { flex-wrap: wrap !important; align-items: flex-start !important; }
+  .contact-card-name { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .contact-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; max-width: 100%; }
+  .contact-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-badges-row {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    padding-top: 3px;
+  }
+
+  /* Task/stat modal rows: flex-wrap allows actions to wrap to second row */
+  .mob-modal-row { flex-wrap: wrap !important; padding: 10px 12px !important; min-height: unset !important; align-items: flex-start !important; }
+  .mob-modal-actions { flex: 0 0 100% !important; justify-content: flex-start !important; padding-top: 4px !important; padding-left: 32px !important; }
+}
+
+/* ── AllProjects + Account view overflow fix ──── */
+@media (max-width: 767px) {
+  .ap-project-row { min-width: 540px; }
+  .ap-project-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
