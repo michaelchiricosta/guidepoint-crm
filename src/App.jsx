@@ -878,7 +878,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
       {mob ? (
-        <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9'}}>
+        <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
           <img src="/ledgr-mobile.png" alt="Ledgr."
             style={{height:44,maxWidth:'60%',objectFit:'contain',display:'block'}}
             onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextSibling.style.display='block'}}/>
