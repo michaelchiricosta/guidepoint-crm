@@ -2023,6 +2023,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [scoringAll, setScoringAll] = useState(false)
   const [scoringId, setScoringId] = useState(null)
   const [scoreProgress, setScoreProgress] = useState('')
+  const mob = typeof window !== 'undefined' && window.innerWidth < 768
+  const [mobFilterOpen, setMobFilterOpen] = useState(false)
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2769,9 +2771,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const SM = S.sideMuted; const ST = S.sideTxt; const SB = S.sideBdr
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:isLight?'#f1f5f9':S.bg}}>
-      {/* SIDEBAR */}
-      <div style={{width:240,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',borderRight:'1px solid #EEEFF2'}}>
+    <div style={{display:'flex',flexDirection:mob?'column':'row',height:mob?'auto':'100vh',minHeight:mob?'100vh':undefined,overflow:mob?'visible':'hidden',background:isLight?'#f1f5f9':S.bg}}>
+      {/* SIDEBAR — desktop only */}
+      {!mob&&<div style={{width:240,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
           <div style={{display:'flex',justifyContent:'center',alignItems:'center'}}>
             <img src="/Ledgr-full-logo.png" alt="Ledgr." style={{height:'72px',width:'auto',maxWidth:'187px',objectFit:'contain',display:'block'}}/>
@@ -2825,57 +2827,148 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
+
+      {/* ── Mobile filter drawer ── */}
+      {mob&&mobFilterOpen&&<>
+        <div onClick={()=>setMobFilterOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:300}}/>
+        <div style={{position:'fixed',left:0,top:0,height:'100vh',width:280,zIndex:310,background:'#FFFFFF',boxShadow:'4px 0 24px rgba(0,0,0,0.12)',display:'flex',flexDirection:'column',overflowY:'auto'}}>
+          <div style={{padding:'18px 16px 14px',borderBottom:'1px solid #EEEFF2',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+            <span style={{fontSize:15,fontWeight:700,color:'#111827'}}>Filters</span>
+            <button onClick={()=>setMobFilterOpen(false)} style={{background:'transparent',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:24,lineHeight:1,padding:'0 4px'}}>×</button>
+          </div>
+          <div style={{padding:'14px 16px',flex:1}}>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Search</div>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search accounts…'
+                style={{width:'100%',fontSize:13,padding:'8px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',boxSizing:'border-box',outline:'none'}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Sort By</div>
+              <select value={sort} onChange={e=>setSort(e.target.value)}
+                style={{width:'100%',fontSize:13,padding:'8px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',boxSizing:'border-box'}}>
+                {SORT_OPTS.map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Status</div>
+              <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                {STATUS_OPTS.map(s=>(
+                  <button key={s} onClick={()=>setStatusFilter(s)}
+                    style={{textAlign:'left',padding:'9px 10px',borderRadius:7,border:'none',background:statusFilter===s?'#EBF4FF':'transparent',color:statusFilter===s?'#007AFF':'#374151',fontSize:13,cursor:'pointer',fontWeight:statusFilter===s?700:400}}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{sorted.length} account{sorted.length!==1?'s':''}</div>
+          </div>
+          <div style={{padding:'12px 16px',borderTop:'1px solid #EEEFF2',flexShrink:0}}>
+            <button onClick={()=>setShowAdd(true)}
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,width:'100%',padding:'11px 12px',background:'#007AFF',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              + Add Account
+            </button>
+          </div>
+        </div>
+      </>}
 
       {/* MAIN */}
-      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-        <div style={{padding:'16px 24px 14px',background:isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none'}}>
-          <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:6,background:'transparent',border:'none',color:'#2563eb',cursor:'pointer',fontSize:12,fontWeight:600,padding:'0 0 10px',lineHeight:1}}>
-            <ArrowLeft size={13}/>Back to Accounts
-          </button>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-                <div style={{fontSize:22,fontWeight:900,color:isLight?'#0f172a':S.txt,letterSpacing:'-0.02em'}}>Whitespace</div>
-                <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 9px'}}>{ws.length}</span>
-              </div>
-              <div style={{fontSize:12,color:'#64748b'}}>Prospect accounts you're tracking for future opportunities</div>
-            </div>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search accounts…'
-              style={{width:200,fontSize:12,padding:'7px 10px',background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.txt,outline:'none',flexShrink:0}}/>
-            <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
-              style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)',flexShrink:0}}>
-              <Zap size={14}/>Add Intelligence
-            </button>
-            <button onClick={scoreAllAccounts} disabled={scoringAll||!effectiveKey}
-              title={!effectiveKey?'Add your Anthropic API key in Settings first':'Score all unscored accounts with AI opportunity scores'}
-              style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:scoringAll?'#f59e0b':'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:scoringAll||!effectiveKey?'default':'pointer',boxShadow:'0 2px 8px rgba(245,158,11,0.3)',flexShrink:0,opacity:!effectiveKey?0.5:1}}>
-              <span style={{fontSize:14}}>🔥</span>{scoringAll?'Scoring…':'Score All'}
-            </button>
-            <div ref={moreMenuRef} style={{position:'relative',flexShrink:0}}>
-              <button onClick={()=>setShowMoreMenu(v=>!v)}
-                style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:8,color:S.muted,fontSize:18,fontWeight:700,cursor:'pointer',lineHeight:1}}
-                title="More actions">⋯</button>
-              {showMoreMenu&&(
-                <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:100}}>
-                  {[
-                    {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
-                    {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
-                    {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
-                    {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
-                    {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
-                  ].map((item,i,arr)=>(
-                    <button key={item.label} onClick={item.action}
-                      style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
-                      onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      {item.label}
-                    </button>
-                  ))}
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:mob?'visible':'hidden',minWidth:0}}>
+        <div style={{padding:mob?'12px 14px':'16px 24px 14px',background:isLight?'#ffffff':S.headerBg,borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
+          {/* ── Mobile top bar ── */}
+          {mob?(
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:'#2563eb',cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 10px',flexShrink:0,whiteSpace:'nowrap'}}>
+                <ArrowLeft size={12}/>Back
+              </button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:16,fontWeight:800,color:isLight?'#0f172a':S.txt,whiteSpace:'nowrap'}}>Whitespace</span>
+                  <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 7px',flexShrink:0}}>{ws.length}</span>
                 </div>
-              )}
+              </div>
+              <button onClick={()=>setMobFilterOpen(true)}
+                style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',background:isLight?'#f1f5f9':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                ⚙ Filters{(search||statusFilter!=='All')?<span style={{width:6,height:6,borderRadius:'50%',background:'#2563eb',display:'inline-block',flexShrink:0}}/>:null}
+              </button>
+              <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
+                style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:34,height:34,background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:7,color:'#fff',cursor:'pointer',flexShrink:0}}
+                title="Add Intelligence"><Zap size={14}/></button>
+              <div ref={moreMenuRef} style={{position:'relative',flexShrink:0}}>
+                <button onClick={()=>setShowMoreMenu(v=>!v)}
+                  style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:34,height:34,background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.muted,fontSize:18,fontWeight:700,cursor:'pointer',lineHeight:1}}
+                  title="More actions">⋯</button>
+                {showMoreMenu&&(
+                  <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:200}}>
+                    {[
+                      {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                      {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
+                      {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
+                      {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
+                      {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
+                    ].map((item,i,arr)=>(
+                      <button key={item.label} onClick={item.action}
+                        style={{display:'block',width:'100%',padding:'12px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ):(
+            /* ── Desktop top bar (unchanged) ── */
+            <>
+              <button onClick={onBack} style={{display:'inline-flex',alignItems:'center',gap:6,background:'transparent',border:'none',color:'#2563eb',cursor:'pointer',fontSize:12,fontWeight:600,padding:'0 0 10px',lineHeight:1}}>
+                <ArrowLeft size={13}/>Back to Accounts
+              </button>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+                    <div style={{fontSize:22,fontWeight:900,color:isLight?'#0f172a':S.txt,letterSpacing:'-0.02em'}}>Whitespace</div>
+                    <span style={{fontSize:11,fontWeight:700,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'2px 9px'}}>{ws.length}</span>
+                  </div>
+                  <div style={{fontSize:12,color:'#64748b'}}>Prospect accounts you're tracking for future opportunities</div>
+                </div>
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search accounts…'
+                  style={{width:200,fontSize:12,padding:'7px 10px',background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.txt,outline:'none',flexShrink:0}}/>
+                <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
+                  style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 16px',background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(37,99,235,0.3)',flexShrink:0}}>
+                  <Zap size={14}/>Add Intelligence
+                </button>
+                <button onClick={scoreAllAccounts} disabled={scoringAll||!effectiveKey}
+                  title={!effectiveKey?'Add your Anthropic API key in Settings first':'Score all unscored accounts with AI opportunity scores'}
+                  style={{display:'inline-flex',alignItems:'center',gap:6,padding:'9px 14px',background:scoringAll?'#f59e0b':'linear-gradient(135deg,#d97706 0%,#f59e0b 100%)',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:scoringAll||!effectiveKey?'default':'pointer',boxShadow:'0 2px 8px rgba(245,158,11,0.3)',flexShrink:0,opacity:!effectiveKey?0.5:1}}>
+                  <span style={{fontSize:14}}>🔥</span>{scoringAll?'Scoring…':'Score All'}
+                </button>
+                <div ref={moreMenuRef} style={{position:'relative',flexShrink:0}}>
+                  <button onClick={()=>setShowMoreMenu(v=>!v)}
+                    style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,background:isLight?'#f8fafc':S.surf2,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:8,color:S.muted,fontSize:18,fontWeight:700,cursor:'pointer',lineHeight:1}}
+                    title="More actions">⋯</button>
+                  {showMoreMenu&&(
+                    <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:100}}>
+                      {[
+                        {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                        {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
+                        {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
+                        {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
+                        {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
+                      ].map((item,i,arr)=>(
+                        <button key={item.label} onClick={item.action}
+                          style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
         {/* Named accounts banner */}
         <div style={{background:isLight?'#eff6ff':'rgba(37,99,235,0.08)',borderBottom:`1px solid ${isLight?'#bfdbfe':'rgba(37,99,235,0.2)'}`,flexShrink:0}}>
@@ -2949,7 +3042,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                     const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).sort((a,b)=>{const aS=ws.find(w=>w.name===a.name)?.ai_opportunity_score??-1;const bS=ws.find(w=>w.name===b.name)?.ai_opportunity_score??-1;if(aS>=0&&bS>=0)return bS-aS;return 0}).slice(0,3)
                     const dismissRec=(name)=>setData(prev=>({...prev,dismissedWhitespaceSuggestions:[...(prev.dismissedWhitespaceSuggestions||[]),name]}))
                     return visibleRecs.length>0?(
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+                      <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(3,1fr)',gap:12}}>
                         {visibleRecs.map((rec,i)=>{
                           const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
                           const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
@@ -2998,8 +3091,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           ):sorted.length===0?(
             <div style={{padding:40,textAlign:'center',color:S.muted,fontSize:13}}>No accounts match your search or filter.</div>
           ):(
-            <div>
-              <div style={{display:'flex',alignItems:'center',padding:'8px 16px',background:isLight?'#f8fafc':'rgba(255,255,255,0.03)',borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.05em',position:'sticky',top:0,zIndex:10,userSelect:'none'}}>
+            <div style={mob?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
+              <div style={{display:'flex',alignItems:'center',padding:'8px 16px',background:isLight?'#f8fafc':'rgba(255,255,255,0.03)',borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.05em',position:'sticky',top:mob?0:0,zIndex:10,userSelect:'none',minWidth:mob?900:undefined}}>
                 <div style={{width:28,flexShrink:0}}/>
                 <div style={{width:28,flexShrink:0,textAlign:'center'}}>🔥</div>
                 <div style={{flex:'0 0 200px',cursor:'pointer'}} onClick={()=>setSort(sort==='Name A-Z'?'Name Z-A':'Name A-Z')}>Name{sort==='Name A-Z'?' ↑':sort==='Name Z-A'?' ↓':''}</div>
@@ -3019,7 +3112,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 const intelCount = (acct.notes||[]).length + (acct.intelLog||[]).length
                 return (
                   <div key={acct.id} style={{borderBottom:`1px solid ${isLight?'#f1f5f9':'rgba(255,255,255,0.05)'}`,background:isExp?(isLight?'#f0f9ff':'rgba(37,99,235,0.05)'):i%2===0?(isLight?'#ffffff':'transparent'):(isLight?'#f8fafc':'rgba(255,255,255,0.015)')}}>
-                    <div style={{display:'flex',alignItems:'center',padding:'12px 16px',cursor:'pointer'}}
+                    <div style={{display:'flex',alignItems:'center',padding:'12px 16px',cursor:'pointer',minWidth:mob?900:undefined}}
                       onClick={()=>setExpandedId(isExp?null:acct.id)}
                       onMouseEnter={()=>setHoveredId(acct.id)}
                       onMouseLeave={()=>setHoveredId(null)}>
