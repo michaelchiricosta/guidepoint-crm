@@ -877,27 +877,33 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       </>}
       <div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
       {/* HERO SECTION */}
-      <div style={{background:'#ffffff',padding:mob?'14px 16px 12px':'12px 48px 10px',display:'flex',alignItems:'center'}}>
-        <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
-          <div>
-            <div style={{fontSize:mob?20:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
-            <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}>
-              <span style={{fontWeight:600,color:'#0f172a'}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
-              {totalOpenFUs>0&&<> · <span style={{color:'#2563eb',fontWeight:600}}>{totalOpenFUs}</span> open action{totalOpenFUs!==1?'s':''}</>}
-              {criticalItems>0&&<> · <span style={{color:'#dc2626',fontWeight:600}}>{criticalItems} critical</span></>}
-              {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
-            </div>
-          </div>
-          {!mob&&todayTasksCount>0&&(
-            <div style={{display:'flex',gap:8,flexShrink:0}}>
-              <div style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:10,padding:'8px 16px'}}>
-                <div style={{fontSize:11,color:'#64748b',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Due Today</div>
-                <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1}}>{todayTasksCount}</div>
+      {mob ? (
+        <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9'}}>
+          <img src="/Ledgr-logo.png" alt="Ledgr." style={{height:44,maxWidth:'60%',objectFit:'contain',display:'block'}}/>
+        </div>
+      ) : (
+        <div style={{background:'#ffffff',padding:'12px 48px 10px',display:'flex',alignItems:'center'}}>
+          <div style={{maxWidth:1160,margin:'0 auto',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:20}}>
+            <div>
+              <div style={{fontSize:22,fontWeight:800,color:'#0f172a',marginBottom:4,lineHeight:1.2,letterSpacing:'-0.02em'}}>{greeting}, Mike</div>
+              <div style={{fontSize:12,color:'#64748b',lineHeight:1.5}}>
+                <span style={{fontWeight:600,color:'#0f172a'}}>{data.accounts.length}</span> account{data.accounts.length!==1?'s':''}
+                {totalOpenFUs>0&&<> · <span style={{color:'#2563eb',fontWeight:600}}>{totalOpenFUs}</span> open action{totalOpenFUs!==1?'s':''}</>}
+                {criticalItems>0&&<> · <span style={{color:'#dc2626',fontWeight:600}}>{criticalItems} critical</span></>}
+                {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
               </div>
             </div>
-          )}
+            {todayTasksCount>0&&(
+              <div style={{display:'flex',gap:8,flexShrink:0}}>
+                <div style={{background:'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:10,padding:'8px 16px'}}>
+                  <div style={{fontSize:11,color:'#64748b',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:2}}>Due Today</div>
+                  <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1}}>{todayTasksCount}</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{maxWidth:1160,margin:'0 auto',padding:mob?'20px 16px 60px':'28px 32px 80px'}}>
 
