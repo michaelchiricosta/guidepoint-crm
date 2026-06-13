@@ -915,24 +915,27 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 {renewals90>0&&<> · <span style={{color:'#ea580c',fontWeight:600}}>{renewals90}</span> renewal{renewals90!==1?'s':''} within 90 days</>}
               </div>
             </div>
-            <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <div style={{display:'flex',gap:8,flexShrink:0,marginRight:32}}>
               <button
                 onClick={()=>setIntelInboxOpen(true)}
-                onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 16px rgba(15,23,42,0.3)';e.currentTarget.style.transform='translateY(-1px)'}}
+                onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 14px rgba(15,23,42,0.35)';e.currentTarget.style.transform='translateY(-1px)'}}
                 onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 1px 4px rgba(15,23,42,0.15)';e.currentTarget.style.transform='translateY(0)'}}
                 style={{
                   background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#1d4ed8 100%)',
                   border:'none',
                   boxShadow:'0 1px 4px rgba(15,23,42,0.15)',
                   borderRadius:10,
-                  padding:'10px 18px',
+                  padding:'9px 16px',
                   cursor:'pointer',
-                  textAlign:'left',
+                  display:'flex',
+                  alignItems:'center',
+                  gap:8,
                   transition:'all 0.2s',
                   transform:'translateY(0)',
+                  whiteSpace:'nowrap',
                 }}>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.75)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Intel Inbox</div>
-                <div style={{fontSize:12,color:'rgba(255,255,255,0.65)',lineHeight:1.3}}>Capture intelligence once and<br/>distribute it across accounts →</div>
+                <svg width="15" height="12" viewBox="0 0 22 17" fill="none"><rect x="1" y="1" width="20" height="15" rx="2" stroke="rgba(255,255,255,0.75)" strokeWidth="1.6"/><path d="M1 5l10 6 10-6" stroke="rgba(255,255,255,0.75)" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                <span style={{fontSize:13,fontWeight:600,color:'rgba(255,255,255,0.92)',letterSpacing:'0.01em'}}>Intel Inbox</span>
               </button>
             </div>
           </div>
