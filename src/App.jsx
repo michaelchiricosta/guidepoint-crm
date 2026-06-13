@@ -2078,6 +2078,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const [scoreProgress, setScoreProgress] = useState('')
   const mob = typeof window !== 'undefined' && window.innerWidth < 768
   const [mobFilterOpen, setMobFilterOpen] = useState(false)
+  const [selectedForExport, setSelectedForExport] = useState(new Set())
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2226,6 +2227,50 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     setAddDupeWarning(null)
   }
 
+  const escapeCSV = val => {
+    if (val === null || val === undefined) return ''
+    const str = String(val)
+    if (/[,"\n\r]/.test(str)) return '"' + str.replace(/"/g, '""') + '"'
+    return str
+  }
+
+  const exportSummaryCSV = () => {
+    const headers = ['Account Name','HQ','Industry','Employees','Revenue']
+    const rows = ws.map(a => [escapeCSV(a.name),escapeCSV(a.hq),escapeCSV(a.industry),escapeCSV(a.employees),escapeCSV(a.revenue)].join(','))
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], {type:'text/csv'})
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url; link.download = 'whitespace-summary.csv'; link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportSelectedFullDetailsCSV = () => {
+    const sel = ws.filter(a => selectedForExport.has(a.id))
+    if (sel.length === 0) { alert('Select at least one account to export.'); return }
+    const headers = ['Account Name','HQ','Industry','Employees','Revenue','Status','Contacts','Technologies','Notes','Intel Log','AI Score','AI Score Reasoning','Added','Updated']
+    const rows = sel.map(a => {
+      const notes = (a.notes||[]).map(n=>`[${n.date||''}] ${n.text||''}`).join(' | ')
+      const intel = (a.intelLog||[]).map(n=>`[${n.date||''}] ${n.summary||n.text||''}`).join(' | ')
+      return [
+        escapeCSV(a.name), escapeCSV(a.hq), escapeCSV(a.industry),
+        escapeCSV(a.employees), escapeCSV(a.revenue), escapeCSV(a.status),
+        escapeCSV((a.contacts||[]).map(c=>c.name||c).join('; ')),
+        escapeCSV((a.technologies||[]).join('; ')),
+        escapeCSV(notes), escapeCSV(intel),
+        escapeCSV(a.ai_opportunity_score!=null?String(a.ai_opportunity_score):''),
+        escapeCSV(a.ai_score_reasoning||''),
+        escapeCSV(a.addedAt||''), escapeCSV(a.updatedAt||''),
+      ].join(',')
+    })
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], {type:'text/csv'})
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url; link.download = 'whitespace-selected-full-details.csv'; link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleAutoFill = async () => {
     if (!effectiveKey) { alert('Add your Anthropic API key in Settings first.'); return }
     const missing = ws.filter(a => !a.employees || !a.revenue)
@@ -2242,9 +2287,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 500,
+            max_tokens: 600,
             tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-            messages: [{role:'user',content:`Find the approximate employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}.Return ONLY a JSON object with no other text: {"employees":"number or range as string e.g. 5000 or 1000-5000","revenue":"annual revenue as string e.g. $500M or $1.2B","source":"brief source description"}`}]
+            messages: [{role:'user',content:`Research the employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}. Search up to 3 trusted sources (company website, LinkedIn, Crunchbase, Pitchbook, public filings, press releases). Rules: (1) employees must be a single rounded integer — never a range, never use ~, never write "approximately" — if you find multiple estimates average them and round to the nearest 100 or 1000 as appropriate; (2) revenue must be a clean short string like $500M or $1.2B — no ~, no approximation language, no "around"; (3) if you cannot find reliable data for a field return an empty string for that field; (4) do not hallucinate or invent numbers. Return ONLY valid JSON with no other text: {"employees":"single integer as string e.g. 5000","revenue":"clean string e.g. $500M","source":"brief description of sources used"}`}]
           })
         })
         const result = await resp.json()
@@ -2260,8 +2305,13 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         }
         if (parsed) {
           const changes = {}
-          if (!account.employees) changes.employees = parsed.employees ? String(parsed.employees) : 'Not found'
-          if (!account.revenue) changes.revenue = parsed.revenue ? String(parsed.revenue) : 'Not found'
+          const empRaw = parsed.employees ? String(parsed.employees).replace(/[~≈,\s]/g,'').trim() : ''
+          const revRaw = parsed.revenue ? String(parsed.revenue).replace(/[~≈]/g,'').trim() : ''
+          const empClean = empRaw && !empRaw.includes('-') && empRaw !== 'Notfound' ? empRaw : ''
+          const revClean = revRaw && revRaw !== 'Notfound' ? revRaw : ''
+          if (!account.employees && empClean) changes.employees = empClean
+          if (!account.revenue && revClean) changes.revenue = revClean
+          if (parsed.source && (changes.employees || changes.revenue)) changes.employeeSource = String(parsed.source)
           if (Object.keys(changes).length > 0) { updateAccount(account.id, changes); updatedCount++ }
         }
       } catch (err) { console.error(`Auto-fill failed for ${account.name}:`, err) }
@@ -2959,6 +3009,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                       {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
                       {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
+                      {label:'Export Summary CSV', action:()=>{exportSummaryCSV();setShowMoreMenu(false)}},
+                      {label:'Export Selected Full Details', action:()=>{exportSelectedFullDetailsCSV();setShowMoreMenu(false)}},
                     ].map((item,i,arr)=>(
                       <button key={item.label} onClick={item.action}
                         style={{display:'block',width:'100%',padding:'12px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
@@ -3008,6 +3060,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                         {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
                         {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
                         {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
+                        {label:'Export Summary CSV', action:()=>{exportSummaryCSV();setShowMoreMenu(false)}},
+                        {label:'Export Selected Full Details', action:()=>{exportSelectedFullDetailsCSV();setShowMoreMenu(false)}},
                       ].map((item,i,arr)=>(
                         <button key={item.label} onClick={item.action}
                           style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
@@ -3146,6 +3200,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           ):(
             <div style={mob?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
               <div style={{display:'flex',alignItems:'center',padding:'8px 16px',background:isLight?'#f8fafc':'rgba(255,255,255,0.03)',borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.05em',position:'sticky',top:mob?0:0,zIndex:10,userSelect:'none',minWidth:mob?900:undefined}}>
+                <div style={{width:32,flexShrink:0,textAlign:'center'}}>
+                  <input type="checkbox" style={{cursor:'pointer',accentColor:'#2563eb'}}
+                    checked={sorted.length>0&&sorted.every(a=>selectedForExport.has(a.id))}
+                    onChange={e=>{if(e.target.checked)setSelectedForExport(new Set(sorted.map(a=>a.id)));else setSelectedForExport(new Set())}}/>
+                </div>
                 <div style={{width:28,flexShrink:0}}/>
                 <div style={{width:28,flexShrink:0,textAlign:'center'}}>🔥</div>
                 <div style={{flex:'0 0 200px',cursor:'pointer'}} onClick={()=>setSort(sort==='Name A-Z'?'Name Z-A':'Name A-Z')}>Name{sort==='Name A-Z'?' ↑':sort==='Name Z-A'?' ↓':''}</div>
@@ -3169,6 +3228,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                       onClick={()=>setExpandedId(isExp?null:acct.id)}
                       onMouseEnter={()=>setHoveredId(acct.id)}
                       onMouseLeave={()=>setHoveredId(null)}>
+                      <div style={{width:32,flexShrink:0,textAlign:'center'}} onClick={e=>e.stopPropagation()}>
+                        <input type="checkbox" style={{cursor:'pointer',accentColor:'#2563eb'}}
+                          checked={selectedForExport.has(acct.id)}
+                          onChange={e=>{setSelectedForExport(prev=>{const s=new Set(prev);if(e.target.checked)s.add(acct.id);else s.delete(acct.id);return s})}}/>
+                      </div>
                       <div style={{width:28,flexShrink:0,color:'#94a3b8',fontSize:11}}>{isExp?'▼':'▶'}</div>
                       <div style={{width:28,flexShrink:0,textAlign:'center',fontSize:14}}>
                         {isHot(acct)?<span title='Hot account'>🔥</span>:null}
