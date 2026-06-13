@@ -23,9 +23,11 @@ export default function Projects({acct,setAcct}) {
   const [statusMenu,setStatusMenu] = useState(null)
   const [tlFilters,setTlFilters] = useState(new Set(TIMELINE_STATUSES))
   const toggleTlFilter = s => setTlFilters(prev=>{const n=new Set(prev);n.has(s)?n.delete(s):n.add(s);return n})
-  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
+  const blank={id:'',name:'',category:'',vendor:'',status:'Not Started',description:'',goals:'',pains:'',primaryContact:'',budget:false,closeDate:'',notes:'',waitingOn:'',nextAction:'',nextSteps:'',estimatedRevenue:'',estimatedGrossProfit:'',clientTargetDate:'',projectNotes:[],timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))}
   const [form,setForm] = useState(blank)
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
+  const [addingNoteFor, setAddingNoteFor] = useState(null)
+  const [newNoteText, setNewNoteText] = useState('')
   const save=()=>{if(!form.name)return;if(form.id)setAcct(p=>({...p,projects:p.projects.map(j=>j.id===form.id?form:j)}));else setAcct(p=>({...p,projects:[...p.projects,{...form,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const toggleStage=(projId,idx)=>{setAcct(p=>({...p,projects:p.projects.map(j=>{if(j.id!==projId)return j;const tl=j.timeline.map((s,i)=>{if(i!==idx)return s;const next=s.status==='pending'?'current':s.status==='current'?'completed':'pending';return{...s,status:next,date:next==='pending'?'':new Date().toISOString().split('T')[0]};});return{...j,timeline:tl}})}))}
   const updateField=(projId,field,val)=>{setAcct(p=>({...p,projects:p.projects.map(j=>j.id===projId?{...j,[field]:val}:j)}))}
@@ -89,9 +91,10 @@ export default function Projects({acct,setAcct}) {
                   const comp=p.timeline.filter(s=>s.status==='completed').length
                   return (
                     <div key={p.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'9px 11px',marginBottom:6,position:'relative',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
-                      {/* Name + edit button */}
+                      {/* Name + notes bubble + edit button */}
                       <div style={{display:'flex',alignItems:'flex-start',gap:4,marginBottom:4}}>
                         <div style={{fontSize:12,fontWeight:600,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
+                        {p.projectNotes?.length>0&&<span title={`${p.projectNotes.length} note${p.projectNotes.length!==1?'s':''}`} style={{fontSize:9,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 5px',lineHeight:1.6,flexShrink:0}}>💬{p.projectNotes.length}</span>}
                         <button onClick={e=>openEdit(p,e)} style={penBtn} title='Edit'>✏</button>
                       </div>
                       {/* Clickable inline status badge */}
@@ -114,6 +117,7 @@ export default function Projects({acct,setAcct}) {
                       </div>
                       <div style={{fontSize:11,color:S.muted,marginBottom:4}}>{p.vendor&&<span>{p.vendor} · </span>}{p.primaryContact||'—'}</div>
                       {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginBottom:4}}>→ {p.nextAction}</div>}
+                      {p.nextSteps&&<div style={{fontSize:11,color:'#2563eb',marginBottom:4,lineHeight:1.4}}>▶ {p.nextSteps}</div>}
                       {(p.estimatedRevenue||p.estimatedGrossProfit)&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:5}}>
                         {p.estimatedRevenue&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>Rev: {p.estimatedRevenue}</span>}
                         {p.estimatedGrossProfit&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>GP: {p.estimatedGrossProfit}</span>}
@@ -190,9 +194,11 @@ export default function Projects({acct,setAcct}) {
                   {p.vendor&&<Badge label={p.vendor} color={S.muted} bg='rgba(100,116,139,0.1)'/>}
                   {stageDays!==null&&<Badge label={`In stage: ${stageDays}d`} color={S.muted} bg='rgba(100,116,139,0.08)'/>}
                   {p.waitingOn&&<Badge label={`Waiting: ${p.waitingOn}`} color={S.orange} bg='rgba(249,115,22,0.12)'/>}
+                  {p.projectNotes?.length>0&&<Badge label={`💬 ${p.projectNotes.length}`} color={S.muted} bg='rgba(100,116,139,0.08)'/>}
                 </div>
                 <div style={{fontSize:11,color:S.muted}}>{p.primaryContact||'—'} · Close: {fmtDate(p.closeDate)||'TBD'}</div>
                 {p.nextAction&&<div style={{fontSize:11,color:S.blue,marginTop:3}}>→ Next: {p.nextAction}</div>}
+                {p.nextSteps&&<div style={{fontSize:11,color:'#2563eb',marginTop:3}}>▶ {p.nextSteps}</div>}
                 {(p.estimatedRevenue||p.estimatedGrossProfit)&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:3}}>
                   {p.estimatedRevenue&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>Rev: {p.estimatedRevenue}</span>}
                   {p.estimatedGrossProfit&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 6px'}}>GP: {p.estimatedGrossProfit}</span>}
@@ -243,7 +249,7 @@ export default function Projects({acct,setAcct}) {
                   <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Notes</div>
                   <InlineEdit value={p.notes} onChange={val=>updateField(p.id,'notes',val)} placeholder='Project notes...' multiline/>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
                   <div>
                     <div style={{fontSize:10,color:S.blue,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Next Action</div>
                     <InlineEdit value={p.nextAction} onChange={val=>updateField(p.id,'nextAction',val)} placeholder='Next step...'/>
@@ -252,6 +258,39 @@ export default function Projects({acct,setAcct}) {
                     <div style={{fontSize:10,color:S.orange,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Waiting On</div>
                     <InlineEdit value={p.waitingOn} onChange={val=>updateField(p.id,'waitingOn',val)} placeholder='Who/what is blocking...'/>
                   </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:'#2563eb',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Next Steps</div>
+                  <InlineEdit value={p.nextSteps||''} onChange={val=>updateField(p.id,'nextSteps',val)} placeholder='Specific actions to advance this project...'/>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Project Notes</div>
+                  {(p.projectNotes||[]).length===0&&<div style={{fontSize:11,color:S.muted,fontStyle:'italic',marginBottom:6}}>No notes yet.</div>}
+                  {[...(p.projectNotes||[])].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map((n,ni)=>(
+                    <div key={n.id||ni} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:6,padding:'8px 10px',marginBottom:5}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                        <span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>{fmtDate(n.date)||n.date}</span>
+                        {n.sourceIntelId&&<span style={{fontSize:10,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:3,padding:'1px 5px'}}>via Intel Log</span>}
+                        <button onClick={()=>updateField(p.id,'projectNotes',(p.projectNotes||[]).filter(x=>x.id!==n.id))} style={{marginLeft:'auto',background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}} title='Remove'>×</button>
+                      </div>
+                      <div style={{fontSize:12,color:S.secondary,lineHeight:1.5}}>{n.text}</div>
+                    </div>
+                  ))}
+                  {addingNoteFor===p.id?(
+                    <div style={{display:'flex',gap:6,alignItems:'flex-start',marginTop:4}}>
+                      <textarea rows={2} value={newNoteText} onChange={e=>setNewNoteText(e.target.value)} autoFocus
+                        placeholder='Add a note...'
+                        style={{flex:1,fontSize:12,padding:'6px 8px',border:`1px solid ${S.bdr}`,borderRadius:6,background:S.surf,color:S.txt,resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
+                      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                        <button onClick={()=>{if(newNoteText.trim())updateField(p.id,'projectNotes',[{id:uid(),text:newNoteText.trim(),date:new Date().toISOString().split('T')[0],sourceIntelId:'',createdAt:new Date().toISOString()},...(p.projectNotes||[])]);setAddingNoteFor(null);setNewNoteText('')}}
+                          style={{fontSize:11,padding:'4px 8px',background:'#007AFF',color:'#fff',border:'none',borderRadius:5,cursor:'pointer',whiteSpace:'nowrap',fontWeight:600}}>Save</button>
+                        <button onClick={()=>{setAddingNoteFor(null);setNewNoteText('')}}
+                          style={{fontSize:11,padding:'4px 8px',background:'transparent',border:`1px solid ${S.bdr}`,color:S.muted,borderRadius:5,cursor:'pointer'}}>Cancel</button>
+                      </div>
+                    </div>
+                  ):(
+                    <button onClick={()=>{setAddingNoteFor(p.id);setNewNoteText('')}} style={{fontSize:11,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:'3px 0',fontWeight:600}}>+ Add note</button>
+                  )}
                 </div>
                 <div style={{display:'flex',gap:8}}><Btn onClick={()=>openEdit(p,null)}>Edit</Btn><Btn variant='danger' onClick={()=>{if(window.confirm('Delete?'))setAcct(prev=>({...prev,projects:prev.projects.filter(j=>j.id!==p.id)}))}}>Delete</Btn></div>
               </div>}
@@ -301,6 +340,7 @@ export default function Projects({acct,setAcct}) {
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
         <Field label='Next Action' value={form.nextAction} onChange={f('nextAction')}/>
         <Field label='Waiting On' value={form.waitingOn} onChange={f('waitingOn')}/>
+        <Field label='Next Steps' value={form.nextSteps||''} onChange={f('nextSteps')} placeholder='Specific actions to advance this project...'/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
       </Modal>}
     </div>

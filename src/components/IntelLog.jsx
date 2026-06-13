@@ -4,6 +4,7 @@ import { S, PC } from '../theme.js'
 import { uid, extractJSON, fmtDate } from '../utils.js'
 import { Btn, Field, Modal } from './UI.jsx'
 import { resolveVendorMapping } from '../securityFramework.js'
+import { STAGES } from '../constants.js'
 import { supabase } from '../supabase.js'
 
 // ── Date helpers (only used in IntelLog) ──
@@ -93,6 +94,9 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [deleteCheckedCt, setDeleteCheckedCt] = useState(new Set())
   const [deleteCheckedTn, setDeleteCheckedTn] = useState(new Set())
   const [deleteToast, setDeleteToast] = useState('')
+  const [pendingProjectUpdates, setPendingProjectUpdates] = useState(null)
+  const [projUpdateChecked, setProjUpdateChecked] = useState({})
+  const [newProjForms, setNewProjForms] = useState({})
 
   const maybeShowTechSuggestions = (parsed) => {
     const raw = (parsed.techStackSuggestions || []).filter(s =>
@@ -116,7 +120,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const maybeShowTechAiNotes = (parsed) => {
     if (!parsed) return
     const rawUpdates = (parsed.techStackUpdates || []).filter(u => u.vendor && u.aiNotesUpdate)
-    if (!rawUpdates.length) return
+    if (!rawUpdates.length) { maybeShowProjectUpdates(parsed); return }
     const updates = rawUpdates.map(u => {
       const match = (acct.techStack||[]).find(t =>
         t.vendor.toLowerCase().includes(u.vendor.toLowerCase()) ||
@@ -124,9 +128,39 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       )
       return {...u, _id: uid(), matchedEntry: match || null}
     }).filter(u => u.matchedEntry)
-    if (!updates.length) return
-    setPendingTechAiNotes({updates})
+    if (!updates.length) { maybeShowProjectUpdates(parsed); return }
+    setPendingTechAiNotes({updates, parsed})
     setTechAiNotesSels(new Set(updates.map(u => u._id)))
+  }
+
+  const maybeShowProjectUpdates = (parsed) => {
+    if (!parsed?.projectUpdates?.length) return
+    const activeProjStatuses = ['In Flight', 'In Discussion', 'Not Started', 'Stalled']
+    const activeProjects = (acct.projects || []).filter(p => activeProjStatuses.includes(p.status))
+    const matchProject = (updateName, updateVendor, projects) => {
+      const nameLow = (updateName||'').toLowerCase().trim()
+      const vendorLow = (updateVendor||'').toLowerCase().trim()
+      if (!nameLow && !vendorLow) return null
+      return projects.find(p => {
+        const pName = (p.name||'').toLowerCase()
+        const pVendor = (p.vendor||'').toLowerCase()
+        const nameMatch = nameLow && (pName.includes(nameLow) || nameLow.includes(pName))
+        const vendorMatch = vendorLow && pVendor && (pVendor.includes(vendorLow) || vendorLow.includes(pVendor))
+        return nameMatch || vendorMatch
+      }) || null
+    }
+    const updates = parsed.projectUpdates.map((u, idx) => ({...u, _idx: idx, matchedProject: matchProject(u.projectName, u.vendorName, activeProjects)}))
+    const initChecked = {}
+    updates.forEach((u, idx) => {
+      initChecked[idx] = {stage:!!(u.suggestedStage), status:!!(u.suggestedStatus), closeDate:!!(u.suggestedCloseDate), revenue:!!(u.suggestedRevenue), waitingOn:!!(u.waitingOn), nextSteps:!!(u.nextSteps)}
+    })
+    const initForms = {}
+    updates.forEach((u, idx) => {
+      if (!u.matchedProject) initForms[idx] = {name:u.projectName||'', vendor:u.vendorName||'', status:u.suggestedStatus||'Not Started', category:''}
+    })
+    setPendingProjectUpdates({updates, parsed})
+    setProjUpdateChecked(initChecked)
+    setNewProjForms(initForms)
   }
 
   const detectCompanyMentions = (text) => {
@@ -266,7 +300,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     }
   }
 
-  const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
+  const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}],\n  "projectUpdates":[{"projectName":"deal or project name if identifiable","vendorName":"vendor or solution name if mentioned","suggestedStage":"Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed — most advanced stage clearly implied, or empty string","suggestedStatus":"In Discussion|In Flight|Stalled|Won|Not Started — only if clearly implied, or empty string","suggestedCloseDate":"YYYY-MM-DD only if client gave explicit date, or empty string","suggestedRevenue":"dollar amount if stated, or empty string","waitingOn":"what or who is blocking this deal, if mentioned — or empty string","nextSteps":"specific next actions mentioned for this deal — or empty string","note":"1-2 sentence summary of this project update — always populated","isNewProject":false,"confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.\n\nFor projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
 
   const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
@@ -471,12 +505,15 @@ FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Write each task like a 
   "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],
   "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],
   "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],
-  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}]
+  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}],
+  "projectUpdates":[{"projectName":"deal or project name if identifiable","vendorName":"vendor or solution name if mentioned","suggestedStage":"Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed — most advanced stage clearly implied, or empty string","suggestedStatus":"In Discussion|In Flight|Stalled|Won|Not Started — only if clearly implied, or empty string","suggestedCloseDate":"YYYY-MM-DD only if client gave explicit date, or empty string","suggestedRevenue":"dollar amount if stated, or empty string","waitingOn":"what or who is blocking this deal, if mentioned — or empty string","nextSteps":"specific next actions mentioned for this deal — or empty string","note":"1-2 sentence summary of this project update — always populated","isNewProject":false,"confidence":"high|medium"}]
 }
 
 For techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.
 
-For techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors with meaningful intel — not just passing mentions. Keep it factual and specific to this account.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT:\n'+vendorCtx:''}
+For techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors with meaningful intel — not just passing mentions. Keep it factual and specific to this account.
+
+For projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT:\n'+vendorCtx:''}
 
 INPUT:
 ${inputText}`}]
@@ -1067,6 +1104,7 @@ Rules:
       })()}
 
       {pendingTechAiNotes&&!pendingTechSuggestions&&!pendingParsed&&(()=>{
+        const p = pendingTechAiNotes.parsed
         const commitAiNotesUpdate = () => {
           setAcct(prev=>{
             const ts=[...(prev.techStack||[])]
@@ -1086,6 +1124,7 @@ Rules:
             return{...prev,techStack:ts}
           })
           setPendingTechAiNotes(null);setTechAiNotesSels(new Set())
+          maybeShowProjectUpdates(p)
         }
         return(
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
@@ -1095,7 +1134,7 @@ Rules:
                   <span style={{fontSize:18}}>✨</span>
                   <span style={{fontSize:16,fontWeight:700,color:'#111827',flex:1}}>AI Notes for Your Tech Stack</span>
                   <span style={{fontSize:11,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'2px 8px'}}>{pendingTechAiNotes.updates.length} update{pendingTechAiNotes.updates.length!==1?'s':''}</span>
-                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set())}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
+                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set());maybeShowProjectUpdates(p)}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
                 </div>
                 <p style={{fontSize:12,color:'#64748b',margin:'0 0 10px'}}>AI found updates for these technologies based on the intel you just uploaded. Review and confirm which to save.</p>
                 <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -1143,7 +1182,7 @@ Rules:
               <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',flexShrink:0}}>
                 <span style={{fontSize:12,color:'#94a3b8'}}>{techAiNotesSels.size} tech stack entr{techAiNotesSels.size!==1?'ies':'y'} will be updated</span>
                 <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set())}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
+                  <button onClick={()=>{setPendingTechAiNotes(null);setTechAiNotesSels(new Set());maybeShowProjectUpdates(p)}} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
                   <button onClick={commitAiNotesUpdate} disabled={techAiNotesSels.size===0}
                     style={{padding:'8px 16px',background:techAiNotesSels.size===0?'#94a3b8':'#007AFF',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:techAiNotesSels.size===0?'not-allowed':'pointer'}}>
                     Update Selected
@@ -1260,6 +1299,132 @@ Rules:
           </div>
         </div>
       )}
+
+      {pendingProjectUpdates&&!pendingTechAiNotes&&!pendingTechSuggestions&&!pendingParsed&&(()=>{
+        const applyProjectUpdates = () => {
+          const intelEntryId = lastIntelEntryIdRef.current || ''
+          const intelDate = pendingProjectUpdates.parsed?.intelEntry?.date || new Date().toISOString().split('T')[0]
+          setAcct(prev => {
+            let projects = [...(prev.projects || [])]
+            pendingProjectUpdates.updates.forEach((u, idx) => {
+              const checked = projUpdateChecked[idx] || {}
+              if (u.matchedProject) {
+                const pidx = projects.findIndex(p => p.id === u.matchedProject.id)
+                if (pidx < 0) return
+                let proj = {...projects[pidx]}
+                if (checked.stage && u.suggestedStage) {
+                  proj.timeline = (proj.timeline || []).map(s => {
+                    if (s.stage === u.suggestedStage) return {...s, status:'current', date:new Date().toISOString().split('T')[0]}
+                    if (s.status === 'current') return {...s, status:'completed', date:s.date||new Date().toISOString().split('T')[0]}
+                    return s
+                  })
+                }
+                if (checked.status && u.suggestedStatus) proj.status = u.suggestedStatus
+                if (checked.closeDate && u.suggestedCloseDate) proj.closeDate = u.suggestedCloseDate
+                if (checked.revenue && u.suggestedRevenue) proj.estimatedRevenue = u.suggestedRevenue
+                if (checked.waitingOn && u.waitingOn) proj.waitingOn = u.waitingOn
+                if (checked.nextSteps && u.nextSteps) proj.nextSteps = u.nextSteps
+                if (u.note) proj.projectNotes = [{id:uid(),text:u.note,date:intelDate,sourceIntelId:intelEntryId,createdAt:new Date().toISOString()},...(proj.projectNotes||[])]
+                projects[pidx] = proj
+              }
+            })
+            Object.entries(newProjForms).forEach(([idxStr, form]) => {
+              const idx = parseInt(idxStr)
+              const u = pendingProjectUpdates.updates[idx]
+              if (!u || u.matchedProject || !form.name?.trim()) return
+              projects.push({
+                id:uid(), name:form.name, vendor:form.vendor||'', category:form.category||'',
+                status:form.status||'Not Started', description:'', goals:'', pains:'',
+                primaryContact:'', budget:false, closeDate:u.suggestedCloseDate||'', notes:'',
+                waitingOn:u.waitingOn||'', nextAction:'', nextSteps:u.nextSteps||'',
+                estimatedRevenue:u.suggestedRevenue||'', estimatedGrossProfit:'', clientTargetDate:'',
+                projectNotes:u.note?[{id:uid(),text:u.note,date:intelDate,sourceIntelId:intelEntryId,createdAt:new Date().toISOString()}]:[],
+                timeline:STAGES.map(s=>({stage:s,status:'pending',date:''}))
+              })
+            })
+            return {...prev, projects}
+          })
+          setPendingProjectUpdates(null); setProjUpdateChecked({}); setNewProjForms({})
+        }
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div style={{width:'72vw',maxWidth:760,maxHeight:'86vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+              <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                  <span style={{fontSize:18}}>📋</span>
+                  <span style={{fontSize:16,fontWeight:700,color:'#111827',flex:1}}>Project Updates Detected</span>
+                  <span style={{fontSize:11,fontWeight:600,color:'#15803d',background:'#dcfce7',borderRadius:999,padding:'2px 8px'}}>{pendingProjectUpdates.updates.length} found</span>
+                  <button onClick={()=>{setPendingProjectUpdates(null);setProjUpdateChecked({});setNewProjForms({})}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:18,cursor:'pointer',lineHeight:1,padding:'0 2px',marginLeft:4}}>×</button>
+                </div>
+                <p style={{fontSize:12,color:'#64748b',margin:0}}>AI found project intel in your upload. Check which fields to update. Notes are always added.</p>
+              </div>
+              <div style={{overflowY:'auto',flex:1,padding:'12px 20px',display:'flex',flexDirection:'column',gap:12}}>
+                {pendingProjectUpdates.updates.map((u, idx) => {
+                  const checked = projUpdateChecked[idx] || {}
+                  const toggleField = field => setProjUpdateChecked(prev=>({...prev,[idx]:{...(prev[idx]||{}),[field]:!(prev[idx]?.[field])}}))
+                  if (u.matchedProject) {
+                    return (
+                      <div key={idx} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px 14px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                          <span style={{fontSize:14,fontWeight:700,color:'#111827'}}>{u.matchedProject.name}</span>
+                          <span style={{fontSize:10,fontWeight:600,color:'#15803d',background:'#dcfce7',borderRadius:999,padding:'2px 7px'}}>Matched</span>
+                          {u.matchedProject.vendor&&<span style={{fontSize:11,color:'#64748b'}}>{u.matchedProject.vendor}</span>}
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                          {u.suggestedStage&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.stage||false} onChange={()=>toggleField('stage')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Stage →</span><span style={{color:'#111827'}}>{u.suggestedStage}</span></label>}
+                          {u.suggestedStatus&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.status||false} onChange={()=>toggleField('status')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Status →</span><span style={{color:'#111827'}}>{u.suggestedStatus}</span></label>}
+                          {u.suggestedCloseDate&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.closeDate||false} onChange={()=>toggleField('closeDate')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Close Date →</span><span style={{color:'#111827'}}>{u.suggestedCloseDate}</span></label>}
+                          {u.suggestedRevenue&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.revenue||false} onChange={()=>toggleField('revenue')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Revenue →</span><span style={{color:'#111827'}}>{u.suggestedRevenue}</span></label>}
+                          {u.waitingOn&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.waitingOn||false} onChange={()=>toggleField('waitingOn')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Waiting On →</span><span style={{color:'#111827'}}>{u.waitingOn}</span></label>}
+                          {u.nextSteps&&<label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12}}><input type='checkbox' checked={checked.nextSteps||false} onChange={()=>toggleField('nextSteps')} style={{accentColor:'#007AFF',width:15,height:15}}/><span style={{color:'#64748b',fontWeight:600,minWidth:80}}>Next Steps →</span><span style={{color:'#111827'}}>{u.nextSteps}</span></label>}
+                        </div>
+                        {u.note&&<div style={{marginTop:8,padding:'7px 10px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7}}>
+                          <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>Note (always added)</div>
+                          <div style={{fontSize:12,color:'#374151',lineHeight:1.5,fontStyle:'italic'}}>{u.note}</div>
+                        </div>}
+                      </div>
+                    )
+                  } else {
+                    const form = newProjForms[idx] || {name:u.projectName||'',vendor:u.vendorName||'',status:'Not Started',category:''}
+                    const updateForm = (field, val) => setNewProjForms(prev=>({...prev,[idx]:{...form,[field]:val}}))
+                    return (
+                      <div key={idx} style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'12px 14px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                          <span style={{fontSize:13,fontWeight:700,color:'#92400e'}}>New Project Detected</span>
+                          <span style={{fontSize:10,fontWeight:600,color:'#92400e',background:'#fef3c7',borderRadius:999,padding:'2px 7px'}}>{u.confidence}</span>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                          <div>
+                            <div style={{fontSize:10,color:'#92400e',fontWeight:700,marginBottom:3}}>Project Name</div>
+                            <input value={form.name} onChange={e=>updateForm('name',e.target.value)} placeholder='Project name'
+                              style={{width:'100%',boxSizing:'border-box',fontSize:12,padding:'5px 8px',border:'1px solid #fde68a',borderRadius:5,background:'#fff',color:'#374151',outline:'none'}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:10,color:'#92400e',fontWeight:700,marginBottom:3}}>Vendor</div>
+                            <input value={form.vendor} onChange={e=>updateForm('vendor',e.target.value)} placeholder='Vendor name'
+                              style={{width:'100%',boxSizing:'border-box',fontSize:12,padding:'5px 8px',border:'1px solid #fde68a',borderRadius:5,background:'#fff',color:'#374151',outline:'none'}}/>
+                          </div>
+                        </div>
+                        {u.note&&<div style={{padding:'7px 10px',background:'#fff',border:'1px solid #fde68a',borderRadius:7,marginBottom:6}}>
+                          <div style={{fontSize:10,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>Intel Note</div>
+                          <div style={{fontSize:12,color:'#374151',lineHeight:1.5,fontStyle:'italic'}}>{u.note}</div>
+                        </div>}
+                        <div style={{fontSize:11,color:'#92400e'}}>Fill in the name above to create this project when you click Apply.</div>
+                      </div>
+                    )
+                  }
+                })}
+              </div>
+              <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8,background:'#fff',flexShrink:0}}>
+                <button onClick={()=>{setPendingProjectUpdates(null);setProjUpdateChecked({});setNewProjForms({})}}
+                  style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Skip</button>
+                <button onClick={applyProjectUpdates}
+                  style={{padding:'8px 16px',background:'#15803d',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Apply Selected</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {deleteToast&&(
         <div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f1f5f9',padding:'10px 18px',borderRadius:8,fontSize:13,fontWeight:500,zIndex:2000,boxShadow:'0 4px 16px rgba(0,0,0,0.25)',whiteSpace:'nowrap'}}>
