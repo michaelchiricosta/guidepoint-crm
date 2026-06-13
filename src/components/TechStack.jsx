@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { List, User } from 'lucide-react'
 import { S } from '../theme.js'
 import { uid, fmtDate, daysUntil, extractJSON } from '../utils.js'
@@ -60,6 +60,10 @@ const getSecondaryVendors = (sub, techStack) =>
 const getKnownVendorsForSub = sub =>
   Object.entries(SECURITY_FRAMEWORK.vendorMap).filter(([,v])=>v.primarySub===sub).map(([k])=>k)
 const capStatusFill = v => !v?S.bdr2:({Current:'#22c55e',Selected:'#22c55e',Evaluating:'#3b82f6',Watch:'#a855f7',Replacing:'#f97316',Dropping:'#ef4444','Current Gap':'#64748b'}[v.status]||S.bdr2)
+const resolveItemSub = (item) => {
+  const mapping = resolveVendorMapping(item.vendor, item.category)
+  return item.primarySub || mapping.primarySub || item.category || 'Unknown'
+}
 
 export default function TechStack({acct,setAcct,apiKey}) {
   const isTouchDevice = typeof window!=='undefined'&&('ontouchstart' in window||navigator.maxTouchPoints>0)
@@ -98,11 +102,12 @@ export default function TechStack({acct,setAcct,apiKey}) {
   }
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',vendor:'',products:'',category:'SIEM',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]}
+  const blank={id:'',vendor:'',products:'',category:'SIEM',primarySub:'SIEM',status:'Current',renewalDate:'',cost:'',totalRevenue:'',grossProfit:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',notes:'',contractSale:'',contractSaleDetails:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesSummary:'',aiNotesHistory:[]}
   const save=()=>{
     const isGap=form.status==='Current Gap'
     if(!form.vendor&&!isGap)return
-    const entry={...form,vendor:form.vendor||(isGap?'No Solution':''),primarySub:form.category,category:form.category}
+    const sub=form.primarySub||form.category
+    const entry={...form,vendor:form.vendor||(isGap?'No Solution':''),primarySub:sub,category:sub}
     if(!entry.vendor)return
     try {
       if(entry.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===entry.id?entry:t)}))
@@ -116,11 +121,55 @@ export default function TechStack({acct,setAcct,apiKey}) {
     }
   }
   const del=id=>{if(window.confirm('Delete?'))setAcct(p=>({...p,techStack:p.techStack.filter(t=>t.id!==id)}))}
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+
   const openVendorEdit=item=>{
     const mapping=resolveVendorMapping(item.vendor||'',item.category||'')
     const initialCategory=item.primarySub||mapping.primarySub||item.category||''
     setForm({...blank,...item,category:initialCategory,primarySub:initialCategory})
+    setHistoryExpanded(false)
+    setSummaryError('')
     setShowAdd(true)
+  }
+
+  useEffect(()=>{
+    const allSubs=SECURITY_FRAMEWORK.domains.flatMap(d=>d.subs)
+    const migrateItem=item=>{
+      if(item.primarySub&&allSubs.includes(item.primarySub))return item
+      const mapping=resolveVendorMapping(item.vendor,item.category)
+      if(mapping.primarySub&&allSubs.includes(mapping.primarySub))return{...item,primarySub:mapping.primarySub,category:mapping.primarySub}
+      const fuzzy=allSubs.find(sub=>sub.toLowerCase().includes((item.category||'').toLowerCase())||(item.category||'').toLowerCase().includes(sub.toLowerCase()))
+      if(fuzzy)return{...item,primarySub:fuzzy,category:fuzzy}
+      return{...item,needsReview:true}
+    }
+    const migratedStack=(acct.techStack||[]).map(migrateItem)
+    const anyMigrated=migratedStack.some((item,i)=>item.primarySub!==(acct.techStack[i]?.primarySub))
+    if(anyMigrated)setAcct(prev=>({...prev,techStack:migratedStack}))
+  },[acct.id])
+
+  const refreshSummary=async()=>{
+    if(!apiKey){setSummaryError('Add API key in Settings first.');return}
+    const vendor=form.vendor
+    const allNotes=[
+      ...(form.aiNotesHistory||[]).map(h=>({text:h.text||h.summary||'',date:h.date||''})),
+      ...(form.aiNotes?[{text:form.aiNotes,date:form.aiNotesUpdatedAt||''}]:[])
+    ].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(h=>`[${h.date||'?'}] ${h.text}`).join('\n\n')
+    if(!allNotes.trim()){setSummaryError('No notes to summarize yet.');return}
+    setSummaryLoading(true);setSummaryError('')
+    try{
+      const {data}=await callClaudeWithRetry({
+        model:'claude-haiku-4-5-20251001',max_tokens:400,
+        messages:[{role:'user',content:`You are summarizing the history of a vendor relationship over time. Here are all AI notes for ${vendor} in chronological order oldest to newest:\n\n${allNotes}\n\nWrite a 2-3 sentence executive summary of how this technology and vendor relationship has evolved, what the current state is, and what the trend direction is. Be specific and factual. Return ONLY the summary text, no preamble.`}]
+      },apiKey,null)
+      const summary=data.content?.[0]?.text?.trim()||''
+      if(!summary)throw new Error('No summary returned')
+      setForm(p=>({...p,aiNotesSummary:summary}))
+      if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?{...t,aiNotesSummary:summary}:t)}))
+    }catch(e){
+      setSummaryError(e.message==='OVERLOADED'?'API busy — try again.':e.message||'Summary failed')
+    }finally{setSummaryLoading(false)}
   }
   const filteredStack=saleFilter==='All'?acct.techStack:acct.techStack.filter(t=>saleFilter==='Not Set'?!t.contractSale:t.contractSale===saleFilter)
   const grouped=TECH_CATS.reduce((acc,cat)=>{const items=filteredStack.filter(t=>t.category===cat);if(items.length)acc[cat]=items;return acc},{})
@@ -196,9 +245,7 @@ export default function TechStack({acct,setAcct,apiKey}) {
         {(()=>{
           const subVendorMap = {}
           ;(acct.techStack||[]).forEach(item=>{
-            // Prefer the explicitly stored sub-domain over the name-resolved one
-            const mapping=resolveVendorMapping(item.vendor,item.category)
-            const sub=item.primarySub||item.category||mapping.primarySub||'Unknown'
+            const sub=resolveItemSub(item)
             if(!subVendorMap[sub])subVendorMap[sub]=[]
             subVendorMap[sub].push(item)
           })
@@ -232,6 +279,10 @@ export default function TechStack({acct,setAcct,apiKey}) {
                               <span onClick={()=>openVendorEdit({...blank,...primaryItem})} style={{fontSize:13,fontWeight:600,color:S.txt,cursor:'pointer'}}
                                 onMouseEnter={e=>e.target.style.color=S.blue}
                                 onMouseLeave={e=>e.target.style.color=S.txt}>{primaryItem.vendor}</span>
+                              {primaryItem.needsReview&&<span
+                                title='Category needs review — click to update'
+                                onClick={e=>{e.stopPropagation();openVendorEdit({...blank,...primaryItem})}}
+                                style={{width:7,height:7,borderRadius:'50%',background:'#f97316',display:'inline-block',flexShrink:0,cursor:'pointer'}}/>}
                               {extraCount>0&&<span style={{fontSize:11,color:S.muted}}>+{extraCount} more</span>}
                             </div>
                           ):(
@@ -888,13 +939,56 @@ Return ONLY valid JSON — no markdown, no preamble, no commentary:
           <Field label='Contract Sale Details' value={form.contractSaleDetails||''} onChange={f('contractSaleDetails')}/>
         </div>
         <Field label='Replacement Options' value={form.replacementOptions} onChange={f('replacementOptions')} multiline placeholder='List alternative vendors being considered'/>
-        <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'12px',marginBottom:8}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-            <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14}}>✨</span><span style={{fontSize:12,fontWeight:700,color:'#2563eb'}}>AI Intelligence</span><span style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>(read-only — auto-updated from intel)</span></div>
-            {form.aiNotesUpdatedAt&&<span style={{fontSize:10,color:'#94a3b8'}}>Updated {fmtDate(form.aiNotesUpdatedAt)}</span>}
+        <div style={{marginBottom:8,display:'flex',flexDirection:'column',gap:8}}>
+          {/* Section 1 — AI Summary */}
+          <div style={{background:'#dbeafe',border:'1px solid #93c5fd',borderRadius:8,padding:'12px'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:13}}>✨</span>
+                <span style={{fontSize:12,fontWeight:700,color:'#1d4ed8'}}>AI Summary</span>
+                {((form.aiNotesHistory||[]).length+(form.aiNotes?1:0))>0&&<span style={{fontSize:10,color:'#3b82f6',background:'#eff6ff',borderRadius:999,padding:'1px 7px'}}>Based on {(form.aiNotesHistory||[]).length+(form.aiNotes?1:0)} note{((form.aiNotesHistory||[]).length+(form.aiNotes?1:0))!==1?'s':''}</span>}
+              </div>
+              <button onClick={refreshSummary} disabled={summaryLoading}
+                style={{fontSize:11,padding:'3px 10px',background:'#2563eb',color:'#fff',border:'none',borderRadius:5,cursor:summaryLoading?'not-allowed':'pointer',fontWeight:600,opacity:summaryLoading?0.6:1}}>
+                {summaryLoading?'Generating…':'Refresh Summary'}
+              </button>
+            </div>
+            {summaryError&&<div style={{fontSize:11,color:'#dc2626',marginBottom:4}}>{summaryError}</div>}
+            {form.aiNotesSummary
+              ?<div style={{fontSize:12,color:'#1e3a5f',lineHeight:1.6}}>{form.aiNotesSummary}</div>
+              :<div style={{fontSize:12,color:'#60a5fa',fontStyle:'italic'}}>No summary yet — click Refresh to generate</div>}
           </div>
-          {(form.aiNotes||'')?(()=>{const parts=(form.aiNotes||'').split('\n\n');const prose=parts[0]||'';const bullets=parts.slice(1).join('\n').split('\n').filter(l=>l.startsWith('•'));return(<><div style={{fontSize:12,lineHeight:1.6,color:'#1e3a5f',marginBottom:3}}>{prose}</div>{bullets.length>0&&<ul style={{margin:'3px 0 0',paddingLeft:16,fontSize:11,color:'#374151'}}>{bullets.map((b,bi)=><li key={bi}>{b.replace(/^•\s*/,'')}</li>)}</ul>}</>)})():<div style={{fontSize:12,color:'#94a3b8',fontStyle:'italic'}}>No AI notes yet — upload intel mentioning this vendor to auto-populate</div>}
-          {((form.aiNotesHistory)||[]).length>0&&<details style={{marginTop:8}}><summary style={{fontSize:11,color:'#2563eb',cursor:'pointer',userSelect:'none'}}>View History ({(form.aiNotesHistory||[]).length})</summary>{(form.aiNotesHistory||[]).map((h,hi)=><div key={hi} style={{marginTop:6,borderTop:'1px solid #bfdbfe',paddingTop:6,fontSize:11,color:'#475569'}}><span style={{fontWeight:600}}>{fmtDate(h.date)||'—'}</span>: {h.summary?.slice(0,120)}{(h.summary||'').length>120?'…':''}</div>)}</details>}
+          {/* Section 2 — Current Note */}
+          <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'12px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+              <span style={{fontSize:13}}>✨</span>
+              <span style={{fontSize:12,fontWeight:700,color:'#2563eb'}}>Latest AI Note</span>
+              <span style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>(auto-updated from intel)</span>
+              {form.aiNotesUpdatedAt&&<span style={{fontSize:10,color:'#94a3b8',marginLeft:'auto'}}>{fmtDate(form.aiNotesUpdatedAt)}</span>}
+            </div>
+            {(form.aiNotes||'')?(()=>{
+              const parts=(form.aiNotes||'').split('\n\n');const prose=parts[0]||'';const bullets=parts.slice(1).join('\n').split('\n').filter(l=>l.startsWith('•'))
+              return(<><div style={{fontSize:12,lineHeight:1.6,color:'#1e3a5f',marginBottom:3}}>{prose}</div>{bullets.length>0&&<ul style={{margin:'3px 0 0',paddingLeft:16,fontSize:11,color:'#374151'}}>{bullets.map((b,bi)=><li key={bi}>{b.replace(/^•\s*/,'')}</li>)}</ul>}</>)
+            })():<div style={{fontSize:12,color:'#94a3b8',fontStyle:'italic'}}>No AI notes yet — upload intel mentioning this vendor to auto-populate</div>}
+          </div>
+          {/* Section 3 — History */}
+          {(form.aiNotesHistory||[]).length>0&&(
+            <div>
+              <button onClick={()=>setHistoryExpanded(p=>!p)} style={{fontSize:12,color:'#2563eb',background:'transparent',border:'none',cursor:'pointer',padding:'2px 0',fontWeight:600}}>
+                {historyExpanded?'Hide':'View'} {(form.aiNotesHistory||[]).length} previous note{(form.aiNotesHistory||[]).length!==1?'s':''}
+              </button>
+              {historyExpanded&&(
+                <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
+                  {[...(form.aiNotesHistory||[])].reverse().map((h,hi,arr)=>(
+                    <div key={h.id||hi} style={{background:'#f8fafc',borderRadius:6,padding:'8px 10px',borderBottom:hi<arr.length-1?'1px solid #e2e8f0':'none'}}>
+                      <div style={{fontSize:10,fontWeight:600,color:'#2563eb',marginBottom:3}}>{fmtDate(h.date)||h.date||'—'}</div>
+                      <div style={{fontSize:11,color:'#64748b',lineHeight:1.5}}>{(h.text||h.summary||'').slice(0,200)}{(h.text||h.summary||'').length>200?'…':''}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <Field label='Notes' value={form.notes} onChange={f('notes')} multiline/>
         <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>

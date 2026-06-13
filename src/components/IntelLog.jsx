@@ -1114,11 +1114,14 @@ Rules:
               if(idx<0)return
               const existing=ts[idx]
               const formatted=u.aiNotesUpdate+(u.bullets?.length?'\n\n'+u.bullets.map(b=>'• '+b).join('\n'):'')
+              const hist=[...(existing.aiNotesHistory||[])]
+              if(existing.aiNotes?.trim()) hist.push({id:uid(),text:existing.aiNotes,date:existing.aiNotesUpdatedAt||'',archivedAt:new Date().toISOString()})
               ts[idx]={...existing,
                 aiNotes:formatted,
                 aiNotesUpdatedAt:u.date||new Date().toISOString().split('T')[0],
                 aiNotesSourceIntelId:lastIntelEntryIdRef.current||'',
-                aiNotesHistory:[...(existing.aiNotesHistory||[]),...(existing.aiNotes?[{summary:existing.aiNotes,date:existing.aiNotesUpdatedAt||'',sourceIntelId:lastIntelEntryIdRef.current||''}]:[])]
+                aiNotesHistory:hist,
+                aiNotesSummary:''
               }
             })
             return{...prev,techStack:ts}
