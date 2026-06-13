@@ -4937,7 +4937,7 @@ export default function App() {
 
   const safeLoadData = async () => {
     if (Date.now() - contactPhotoSaveTime < 5000) { console.log('Skipping reload — contact photo save in progress'); return }
-    if (Date.now() - (window._lastDirectSave || 0) < 5000) { console.log('Skipping reload — direct save in progress'); return }
+    if (Date.now() - (window._lastDirectSave || 0) < 8000) { console.log('Skipping reload — direct save in progress'); return }
     console.log('safeLoadData called, inProgress:', saveInProgress.current, 'lastSave:', lastSaveTime.current)
     if (saveInProgress.current) { console.log('Skipping reload — save in progress'); return }
     if (Date.now() - lastSaveTime.current < 5000) { console.log('Skipping reload — recent save'); return }
@@ -4956,7 +4956,7 @@ export default function App() {
   useEffect(()=>{
     if(!data || !initialLoadDone || !storageReady) return
     if (Date.now() - contactPhotoSaveTime < 5000) return
-    if (Date.now() - (window._lastDirectSave || 0) < 5000) return
+    if (Date.now() - (window._lastDirectSave || 0) < 8000) return
     console.log('Auto-save triggered')
     let iv
     const timer = setTimeout(()=>{

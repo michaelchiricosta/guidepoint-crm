@@ -4,6 +4,7 @@ import { S, PC } from '../theme.js'
 import { uid, extractJSON, fmtDate } from '../utils.js'
 import { Btn, Field, Modal } from './UI.jsx'
 import { resolveVendorMapping } from '../securityFramework.js'
+import { supabase } from '../supabase.js'
 
 // ── Date helpers (only used in IntelLog) ──
 const MONTH_MAP = {january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
@@ -580,9 +581,26 @@ Rules:
     }
   }
 
-  const deleteEntry = id => {
-    if(!window.confirm('Delete this intel entry? This cannot be undone.')) return
-    setAcct(p=>({...p,intelLog:(p.intelLog||[]).filter(e=>e.id!==id)}))
+  const handleDeleteIntelEntry = async (entryId) => {
+    if (!window.confirm('Delete this intel entry? This cannot be undone.')) return
+    const updatedIntelLog = (acct.intelLog || []).filter(e => e.id !== entryId)
+    const updatedAcct = {...acct, intelLog: updatedIntelLog}
+    setAcct(updatedAcct)
+    const updatedAccounts = (appData.accounts || []).map(a =>
+      a.id === acct.id ? updatedAcct : a
+    )
+    const updatedData = {...appData, accounts: updatedAccounts}
+    setAppData(updatedData)
+    try {
+      window._lastDirectSave = Date.now()
+      const { error } = await supabase
+        .from('accounts')
+        .upsert({ id: 'user-data', data: updatedData, updated_at: new Date().toISOString() })
+      if (error) throw error
+      console.log('Intel entry deleted and saved:', entryId)
+    } catch (err) {
+      console.error('Delete save failed:', err)
+    }
   }
 
   const exportIntel = () => {
@@ -821,7 +839,7 @@ Rules:
                   {generatingActionId===e.id?'…':'⚡'}
                 </button>
                 <button
-                  onClick={ev=>{ev.stopPropagation();deleteEntry(e.id)}}
+                  onClick={ev=>{ev.stopPropagation();handleDeleteIntelEntry(e.id)}}
                   title='Delete entry'
                   style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',padding:'4px',display:'flex',alignItems:'center',flexShrink:0}}
                   onMouseEnter={ev=>ev.currentTarget.style.color='#dc2626'}
