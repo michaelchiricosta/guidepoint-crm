@@ -86,6 +86,13 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [techSugSelections, setTechSugSelections] = useState(new Set())
   const [pendingTechAiNotes, setPendingTechAiNotes] = useState(null)
   const [techAiNotesSels, setTechAiNotesSels] = useState(new Set())
+  const lastIntelEntryIdRef = useRef(null)
+  const [pendingDeleteEntry, setPendingDeleteEntry] = useState(null)
+  const [deleteCheckedFu, setDeleteCheckedFu] = useState(new Set())
+  const [deleteCheckedTs, setDeleteCheckedTs] = useState(new Set())
+  const [deleteCheckedCt, setDeleteCheckedCt] = useState(new Set())
+  const [deleteCheckedTn, setDeleteCheckedTn] = useState(new Set())
+  const [deleteToast, setDeleteToast] = useState('')
 
   const maybeShowTechSuggestions = (parsed) => {
     const raw = (parsed.techStackSuggestions || []).filter(s =>
@@ -401,10 +408,12 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   }
 
   const commitSave = (parsed, date, selectedFuTempIds) => {
+    const intelEntryId = uid()
+    lastIntelEntryIdRef.current = intelEntryId
     setAcct(prev=>{
       let next={...prev}
       if (parsed.intelEntry) {
-        next.intelLog=[{...parsed.intelEntry,id:uid()},...(prev.intelLog||[])]
+        next.intelLog=[{...parsed.intelEntry,id:intelEntryId},...(prev.intelLog||[])]
         next.lastContact=date
         const entry=parsed.intelEntry
         const names=(entry.participants||'').split(/[+,&]/).map(n=>n.trim()).filter(n=>n&&!n.toLowerCase().startsWith('mike'))
@@ -414,13 +423,13 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         next.interactions=[...(prev.interactions||[]),{id:uid(),contact:contactName,type:entry.type||'Note',date:entry.date,topics,summary:firstSentence}]
       }
       if (parsed.newFollowUps?.length&&selectedFuTempIds.size) {
-        const toAdd=parsed.newFollowUps.filter(fu=>selectedFuTempIds.has(fu._tempId)).map(({_tempId,...rest})=>({...rest,id:uid(),status:'Open'}))
+        const toAdd=parsed.newFollowUps.filter(fu=>selectedFuTempIds.has(fu._tempId)).map(({_tempId,...rest})=>({...rest,id:uid(),status:'Open',sourceIntelId:intelEntryId}))
         if(toAdd.length) next.followUps=[...(prev.followUps||[]),...toAdd]
       }
       if (parsed.contactUpdates?.length) {
         next.contacts=(prev.contacts||[]).map(c=>{const u=parsed.contactUpdates.find(u=>u.name&&c.name.toLowerCase().includes(u.name.split(' ')[0].toLowerCase()));return u?{...c,lastInteracted:u.lastInteracted||c.lastInteracted,notes:u.noteToAppend?(c.notes?c.notes+' | ['+date+']: '+u.noteToAppend:'['+date+']: '+u.noteToAppend):c.notes}:c})
         const existFn=(prev.contacts||[]).map(c=>c.name.split(' ')[0].toLowerCase())
-        const newUnknowns=parsed.contactUpdates.filter(u=>u.name&&!existFn.some(fn=>u.name.toLowerCase().includes(fn))).map(u=>({id:uid(),name:u.name,mentionedDate:date,context:''})).filter(u=>!(prev.unknownMentions||[]).some(m=>m.name.toLowerCase()===u.name.toLowerCase()))
+        const newUnknowns=parsed.contactUpdates.filter(u=>u.name&&!existFn.some(fn=>u.name.toLowerCase().includes(fn))).map(u=>({id:uid(),name:u.name,mentionedDate:date,context:'',sourceIntelId:intelEntryId})).filter(u=>!(prev.unknownMentions||[]).some(m=>m.name.toLowerCase()===u.name.toLowerCase()))
         if(newUnknowns.length) next.unknownMentions=[...(prev.unknownMentions||[]),...newUnknowns]
         // Upsert contactSuggestions — one per contact, always most recent
         const existSugs=[...(prev.contactSuggestions||[])]
@@ -581,23 +590,51 @@ Rules:
     }
   }
 
-  const handleDeleteIntelEntry = async (entryId) => {
-    if (!window.confirm('Delete this intel entry? This cannot be undone.')) return
+  const handleDeleteIntelEntry = (entryId) => {
+    const linkedFollowUps = (acct.followUps || []).filter(f => f.sourceIntelId === entryId)
+    const linkedTechStack = (acct.techStack || []).filter(t => t.sourceIntelId === entryId)
+    const linkedContacts = (acct.contacts || []).filter(c => c.sourceIntelId === entryId)
+    const linkedTechAiNotes = (acct.techStack || []).filter(t => t.aiNotesSourceIntelId === entryId)
+    const hasLinked = linkedFollowUps.length || linkedTechStack.length || linkedContacts.length || linkedTechAiNotes.length
+    if (!hasLinked) {
+      if (!window.confirm('Delete this intel entry? This cannot be undone.')) return
+      const entry = acct.intelLog.find(e => e.id === entryId)
+      executeCascadeDelete({entryId, entry, linkedFollowUps:[], linkedTechStack:[], linkedContacts:[], linkedTechAiNotes:[]}, new Set(), new Set(), new Set(), new Set())
+      return
+    }
+    const entry = acct.intelLog.find(e => e.id === entryId)
+    setPendingDeleteEntry({entryId, entry, linkedFollowUps, linkedTechStack, linkedContacts, linkedTechAiNotes})
+    setDeleteCheckedFu(new Set(linkedFollowUps.map(f => f.id)))
+    setDeleteCheckedTs(new Set(linkedTechStack.map(t => t.id)))
+    setDeleteCheckedCt(new Set(linkedContacts.map(c => c.id)))
+    setDeleteCheckedTn(new Set(linkedTechAiNotes.map(t => t.id)))
+  }
+
+  const executeCascadeDelete = async (info, checkedFu, checkedTs, checkedCt, checkedTn) => {
+    const {entryId, linkedFollowUps, linkedTechStack, linkedContacts, linkedTechAiNotes} = info
     const updatedIntelLog = (acct.intelLog || []).filter(e => e.id !== entryId)
-    const updatedAcct = {...acct, intelLog: updatedIntelLog}
+    const updatedFollowUps = (acct.followUps || []).filter(f => !checkedFu.has(f.id))
+    const updatedContacts = (acct.contacts || []).filter(c => !checkedCt.has(c.id))
+    const updatedTechStack = (acct.techStack || [])
+      .filter(t => !checkedTs.has(t.id))
+      .map(t => checkedTn.has(t.id) ? {...t, aiNotes:'', aiNotesUpdatedAt:'', aiNotesSourceIntelId:''} : t)
+    const updatedProjects = (acct.projects || [])
+    const updatedAcct = {...acct, intelLog:updatedIntelLog, followUps:updatedFollowUps, techStack:updatedTechStack, contacts:updatedContacts, projects:updatedProjects}
     setAcct(updatedAcct)
-    const updatedAccounts = (appData.accounts || []).map(a =>
-      a.id === acct.id ? updatedAcct : a
-    )
+    const updatedAccounts = (appData.accounts || []).map(a => a.id === acct.id ? updatedAcct : a)
     const updatedData = {...appData, accounts: updatedAccounts}
     setAppData(updatedData)
+    setPendingDeleteEntry(null)
+    const removedCount = checkedFu.size + checkedTs.size + checkedCt.size + checkedTn.size
+    setDeleteToast(`Intel entry deleted${removedCount > 0 ? ` — ${removedCount} linked item${removedCount!==1?'s':''} removed` : ''}`)
+    setTimeout(() => setDeleteToast(''), 4000)
     try {
       window._lastDirectSave = Date.now()
       const { error } = await supabase
         .from('accounts')
         .upsert({ id: 'user-data', data: updatedData, updated_at: new Date().toISOString() })
       if (error) throw error
-      console.log('Intel entry deleted and saved:', entryId)
+      console.log('Intel entry and linked items deleted:', entryId)
     } catch (err) {
       console.error('Delete save failed:', err)
     }
@@ -957,7 +994,7 @@ Rules:
               if(idx>=0){
                 ts[idx]={...ts[idx],status:s.status==='Active'?'Current':s.status,notes:(ts[idx].notes?ts[idx].notes+' | ':'')+s.context}
               } else {
-                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:resolveVendorMapping(s.vendor,s.category).primarySub||s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[]})
+                ts.push({id:uid(),vendor:s.vendor,products:s.products||'',category:resolveVendorMapping(s.vendor,s.category).primarySub||s.category||'Other',status:s.status==='Active'?'Current':s.status,notes:s.context||'',renewalDate:'',cost:'',vendorRep:'',vendorRepEmail:'',clientOwner:'',replacementOptions:'',aiNotes:'',aiNotesUpdatedAt:'',aiNotesHistory:[],sourceIntelId:lastIntelEntryIdRef.current||''})
               }
             })
             return{...prev,techStack:ts}
@@ -1042,7 +1079,8 @@ Rules:
               ts[idx]={...existing,
                 aiNotes:formatted,
                 aiNotesUpdatedAt:u.date||new Date().toISOString().split('T')[0],
-                aiNotesHistory:[...(existing.aiNotesHistory||[]),...(existing.aiNotes?[{summary:existing.aiNotes,date:existing.aiNotesUpdatedAt||''}]:[])]
+                aiNotesSourceIntelId:lastIntelEntryIdRef.current||'',
+                aiNotesHistory:[...(existing.aiNotesHistory||[]),...(existing.aiNotes?[{summary:existing.aiNotes,date:existing.aiNotesUpdatedAt||'',sourceIntelId:lastIntelEntryIdRef.current||''}]:[])]
               }
             })
             return{...prev,techStack:ts}
@@ -1217,6 +1255,104 @@ Rules:
                 disabled={!pendingActionFromIntel.task?.trim()}
                 style={{padding:'8px 16px',background:pendingActionFromIntel.task?.trim()?'#007AFF':'#94a3b8',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:pendingActionFromIntel.task?.trim()?'pointer':'not-allowed'}}>
                 Save Action
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteToast&&(
+        <div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#1e293b',color:'#f1f5f9',padding:'10px 18px',borderRadius:8,fontSize:13,fontWeight:500,zIndex:2000,boxShadow:'0 4px 16px rgba(0,0,0,0.25)',whiteSpace:'nowrap'}}>
+          {deleteToast}
+        </div>
+      )}
+
+      {pendingDeleteEntry&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{width:'70vw',maxWidth:680,maxHeight:'82vh',background:'#fff',borderRadius:16,boxShadow:'0 25px 50px rgba(0,0,0,0.25)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{fontSize:16,fontWeight:700,color:'#111827',flex:1}}>Delete Intel Entry</span>
+                <button onClick={()=>setPendingDeleteEntry(null)} style={{background:'none',border:'none',color:'#94a3b8',fontSize:20,cursor:'pointer',lineHeight:1}}>×</button>
+              </div>
+              <p style={{fontSize:13,color:'#64748b',margin:'0 0 8px'}}>The following were created from this intel. Select what to remove:</p>
+              <div style={{padding:'8px 10px',background:'#f8fafc',borderRadius:7,border:'1px solid #e2e8f0'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>{pendingDeleteEntry.entry?.type||'Note'} · {fmtDate(pendingDeleteEntry.entry?.date)}</div>
+                {pendingDeleteEntry.entry?.participants&&<div style={{fontSize:11,color:'#64748b',marginTop:2}}>{pendingDeleteEntry.entry.participants}</div>}
+                {pendingDeleteEntry.entry?.summary&&<div style={{fontSize:11,color:'#64748b',marginTop:2,fontStyle:'italic'}}>{pendingDeleteEntry.entry.summary.slice(0,100)}{(pendingDeleteEntry.entry.summary||'').length>100?'…':''}</div>}
+              </div>
+            </div>
+            <div style={{overflowY:'auto',flex:1,padding:'12px 20px',display:'flex',flexDirection:'column',gap:10}}>
+              {pendingDeleteEntry.linkedFollowUps.length>0&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Follow-Ups ({pendingDeleteEntry.linkedFollowUps.length})</div>
+                  {pendingDeleteEntry.linkedFollowUps.map(fu=>(
+                    <div key={fu.id} onClick={()=>setDeleteCheckedFu(prev=>{const s=new Set(prev);s.has(fu.id)?s.delete(fu.id):s.add(fu.id);return s})}
+                      style={{display:'flex',alignItems:'flex-start',gap:10,padding:'8px 10px',cursor:'pointer',background:deleteCheckedFu.has(fu.id)?'rgba(220,38,38,0.04)':'transparent',borderRadius:6,marginBottom:2,border:'1px solid #f1f5f9',transition:'background 0.1s'}}>
+                      <input type='checkbox' checked={deleteCheckedFu.has(fu.id)} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{marginTop:2,cursor:'pointer',accentColor:'#dc2626'}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{fu.task}</div>
+                        <div style={{display:'flex',gap:8,marginTop:2}}>
+                          {fu.dueDate&&<span style={{fontSize:11,color:'#64748b'}}>Due: {fu.dueDate}</span>}
+                          {fu.priority&&<span style={{fontSize:11,fontWeight:600,color:fu.priority==='Critical'?'#dc2626':fu.priority==='High'?'#ea580c':fu.priority==='Medium'?'#2563eb':'#64748b'}}>{fu.priority}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pendingDeleteEntry.linkedTechStack.length>0&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Tech Stack ({pendingDeleteEntry.linkedTechStack.length})</div>
+                  {pendingDeleteEntry.linkedTechStack.map(t=>(
+                    <div key={t.id} onClick={()=>setDeleteCheckedTs(prev=>{const s=new Set(prev);s.has(t.id)?s.delete(t.id):s.add(t.id);return s})}
+                      style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',cursor:'pointer',background:deleteCheckedTs.has(t.id)?'rgba(220,38,38,0.04)':'transparent',borderRadius:6,marginBottom:2,border:'1px solid #f1f5f9',transition:'background 0.1s'}}>
+                      <input type='checkbox' checked={deleteCheckedTs.has(t.id)} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{cursor:'pointer',accentColor:'#dc2626'}}/>
+                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>{t.vendor}</span>
+                        {t.category&&<span style={{fontSize:10,fontWeight:600,color:'#2563eb',background:'#dbeafe',borderRadius:999,padding:'1px 7px'}}>{t.category}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pendingDeleteEntry.linkedContacts.length>0&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Contacts ({pendingDeleteEntry.linkedContacts.length})</div>
+                  {pendingDeleteEntry.linkedContacts.map(c=>(
+                    <div key={c.id} onClick={()=>setDeleteCheckedCt(prev=>{const s=new Set(prev);s.has(c.id)?s.delete(c.id):s.add(c.id);return s})}
+                      style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',cursor:'pointer',background:deleteCheckedCt.has(c.id)?'rgba(220,38,38,0.04)':'transparent',borderRadius:6,marginBottom:2,border:'1px solid #f1f5f9',transition:'background 0.1s'}}>
+                      <input type='checkbox' checked={deleteCheckedCt.has(c.id)} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{cursor:'pointer',accentColor:'#dc2626'}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>{c.name}</span>
+                        {c.title&&<span style={{fontSize:11,color:'#64748b',marginLeft:6}}>{c.title}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pendingDeleteEntry.linkedTechAiNotes.length>0&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>Tech Stack AI Notes ({pendingDeleteEntry.linkedTechAiNotes.length})</div>
+                  {pendingDeleteEntry.linkedTechAiNotes.map(t=>(
+                    <div key={t.id} onClick={()=>setDeleteCheckedTn(prev=>{const s=new Set(prev);s.has(t.id)?s.delete(t.id):s.add(t.id);return s})}
+                      style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',cursor:'pointer',background:deleteCheckedTn.has(t.id)?'rgba(220,38,38,0.04)':'transparent',borderRadius:6,marginBottom:2,border:'1px solid #f1f5f9',transition:'background 0.1s'}}>
+                      <input type='checkbox' checked={deleteCheckedTn.has(t.id)} onChange={()=>{}} onClick={e=>e.stopPropagation()} style={{cursor:'pointer',accentColor:'#dc2626'}}/>
+                      <div style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>{t.vendor}</span>
+                        <span style={{fontSize:11,color:'#64748b',fontStyle:'italic'}}>AI notes will be cleared</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{fontSize:11,color:'#94a3b8',paddingTop:6,borderTop:'1px solid #f1f5f9'}}>Unchecked items will remain in the account</div>
+            </div>
+            <div style={{padding:'12px 16px',borderTop:'1px solid #e2e8f0',display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8,background:'#fff',flexShrink:0}}>
+              <button onClick={()=>setPendingDeleteEntry(null)} style={{padding:'8px 14px',background:'transparent',color:'#64748b',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <button onClick={()=>executeCascadeDelete(pendingDeleteEntry,deleteCheckedFu,deleteCheckedTs,deleteCheckedCt,deleteCheckedTn)}
+                style={{padding:'8px 16px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                Delete Selected
               </button>
             </div>
           </div>

@@ -121,7 +121,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
     return()=>window.removeEventListener('keydown',h)
   },[contactView])
   const f=k=>v=>setForm(p=>({...p,[k]:v}))
-  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',contactPhoto:'',internalMeetings:[]}
+  const blank={id:'',name:'',title:'',email:'',cell:'',linkedin:'',location:'',dept:'',influence:'Stakeholder',sentiment:'neutral',relStatus:'Building',toolsOwn:'',goals:'',pains:'',notes:'',personalNotes:'',lastInteracted:'',contactType:'Client',vendorCompany:'',contactPhoto:'',internalMeetings:[],sourceIntelId:''}
   const save=()=>{if(!form.name)return;const saved={...blank,...form};if(form.id)setAcct(p=>({...p,contacts:p.contacts.map(c=>c.id===form.id?saved:c)}));else setAcct(p=>({...p,contacts:[...p.contacts,{...saved,id:uid()}]}));setShowAdd(false);setForm(blank)}
   const del=id=>{setAcct(p=>({...p,contacts:p.contacts.filter(c=>c.id!==id)}));setExp(null)}
   const sentC={positive:S.green,neutral:S.muted,negative:S.red}
@@ -650,7 +650,7 @@ export default function Contacts({acct,setAcct,data,setData,onContactPhotoSave})
             <div key={m.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
               <span style={{fontSize:12,color:S.txt,fontWeight:600}}>{m.name}</span>
               <div style={{display:'flex',gap:5}}>
-                <Btn variant='primary' onClick={()=>{setForm({...blank,name:m.name});setShowAdd(true)}} style={{fontSize:11,padding:'4px 10px'}}>Add Contact</Btn>
+                <Btn variant='primary' onClick={()=>{setForm({...blank,name:m.name,sourceIntelId:m.sourceIntelId||''});setShowAdd(true)}} style={{fontSize:11,padding:'4px 10px'}}>Add Contact</Btn>
                 <Btn onClick={()=>dismissMention(m.id)} style={{fontSize:11,padding:'4px 8px'}}>✕</Btn>
               </div>
             </div>
