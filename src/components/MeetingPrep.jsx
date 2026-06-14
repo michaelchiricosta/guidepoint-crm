@@ -298,7 +298,7 @@ Generate a polished meeting prep brief.`
       {/* Header */}
       <div style={{ background: '#0f172a', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, padding: 0, fontSize: 13 }}>
-          <ArrowLeft size={15} /> Back
+          <ArrowLeft size={15} /> Back to Dashboard
         </button>
         <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
         <FileText size={16} color='#60a5fa' />
