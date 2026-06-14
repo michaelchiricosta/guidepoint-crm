@@ -155,6 +155,24 @@ const PrepModal = ({ prep, onClose, onDelete }) => {
               </ul>
             </Section>
           )}
+
+          {/* Relevant Intel */}
+          {b.relevantIntel?.length > 0 && (
+            <>
+              <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
+              <Section icon="📡" title="Relevant Market Intel">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {b.relevantIntel.map((item, i) => (
+                    <div key={i} style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', borderLeft: '2px solid #2563eb' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>{item.title}</div>
+                      {item.insight && <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.55, marginBottom: item.useThis ? 4 : 0 }}>{item.insight}</div>}
+                      {item.useThis && <div style={{ fontSize: 11, color: '#2563eb', fontStyle: 'italic' }}>Use: {item.useThis}</div>}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -206,6 +224,32 @@ Last activity: ${matched.lastActivity || 'Unknown'}
 Whitespace opportunities: ${JSON.stringify(matched.whitespace || {})}
 ` : `No exact account match found for this input. Generate the best prep possible from the meeting description alone.`
 
+    // Find relevant intel from knowledge base and market pulses
+    const allIntelItems = [...(data.marketPulses||[]), ...(data.knowledgeBase||[])]
+    const relevantIntel = (() => {
+      if (!allIntelItems.length) return []
+      const keywords = []
+      input.toLowerCase().split(/\s+/).filter(w=>w.length>3).forEach(w=>keywords.push(w))
+      if (matched) {
+        ;(matched.name||'').toLowerCase().split(/\s+/).filter(w=>w.length>3).forEach(w=>keywords.push(w))
+        ;(matched.industry||'').toLowerCase().split(/\s+/).filter(w=>w.length>3).forEach(w=>keywords.push(w))
+        ;(matched.techStack||[]).forEach(t=>(t.vendor||'').toLowerCase().split(/\s+/).filter(w=>w.length>3).forEach(w=>keywords.push(w)))
+      }
+      const uniq = [...new Set(keywords)]
+      return allIntelItems
+        .map(item=>{
+          const text=(item.title+' '+(item.excerpt||'')+' '+(item.aiSummary||'')+' '+(item.category||'')).toLowerCase()
+          return {...item, _score: uniq.filter(k=>text.includes(k)).length}
+        })
+        .filter(item=>item._score>0)
+        .sort((a,b)=>b._score-a._score)
+        .slice(0,3)
+    })()
+
+    const intelContext = relevantIntel.length>0
+      ? `\n\nRelevant market intelligence from GuidePoint KB (use in relevantIntel field):\n${relevantIntel.map(p=>`- ${p.title}${p.aiSummary?' — '+p.aiSummary.slice(0,200):p.excerpt?' — '+p.excerpt.slice(0,200):''}`).join('\n')}`
+      : ''
+
     const systemPrompt = `You are a senior enterprise sales coach preparing a rep for an upcoming meeting. Use the Ledgr CRM data provided to build a specific, actionable prep brief. Be direct, specific, and skip generic advice.
 
 Return ONLY valid JSON in this exact structure:
@@ -225,12 +269,13 @@ Return ONLY valid JSON in this exact structure:
   "risksAndLandmines": ["risk or awkward topic to be prepared for"],
   "upsairsKit": "One specific exec escalation opportunity or exec-level value prop if relevant, else null",
   "suggestedClose": "Specific ask or next step to propose at the end of the meeting",
-  "followUpActions": ["specific follow-up action after the meeting"]
+  "followUpActions": ["specific follow-up action after the meeting"],
+  "relevantIntel": [{"title":"blog post or article title","insight":"1-2 sentences on why this is relevant to this meeting","useThis":"specific way Mike could reference it in the conversation"}]
 }`
 
     const userPrompt = `Meeting description: "${input}"
 
-${accountContext}
+${accountContext}${intelContext}
 
 Generate a polished meeting prep brief.`
 

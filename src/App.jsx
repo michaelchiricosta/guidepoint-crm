@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -27,6 +27,7 @@ import Overview from './components/Overview.jsx'
 import DailyBrief from './components/DailyBrief.jsx'
 import MeetingPrep from './components/MeetingPrep.jsx'
 import EndOfDayJournal from './components/EndOfDayJournal.jsx'
+import MarketIntelligence from './components/MarketIntelligence.jsx'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -132,7 +133,22 @@ const SAMPLE = {
   quotaTarget: 0,
   dailyBriefs: [],
   meetingPreps: [],
-  dailyJournals: []
+  dailyJournals: [],
+  knowledgeBase: [],
+  marketPulses: [],
+  blogSources: [
+    {
+      id: 'guidepointsecurity',
+      name: 'GuidePoint Security Blog',
+      url: 'https://www.guidepointsecurity.com/blog/',
+      enabled: true,
+      lastSyncedAt: null,
+      lastSyncStatus: null,
+      lastSyncNewItems: 0,
+      lastSyncSkipped: 0,
+      lastSyncError: null,
+    }
+  ]
 }
 
 
@@ -339,7 +355,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
@@ -356,16 +372,17 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'allprojects', label:'All Projects',icon:<Folder size={18}/>,     action:()=>onGoAllProjects&&onGoAllProjects()},
     {id:'whitespace',  label:'Whitespace',  icon:<Map size={18}/>,        action:()=>onGoWhitespace&&onGoWhitespace()},
     {id:'vendors',     label:'Vendors',     icon:<Package size={18}/>,    action:()=>onGoVendors&&onGoVendors()},
-    {id:'dailybrief',  label:'Daily Brief',  icon:<Sparkles size={18}/>,  action:()=>onGoDailyBrief&&onGoDailyBrief(),   badge: briefIncompleteCount>0?briefIncompleteCount:null},
-    {id:'meetingprep', label:'Meeting Prep', icon:<FileText size={18}/>,  action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
-    {id:'endofday',    label:'End of Day',   icon:<BookOpen size={18}/>,  action:()=>onGoEndOfDay&&onGoEndOfDay(),         badge: journalBadge},
+    {id:'dailybrief',  label:'Daily Brief',       icon:<Sparkles size={18}/>, action:()=>onGoDailyBrief&&onGoDailyBrief(),     badge: briefIncompleteCount>0?briefIncompleteCount:null},
+    {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
+    {id:'endofday',    label:'End of Day',        icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
+    {id:'marketintel', label:'Market Intel',      icon:<Globe size={18}/>,    action:()=>onGoMarketIntel&&onGoMarketIntel()},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
@@ -720,7 +737,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [showDailyBriefPage, setShowDailyBriefPage] = useState(false)
   const [showMeetingPrepPage, setShowMeetingPrepPage] = useState(false)
   const [showEndOfDayPage, setShowEndOfDayPage] = useState(false)
+  const [showMarketIntelPage, setShowMarketIntelPage] = useState(false)
   const scrollRef = useRef(null)
+  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false) }
   const [logoScale, setLogoScale] = useState(1)
   useEffect(()=>{
     if(!mob)return
@@ -884,7 +903,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false)}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{setShowDailyBriefPage(true);setShowMeetingPrepPage(false);setShowEndOfDayPage(false)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{setShowMeetingPrepPage(true);setShowDailyBriefPage(false);setShowEndOfDayPage(false)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{setShowEndOfDayPage(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false)}} showEndOfDayPage={showEndOfDayPage}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -901,15 +920,16 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             </div>
             <div style={{flex:1,overflowY:'auto',paddingTop:8}}>
               {[
-                {label:'Dashboard',   action:()=>{setShowAccounts(false);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
-                {label:'Accounts',    action:()=>{setShowAccounts(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
-                {label:'All Projects',action:()=>{onGoAllProjects&&onGoAllProjects();setMobNavOpen(false)}},
-                {label:'Whitespace',  action:()=>{onGoWhitespace&&onGoWhitespace();  setMobNavOpen(false)}},
-                {label:'Vendors',     action:()=>{onGoVendors&&onGoVendors();         setMobNavOpen(false)}},
-                {label:'Daily Brief', action:()=>{setShowDailyBriefPage(true);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
-                {label:'Meeting Prep',action:()=>{setShowMeetingPrepPage(true);setShowDailyBriefPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
-                {label:'End of Day',  action:()=>{setShowEndOfDayPage(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setMobNavOpen(false)}},
-                {label:'Settings',    action:()=>{onOpenSettings&&onOpenSettings();   setMobNavOpen(false)}},
+                {label:'Dashboard',       action:()=>{setShowAccounts(false);clearBriefPages();setMobNavOpen(false)}},
+                {label:'Accounts',        action:()=>{setShowAccounts(true);clearBriefPages();setMobNavOpen(false)}},
+                {label:'All Projects',    action:()=>{onGoAllProjects&&onGoAllProjects();setMobNavOpen(false)}},
+                {label:'Whitespace',      action:()=>{onGoWhitespace&&onGoWhitespace();setMobNavOpen(false)}},
+                {label:'Vendors',         action:()=>{onGoVendors&&onGoVendors();setMobNavOpen(false)}},
+                {label:'Daily Brief',     action:()=>{clearBriefPages();setShowDailyBriefPage(true);setMobNavOpen(false)}},
+                {label:'Meeting Prep',    action:()=>{clearBriefPages();setShowMeetingPrepPage(true);setMobNavOpen(false)}},
+                {label:'End of Day',      action:()=>{clearBriefPages();setShowEndOfDayPage(true);setMobNavOpen(false)}},
+                {label:'Market Intel',    action:()=>{clearBriefPages();setShowMarketIntelPage(true);setMobNavOpen(false)}},
+                {label:'Settings',        action:()=>{onOpenSettings&&onOpenSettings();setMobNavOpen(false)}},
               ].map(item=>(
                 <button key={item.label} onClick={item.action}
                   style={{display:'block',width:'100%',textAlign:'left',padding:'15px 24px',background:'transparent',border:'none',borderBottom:'1px solid #F9FAFB',fontSize:15,fontWeight:500,color:'#111827',cursor:'pointer',boxSizing:'border-box'}}
@@ -931,7 +951,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {showEndOfDayPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <EndOfDayJournal data={data} setData={setData} onBack={()=>setShowEndOfDayPage(false)}/>
       </div>}
-      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage?'none':'block'}}>
+      {showMarketIntelPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <MarketIntelligence data={data} setData={setData} onBack={()=>setShowMarketIntelPage(false)}/>
+      </div>}
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage?'none':'block'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
@@ -5056,7 +5079,7 @@ export default function App() {
       const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
       return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
     })
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[]})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -5200,6 +5223,15 @@ OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
   "renewalRadar": [{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true,"alert":""}],
   "marketPulse": [{"headline":"","relevance":"","talkingPoint":""}]
 }`
+      // Inject recent GuidePoint blog posts as market pulse context
+      const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7)
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+      const recentPulses = (data.marketPulses||[]).filter(p=>p.publishedDate&&p.publishedDate>=sevenDaysAgoStr).slice(0,6)
+      const kbItems = (data.knowledgeBase||[]).filter(p=>p.createdAt&&p.createdAt>=sevenDaysAgo.toISOString()).slice(0,3)
+      const allIntelItems = [...recentPulses, ...kbItems]
+      const marketIntelContext = allIntelItems.length>0
+        ? `\n\nRecent GuidePoint Security blog posts and market intelligence (incorporate the most relevant into marketPulse — these are from Mike's own firm so use them when applicable):\n${allIntelItems.map(p=>`- [${p.publishedDate||'recent'}] ${p.title}${p.aiSummary?' — '+p.aiSummary.slice(0,120):p.excerpt?' — '+p.excerpt.slice(0,120):''}`).join('\n')}`
+        : ''
       const yesterday=new Date(todayDate); yesterday.setDate(yesterday.getDate()-1)
       const yesterdayStr=yesterday.toISOString().split('T')[0]
       const yesterdayJournal=(data.dailyJournals||[]).find(j=>j.date===yesterdayStr)
@@ -5217,8 +5249,8 @@ ${JSON.stringify(accountContext,null,2)}
 
 Active whitespace accounts being pursued:
 ${JSON.stringify(whitespaceContext,null,2)}
-${journalContext?`\nContext from yesterday's End of Day Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}
-Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse use your knowledge of the current cybersecurity landscape to provide exactly 3 relevant bullets about what is happening right now in identity security, EDR, cloud security, AI security, ransomware, or regulatory changes — things Mike should know and bring to his clients to demonstrate he is the most knowledgeable person in the room.
+${journalContext?`\nContext from yesterday's End of Day Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
+Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse provide exactly 3 relevant bullets — prioritize any provided GuidePoint blog posts that map to Mike's accounts, industries, or vendors, then supplement with your knowledge of the current cybersecurity landscape. Each bullet should be something Mike can bring to clients to demonstrate he is the most knowledgeable person in the room.
 
 Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
 
