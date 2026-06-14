@@ -5156,14 +5156,36 @@ Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute
 
 Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
 
-      const {res, data: responseData} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6',
-        max_tokens:4000,
-        system:systemPrompt,
-        messages:[{role:'user',content:userPrompt}]
-      }, effectiveApiKey, null, 3)
+      console.log('=== DAILY BRIEF DEBUG ===')
+      console.log('API key exists:', !!effectiveApiKey)
+      console.log('API key first 10 chars:', effectiveApiKey?.slice(0, 10))
+      console.log('Data accounts count:', (data?.accounts || []).length)
+      console.log('Model being used:', 'claude-sonnet-4-6')
 
-      if (responseData.error) throw new Error(`API error: ${responseData.error.type} — ${responseData.error.message}`)
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': effectiveApiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4000,
+          system: systemPrompt,
+          messages: [{role: 'user', content: userPrompt}]
+        })
+      })
+
+      console.log('Response status:', response.status)
+      const responseData = await response.json()
+      console.log('Response data:', JSON.stringify(responseData).slice(0, 500))
+
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}: ${JSON.stringify(responseData)}`)
+      }
+
       const rawText = responseData.content?.[0]?.text || ''
       let briefData
       try {
@@ -5193,7 +5215,7 @@ Remember: every action must have a client-first angle. Never recommend just foll
     } catch(err) {
       console.error('Brief generation error details:', err.message, err)
       console.log('API key available:', !!data?.apiKey)
-      setBriefError(err.message?.includes('API error') ? `Brief failed: ${err.message}` : 'Could not generate brief. Check your API key in Settings.')
+      setBriefError(`Generation failed: ${err.message}`)
     } finally {
       setBriefGenerating(false)
     }
