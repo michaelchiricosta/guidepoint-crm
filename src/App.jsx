@@ -351,14 +351,14 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   const journalBadge = afterFourPm && (!todayJournal || todayJournal.status!=='complete') ? '!' : null
 
   const navTop = [
-    {id:'dailybrief',  label:'Daily Brief',  icon:<Sparkles size={18}/>,  action:()=>onGoDailyBrief&&onGoDailyBrief(),   badge: briefIncompleteCount>0?briefIncompleteCount:null},
-    {id:'meetingprep', label:'Meeting Prep', icon:<FileText size={18}/>,  action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
-    {id:'endofday',    label:'End of Day',   icon:<BookOpen size={18}/>,  action:()=>onGoEndOfDay&&onGoEndOfDay(),         badge: journalBadge},
     {id:'dashboard',   label:'Dashboard',   icon:<Home size={18}/>,       action:()=>setShowAccounts(false)},
     {id:'accounts',    label:'Accounts',    icon:<Building2 size={18}/>,  action:()=>setShowAccounts(true)},
     {id:'allprojects', label:'All Projects',icon:<Folder size={18}/>,     action:()=>onGoAllProjects&&onGoAllProjects()},
     {id:'whitespace',  label:'Whitespace',  icon:<Map size={18}/>,        action:()=>onGoWhitespace&&onGoWhitespace()},
     {id:'vendors',     label:'Vendors',     icon:<Package size={18}/>,    action:()=>onGoVendors&&onGoVendors()},
+    {id:'dailybrief',  label:'Daily Brief',  icon:<Sparkles size={18}/>,  action:()=>onGoDailyBrief&&onGoDailyBrief(),   badge: briefIncompleteCount>0?briefIncompleteCount:null},
+    {id:'meetingprep', label:'Meeting Prep', icon:<FileText size={18}/>,  action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
+    {id:'endofday',    label:'End of Day',   icon:<BookOpen size={18}/>,  action:()=>onGoEndOfDay&&onGoEndOfDay(),         badge: journalBadge},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
@@ -717,6 +717,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [listSortDir, setListSortDir] = useState('asc')
   const mob = typeof window!=='undefined'&&window.innerWidth<768
   const [mobNavOpen, setMobNavOpen] = useState(false)
+  const [showDailyBriefPage, setShowDailyBriefPage] = useState(false)
+  const [showMeetingPrepPage, setShowMeetingPrepPage] = useState(false)
+  const [showEndOfDayPage, setShowEndOfDayPage] = useState(false)
   const scrollRef = useRef(null)
   const [logoScale, setLogoScale] = useState(1)
   useEffect(()=>{
@@ -881,7 +884,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={onGoDailyBrief} showDailyBriefPage={false} onGoMeetingPrep={onGoMeetingPrep} showMeetingPrepPage={false} onGoEndOfDay={onGoEndOfDay} showEndOfDayPage={false}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false)}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{setShowDailyBriefPage(true);setShowMeetingPrepPage(false);setShowEndOfDayPage(false)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{setShowMeetingPrepPage(true);setShowDailyBriefPage(false);setShowEndOfDayPage(false)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{setShowEndOfDayPage(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false)}} showEndOfDayPage={showEndOfDayPage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -898,11 +901,14 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
             </div>
             <div style={{flex:1,overflowY:'auto',paddingTop:8}}>
               {[
-                {label:'Dashboard',   action:()=>{setShowAccounts(false);setMobNavOpen(false)}},
-                {label:'Accounts',    action:()=>{setShowAccounts(true); setMobNavOpen(false)}},
+                {label:'Dashboard',   action:()=>{setShowAccounts(false);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
+                {label:'Accounts',    action:()=>{setShowAccounts(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
                 {label:'All Projects',action:()=>{onGoAllProjects&&onGoAllProjects();setMobNavOpen(false)}},
                 {label:'Whitespace',  action:()=>{onGoWhitespace&&onGoWhitespace();  setMobNavOpen(false)}},
                 {label:'Vendors',     action:()=>{onGoVendors&&onGoVendors();         setMobNavOpen(false)}},
+                {label:'Daily Brief', action:()=>{setShowDailyBriefPage(true);setShowMeetingPrepPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
+                {label:'Meeting Prep',action:()=>{setShowMeetingPrepPage(true);setShowDailyBriefPage(false);setShowEndOfDayPage(false);setMobNavOpen(false)}},
+                {label:'End of Day',  action:()=>{setShowEndOfDayPage(true);setShowDailyBriefPage(false);setShowMeetingPrepPage(false);setMobNavOpen(false)}},
                 {label:'Settings',    action:()=>{onOpenSettings&&onOpenSettings();   setMobNavOpen(false)}},
               ].map(item=>(
                 <button key={item.label} onClick={item.action}
@@ -916,7 +922,16 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
           </div>
         </>}
       </>}
-      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+      {showDailyBriefPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <DailyBrief data={data} setData={setData} briefGenerating={briefGenerating} briefError={briefError} onGenerateNow={onGenerateBrief} onBack={()=>setShowDailyBriefPage(false)}/>
+      </div>}
+      {showMeetingPrepPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <MeetingPrep data={data} setData={setData} onBack={()=>setShowMeetingPrepPage(false)}/>
+      </div>}
+      {showEndOfDayPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <EndOfDayJournal data={data} setData={setData} onBack={()=>setShowEndOfDayPage(false)}/>
+      </div>}
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage?'none':'block'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
@@ -5012,9 +5027,6 @@ export default function App() {
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
-  const [showDailyBriefPage,setShowDailyBriefPage] = useState(false)
-  const [showMeetingPrepPage,setShowMeetingPrepPage] = useState(false)
-  const [showEndOfDayPage,setShowEndOfDayPage] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
@@ -5305,34 +5317,6 @@ Remember: every action must have a client-first angle. Never recommend just foll
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
-  if (showDailyBriefPage) return (
-    <DailyBrief
-      data={data}
-      setData={setData}
-      apiKey={data.apiKey}
-      briefGenerating={briefGenerating}
-      briefError={briefError}
-      onGenerateNow={generateDailyBrief}
-      onBack={()=>{setShowDailyBriefPage(false);setIsLandingPage(true)}}
-    />
-  )
-
-  if (showMeetingPrepPage) return (
-    <MeetingPrep
-      data={data}
-      setData={setData}
-      onBack={()=>{setShowMeetingPrepPage(false);setIsLandingPage(true)}}
-    />
-  )
-
-  if (showEndOfDayPage) return (
-    <EndOfDayJournal
-      data={data}
-      setData={setData}
-      onBack={()=>{setShowEndOfDayPage(false);setIsLandingPage(true)}}
-    />
-  )
-
   if (showWhitespace) return (
     <WhitespacePage
       data={data}
@@ -5370,9 +5354,6 @@ Remember: every action must have a client-first angle. Never recommend just foll
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
-      onGoDailyBrief={()=>{setShowDailyBriefPage(true);setIsLandingPage(false)}}
-      onGoMeetingPrep={()=>{setShowMeetingPrepPage(true);setIsLandingPage(false)}}
-      onGoEndOfDay={()=>{setShowEndOfDayPage(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
       onGenerateBrief={generateDailyBrief}
