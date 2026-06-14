@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -25,6 +25,7 @@ import IntelLog from './components/IntelLog.jsx'
 import IntelInbox from './components/IntelInbox.jsx'
 import Overview from './components/Overview.jsx'
 import DailyBrief from './components/DailyBrief.jsx'
+import MeetingPrep from './components/MeetingPrep.jsx'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -128,7 +129,8 @@ const SAMPLE = {
   }],
   whitespaceAccounts:[],
   quotaTarget: 0,
-  dailyBriefs: []
+  dailyBriefs: [],
+  meetingPreps: []
 }
 
 
@@ -335,7 +337,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
@@ -343,19 +345,20 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   const briefIncompleteCount = todayBrief ? (todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length : 0
 
   const navTop = [
-    {id:'dailybrief',  label:'Daily Brief',  icon:<Sparkles size={18}/>,      action:()=>onGoDailyBrief&&onGoDailyBrief(), badge: briefIncompleteCount>0?briefIncompleteCount:null},
-    {id:'dashboard',   label:'Dashboard',    icon:<Home size={18}/>,          action:()=>setShowAccounts(false)},
-    {id:'accounts',    label:'Accounts',     icon:<Building2 size={18}/>,     action:()=>setShowAccounts(true)},
-    {id:'allprojects', label:'All Projects', icon:<Folder size={18}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
-    {id:'whitespace',  label:'Whitespace',   icon:<Map size={18}/>,           action:()=>onGoWhitespace&&onGoWhitespace()},
-    {id:'vendors',     label:'Vendors',      icon:<Package size={18}/>,       action:()=>onGoVendors&&onGoVendors()},
+    {id:'dailybrief',    label:'Daily Brief',   icon:<Sparkles size={18}/>,  action:()=>onGoDailyBrief&&onGoDailyBrief(), badge: briefIncompleteCount>0?briefIncompleteCount:null},
+    {id:'meetingprep',   label:'Meeting Prep',  icon:<FileText size={18}/>,  action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
+    {id:'dashboard',     label:'Dashboard',     icon:<Home size={18}/>,      action:()=>setShowAccounts(false)},
+    {id:'accounts',      label:'Accounts',      icon:<Building2 size={18}/>, action:()=>setShowAccounts(true)},
+    {id:'allprojects',   label:'All Projects',  icon:<Folder size={18}/>,   action:()=>onGoAllProjects&&onGoAllProjects()},
+    {id:'whitespace',    label:'Whitespace',    icon:<Map size={18}/>,       action:()=>onGoWhitespace&&onGoWhitespace()},
+    {id:'vendors',       label:'Vendors',       icon:<Package size={18}/>,   action:()=>onGoVendors&&onGoVendors()},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showDailyBriefPage ? 'dailybrief' : showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
@@ -696,7 +699,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoDailyBrief, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoDailyBrief, onGoMeetingPrep, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -871,7 +874,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={onGoDailyBrief} showDailyBriefPage={false}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={onGoDailyBrief} showDailyBriefPage={false} onGoMeetingPrep={onGoMeetingPrep} showMeetingPrepPage={false}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -4973,6 +4976,7 @@ export default function App() {
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
   const [showDailyBriefPage,setShowDailyBriefPage] = useState(false)
+  const [showMeetingPrepPage,setShowMeetingPrepPage] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
@@ -5265,6 +5269,14 @@ Remember: every action must have a client-first angle. Never recommend just foll
     />
   )
 
+  if (showMeetingPrepPage) return (
+    <MeetingPrep
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowMeetingPrepPage(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (showWhitespace) return (
     <WhitespacePage
       data={data}
@@ -5303,6 +5315,7 @@ Remember: every action must have a client-first angle. Never recommend just foll
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
       onGoDailyBrief={()=>{setShowDailyBriefPage(true);setIsLandingPage(false)}}
+      onGoMeetingPrep={()=>{setShowMeetingPrepPage(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
       onGenerateBrief={generateDailyBrief}
