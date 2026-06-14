@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -24,6 +24,7 @@ import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import IntelInbox from './components/IntelInbox.jsx'
 import Overview from './components/Overview.jsx'
+import DailyBrief from './components/DailyBrief.jsx'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -126,7 +127,8 @@ const SAMPLE = {
     orgChart:{nodes:[]}
   }],
   whitespaceAccounts:[],
-  quotaTarget: 0
+  quotaTarget: 0,
+  dailyBriefs: []
 }
 
 
@@ -333,9 +335,15 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
+
+  const today = new Date().toISOString().split('T')[0]
+  const todayBrief = (data.dailyBriefs||[]).find(b=>b.date===today)
+  const briefIncompleteCount = todayBrief ? (todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length : 0
+
   const navTop = [
+    {id:'dailybrief',  label:'Daily Brief',  icon:<Sparkles size={18}/>,      action:()=>onGoDailyBrief&&onGoDailyBrief(), badge: briefIncompleteCount>0?briefIncompleteCount:null},
     {id:'dashboard',   label:'Dashboard',    icon:<Home size={18}/>,          action:()=>setShowAccounts(false)},
     {id:'accounts',    label:'Accounts',     icon:<Building2 size={18}/>,     action:()=>setShowAccounts(true)},
     {id:'allprojects', label:'All Projects', icon:<Folder size={18}/>,        action:()=>onGoAllProjects&&onGoAllProjects()},
@@ -347,15 +355,16 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showDailyBriefPage ? 'dailybrief' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
       onMouseEnter={e=>e.currentTarget.style.background='#F9FAFB'}
       onMouseLeave={e=>e.currentTarget.style.background=isActive?'#F0F7FF':'transparent'}
-      style={{height:38,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'1px 8px',
+      style={{height:38,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:6,margin:'1px 8px',position:'relative',
         background:isActive?'#F0F7FF':'transparent',color:isActive?'#007AFF':'#9CA3AF',transition:'background 0.1s'}}>
       {item.icon}
+      {item.badge&&<span style={{position:'absolute',top:4,right:4,background:'#dc2626',color:'#fff',fontSize:9,fontWeight:700,borderRadius:999,minWidth:14,height:14,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 3px'}}>{item.badge}</span>}
     </div>
   ) : (
     <div key={item.id} onClick={item.action}
@@ -364,7 +373,10 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
       style={{height:38,padding:'0 16px',borderRadius:6,margin:'1px 8px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,
         color:isActive?'#007AFF':'#9CA3AF',fontSize:14,fontWeight:isActive?600:500,
         background:isActive?'#F0F7FF':'transparent',transition:'all 0.1s'}}>
-      <span style={{display:'flex',flexShrink:0}}>{item.icon}</span>
+      <span style={{display:'flex',flexShrink:0,position:'relative'}}>
+        {item.icon}
+        {item.badge&&<span style={{position:'absolute',top:-5,right:-6,background:'#dc2626',color:'#fff',fontSize:9,fontWeight:700,borderRadius:999,minWidth:14,height:14,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 3px'}}>{item.badge}</span>}
+      </span>
       {item.label}
     </div>
   )
@@ -684,7 +696,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
+function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoDailyBrief, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -859,7 +871,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={setShowAccounts} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={onGoDailyBrief} showDailyBriefPage={false}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -943,6 +955,66 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       )}
 
       <div style={{maxWidth:1160,margin:'0 auto',padding:mob?'20px 16px 60px':'28px 32px 80px'}}>
+
+        {/* DAILY BRIEF PREVIEW CARD */}
+        {!showAccounts&&(()=>{
+          const today=new Date().toISOString().split('T')[0]
+          const todayBrief=(data.dailyBriefs||[]).find(b=>b.date===today)
+          const firstAction=todayBrief?.sections?.actToday?.[0]||null
+          const estHour=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getHours()
+          const estMin=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getMinutes()
+          const before745=estHour<7||(estHour===7&&estMin<45)
+          return(
+            <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'16px 20px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                  <Sparkles size={16} color='#2563eb'/>
+                  <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Today's Brief</span>
+                </div>
+                <button onClick={()=>onGoDailyBrief&&onGoDailyBrief()} style={{background:'transparent',border:'none',color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',padding:0}}>View Full Brief →</button>
+              </div>
+              {briefGenerating&&!todayBrief&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,color:'#64748b',fontSize:13}}>
+                  <div style={{width:14,height:14,border:'2px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}}/>
+                  Generating your morning brief...
+                </div>
+              )}
+              {!briefGenerating&&!todayBrief&&before745&&(
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                  <span style={{fontSize:13,color:'#94a3b8'}}>Your brief will be ready at 7:45 AM EST</span>
+                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
+                </div>
+              )}
+              {!briefGenerating&&!todayBrief&&!before745&&(
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                  <span style={{fontSize:13,color:'#94a3b8'}}>No brief yet today</span>
+                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
+                </div>
+              )}
+              {briefError&&!todayBrief&&(
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                  <span style={{fontSize:13,color:'#dc2626'}}>{briefError}</span>
+                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#fee2e2',color:'#dc2626',border:'1px solid #fca5a5',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Retry</button>
+                </div>
+              )}
+              {todayBrief&&(
+                <div>
+                  {todayBrief.briefSummary&&<div style={{fontSize:13,color:'#475569',lineHeight:1.6,marginBottom:firstAction?10:0}}>{todayBrief.briefSummary}</div>}
+                  {firstAction&&(
+                    <div style={{background:'#fef2f2',borderLeft:'3px solid #dc2626',borderRadius:8,padding:'10px 14px',marginTop:8}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                        <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>🎯 Top Priority</span>
+                        <span style={{fontSize:12,fontWeight:600,color:'#0f172a'}}>{firstAction.account}</span>
+                      </div>
+                      <div style={{fontSize:13,color:'#1e293b',fontWeight:500,lineHeight:1.4}}>{firstAction.action}</div>
+                      {firstAction.clientFirstAngle&&<div style={{fontSize:12,color:'#64748b',fontStyle:'italic',marginTop:4,lineHeight:1.4}}>{firstAction.clientFirstAngle}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* STATS ROW */}
         <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:mob?8:12,marginBottom:mob?20:36}}>
@@ -4900,6 +4972,9 @@ export default function App() {
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
+  const [showDailyBriefPage,setShowDailyBriefPage] = useState(false)
+  const [briefGenerating,setBriefGenerating] = useState(false)
+  const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [sidebarCollapsed,setSidebarCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
@@ -5002,7 +5077,156 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
 
+  const generateDailyBrief = async () => {
+    if (briefGenerating || !data) return
+    const effectiveApiKey = data.apiKey || ''
+    if (!effectiveApiKey) { setBriefError('No API key configured. Add your Anthropic key in Settings.'); return }
+    setBriefGenerating(true)
+    setBriefError(null)
+    try {
+      const todayDate = new Date()
+      const today = todayDate.toISOString().split('T')[0]
+      const accountContext = (data.accounts || []).map(acct => {
+        const daysSinceContact = acct.lastContact ? Math.floor((Date.now()-new Date(acct.lastContact))/86400000) : 999
+        const openFollowUps = (acct.followUps||[]).filter(f=>f.status==='Open')
+        const criticalFollowUps = openFollowUps.filter(f=>f.priority==='Critical'||f.priority==='High')
+        const overdueFollowUps = openFollowUps.filter(f=>f.dueDate&&new Date(f.dueDate)<todayDate)
+        const activeProjects = (acct.projects||[]).filter(p=>['In Flight','In Discussion','Not Started','Stalled'].includes(p.status))
+        const upcomingRenewals = (acct.techStack||[]).filter(t=>{if(!t.renewalDate)return false;const days=Math.floor((new Date(t.renewalDate)-todayDate)/86400000);return days>=0&&days<=90})
+        const recentIntel = (acct.intelLog||[]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3).map(e=>e.text?.slice(0,400)||'').join(' | ')
+        const promisedDeliverables = openFollowUps.filter(f=>f.task?.toLowerCase().includes('send')||f.task?.toLowerCase().includes('share')||f.task?.toLowerCase().includes('provide')||f.task?.toLowerCase().includes('forward')||(f.waitingOn||'').toLowerCase().includes('mike'))
+        return {
+          name:acct.name,industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',hq:acct.hq||'',
+          daysSinceContact,health:acct.health||50,
+          openFollowUpsCount:openFollowUps.length,
+          criticalFollowUps:criticalFollowUps.map(f=>({task:f.task,dueDate:f.dueDate,waitingOn:f.waitingOn})),
+          overdueFollowUps:overdueFollowUps.map(f=>({task:f.task,dueDate:f.dueDate})),
+          promisedDeliverables:promisedDeliverables.map(f=>f.task),
+          activeProjects:activeProjects.map(p=>({name:p.name,vendor:p.vendor,status:p.status,stage:(p.timeline||[]).find(s=>s.status==='current')?.stage||'',waitingOn:p.waitingOn||'',nextSteps:p.nextSteps||'',estimatedCloseDate:p.estimatedCloseDate||'',estimatedRevenue:p.estimatedRevenue||''})),
+          stalledProjects:activeProjects.filter(p=>p.status==='Stalled').map(p=>p.name),
+          upcomingRenewals:upcomingRenewals.map(t=>({vendor:t.vendor,renewalDate:t.renewalDate,daysUntil:Math.floor((new Date(t.renewalDate)-todayDate)/86400000),annualCost:t.annualCost||''})),
+          recentIntel,
+          techStackVendors:(acct.techStack||[]).map(t=>t.vendor).filter(Boolean).join(', '),
+          contacts:(acct.contacts||[]).map(c=>({name:c.name,title:c.title,relationship:c.relationship}))
+        }
+      })
+      const whitespaceContext = (data.whitespaceAccounts||[]).filter(a=>a.status==='Active Conversation'||a.status==='Reached Out').map(a=>({name:a.name,status:a.status,industry:a.industry}))
+      const systemPrompt = `You are Ledgr. — the AI chief of staff for Mike Chiricosta, Enterprise Client Manager at GuidePoint Security covering New England. GuidePoint is a cybersecurity VAR and services firm. You think like the most strategic, highest-paid enterprise sales executive in cybersecurity.
+
+Your job is to generate Mike's Daily Brief — a prioritized, actionable morning memo that tells him exactly what to do today to be the most valuable, indispensable resource his clients have ever worked with.
+
+CORE PHILOSOPHY — never forget this:
+- The best reps don't manage accounts. They manage momentum. Every account either has momentum or it doesn't.
+- Every action must have a CLIENT-FIRST angle — not "follow up on X" but "here is what is happening in their world and here is what you bring them"
+- Clients want someone who thinks for them, covers their blind spots, and shows up with perspective not just updates
+- "Just following up" is never acceptable — every touchpoint must deliver value
+- Help Mike arm his CISOs to sell security upstairs to CFOs and CIOs when relevant
+- Quick wins AND long-term seeds — never lose sight of either
+- Business conversation drives results — translate security gaps into business risk, peer benchmarks, and financial exposure
+- Help clients cover their blind spots — bring them something they did not ask for
+- The goal is for Mike's clients to feel cared for, covered, and confident — like they have a second set of eyes on their security program
+
+PRIORITIZATION LOGIC — do NOT use due dates as the primary driver. Weight by:
+1. Promised deliverables Mike committed to on a call — highest urgency
+2. Deals with imminent close dates or budget deadlines
+3. Accounts with competitive threats or vendor evaluations in progress
+4. Accounts where momentum is stalling — no contact AND active project is dangerous
+5. Upcoming renewals within 60 days where Mike is not clearly in the conversation
+6. High-value accounts with no recent contact
+7. New trigger events — new CISO, recent breach in their industry, regulatory change affecting them
+
+OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
+{
+  "briefSummary": "2-3 sentence executive summary of today — overall state of Mike's book and the single most important thing to accomplish today",
+  "actToday": [{"account":"","contact":"","action":"","clientFirstAngle":"","suggestedOpener":"","whileYouHaveThem":[],"upsairsKit":"","urgencyReason":"","estimatedMinutes":15,"completedToday":false}],
+  "moveForward": [{"account":"","contact":"","action":"","clientFirstAngle":"","timeframe":"","urgencyReason":""}],
+  "longGame": [{"account":"","action":"","why":"","plantThisSeed":""}],
+  "renewalRadar": [{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true,"alert":""}],
+  "marketPulse": [{"headline":"","relevance":"","talkingPoint":""}]
+}`
+      const userPrompt = `Today is ${todayDate.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'})}.
+
+Here is Mike's complete book of business:
+${JSON.stringify(accountContext,null,2)}
+
+Active whitespace accounts being pursued:
+${JSON.stringify(whitespaceContext,null,2)}
+
+Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse use your knowledge of the current cybersecurity landscape to provide exactly 3 relevant bullets about what is happening right now in identity security, EDR, cloud security, AI security, ransomware, or regulatory changes — things Mike should know and bring to his clients to demonstrate he is the most knowledgeable person in the room.
+
+Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
+
+      const {res, data: responseData} = await callClaudeWithRetry({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:4000,
+        system:systemPrompt,
+        messages:[{role:'user',content:userPrompt}]
+      }, effectiveApiKey, null, 3)
+
+      const rawText = responseData.content?.[0]?.text || ''
+      let briefData
+      try {
+        const cleaned = rawText.replace(/```json|```/g,'').trim()
+        briefData = JSON.parse(cleaned)
+      } catch(e) {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) briefData = JSON.parse(jsonMatch[0])
+        else throw new Error('Could not parse brief response')
+      }
+      const newBrief = {
+        date:today,
+        generatedAt:new Date().toISOString(),
+        briefSummary:briefData.briefSummary||'',
+        sections:{
+          actToday:(briefData.actToday||[]).map(a=>({...a,completedToday:false})),
+          moveForward:briefData.moveForward||[],
+          longGame:briefData.longGame||[],
+          renewalRadar:briefData.renewalRadar||[],
+          marketPulse:briefData.marketPulse||[]
+        }
+      }
+      setData(prev=>{
+        const existingBriefs=(prev.dailyBriefs||[]).filter(b=>b.date!==today)
+        return {...prev,dailyBriefs:[newBrief,...existingBriefs].slice(0,30)}
+      })
+    } catch(err) {
+      console.error('Daily brief generation failed:',err)
+      setBriefError('Could not generate brief. Check your API key in Settings.')
+    } finally {
+      setBriefGenerating(false)
+    }
+  }
+
+  // Auto-generate brief after 7:45am EST if not already generated today
+  useEffect(()=>{
+    const checkAndGenerateBrief = async () => {
+      if (!data || !data.apiKey || briefGenerating) return
+      const today = new Date().toISOString().split('T')[0]
+      const now = new Date()
+      const estTime = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}))
+      const estHour = estTime.getHours()
+      const estMinutes = estTime.getMinutes()
+      const isAfter745am = estHour > 7 || (estHour === 7 && estMinutes >= 45)
+      const todayBriefExists = (data.dailyBriefs||[]).some(b=>b.date===today)
+      if (isAfter745am && !todayBriefExists) { generateDailyBrief() }
+    }
+    if (initialLoadDone) checkAndGenerateBrief()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[initialLoadDone])
+
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
+
+  if (showDailyBriefPage) return (
+    <DailyBrief
+      data={data}
+      setData={setData}
+      apiKey={data.apiKey}
+      briefGenerating={briefGenerating}
+      briefError={briefError}
+      onGenerateNow={generateDailyBrief}
+      onBack={()=>{setShowDailyBriefPage(false);setIsLandingPage(true)}}
+    />
+  )
 
   if (showWhitespace) return (
     <WhitespacePage
@@ -5041,6 +5265,10 @@ export default function App() {
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
+      onGoDailyBrief={()=>{setShowDailyBriefPage(true);setIsLandingPage(false)}}
+      briefGenerating={briefGenerating}
+      briefError={briefError}
+      onGenerateBrief={generateDailyBrief}
       theme={theme}
       setTheme={handleSetTheme}
       showAccounts={showAccounts}
