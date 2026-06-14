@@ -5135,6 +5135,8 @@ PRIORITIZATION LOGIC — do NOT use due dates as the primary driver. Weight by:
 6. High-value accounts with no recent contact
 7. New trigger events — new CISO, recent breach in their industry, regulatory change affecting them
 
+IMPORTANT: Keep each text field concise — maximum 2 sentences per field. This keeps the response compact and prevents truncation. Do not pad responses with unnecessary detail.
+
 OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
 {
   "briefSummary": "2-3 sentence executive summary of today — overall state of Mike's book and the single most important thing to accomplish today",
@@ -5172,7 +5174,7 @@ Remember: every action must have a client-first angle. Never recommend just foll
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 4000,
+          max_tokens: 6000,
           system: systemPrompt,
           messages: [{role: 'user', content: userPrompt}]
         })
@@ -5187,15 +5189,26 @@ Remember: every action must have a client-first angle. Never recommend just foll
       }
 
       const rawText = responseData.content?.[0]?.text || ''
-      let briefData
-      try {
-        const cleaned = rawText.replace(/```json|```/g,'').trim()
-        briefData = JSON.parse(cleaned)
-      } catch(e) {
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-        if (jsonMatch) briefData = JSON.parse(jsonMatch[0])
-        else throw new Error('Could not parse brief response')
+      console.log('Raw response length:', rawText.length)
+      console.log('Raw response tail:', rawText.slice(-200))
+
+      const extractBriefJSON = (text) => {
+        if (!text) return null
+        let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+        try { return JSON.parse(cleaned) } catch {}
+        let depth = 0, start = -1, end = -1
+        for (let i = 0; i < cleaned.length; i++) {
+          if (cleaned[i] === '{') { if (depth === 0) start = i; depth++ }
+          else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+        }
+        if (start !== -1 && end !== -1) {
+          try { return JSON.parse(cleaned.slice(start, end + 1)) } catch {}
+        }
+        return null
       }
+
+      const briefData = extractBriefJSON(rawText)
+      if (!briefData) throw new Error('Could not parse brief response — raw: ' + rawText.slice(0, 200))
       const newBrief = {
         date:today,
         generatedAt:new Date().toISOString(),
