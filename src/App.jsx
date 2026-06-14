@@ -5157,12 +5157,13 @@ Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute
 Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
 
       const {res, data: responseData} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-4-6',
         max_tokens:4000,
         system:systemPrompt,
         messages:[{role:'user',content:userPrompt}]
       }, effectiveApiKey, null, 3)
 
+      if (responseData.error) throw new Error(`API error: ${responseData.error.type} — ${responseData.error.message}`)
       const rawText = responseData.content?.[0]?.text || ''
       let briefData
       try {
@@ -5190,8 +5191,9 @@ Remember: every action must have a client-first angle. Never recommend just foll
         return {...prev,dailyBriefs:[newBrief,...existingBriefs].slice(0,30)}
       })
     } catch(err) {
-      console.error('Daily brief generation failed:',err)
-      setBriefError('Could not generate brief. Check your API key in Settings.')
+      console.error('Brief generation error details:', err.message, err)
+      console.log('API key available:', !!data?.apiKey)
+      setBriefError(err.message?.includes('API error') ? `Brief failed: ${err.message}` : 'Could not generate brief. Check your API key in Settings.')
     } finally {
       setBriefGenerating(false)
     }
