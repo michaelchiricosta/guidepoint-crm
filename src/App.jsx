@@ -1004,96 +1004,6 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
 
       <div style={{maxWidth:1160,margin:'0 auto',padding:mob?'20px 16px 60px':'28px 32px 80px'}}>
 
-        {/* DAILY BRIEF PREVIEW CARD */}
-        {!showAccounts&&(()=>{
-          const today=new Date().toISOString().split('T')[0]
-          const todayBrief=(data.dailyBriefs||[]).find(b=>b.date===today)
-          const firstAction=todayBrief?.sections?.actToday?.[0]||null
-          const estHour=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getHours()
-          const estMin=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getMinutes()
-          const before745=estHour<7||(estHour===7&&estMin<45)
-          return(
-            <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'16px 20px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                <div style={{display:'flex',alignItems:'center',gap:7}}>
-                  <Sparkles size={16} color='#2563eb'/>
-                  <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Today's Brief</span>
-                </div>
-                <button onClick={()=>onGoDailyBrief&&onGoDailyBrief()} style={{background:'transparent',border:'none',color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',padding:0}}>View Full Brief →</button>
-              </div>
-              {briefGenerating&&!todayBrief&&(
-                <div style={{display:'flex',alignItems:'center',gap:8,color:'#64748b',fontSize:13}}>
-                  <div style={{width:14,height:14,border:'2px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}}/>
-                  Generating your morning brief...
-                </div>
-              )}
-              {!briefGenerating&&!todayBrief&&before745&&(
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                  <span style={{fontSize:13,color:'#94a3b8'}}>Your brief will be ready at 7:45 AM EST</span>
-                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
-                </div>
-              )}
-              {!briefGenerating&&!todayBrief&&!before745&&(
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                  <span style={{fontSize:13,color:'#94a3b8'}}>No brief yet today</span>
-                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
-                </div>
-              )}
-              {briefError&&!todayBrief&&(
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                  <span style={{fontSize:13,color:'#dc2626'}}>{briefError}</span>
-                  <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#fee2e2',color:'#dc2626',border:'1px solid #fca5a5',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Retry</button>
-                </div>
-              )}
-              {todayBrief&&(
-                <div>
-                  {todayBrief.briefSummary&&<div style={{fontSize:13,color:'#475569',lineHeight:1.6,marginBottom:firstAction?10:0}}>{todayBrief.briefSummary}</div>}
-                  {firstAction&&(
-                    <div style={{background:'#fef2f2',borderLeft:'3px solid #dc2626',borderRadius:8,padding:'10px 14px',marginTop:8}}>
-                      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                        <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>🎯 Top Priority</span>
-                        <span style={{fontSize:12,fontWeight:600,color:'#0f172a'}}>{firstAction.account}</span>
-                      </div>
-                      <div style={{fontSize:13,color:'#1e293b',fontWeight:500,lineHeight:1.4}}>{firstAction.action}</div>
-                      {firstAction.clientFirstAngle&&<div style={{fontSize:12,color:'#64748b',fontStyle:'italic',marginTop:4,lineHeight:1.4}}>{firstAction.clientFirstAngle}</div>}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* END OF DAY JOURNAL CARD — show after 4pm if journal incomplete */}
-        {!showAccounts&&(()=>{
-          const today=new Date().toISOString().split('T')[0]
-          const nowHour=new Date().getHours()
-          const afterFourPm=nowHour>=16
-          const todayJournal=(data.dailyJournals||[]).find(j=>j.date===today)
-          if(!afterFourPm)return null
-          return(
-            <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'14px 18px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <BookOpen size={16} color={todayJournal?.status==='complete'?'#22c55e':'#f59e0b'}/>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>End of Day Journal</div>
-                  {todayJournal?.status==='complete'
-                    ?<div style={{fontSize:12,color:'#22c55e',fontWeight:500}}>Completed today</div>
-                    :todayJournal
-                      ?<div style={{fontSize:12,color:'#64748b'}}>Draft in progress — finish closing out your day</div>
-                      :<div style={{fontSize:12,color:'#64748b'}}>Ready to wrap up today and set up tomorrow?</div>
-                  }
-                </div>
-              </div>
-              {todayJournal?.status!=='complete'&&(
-                <button onClick={()=>onGoEndOfDay&&onGoEndOfDay()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 14px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
-                  {todayJournal?'Continue →':'Start →'}
-                </button>
-              )}
-            </div>
-          )
-        })()}
-
         {/* STATS ROW */}
         <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:mob?8:12,marginBottom:mob?20:36}}>
           {/* Today's Tasks — hero tile (blue gradient) */}
@@ -1385,6 +1295,96 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                   {wsStatusTotal>0&&<div style={{height:4,borderRadius:2,overflow:'hidden',background:'#f1f5f9',marginTop:6,display:'flex'}}>{WS_STATUSES.map((st,i)=>wsStatusCounts[i]>0?<div key={st} style={{flex:wsStatusCounts[i],background:wsStatusColors[i],height:'100%'}}/>:null)}</div>}
                 </div>
               </div>
+
+              {/* DAILY BRIEF PREVIEW CARD */}
+              {(()=>{
+                const today=new Date().toISOString().split('T')[0]
+                const todayBrief=(data.dailyBriefs||[]).find(b=>b.date===today)
+                const firstAction=todayBrief?.sections?.actToday?.[0]||null
+                const estHour=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getHours()
+                const estMin=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})).getMinutes()
+                const before745=estHour<7||(estHour===7&&estMin<45)
+                return(
+                  <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'16px 20px',marginTop:20,marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <Sparkles size={16} color='#2563eb'/>
+                        <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Today's Brief</span>
+                      </div>
+                      <button onClick={()=>onGoDailyBrief&&onGoDailyBrief()} style={{background:'transparent',border:'none',color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',padding:0}}>View Full Brief →</button>
+                    </div>
+                    {briefGenerating&&!todayBrief&&(
+                      <div style={{display:'flex',alignItems:'center',gap:8,color:'#64748b',fontSize:13}}>
+                        <div style={{width:14,height:14,border:'2px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}}/>
+                        Generating your morning brief...
+                      </div>
+                    )}
+                    {!briefGenerating&&!todayBrief&&before745&&(
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                        <span style={{fontSize:13,color:'#94a3b8'}}>Your brief will be ready at 7:45 AM EST</span>
+                        <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
+                      </div>
+                    )}
+                    {!briefGenerating&&!todayBrief&&!before745&&(
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                        <span style={{fontSize:13,color:'#94a3b8'}}>No brief yet today</span>
+                        <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Generate Now</button>
+                      </div>
+                    )}
+                    {briefError&&!todayBrief&&(
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                        <span style={{fontSize:13,color:'#dc2626'}}>{briefError}</span>
+                        <button onClick={()=>onGenerateBrief&&onGenerateBrief()} style={{fontSize:12,fontWeight:600,background:'#fee2e2',color:'#dc2626',border:'1px solid #fca5a5',borderRadius:7,padding:'5px 12px',cursor:'pointer'}}>Retry</button>
+                      </div>
+                    )}
+                    {todayBrief&&(
+                      <div>
+                        {todayBrief.briefSummary&&<div style={{fontSize:13,color:'#475569',lineHeight:1.6,marginBottom:firstAction?10:0}}>{todayBrief.briefSummary}</div>}
+                        {firstAction&&(
+                          <div style={{background:'#fef2f2',borderLeft:'3px solid #dc2626',borderRadius:8,padding:'10px 14px',marginTop:8}}>
+                            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                              <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>🎯 Top Priority</span>
+                              <span style={{fontSize:12,fontWeight:600,color:'#0f172a'}}>{firstAction.account}</span>
+                            </div>
+                            <div style={{fontSize:13,color:'#1e293b',fontWeight:500,lineHeight:1.4}}>{firstAction.action}</div>
+                            {firstAction.clientFirstAngle&&<div style={{fontSize:12,color:'#64748b',fontStyle:'italic',marginTop:4,lineHeight:1.4}}>{firstAction.clientFirstAngle}</div>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* END OF DAY JOURNAL CARD — show after 4pm if journal incomplete */}
+              {(()=>{
+                const today=new Date().toISOString().split('T')[0]
+                const nowHour=new Date().getHours()
+                const afterFourPm=nowHour>=16
+                const todayJournal=(data.dailyJournals||[]).find(j=>j.date===today)
+                if(!afterFourPm)return null
+                return(
+                  <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'14px 18px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <BookOpen size={16} color={todayJournal?.status==='complete'?'#22c55e':'#f59e0b'}/>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>End of Day Journal</div>
+                        {todayJournal?.status==='complete'
+                          ?<div style={{fontSize:12,color:'#22c55e',fontWeight:500}}>Completed today</div>
+                          :todayJournal
+                            ?<div style={{fontSize:12,color:'#64748b'}}>Draft in progress — finish closing out your day</div>
+                            :<div style={{fontSize:12,color:'#64748b'}}>Ready to wrap up today and set up tomorrow?</div>
+                        }
+                      </div>
+                    </div>
+                    {todayJournal?.status!=='complete'&&(
+                      <button onClick={()=>onGoEndOfDay&&onGoEndOfDay()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 14px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
+                        {todayJournal?'Continue →':'Start →'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )
         )}
