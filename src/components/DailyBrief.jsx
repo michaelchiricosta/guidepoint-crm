@@ -25,7 +25,7 @@ const groupBriefsByWeek = briefs => {
   return {thisWeek,lastWeek,earlier}
 }
 
-const NL={fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'10px 16px 4px'}
+const NL={fontSize:10,fontWeight:700,color:'#64748b',letterSpacing:'0.1em',textTransform:'uppercase',padding:'10px 16px 4px'}
 
 const SectionLabel=({icon,label,count})=>(
   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,marginTop:30}}>
@@ -180,11 +180,11 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
     const isSel=selectedDate===b.date
     return(
       <div key={b.date} onClick={()=>setSelectedDate(b.date)}
-        style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:isSel?'#1e3a5f':'transparent',transition:'background 0.1s'}}
-        onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background='rgba(255,255,255,0.08)'}}
+        style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:isSel?'#eff6ff':'transparent',transition:'background 0.1s'}}
+        onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background='#f1f5f9'}}
         onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background='transparent'}}>
-        <div style={{fontSize:13,fontWeight:600,color:isSel?'#fff':'#cbd5e1'}}>{fmt(b.date)}</div>
-        {b.briefSummary&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,lineHeight:1.4,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{b.briefSummary.slice(0,80)}</div>}
+        <div style={{fontSize:13,fontWeight:600,color:isSel?'#1d4ed8':'#374151',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{fmt(b.date)}</div>
+        {b.briefSummary&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,lineHeight:1.4,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{b.briefSummary.slice(0,80)}</div>}
       </div>
     )
   }
@@ -449,35 +449,35 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
       {/* BODY: sidebar + main content */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* LEFT NAV */}
-        <div style={{width:220,flexShrink:0,background:'#0f172a',display:'flex',flexDirection:'column',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
+        {/* LEFT NAV — secondary date/history panel */}
+        <div style={{width:216,flexShrink:0,background:'#fff',display:'flex',flexDirection:'column',borderRight:'1px solid #e5e7eb',boxShadow:'2px 0 6px rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
             <div style={NL}>Today</div>
             <div onClick={()=>setSelectedDate(today)}
-              style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:selectedDate===today?'#1e3a5f':'transparent',transition:'background 0.1s'}}
-              onMouseEnter={e=>{if(selectedDate!==today)e.currentTarget.style.background='rgba(255,255,255,0.08)'}}
+              style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:selectedDate===today?'#eff6ff':'transparent',transition:'background 0.1s'}}
+              onMouseEnter={e=>{if(selectedDate!==today)e.currentTarget.style.background='#f1f5f9'}}
               onMouseLeave={e=>{if(selectedDate!==today)e.currentTarget.style.background='transparent'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span style={{fontSize:13,fontWeight:600,color:selectedDate===today?'#fff':'#cbd5e1'}}>{fmt(today)}</span>
-                {briefGenerating&&<div style={{width:11,height:11,border:'2px solid rgba(255,255,255,0.15)',borderTopColor:'#60a5fa',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>}
-                {!briefGenerating&&!todayBrief&&<span style={{fontSize:10,color:'#475569'}}>—</span>}
-                {!briefGenerating&&todayBrief&&incompleteCount>0&&<span style={{fontSize:10,fontWeight:700,background:'#dc2626',color:'#fff',borderRadius:999,padding:'1px 6px',minWidth:16,textAlign:'center'}}>{incompleteCount}</span>}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+                <span style={{fontSize:13,fontWeight:600,color:selectedDate===today?'#1d4ed8':'#1e293b',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fmt(today)}</span>
+                {briefGenerating&&<div style={{width:11,height:11,border:'2px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}}/>}
+                {!briefGenerating&&!todayBrief&&<span style={{fontSize:10,color:'#cbd5e1',flexShrink:0}}>—</span>}
+                {!briefGenerating&&todayBrief&&incompleteCount>0&&<span style={{fontSize:10,fontWeight:700,background:'#fee2e2',color:'#dc2626',borderRadius:999,padding:'1px 6px',minWidth:16,textAlign:'center',flexShrink:0}}>{incompleteCount}</span>}
               </div>
-              {briefGenerating&&<div style={{fontSize:10,color:'#475569',marginTop:2}}>Generating...</div>}
+              {briefGenerating&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Generating...</div>}
             </div>
             {pastBriefs.length>0&&(
               <>
                 <div style={NL}>Archive</div>
-                {thisWeek.length>0&&<><div style={{fontSize:10,color:'#334155',padding:'2px 20px 1px',fontWeight:600}}>This Week</div>{thisWeek.map(briefNavRow)}</>}
-                {lastWeek.length>0&&<><div style={{fontSize:10,color:'#334155',padding:'6px 20px 1px',fontWeight:600}}>Last Week</div>{lastWeek.map(briefNavRow)}</>}
-                {earlier.length>0&&<><div style={{fontSize:10,color:'#334155',padding:'6px 20px 1px',fontWeight:600}}>Earlier</div>{earlier.map(briefNavRow)}</>}
+                {thisWeek.length>0&&<><div style={{fontSize:10,color:'#94a3b8',padding:'2px 20px 1px',fontWeight:600,letterSpacing:'0.04em'}}>This Week</div>{thisWeek.map(briefNavRow)}</>}
+                {lastWeek.length>0&&<><div style={{fontSize:10,color:'#94a3b8',padding:'6px 20px 1px',fontWeight:600,letterSpacing:'0.04em'}}>Last Week</div>{lastWeek.map(briefNavRow)}</>}
+                {earlier.length>0&&<><div style={{fontSize:10,color:'#94a3b8',padding:'6px 20px 1px',fontWeight:600,letterSpacing:'0.04em'}}>Earlier</div>{earlier.map(briefNavRow)}</>}
               </>
             )}
           </div>
-          <div style={{padding:12,borderTop:'1px solid rgba(255,255,255,0.07)',flexShrink:0}}>
+          <div style={{padding:12,borderTop:'1px solid #f1f5f9',flexShrink:0}}>
             <button onClick={onGenerateNow} disabled={briefGenerating}
-              style={{width:'100%',padding:'8px 12px',background:briefGenerating?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:7,color:briefGenerating?'#475569':'#e2e8f0',fontSize:12,fontWeight:600,cursor:briefGenerating?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:6,justifyContent:'center'}}>
-              {briefGenerating?<><div style={{width:11,height:11,border:'2px solid rgba(255,255,255,0.12)',borderTopColor:'#60a5fa',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/> Generating...</>:'+ Generate Now'}
+              style={{width:'100%',padding:'8px 12px',background:briefGenerating?'#f8fafc':'#f1f5f9',border:'1px solid #e2e8f0',borderRadius:7,color:briefGenerating?'#94a3b8':'#374151',fontSize:12,fontWeight:600,cursor:briefGenerating?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:6,justifyContent:'center'}}>
+              {briefGenerating?<><div style={{width:11,height:11,border:'2px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/> Generating...</>:'+ Generate Now'}
             </button>
           </div>
         </div>

@@ -17,7 +17,7 @@ const fmtTime = iso => {
   try { return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) } catch { return '' }
 }
 
-const NL = {fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.1em',textTransform:'uppercase',padding:'10px 16px 4px'}
+const NL = {fontSize:10,fontWeight:700,color:'#64748b',letterSpacing:'0.1em',textTransform:'uppercase',padding:'10px 16px 4px'}
 
 const CHIPS = [
   {label:'Wins',              template:'Wins: '},
@@ -272,14 +272,14 @@ ${JSON.stringify(acctCtx,null,2)}`
     return(
       <div key={j.date}
         onClick={()=>j.date===today?setSelectedDate(today):setOpenModal({journal:j,brief:briefs.find(b=>b.date===j.date)||null})}
-        style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:isSel?'#1e3a5f':'transparent',transition:'background 0.1s'}}
-        onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background='rgba(255,255,255,0.08)'}}
+        style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:isSel?'#eff6ff':'transparent',transition:'background 0.1s'}}
+        onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background='#f1f5f9'}}
         onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background='transparent'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-          <span style={{fontSize:13,fontWeight:600,color:isSel?'#fff':'#cbd5e1'}}>{fmt(j.date)}</span>
-          <span style={{fontSize:10,fontWeight:700,color:j.status==='complete'?'#22c55e':'#64748b'}}>{j.status==='complete'?'✓':''}</span>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+          <span style={{fontSize:13,fontWeight:600,color:isSel?'#1d4ed8':'#374151',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fmt(j.date)}</span>
+          <span style={{fontSize:10,fontWeight:700,color:j.status==='complete'?'#22c55e':'transparent',flexShrink:0}}>{j.status==='complete'?'✓':''}</span>
         </div>
-        {j.aiSummary&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,lineHeight:1.4,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{j.aiSummary.slice(0,80)}</div>}
+        {j.aiSummary&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,lineHeight:1.4,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis'}}>{j.aiSummary.slice(0,80)}</div>}
       </div>
     )
   }
@@ -305,18 +305,18 @@ ${JSON.stringify(acctCtx,null,2)}`
       {/* BODY */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* LEFT NAV */}
-        <div style={{width:220,flexShrink:0,background:'#0f172a',display:'flex',flexDirection:'column',borderRight:'1px solid rgba(255,255,255,0.06)',overflow:'hidden'}}>
+        {/* LEFT NAV — secondary date/history panel */}
+        <div style={{width:216,flexShrink:0,background:'#fff',display:'flex',flexDirection:'column',borderRight:'1px solid #e5e7eb',boxShadow:'2px 0 6px rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
             <div style={NL}>Today</div>
             <div onClick={()=>setSelectedDate(today)}
-              style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:selectedDate===today?'#1e3a5f':'transparent',transition:'background 0.1s'}}
-              onMouseEnter={e=>{if(selectedDate!==today)e.currentTarget.style.background='rgba(255,255,255,0.08)'}}
+              style={{padding:'8px 12px',cursor:'pointer',borderRadius:6,margin:'1px 8px',background:selectedDate===today?'#eff6ff':'transparent',transition:'background 0.1s'}}
+              onMouseEnter={e=>{if(selectedDate!==today)e.currentTarget.style.background='#f1f5f9'}}
               onMouseLeave={e=>{if(selectedDate!==today)e.currentTarget.style.background='transparent'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span style={{fontSize:13,fontWeight:600,color:selectedDate===today?'#fff':'#cbd5e1'}}>{fmt(today)}</span>
-                {isComplete&&<span style={{fontSize:10,fontWeight:700,color:'#22c55e'}}>✓</span>}
-                {!isComplete&&journal&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>draft</span>}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+                <span style={{fontSize:13,fontWeight:600,color:selectedDate===today?'#1d4ed8':'#1e293b',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fmt(today)}</span>
+                {isComplete&&<span style={{fontSize:10,fontWeight:700,color:'#22c55e',flexShrink:0}}>✓</span>}
+                {!isComplete&&journal&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600,flexShrink:0}}>draft</span>}
               </div>
             </div>
             {pastJournals.length>0&&(
