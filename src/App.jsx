@@ -374,7 +374,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'vendors',     label:'Vendors',     icon:<Package size={18}/>,    action:()=>onGoVendors&&onGoVendors()},
     {id:'dailybrief',  label:'Daily Brief',       icon:<Sparkles size={18}/>, action:()=>onGoDailyBrief&&onGoDailyBrief(),     badge: briefIncompleteCount>0?briefIncompleteCount:null},
     {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
-    {id:'endofday',    label:'End of Day',        icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
+    {id:'endofday',    label:'Journal',           icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
     {id:'marketintel', label:'Market Intel',      icon:<Globe size={18}/>,    action:()=>onGoMarketIntel&&onGoMarketIntel()},
   ]
   const navBottom = [
@@ -927,7 +927,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                 {label:'Vendors',         action:()=>{onGoVendors&&onGoVendors();setMobNavOpen(false)}},
                 {label:'Daily Brief',     action:()=>{clearBriefPages();setShowDailyBriefPage(true);setMobNavOpen(false)}},
                 {label:'Meeting Prep',    action:()=>{clearBriefPages();setShowMeetingPrepPage(true);setMobNavOpen(false)}},
-                {label:'End of Day',      action:()=>{clearBriefPages();setShowEndOfDayPage(true);setMobNavOpen(false)}},
+                {label:'Journal',         action:()=>{clearBriefPages();setShowEndOfDayPage(true);setMobNavOpen(false)}},
                 {label:'Market Intel',    action:()=>{clearBriefPages();setShowMarketIntelPage(true);setMobNavOpen(false)}},
                 {label:'Settings',        action:()=>{onOpenSettings&&onOpenSettings();setMobNavOpen(false)}},
               ].map(item=>(
@@ -1368,7 +1368,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
                       <BookOpen size={16} color={todayJournal?.status==='complete'?'#22c55e':'#f59e0b'}/>
                       <div>
-                        <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>End of Day Journal</div>
+                        <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Journal</div>
                         {todayJournal?.status==='complete'
                           ?<div style={{fontSize:12,color:'#22c55e',fontWeight:500}}>Completed today</div>
                           :todayJournal
@@ -5079,7 +5079,7 @@ export default function App() {
       const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
       return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
     })
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -5236,7 +5236,7 @@ OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
       const yesterdayStr=yesterday.toISOString().split('T')[0]
       const yesterdayJournal=(data.dailyJournals||[]).find(j=>j.date===yesterdayStr)
       const journalContext=yesterdayJournal?`
-Yesterday's End of Day Journal (${yesterdayStr}):
+Yesterday's Journal (${yesterdayStr}):
 AI Summary: ${yesterdayJournal.aiSummary||'none'}
 Debrief: ${(yesterdayJournal.debriefText||'none').slice(0,500)}
 Tomorrow Preview: ${JSON.stringify(yesterdayJournal.tomorrowPreview||{})}
@@ -5249,8 +5249,8 @@ ${JSON.stringify(accountContext,null,2)}
 
 Active whitespace accounts being pursued:
 ${JSON.stringify(whitespaceContext,null,2)}
-${journalContext?`\nContext from yesterday's End of Day Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
-Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse provide exactly 3 relevant bullets — prioritize any provided GuidePoint blog posts that map to Mike's accounts, industries, or vendors, then supplement with your knowledge of the current cybersecurity landscape. Each bullet should be something Mike can bring to clients to demonstrate he is the most knowledgeable person in the room.
+${journalContext?`\nContext from yesterday's Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
+Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse provide exactly 3 cybersecurity-focused bullets. Source priority: (1) any provided GuidePoint Security blog posts that map to Mike's accounts, industries, or vendors — use these first as Mike's firm published them; (2) CIO.com or Dark Reading headlines about ransomware, identity/IAM, cloud security, threat intel, vulnerabilities, compliance, or board/CFO cyber risk; (3) your knowledge of the current threat landscape. Only include bullets that are directly relevant to enterprise cybersecurity — no generic tech news unless there is a clear security or risk angle. Each bullet must state what happened and why a CISO, CIO, or CFO at one of Mike's client companies should care. Mike needs these to sound like the most knowledgeable person in the room.
 
 Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
 

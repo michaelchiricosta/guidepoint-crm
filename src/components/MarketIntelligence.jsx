@@ -2,14 +2,16 @@ import { useState } from 'react'
 import { ArrowLeft, Globe, RefreshCw, Plus, Trash2, X, Search, ExternalLink, Loader, BookOpen, Pencil } from 'lucide-react'
 import { uid } from '../utils.js'
 
-// TODO: Migrate blog sync to a Vercel serverless function / cron job for production.
-// Currently uses allorigins.win CORS proxy for client-side blog fetching.
-// This works for manual sync but is not suitable for high-frequency automated use.
-// Suggested path: Vercel Edge Function at /api/sync-blog that fetches, parses, and returns posts.
+// TODO: Migrate blog sync to a Vercel serverless function at /api/sync-blog for reliable production use.
+// Client-side direct RSS and CORS proxy are best-effort; CORS headers on the source may block both.
 
 const ALLORIGINS = 'https://api.allorigins.win/get?url='
 const GP_WP_API = 'https://www.guidepointsecurity.com/wp-json/wp/v2/posts?per_page=20&_fields=id,title,link,date,excerpt'
-const GP_RSS = 'https://www.guidepointsecurity.com/feed/'
+const GP_RSS_CANDIDATES = [
+  'https://www.guidepointsecurity.com/blog/feed/',
+  'https://www.guidepointsecurity.com/feed/',
+  'https://www.guidepointsecurity.com/blog/rss/',
+]
 
 const stripHtml = html => {
   try {
@@ -245,34 +247,54 @@ export default function MarketIntelligence({ data, setData, onBack }) {
 
   // ---- Blog Fetch ----
   const fetchBlogPosts = async () => {
-    const abortCtrl = new AbortController()
-    const toId = setTimeout(() => abortCtrl.abort(), 22000)
-    try {
-      // Try WP REST API first
+    const tryFetch = async (url, timeoutMs) => {
+      const ctrl = new AbortController()
+      const toId = setTimeout(() => ctrl.abort(), timeoutMs)
       try {
-        const res = await fetch(ALLORIGINS + encodeURIComponent(GP_WP_API), { signal: abortCtrl.signal })
+        const res = await fetch(url, { signal: ctrl.signal })
         clearTimeout(toId)
-        if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
-        const wrapper = await res.json()
-        if (!wrapper.contents) throw new Error('Empty proxy response')
-        const posts = JSON.parse(wrapper.contents)
-        if (!Array.isArray(posts) || !posts.length) throw new Error('WP API returned no posts')
-        return { posts: parseWpPosts(posts), method: 'WordPress API' }
-      } catch (wpErr) {
-        // Fall back to RSS
-        const res2 = await fetch(ALLORIGINS + encodeURIComponent(GP_RSS), { signal: abortCtrl.signal })
+        return res
+      } catch (err) {
         clearTimeout(toId)
-        if (!res2.ok) throw new Error(`RSS proxy HTTP ${res2.status}`)
-        const wrapper2 = await res2.json()
-        if (!wrapper2.contents) throw new Error('Empty RSS response')
-        const posts2 = parseRssFeed(wrapper2.contents)
-        if (!posts2.length) throw new Error('No items parsed from RSS feed')
-        return { posts: posts2, method: 'RSS feed' }
+        throw err
       }
-    } catch (err) {
-      clearTimeout(toId)
-      throw err
     }
+
+    // 1. Try direct RSS (no CORS proxy) — works if the source sends permissive CORS headers
+    for (const rssUrl of GP_RSS_CANDIDATES) {
+      try {
+        const res = await tryFetch(rssUrl, 8000)
+        if (!res.ok) continue
+        const xml = await res.text()
+        const posts = parseRssFeed(xml)
+        if (posts.length) return { posts, method: 'RSS (direct)' }
+      } catch { /* CORS block or timeout — try next */ }
+    }
+
+    // 2. Try WP REST API via CORS proxy
+    try {
+      const res = await tryFetch(ALLORIGINS + encodeURIComponent(GP_WP_API), 20000)
+      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
+      const wrapper = await res.json()
+      if (!wrapper.contents) throw new Error('Empty proxy response')
+      const posts = JSON.parse(wrapper.contents)
+      if (!Array.isArray(posts) || !posts.length) throw new Error('WP API returned no posts')
+      return { posts: parseWpPosts(posts), method: 'WordPress API (proxy)' }
+    } catch {}
+
+    // 3. Try RSS via CORS proxy
+    for (const rssUrl of GP_RSS_CANDIDATES) {
+      try {
+        const res = await tryFetch(ALLORIGINS + encodeURIComponent(rssUrl), 18000)
+        if (!res.ok) continue
+        const wrapper = await res.json()
+        if (!wrapper.contents) continue
+        const posts = parseRssFeed(wrapper.contents)
+        if (posts.length) return { posts, method: 'RSS (proxy)' }
+      } catch {}
+    }
+
+    return { posts: [], method: 'failed', corsBlocked: true }
   }
 
   // ---- AI Summarize (batch) ----
@@ -317,7 +339,17 @@ export default function MarketIntelligence({ data, setData, onBack }) {
     setSyncResult(null)
     const now = new Date().toISOString()
     try {
-      const { posts, method } = await fetchBlogPosts()
+      const { posts, method, corsBlocked } = await fetchBlogPosts()
+      if (corsBlocked) {
+        const updatedSources = ensureGpSource(data.blogSources).map(s =>
+          s.id === 'guidepointsecurity'
+            ? { ...s, lastSyncedAt: now, lastSyncStatus: 'error', lastSyncError: 'CORS blocked' }
+            : s
+        )
+        setData(prev => ({ ...prev, blogSources: updatedSources }))
+        setSyncError('Client-side sync is blocked by the source site\'s CORS policy. A server-side sync function (/api/sync-blog) is required for reliable syncing.')
+        return
+      }
       const existing = data.marketPulses || []
       const existingUrls = new Set(existing.map(p => p.sourceUrl).filter(Boolean))
       const newPosts = posts.filter(p => p.sourceUrl && !existingUrls.has(p.sourceUrl))
@@ -489,7 +521,7 @@ export default function MarketIntelligence({ data, setData, onBack }) {
             {syncError && (
               <div style={{ marginTop: 10, background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}>
                 <strong>Sync failed:</strong> {syncError}
-                <div style={{ marginTop: 3, color: '#991b1b', fontSize: 11 }}>This may be a temporary network issue with the CORS proxy. Try again in a moment.</div>
+                <div style={{ marginTop: 3, color: '#991b1b', fontSize: 11 }}>If CORS blocked: a server-side /api/sync-blog function is needed. Otherwise try again in a moment.</div>
               </div>
             )}
             {syncResult && (
