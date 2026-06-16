@@ -232,6 +232,9 @@ export default function EndOfDayJournal({data,setData,onBack}){
   const [actionsStatus, setActionsStatus] = useState(()=>todayJournal?.actionsStatus||{})
   const [moveForwardStatus, setMoveForwardStatus] = useState(()=>todayJournal?.moveForwardStatus||{})
   const [longGameStatus, setLongGameStatus] = useState(()=>todayJournal?.longGameStatus||{})
+  const [decisionsStatus, setDecisionsStatus] = useState(()=>todayJournal?.decisionsStatus||{})
+  const [followUpsStatus, setFollowUpsStatus] = useState(()=>todayJournal?.followUpsStatus||{})
+  const [risksStatus, setRisksStatus] = useState(()=>todayJournal?.risksStatus||{})
   const [itemNotes, setItemNotes] = useState(()=>todayJournal?.itemNotes||{})
   const [debriefText, setDebriefText] = useState(()=>todayJournal?.debriefText||'')
   const [generating, setGenerating] = useState(false)
@@ -249,6 +252,9 @@ export default function EndOfDayJournal({data,setData,onBack}){
       setActionsStatus(todayJournal.actionsStatus||{})
       setMoveForwardStatus(todayJournal.moveForwardStatus||{})
       setLongGameStatus(todayJournal.longGameStatus||{})
+      setDecisionsStatus(todayJournal.decisionsStatus||{})
+      setFollowUpsStatus(todayJournal.followUpsStatus||{})
+      setRisksStatus(todayJournal.risksStatus||{})
       setItemNotes(todayJournal.itemNotes||{})
       setDebriefText(todayJournal.debriefText||'')
     }
@@ -265,6 +271,7 @@ export default function EndOfDayJournal({data,setData,onBack}){
       const fresh = {
         id:uid(),date:today,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
         completedAt:null,linkedBriefDate:today,actionsStatus:{},moveForwardStatus:{},longGameStatus:{},
+        decisionsStatus:{},followUpsStatus:{},risksStatus:{},
         itemNotes:{},debriefText:'',aiSummary:'',aiAnalysis:null,suggestedUpdates:[],
         tomorrowPreview:null,suggestedAccountUpdates:[],appliedAt:null,status:'draft',...patch
       }
@@ -293,6 +300,24 @@ export default function EndOfDayJournal({data,setData,onBack}){
       const updated = {...longGameStatus,[idx]:next}
       setLongGameStatus(updated)
       upsert({longGameStatus:updated,status:'draft'})
+    } else if(section==='decisions'){
+      const cur = decisionsStatus[idx]||null
+      const next = cur===null?'done':cur==='done'?'tomorrow':null
+      const updated = {...decisionsStatus,[idx]:next}
+      setDecisionsStatus(updated)
+      upsert({decisionsStatus:updated,status:'draft'})
+    } else if(section==='followUps'){
+      const cur = followUpsStatus[idx]||null
+      const next = cur===null?'done':cur==='done'?'tomorrow':null
+      const updated = {...followUpsStatus,[idx]:next}
+      setFollowUpsStatus(updated)
+      upsert({followUpsStatus:updated,status:'draft'})
+    } else if(section==='risks'){
+      const cur = risksStatus[idx]||null
+      const next = cur===null?'done':cur==='done'?'tomorrow':null
+      const updated = {...risksStatus,[idx]:next}
+      setRisksStatus(updated)
+      upsert({risksStatus:updated,status:'draft'})
     }
   }
 

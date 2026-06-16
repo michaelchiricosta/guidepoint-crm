@@ -4,13 +4,26 @@ import { Field, Btn, SH, Card } from './UI.jsx'
 import { supabase } from '../supabase.js'
 import { DEFAULT_AI_SETTINGS, checkBudget } from '../utils/aiHelper.js'
 
+const LS_API_KEY = 'ledgr_anthropic_api_key'
+
 export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime,onReset}) {
-  const [key,setKey] = useState(data.apiKey||'')
+  const [key,setKey] = useState(()=>localStorage.getItem(LS_API_KEY)||data.apiKey||'')
   const [saved,setSaved] = useState(false)
   const [logoStatus,setLogoStatus] = useState(null)
   const logoInputRef = useRef(null)
-  const saveKey=()=>{setData(p=>({...p,apiKey:key}));setSaved(true);setTimeout(()=>setSaved(false),2000)}
-  const exportData=()=>{const b=new Blob([JSON.stringify(data,null,2)]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='guidepoint-crm-backup.json';a.click()}
+  const saveKey=()=>{
+    localStorage.setItem(LS_API_KEY, key)
+    // Keep data.apiKey in sync so existing AI callers that read data.apiKey still work,
+    // but supabase.js strips it before persisting so it never reaches the database.
+    setData(p=>({...p,apiKey:key}))
+    setSaved(true);setTimeout(()=>setSaved(false),2000)
+  }
+  const exportData=()=>{
+    // Strip API key and cache from backup — key lives in localStorage, cache is ephemeral
+    const {apiKey:_k, aiCache:_c, ...exportable} = data
+    const b=new Blob([JSON.stringify(exportable,null,2)])
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='guidepoint-crm-backup.json';a.click()
+  }
   const LOGO_COLORS = ['#007AFF','#7c3aed','#0ebc5f','#ea580c','#0891b2','#e91e8c']
   const acctIdx = (data.accounts||[]).findIndex(a=>a.id===acct.id)
   const logoColor = LOGO_COLORS[Math.max(0,acctIdx)%LOGO_COLORS.length]
@@ -38,7 +51,8 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
     setAcct(p=>({...p,logoImage:compressed}))
     setLogoStatus('saving')
     try {
-      const {error} = await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
+      const {apiKey:_k, aiCache:_c, ...safeUpdated} = updatedData
+      const {error} = await supabase.from('accounts').upsert({id:'user-data',data:safeUpdated,updated_at:new Date().toISOString()})
       if (error) throw error
       console.log('Logo saved to Supabase for:', acct.name)
       setLogoStatus('saved')
@@ -59,7 +73,8 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
     setData(updatedData)
     setAcct(p=>({...p,logoImage:''}))
     try {
-      await supabase.from('accounts').upsert({id:'user-data',data:updatedData,updated_at:new Date().toISOString()})
+      const {apiKey:_k, aiCache:_c, ...safeUpdated} = updatedData
+      await supabase.from('accounts').upsert({id:'user-data',data:safeUpdated,updated_at:new Date().toISOString()})
     } catch(err) { console.error('Logo remove failed:', err) }
     finally { setTimeout(()=>{ saveInProgress.current = false }, 3000) }
   }

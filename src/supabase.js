@@ -67,9 +67,11 @@ export const loadData = async () => {
 }
 
 export const saveData = async (appData) => {
+  // Strip secrets before persisting — apiKey must live in localStorage only, not in Supabase.
+  const { apiKey: _stripped, ...safeData } = appData
   const { error } = await supabase
     .from('accounts')
-    .upsert({ id: 'user-data', data: appData, updated_at: new Date().toISOString() })
+    .upsert({ id: 'user-data', data: safeData, updated_at: new Date().toISOString() })
   if (error) console.error('[saveData] error:', error.message)
   // Dual-write: sync normalized tables after a successful blob save.
   // Best-effort, fire-and-forget — blob result is returned immediately regardless

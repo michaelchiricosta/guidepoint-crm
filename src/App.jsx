@@ -432,7 +432,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
       {!collapsed&&<div style={{padding:'12px',flexShrink:0}}>
         {showAdd?<div>
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder='Account name...' onKeyDown={e=>e.key==='Enter'&&addAccount()}
-            style={{marginBottom:6,fontSize:12,width:'100%',padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:ST,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
+            style={{marginBottom:6,fontSize:12,width:'100%',padding:'7px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:8,color:'#111827',outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
           <div style={{display:'flex',gap:5}}>
             <button onClick={addAccount} style={{flex:1,padding:'6px 8px',background:'#007AFF',border:'none',borderRadius:7,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Add</button>
             <button onClick={()=>{setShowAdd(false);setNewName('')}} style={{padding:'6px 10px',background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:7,color:SM,fontSize:12,cursor:'pointer'}}>✕</button>
@@ -2585,6 +2585,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   }
 
   const handleAutoFill = async () => {
+    if (aiOpRunning) return
     if (!effectiveKey) { alert('Add your Anthropic API key in Settings first.'); return }
     const missing = ws.filter(a => !a.employees || !a.revenue)
     if (missing.length === 0) { alert('All accounts already have employee and revenue data!'); return }
@@ -2637,6 +2638,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   }
 
   const handleCleanNotes = async () => {
+    if (aiOpRunning) return
     if (!effectiveKey) { alert('Add your Anthropic API key in Settings first.'); return }
     const accts = ws.filter(a => ((a.intelLog||[]).length + (a.notes||[]).length) > 2)
     if (accts.length === 0) { alert('No accounts with more than 2 notes entries found.'); return }
@@ -2689,6 +2691,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   },[showMoreMenu])
 
   const fetchRecommendations = async () => {
+    if (recLoading) return
     if (!effectiveKey) { setRecError('Add your Anthropic API key in Settings first.'); return }
     setRecLoading(true); setRecError('')
     const dismissed = data.dismissedWhitespaceSuggestions || []
@@ -2769,6 +2772,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   }
 
   const rescoreAccount = async (acctId) => {
+    if (scoringId) return
     if (!effectiveKey) {alert('Add your Anthropic API key in Settings first.');return}
     const acct = ws.find(a=>a.id===acctId); if(!acct)return
     setScoringId(acctId)
@@ -5359,7 +5363,10 @@ export default function App() {
       const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
       return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
     })
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[]})
+    // Merge API key from localStorage — it is never persisted to Supabase (stripped in saveData).
+    // Fallback to loaded.apiKey for one-time migration of keys stored in old saves.
+    const localApiKey = localStorage.getItem('ledgr_anthropic_api_key') || loaded.apiKey || ''
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[], apiKey:localApiKey})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -5496,12 +5503,36 @@ IMPORTANT: Keep each text field concise — maximum 2 sentences per field. This 
 
 OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
 {
-  "briefSummary": "2-3 sentence executive summary of today — overall state of Mike's book and the single most important thing to accomplish today",
+  "briefSummary": "2-4 sentence executive summary — overall state of Mike's book and the single highest-leverage focus today",
+  "observationWindow": "One-line coverage statement, e.g. 'Based on 30 days of account activity through [date]'",
+  "observedReality": [
+    {"category": "Client / Account Activity", "bullets": ["concise factual bullet — what happened or was observed"]},
+    {"category": "Pipeline / Renewal Activity", "bullets": ["concise bullet"]},
+    {"category": "Internal / Strategy Activity", "bullets": ["concise bullet"]}
+  ],
+  "keyDevelopments": [
+    {"label": "Bold Signal Label", "detail": "One sentence — what it means for Mike and his accounts.", "account": ""}
+  ],
   "actToday": [{"account":"","contact":"","action":"","clientFirstAngle":"","suggestedOpener":"","whileYouHaveThem":[],"upsairsKit":"","urgencyReason":"","estimatedMinutes":15,"completedToday":false}],
   "moveForward": [{"account":"","contact":"","action":"","clientFirstAngle":"","timeframe":"","urgencyReason":""}],
   "longGame": [{"account":"","action":"","why":"","plantThisSeed":""}],
+  "decisionsToMake": [
+    {"decision": "Practical question Mike needs to decide today — framed as a decision", "context": "One sentence of relevant context.", "account": ""}
+  ],
+  "followUpsLooseThreads": [
+    {"item": "Specific action needed — not vague, name the exact thing", "account": "Account name or empty", "risk": "What happens if Mike drops this"}
+  ],
+  "risksWatchouts": [
+    {"label": "Risk Type", "detail": "Specific risk description — one sentence.", "account": ""}
+  ],
+  "efficiencyLeverage": [
+    {"suggestion": "Specific time-saving or leverage idea — one sentence"}
+  ],
   "renewalRadar": [{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true,"alert":""}],
-  "marketPulse": [{"headline":"","relevance":"","talkingPoint":""}]
+  "marketPulse": [{"headline":"","relevance":"","talkingPoint":""}],
+  "tomorrowLater": [
+    {"item": "Deferred or future action — brief description", "account": ""}
+  ]
 }`
       // Inject recent GuidePoint blog posts as market pulse context
       const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7)
@@ -5530,9 +5561,23 @@ ${JSON.stringify(accountContext,null,2)}
 Active whitespace accounts being pursued:
 ${JSON.stringify(whitespaceContext,null,2)}
 ${journalContext?`\nContext from yesterday's Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
-Generate Mike's Daily Brief. For actToday select MAX 3 accounts — the absolute highest leverage actions for today only. For moveForward select MAX 5. For longGame select MAX 3. For renewalRadar include ALL renewals within 90 days found in the data. For marketPulse provide exactly 3 cybersecurity-focused bullets. Source priority: (1) any provided GuidePoint Security blog posts that map to Mike's accounts, industries, or vendors — use these first as Mike's firm published them; (2) CIO.com or Dark Reading headlines about ransomware, identity/IAM, cloud security, threat intel, vulnerabilities, compliance, or board/CFO cyber risk; (3) your knowledge of the current threat landscape. Only include bullets that are directly relevant to enterprise cybersecurity — no generic tech news unless there is a clear security or risk angle. Each bullet must state what happened and why a CISO, CIO, or CFO at one of Mike's client companies should care. Mike needs these to sound like the most knowledgeable person in the room.
+Generate Mike's full Daily Executive Brief in the Littlebird style — a concise operating memo readable in 3-5 minutes.
 
-Remember: every action must have a client-first angle. Never recommend just following up. Always bring something valuable. Help Mike show up like a trusted advisor not a rep checking boxes.`
+SECTION LIMITS (strict):
+- observedReality: 5-8 bullets total across all categories. Draw from recent intel logs, active projects, follow-up activity, and yesterday's journal. Keep bullets factual, past-tense, specific.
+- keyDevelopments: 3-6 bullets. Bold label then one sentence. Cover account movement, buying signals, stalled deals, competitive risks, vendor shifts, exec alignment signals.
+- actToday: MAX 3 — the absolute highest-leverage actions for today only.
+- moveForward: MAX 5.
+- longGame: MAX 3.
+- decisionsToMake: 2-5 bullets. Frame as practical sales decisions — which account to prioritize, whether to escalate, whether to push a vendor/client, whether to loop in GuidePoint services or leadership.
+- followUpsLooseThreads: 3-6 bullets. Surface unresolved promises, open client asks, missing responses, aging opportunities, follow-ups at risk. Include specific action needed and what drops if ignored.
+- risksWatchouts: 3-5 bullets. Client risk, deal risk, relationship risk, timing risk, competitive risk, internal execution risk.
+- efficiencyLeverage: 2-4 bullets. Batch outreach, reuse templates, avoid unnecessary calls, combine topics, delegate.
+- renewalRadar: ALL renewals within 90 days.
+- marketPulse: EXACTLY 3 bullets. Source priority: (1) provided GuidePoint Security blog posts matching Mike's accounts/industries/vendors; (2) CIO.com or DarkReading on ransomware, IAM, cloud security, threat intel, compliance, board/CFO cyber risk; (3) current threat landscape. Only cybersecurity with direct client relevance. Each bullet must state what happened AND why a CISO/CIO/CFO at Mike's clients should care.
+- tomorrowLater: MAX 3 bullets. Use deferred items, unfinished actions, and future commitments.
+
+Keep every text field to 1-2 sentences max. Every actToday/moveForward action must have a client-first angle — never just "follow up." Return ONLY valid JSON.`
 
       console.log('=== DAILY BRIEF DEBUG ===')
       console.log('API key exists:', !!effectiveApiKey)
@@ -5552,14 +5597,14 @@ Remember: every action must have a client-first angle. Never recommend just foll
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 6000,
+          max_tokens: 8000,
           system: systemPrompt,
           messages: [{role: 'user', content: userPrompt}]
         })
       })
 
       console.log('Response status:', response.status)
-      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 6000, durationMs: Date.now() - _briefStart, success: response.ok })
+      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 8000, durationMs: Date.now() - _briefStart, success: response.ok })
       const responseData = await response.json()
       console.log('Response data:', JSON.stringify(responseData).slice(0, 500))
 
@@ -5592,12 +5637,20 @@ Remember: every action must have a client-first angle. Never recommend just foll
         date:today,
         generatedAt:new Date().toISOString(),
         briefSummary:briefData.briefSummary||'',
+        observationWindow:briefData.observationWindow||'',
         sections:{
+          observedReality:briefData.observedReality||[],
+          keyDevelopments:briefData.keyDevelopments||[],
           actToday:(briefData.actToday||[]).map(a=>({...a,completedToday:false})),
           moveForward:briefData.moveForward||[],
           longGame:briefData.longGame||[],
+          decisionsToMake:briefData.decisionsToMake||[],
+          followUpsLooseThreads:briefData.followUpsLooseThreads||[],
+          risksWatchouts:briefData.risksWatchouts||[],
+          efficiencyLeverage:briefData.efficiencyLeverage||[],
           renewalRadar:briefData.renewalRadar||[],
-          marketPulse:briefData.marketPulse||[]
+          marketPulse:briefData.marketPulse||[],
+          tomorrowLater:briefData.tomorrowLater||[],
         }
       }
       setData(prev=>{
