@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react'
-import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe } from 'lucide-react'
+import { Clock, Trash2, Home, Calendar, AlertTriangle, RefreshCw, Target, Sun, Moon, Map, Zap, ArrowLeft, Pencil, User, Cpu, Share2, Eye, X, GitMerge, Building2, Folder, Bell, Maximize2, ChevronLeft, ChevronRight, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
@@ -28,6 +28,8 @@ import DailyBrief from './components/DailyBrief.jsx'
 import MeetingPrep from './components/MeetingPrep.jsx'
 import EndOfDayJournal from './components/EndOfDayJournal.jsx'
 import MarketIntelligence from './components/MarketIntelligence.jsx'
+import AIUsageDashboard from './components/AIUsageDashboard.jsx'
+import { trackAI, FEATURES } from './utils/aiTracker.js'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -133,6 +135,8 @@ const wsDiagEnd = () => {
   console.log(`  Processing Time:       ${elapsed}s`)
   if (d.log.length > 0) { console.log('  --- Call Log ---'); d.log.forEach(e => console.log(e)) }
   console.groupEnd()
+  // Record in AI usage tracker as a single summary entry for this upload session
+  trackAI({ feature: FEATURES.WHITESPACE_UPLOAD, operation: d.uploadType, model: 'claude-sonnet-4-6', inputChars: d.inputTokensEst * 4, maxTokensOut: d.outputTokensMaxEst / Math.max(d.calls, 1), durationMs: Date.now() - d.startMs, notes: `${d.calls} calls, ${d.retries} retries` })
   window.__wsDiag = null
 }
 
@@ -465,7 +469,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
@@ -486,13 +490,14 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
     {id:'endofday',    label:'Journal',           icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
     {id:'marketintel', label:'Market Intel',      icon:<Globe size={18}/>,    action:()=>onGoMarketIntel&&onGoMarketIntel()},
+    {id:'aiusage',     label:'AI Usage',          icon:<BarChart2 size={18}/>,action:()=>onGoAIUsage&&onGoAIUsage()},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showAIUsagePage ? 'aiusage' : showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
@@ -848,8 +853,9 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   const [showMeetingPrepPage, setShowMeetingPrepPage] = useState(false)
   const [showEndOfDayPage, setShowEndOfDayPage] = useState(false)
   const [showMarketIntelPage, setShowMarketIntelPage] = useState(false)
+  const [showAIUsagePage, setShowAIUsagePage] = useState(false)
   const scrollRef = useRef(null)
-  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false) }
+  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false); setShowAIUsagePage(false) }
   const [logoScale, setLogoScale] = useState(1)
   useEffect(()=>{
     if(!mob)return
@@ -1013,7 +1019,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -1064,7 +1070,10 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
       {showMarketIntelPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <MarketIntelligence data={data} setData={setData} onBack={()=>setShowMarketIntelPage(false)}/>
       </div>}
-      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage?'none':'block'}}>
+      {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)}/>
+      </div>}
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage?'none':'block'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
@@ -2541,7 +2550,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     for (let i = 0; i < missing.length; i++) {
       const account = missing[i]
       setAiOpProgress(`Processing ${i+1} of ${missing.length}: ${account.name}…`)
+      const _autoFillStart = Date.now()
       try {
+        const _autoFillPrompt = `Research the employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}`
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -2552,6 +2563,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             messages: [{role:'user',content:`Research the employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}. Search up to 3 trusted sources (company website, LinkedIn, Crunchbase, Pitchbook, public filings, press releases). Rules: (1) employees must be a single rounded integer — never a range, never use ~, never write "approximately" — if you find multiple estimates average them and round to the nearest 100 or 1000 as appropriate; (2) revenue must be a clean short string like $500M or $1.2B — no ~, no approximation language, no "around"; (3) if you cannot find reliable data for a field return an empty string for that field; (4) do not hallucinate or invent numbers. Return ONLY valid JSON with no other text: {"employees":"single integer as string e.g. 5000","revenue":"clean string e.g. $500M","source":"brief description of sources used"}`}]
           })
         })
+        trackAI({ feature: FEATURES.WHITESPACE_TOOLS, operation: 'auto-fill-firmographic', model: 'claude-sonnet-4-6', inputChars: _autoFillPrompt.length, maxTokensOut: 600, durationMs: Date.now() - _autoFillStart, success: resp.ok, notes: account.name })
         const result = await resp.json()
         let parsed = null
         for (const block of (result.content || [])) {
@@ -2594,6 +2606,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         ...(account.notes||[]).map(n => `[${n.date||''}] ${n.text||''}`),
         ...(account.intelLog||[]).map(n => `[${n.date||''}] ${n.summary||n.text||''}`)
       ].join('\n\n')
+      const _cleanInput = `You are cleaning up sales intelligence notes for ${account.name}. Here are all the notes and intel entries:\n\n${allNotesText}\n\nConsolidate these into clean, non-redundant notes.`
+      const _cleanStart = Date.now()
       try {
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -2604,6 +2618,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             messages: [{role:'user',content:`You are cleaning up sales intelligence notes for ${account.name}. Here are all the notes and intel entries:\n\n${allNotesText}\n\nConsolidate these into clean, non-redundant notes. Rules: (1) Keep ALL unique facts, details, contacts, and intel — do not lose any real information. (2) Remove duplicate sentences and repetitive summaries. (3) Combine similar points into single clear statements. (4) Keep chronological context where relevant. (5) Return ONLY the cleaned notes as plain text, no headers, no JSON. Maximum 500 words.`}]
           })
         })
+        trackAI({ feature: FEATURES.WHITESPACE_TOOLS, operation: 'clean-notes', model: 'claude-sonnet-4-6', inputChars: _cleanInput.length, maxTokensOut: 2000, durationMs: Date.now() - _cleanStart, success: resp.ok, notes: account.name })
         const result = await resp.json()
         const text = (result.content||[]).find(b=>b.type==='text')?.text
         if (text) {
@@ -2646,6 +2661,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       myAccounts: (data.accounts||[]).map(a=>({name:a.name, contacts:(a.contacts||[]).map(c=>c.name)}))
     }
     const dismissedNote = dismissed.length > 0 ? `\n\nDo NOT include these previously dismissed accounts: ${dismissed.join(', ')}` : ''
+    const _recBody = JSON.stringify(context)
+    const _recStart = Date.now()
     try {
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
@@ -2657,6 +2674,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
           messages:[{role:'user',content:`Here is my whitespace account data and my existing named accounts:\n${JSON.stringify(context,null,2)}${dismissedNote}\n\nIdentify the TOP 10 whitespace accounts to prioritize RIGHT NOW. For each account return:\n- name: exact account name from the data\n- priority: "Hot" | "Warm" | "Watch"\n- reasons: array of exactly 3 short bullet points explaining why (mention specific signals like known contacts, intel activity, direct contracts, vendor relationships, industry urgency, employee size, revenue)\n\nReturn ONLY valid JSON:\n{"recommendations":[{"name":"...","priority":"Hot","reasons":["...","...","..."]}]}`}]
         })
       })
+      trackAI({ feature: FEATURES.WHITESPACE_TOOLS, operation: 'whitespace-recommendations', model: 'claude-sonnet-4-6', inputChars: _recBody.length, maxTokensOut: 2000, durationMs: Date.now() - _recStart, success: resp.ok })
       const result = await resp.json()
       if (result.error) throw new Error(result.error.message)
       const text = (result.content||[]).find(b=>b.type==='text')?.text||''
@@ -2678,7 +2696,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     const lastIntelDate = [...(acct.intelLog||[]),...(acct.notes||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0]?.date||''
     const ctx = {name:acct.name,hq:acct.hq||'',employees:acct.employees||'',employeeTier:empTier,revenue:acct.revenue||'',status:acct.status||'',industry:acct.industry||'',vendors:(acct.technologies||[]).map(t=>({name:t.name,status:t.status})),contacts:(acct.contacts||[]).map(c=>c.name),notes:allNotes.slice(0,8),lastIntelDate,intelCount:allNotes.length}
     const prompt = `You are a cybersecurity sales scoring engine for GuidePoint Security. Score this whitespace prospect's AI opportunity score from 1-100.\n\nAccount:\n${JSON.stringify(ctx,null,2)}\n\nWeighting:\n- Employee count tier: ${empTier}\n  Exact tiers: Under 1,000=lowest weight | 1,001-3,500=low-medium weight | 3,501-6,000=medium weight | 6,001-15,000=medium-high weight | 15,001-40,000=high weight | 40,001+=highest weight\n- Revenue: higher revenue scores higher\n- Notes/intel: active evaluations, renewals, vendor dissatisfaction, budget cycles, known gaps score higher\n- Displacement opportunity: incumbent vendors GuidePoint could displace score higher\n- Whitespace coverage: fewer known vendors = more opportunity = higher score\n- Intel recency: recent notes score higher than stale or empty\n\nReturn ONLY valid JSON, no preamble or markdown:\n{"score":<integer 1-100>,"reasoning":"<1-2 sentences on the top factors>"}`
+    const _scoreStart = Date.now()
     const {data:result} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:prompt}]},effectiveKey)
+    trackAI({ feature: FEATURES.WHITESPACE_TOOLS, operation: 'score-account', model: 'claude-sonnet-4-6', inputChars: prompt.length, maxTokensOut: 300, durationMs: Date.now() - _scoreStart, notes: acct.name })
     if (result.error) throw new Error(result.error.message)
     const text = (result.content||[]).find(b=>b.type==='text')?.text||''
     const parsed = extractJSON(text)
@@ -5415,6 +5435,8 @@ Remember: every action must have a client-first angle. Never recommend just foll
       console.log('Data accounts count:', (data?.accounts || []).length)
       console.log('Model being used:', 'claude-sonnet-4-6')
 
+      const _briefInputChars = systemPrompt.length + userPrompt.length
+      const _briefStart = Date.now()
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -5432,6 +5454,7 @@ Remember: every action must have a client-first angle. Never recommend just foll
       })
 
       console.log('Response status:', response.status)
+      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 6000, durationMs: Date.now() - _briefStart, success: response.ok })
       const responseData = await response.json()
       console.log('Response data:', JSON.stringify(responseData).slice(0, 500))
 

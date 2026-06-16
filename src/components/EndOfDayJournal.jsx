@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, BookOpen, CheckCircle2, Circle, ArrowRight, Loader, Trash2, X, Sparkles } from 'lucide-react'
 import { uid } from '../utils.js'
+import { trackAI, FEATURES } from '../utils/aiTracker.js'
 
 const fmt = d => {
   if (!d) return ''
@@ -291,12 +292,14 @@ ${actToday.map((a,i)=>({account:a.account,action:a.action,status:actionsStatus[i
 Mike's accounts: ${accountNames.join(', ')||'(none)'}
 Open follow-ups: ${openFollowUps.slice(0,10).map(f=>`${f.account}: ${f.task}`).join(', ')||'(none)'}`
 
+    const _analyzeStart=Date.now()
     try{
       const res=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:sys,messages:[{role:'user',content:usr}]})
       })
+      trackAI({feature:FEATURES.JOURNAL,operation:'analyze-journal',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:2000,durationMs:Date.now()-_analyzeStart,success:res.ok})
       const rd=await res.json()
       if(!res.ok)throw new Error(`API error ${res.status}: ${rd.error?.message||JSON.stringify(rd)}`)
       const raw=rd.content?.[0]?.text||''
@@ -359,12 +362,14 @@ Debrief: ${debriefText||'(none)'}
 Account context:
 ${JSON.stringify(acctCtx,null,2)}`
 
+    const _previewStart=Date.now()
     try{
       const res=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:sys,messages:[{role:'user',content:usr}]})
       })
+      trackAI({feature:FEATURES.JOURNAL,operation:'generate-preview',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:1500,durationMs:Date.now()-_previewStart,success:res.ok})
       const rd=await res.json()
       if(!res.ok)throw new Error(`API error ${res.status}: ${rd.error?.message||JSON.stringify(rd)}`)
       const raw=rd.content?.[0]?.text||''

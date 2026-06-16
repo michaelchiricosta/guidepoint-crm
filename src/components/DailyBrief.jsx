@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { RefreshCw, ArrowLeft, CheckCircle2, Circle, Sparkles, X, ChevronRight } from 'lucide-react'
+import { trackAI, FEATURES } from '../utils/aiTracker.js'
 
 const fmt = d => {
   if (!d) return ''
@@ -90,11 +91,13 @@ ${acctCtxShort?`Account context: ${JSON.stringify(acctCtxShort)}`:''}
 ${(data?.marketPulses||[]).length?`Relevant market intel: ${(data.marketPulses||[]).slice(0,2).map(p=>p.title).join(' | ')}`:''}
 ${item.suggestedOpener?`Suggested opener: ${item.suggestedOpener}`:''}`
 
+      const _emailStart=Date.now()
       const res=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:sys,messages:[{role:'user',content:usr}]})
       })
+      trackAI({feature:FEATURES.DAILY_BRIEF,operation:'draft-email',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:800,durationMs:Date.now()-_emailStart,success:res.ok})
       const rd=await res.json()
       if(!res.ok)throw new Error(`API ${res.status}`)
       const raw=rd.content?.[0]?.text||''
@@ -123,12 +126,15 @@ ${(data?.knowledgeBase||[]).length?`\nKB items: ${(data.knowledgeBase||[]).slice
     const newMsgs=[...chatMessages,{role:'user',content:userMsg}]
     setChatMessages(newMsgs)
     setChatLoading(true)
+    const _chatSys=buildChatSys()
+    const _chatStart=Date.now()
     try{
       const res=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,system:buildChatSys(),messages:newMsgs})
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,system:_chatSys,messages:newMsgs})
       })
+      trackAI({feature:FEATURES.DAILY_BRIEF,operation:'brief-chat',model:'claude-sonnet-4-6',inputChars:_chatSys.length+newMsgs.reduce((s,m)=>s+(m.content||'').length,0),maxTokensOut:500,durationMs:Date.now()-_chatStart,success:res.ok})
       const rd=await res.json()
       if(!res.ok)throw new Error(`API ${res.status}`)
       const reply=rd.content?.[0]?.text||''

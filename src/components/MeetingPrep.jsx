@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, Trash2, X, ChevronRight, FileText, Loader } from 'lucide-react'
 import { uid } from '../utils.js'
+import { trackAI, FEATURES } from '../utils/aiTracker.js'
 
 // TODO: No external web search yet — prep is based on internal Ledgr account data only
 
@@ -279,6 +280,7 @@ ${accountContext}${intelContext}
 
 Generate a polished meeting prep brief.`
 
+    const _prepStart = Date.now()
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -295,6 +297,7 @@ Generate a polished meeting prep brief.`
           messages: [{ role: 'user', content: userPrompt }],
         }),
       })
+      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 2000, durationMs: Date.now() - _prepStart, success: response.ok })
 
       const resData = await response.json()
       if (!response.ok) throw new Error(`API error ${response.status}: ${resData.error?.message || JSON.stringify(resData)}`)

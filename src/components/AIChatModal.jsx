@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { S } from '../theme.js'
 import { uid, fmtDate } from '../utils.js'
 import { STAGES, PROJ_STATS } from '../constants.js'
+import { trackAI, FEATURES } from '../utils/aiTracker.js'
 
 // callClaudeWithRetry is defined in App.jsx — we duplicate or extract it here
 const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
@@ -200,16 +201,20 @@ Do not use headers. Do not use bold text. Do not start the prose section with 'I
   const callAPI = async (msgs) => {
     setLoading(true)
     setError(null)
+    const _chatStart = Date.now()
     try {
       const firstUserIdx = msgs.findIndex(m=>m.role==='user')
+      const ctx = buildContext()
       const apiMessages = msgs.map((m,i) => ({
         role: m.role,
-        content: i===firstUserIdx ? `Here is the account data:\n\n${buildContext()}\n\nQuestion: ${m.content}` : m.content
+        content: i===firstUserIdx ? `Here is the account data:\n\n${ctx}\n\nQuestion: ${m.content}` : m.content
       }))
+      const inputChars = SYSTEM_PROMPT.length + apiMessages.reduce((s,m)=>s+(m.content||'').length,0)
       const {data} = await callClaudeWithRetry(
         {model:'claude-sonnet-4-6', max_tokens:2000, system:SYSTEM_PROMPT, messages:apiMessages},
         effectiveKey, null
       )
+      trackAI({ feature: FEATURES.AI_CHAT, operation: 'chat-message', model: 'claude-sonnet-4-6', inputChars, maxTokensOut: 2000, durationMs: Date.now() - _chatStart, success: !data.error })
       if(data.error) throw new Error(data.error.type==='overloaded_error'?'Anthropic API is busy. Please wait 30 seconds and try again.':data.error.message)
       const aiText = data.content?.[0]?.text || 'No response received.'
       setMessages(prev=>[...prev, {id:uid(), role:'assistant', content:aiText, timestamp:new Date()}])

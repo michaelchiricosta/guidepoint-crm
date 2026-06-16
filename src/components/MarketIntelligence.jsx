@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, Globe, RefreshCw, Plus, Trash2, X, Search, ExternalLink, Loader, BookOpen, Pencil } from 'lucide-react'
 import { uid } from '../utils.js'
+import { trackAI, FEATURES } from '../utils/aiTracker.js'
 
 // TODO: Migrate blog sync to a Vercel serverless function at /api/sync-blog for reliable production use.
 // Client-side direct RSS and CORS proxy are best-effort; CORS headers on the source may block both.
@@ -308,6 +309,7 @@ export default function MarketIntelligence({ data, setData, onBack }) {
     const sys = `You analyze GuidePoint Security blog posts for an enterprise security sales rep named Mike at GuidePoint. Return ONLY a JSON array with one object per post:
 [{"id":"same as input","aiSummary":"2-3 sentences: enterprise security insight and business relevance","keyTakeaways":["takeaway 1","takeaway 2","takeaway 3"],"whyItMatters":"one sentence on strategic significance for enterprise buyers","applicableAccounts":["insurance","financial services","healthcare","or other relevant industries"],"suggestedUse":"one specific way Mike could reference this in a client call"}]`
     const usr = `Analyze these blog posts for sales intelligence:\n${JSON.stringify(input, null, 2)}`
+    const _miStart = Date.now()
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -318,6 +320,7 @@ export default function MarketIntelligence({ data, setData, onBack }) {
       },
       body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: sys, messages: [{ role: 'user', content: usr }] }),
     })
+    trackAI({ feature: FEATURES.MARKET_INTEL, operation: 'summarize-posts', model: 'claude-sonnet-4-6', inputChars: sys.length + usr.length, maxTokensOut: 3000, durationMs: Date.now() - _miStart, success: res.ok, notes: `${posts.length} posts` })
     const rd = await res.json()
     if (!res.ok) throw new Error(`AI ${res.status}: ${rd.error?.message || JSON.stringify(rd)}`)
     const raw = rd.content?.[0]?.text || ''
