@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, BookOpen, CheckCircle2, Circle, ArrowRight, Loader, Trash2, X, Sparkles } from 'lucide-react'
 import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
+import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
 const fmt = d => {
   if (!d) return ''
@@ -238,6 +239,17 @@ export default function EndOfDayJournal({data,setData,onBack}){
     const apiKey=data.apiKey||''
     if(!apiKey){setAnalyzeError('No API key configured. Add it in Settings.');return}
     if(!debriefText.trim()&&!todayBrief){setAnalyzeError('Write something in your journal first.');return}
+
+    // Cache check: same journal date + same text content = reuse previous analysis
+    const _analysisCacheKey = `journalAnalysis_${today}_${hashStr(debriefText.trim().slice(0,1000))}`
+    const _cachedAnalysis = getAICache(data, _analysisCacheKey)
+    if (_cachedAnalysis) {
+      console.log('[Journal] Cache hit — reusing previous analysis for this journal entry')
+      const updates=(_cachedAnalysis.suggestedUpdates||[]).map(u=>({...u,id:uid(),approved:null}))
+      upsert({aiAnalysis:_cachedAnalysis.aiAnalysis||null,suggestedUpdates:updates,appliedAt:null})
+      return
+    }
+
     setAnalyzing(true);setAnalyzeError(null)
 
     const actToday=todayBrief?.sections?.actToday||[]
@@ -311,6 +323,7 @@ Open follow-ups: ${openFollowUps.slice(0,10).map(f=>`${f.account}: ${f.task}`).j
       }
       if(!parsed)throw new Error('Could not parse AI response')
       const updates=(parsed.suggestedUpdates||[]).map(u=>({...u,id:uid(),approved:null}))
+      setAICache(setData,_analysisCacheKey,{aiAnalysis:parsed.aiAnalysis||null,suggestedUpdates:parsed.suggestedUpdates||[]},7*24*3600*1000)
       upsert({aiAnalysis:parsed.aiAnalysis||null,suggestedUpdates:updates,appliedAt:null})
     }catch(err){
       setAnalyzeError(`Analysis failed: ${err.message}`)

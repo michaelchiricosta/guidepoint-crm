@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Trash2, X, ChevronRight, FileText, Loader } from 'lucide-react'
 import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
+import { hashStr, getAICache, setAICache, isLocked } from '../utils/aiHelper.js'
 
 // TODO: No external web search yet — prep is based on internal Ledgr account data only
 
@@ -207,11 +208,24 @@ export default function MeetingPrep({ data, setData, onBack }) {
     const apiKey = data.apiKey || ''
     if (!apiKey) { setError('No API key configured. Add it in Settings.'); return }
 
-    setGenerating(true)
-    setError(null)
-
     const accounts = data.accounts || []
     const matched = matchAccount(input, accounts)
+    const today = new Date().toISOString().split('T')[0]
+
+    // Cache check: same input + same matched account + same day = reuse result
+    const _prepCacheKey = `meetingPrep_${hashStr(input.trim() + (matched?.id||'') + today)}`
+    const _cachedPrep = getAICache(data, _prepCacheKey)
+    if (_cachedPrep) {
+      console.log('[Meeting Prep] Cache hit — reusing saved prep for this input')
+      const cachedEntry = { id: uid(), input: input.trim(), createdAt: new Date().toISOString(), brief: _cachedPrep, fromCache: true }
+      setData(prev => ({ ...prev, meetingPreps: [cachedEntry, ...(prev.meetingPreps || [])].slice(0, 50) }))
+      setOpenPrep(cachedEntry)
+      setInput('')
+      return
+    }
+
+    setGenerating(true)
+    setError(null)
 
     const accountContext = matched ? `
 MATCHED ACCOUNT: ${matched.name}
@@ -325,6 +339,7 @@ Generate a polished meeting prep brief.`
         createdAt: new Date().toISOString(),
         brief: briefData,
       }
+      setAICache(setData, _prepCacheKey, briefData, 24 * 3600 * 1000)
       setData(prev => ({ ...prev, meetingPreps: [newPrep, ...(prev.meetingPreps || [])].slice(0, 50) }))
       setInput('')
       setOpenPrep(newPrep)

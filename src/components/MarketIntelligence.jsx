@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Globe, RefreshCw, Plus, Trash2, X, Search, ExternalLink, Loader, BookOpen, Pencil } from 'lucide-react'
 import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
+import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
 // TODO: Migrate blog sync to a Vercel serverless function at /api/sync-blog for reliable production use.
 // Client-side direct RSS and CORS proxy are best-effort; CORS headers on the source may block both.
@@ -301,11 +302,18 @@ export default function MarketIntelligence({ data, setData, onBack }) {
   // ---- AI Summarize (batch) ----
   const aiSummarizePosts = async (posts, apiKey) => {
     if (!posts.length || !apiKey) return posts
-    const input = posts.slice(0, 10).map(p => ({
-      id: p.id, title: p.title,
-      excerpt: (p.excerpt || '').slice(0, 300),
-      category: p.category,
-    }))
+
+    // Return posts that already have cached summaries immediately, only call AI for uncached ones
+    const cached = [], uncached = []
+    for (const p of posts.slice(0, 10)) {
+      const ck = `articleSummary_${hashStr(p.sourceUrl||p.id||p.title)}`
+      const hit = getAICache(data, ck)
+      if (hit) cached.push({ ...p, ...hit, _fromCache: true })
+      else uncached.push({ ...p, _cacheKey: ck })
+    }
+    if (!uncached.length) return [...cached, ...posts.slice(10)]
+
+    const input = uncached.map(p => ({ id: p.id, title: p.title, excerpt: (p.excerpt || '').slice(0, 300), category: p.category }))
     const sys = `You analyze GuidePoint Security blog posts for an enterprise security sales rep named Mike at GuidePoint. Return ONLY a JSON array with one object per post:
 [{"id":"same as input","aiSummary":"2-3 sentences: enterprise security insight and business relevance","keyTakeaways":["takeaway 1","takeaway 2","takeaway 3"],"whyItMatters":"one sentence on strategic significance for enterprise buyers","applicableAccounts":["insurance","financial services","healthcare","or other relevant industries"],"suggestedUse":"one specific way Mike could reference this in a client call"}]`
     const usr = `Analyze these blog posts for sales intelligence:\n${JSON.stringify(input, null, 2)}`
@@ -329,10 +337,15 @@ export default function MarketIntelligence({ data, setData, onBack }) {
       const s = raw.indexOf('['), e = raw.lastIndexOf(']')
       if (s !== -1 && e !== -1) summaries = JSON.parse(raw.slice(s, e + 1))
     } catch {}
-    return posts.map(p => {
+    const summarized = uncached.map(p => {
       const s = summaries.find(s => s.id === p.id)
-      return s ? { ...p, aiSummary: s.aiSummary || '', keyTakeaways: s.keyTakeaways || [], whyItMatters: s.whyItMatters || '', applicableAccounts: s.applicableAccounts || [], suggestedUse: s.suggestedUse || '' } : p
+      if (!s) return p
+      const enriched = { ...p, aiSummary: s.aiSummary || '', keyTakeaways: s.keyTakeaways || [], whyItMatters: s.whyItMatters || '', applicableAccounts: s.applicableAccounts || [], suggestedUse: s.suggestedUse || '' }
+      // Cache this article's summary for 30 days
+      if (p._cacheKey) setAICache(setData, p._cacheKey, { aiSummary: enriched.aiSummary, keyTakeaways: enriched.keyTakeaways, whyItMatters: enriched.whyItMatters, applicableAccounts: enriched.applicableAccounts, suggestedUse: enriched.suggestedUse }, 30 * 24 * 3600 * 1000)
+      return enriched
     })
+    return [...cached, ...summarized, ...posts.slice(10)]
   }
 
   // ---- Sync Blog ----

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { S } from '../theme.js'
 import { Field, Btn, SH, Card } from './UI.jsx'
 import { supabase } from '../supabase.js'
+import { DEFAULT_AI_SETTINGS, checkBudget } from '../utils/aiHelper.js'
 
 export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime,onReset}) {
   const [key,setKey] = useState(data.apiKey||'')
@@ -117,6 +118,57 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
           <Field label='Number of Endpoints' value={acct.endpoints||''} onChange={v=>setAcct(p=>({...p,endpoints:v}))}/>
         </div>
         <Field label='Account Notes' value={acct.notes} onChange={v=>setAcct(p=>({...p,notes:v}))} multiline/>
+      </Card>
+      <SH>AI Budget &amp; Controls</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        {(()=>{
+          const ai = {...DEFAULT_AI_SETTINGS,...(data.aiSettings||{})}
+          const budget = checkBudget(data)
+          const upd = changes => setData(p=>({...p,aiSettings:{...DEFAULT_AI_SETTINGS,...(p.aiSettings||{}),...changes}}))
+          return (<>
+            {budget.warn&&<div style={{background:budget.blocked?'#FEF2F2':'#FFFBEB',border:`1px solid ${budget.blocked?'#FCA5A5':'#FDE68A'}`,borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12,color:budget.blocked?'#991B1B':'#92400E'}}>
+              AI spend this month: <strong>${budget.spend.toFixed(2)}</strong> of <strong>${budget.budget}</strong> ({budget.pct.toFixed(0)}%)
+              {budget.blocked?' — budget limit reached':''}
+            </div>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 12px'}}>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Monthly Budget ($)</label>
+                <input type='number' min={0} step={5} value={ai.monthlyBudgetDollars} onChange={e=>upd({monthlyBudgetDollars:+e.target.value})}
+                  style={{width:'100%',padding:'8px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:13,color:S.txt,background:S.bg,boxSizing:'border-box'}}/>
+              </div>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Warn at (%)</label>
+                <input type='number' min={50} max={99} value={ai.warnAtPercent} onChange={e=>upd({warnAtPercent:+e.target.value})}
+                  style={{width:'100%',padding:'8px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:13,color:S.txt,background:S.bg,boxSizing:'border-box'}}/>
+              </div>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.05em'}}>Block at (%)</label>
+                <input type='number' min={80} max={100} value={ai.blockAtPercent} onChange={e=>upd({blockAtPercent:+e.target.value})}
+                  style={{width:'100%',padding:'8px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:13,color:S.txt,background:S.bg,boxSizing:'border-box'}}/>
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:4}}>
+              {[
+                {key:'allowAutoDailyBrief',label:'Auto-generate Daily Brief at 7:45am EST',sub:'When off, open Daily Brief and click Generate manually'},
+                {key:'allowAutoMarketSync',label:'Auto-sync Market Intel once per day',sub:'When off, use the Sync button manually'},
+              ].map(({key:k,label,sub})=>(
+                <div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:500,color:S.txt}}>{label}</div>
+                    <div style={{fontSize:11,color:S.muted,marginTop:2}}>{sub}</div>
+                  </div>
+                  <button onClick={()=>upd({[k]:!ai[k]})} style={{flexShrink:0,width:40,height:22,borderRadius:11,border:'none',cursor:'pointer',background:ai[k]?'#2563eb':'#D1D5DB',transition:'background 0.15s',position:'relative'}}>
+                    <span style={{position:'absolute',top:2,left:ai[k]?20:2,width:18,height:18,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,0.2)',transition:'left 0.15s'}}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:14,fontSize:11,color:S.muted,lineHeight:1.5}}>
+              Costs are estimated (max_tokens ceiling). Actual spend is typically 20–40% lower.<br/>
+              Cheap model (extraction): Haiku 4.5 · Strong model (briefs/drafts): Sonnet 4.6
+            </div>
+          </>)
+        })()}
       </Card>
       <SH>Data Management</SH>
       <div style={{display:'flex',gap:8}}>

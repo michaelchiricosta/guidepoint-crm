@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { RefreshCw, ArrowLeft, CheckCircle2, Circle, Sparkles, X, ChevronRight } from 'lucide-react'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
+import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
 const fmt = d => {
   if (!d) return ''
@@ -47,9 +48,11 @@ const MetaPill=({children,color='#64748b',bg='#f1f5f9',border='#e5e7eb'})=>(
   </span>
 )
 
-const DetailModal=({item,type,onClose,isPast,onToggle,data})=>{
+const DetailModal=({item,type,onClose,isPast,onToggle,data,setData})=>{
   const apiKey=data?.apiKey||''
-  const [draftEmail,setDraftEmail]=useState(null)
+  const _emailCacheKey = item ? `emailDraft_${hashStr((item.account||'')+'_'+(item.action||'').slice(0,50)+'_'+type)}` : null
+  const _cachedEmail = _emailCacheKey ? getAICache(data, _emailCacheKey) : null
+  const [draftEmail,setDraftEmail]=useState(_cachedEmail||null)
   const [emailLoading,setEmailLoading]=useState(false)
   const [chatMessages,setChatMessages]=useState([])
   const [chatInput,setChatInput]=useState('')
@@ -103,7 +106,9 @@ ${item.suggestedOpener?`Suggested opener: ${item.suggestedOpener}`:''}`
       const raw=rd.content?.[0]?.text||''
       let parsed=null
       try{const s=raw.indexOf('{'),e=raw.lastIndexOf('}');if(s!==-1&&e!==-1)parsed=JSON.parse(raw.slice(s,e+1))}catch{}
-      setDraftEmail(parsed||{recipient:item.contact||'unknown',subject:`Re: ${item.account}`,body:raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim()})
+      const draft=parsed||{recipient:item.contact||'unknown',subject:`Re: ${item.account}`,body:raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim()}
+      setDraftEmail(draft)
+      if(_emailCacheKey&&setData)setAICache(setData,_emailCacheKey,draft,7*24*3600*1000)
     }catch(err){setDraftEmail({error:err.message})}
     finally{setEmailLoading(false)}
   }
@@ -676,6 +681,7 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
           idx={detailModal.idx}
           isPast={selectedDate!==today}
           data={data}
+          setData={setData}
           onClose={()=>setDetailModal(null)}
           onToggle={()=>{
             if(detailModal.type==='actToday'&&detailModal.briefDate){

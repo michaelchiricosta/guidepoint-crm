@@ -30,6 +30,7 @@ import EndOfDayJournal from './components/EndOfDayJournal.jsx'
 import MarketIntelligence from './components/MarketIntelligence.jsx'
 import AIUsageDashboard from './components/AIUsageDashboard.jsx'
 import { trackAI, FEATURES } from './utils/aiTracker.js'
+import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked } from './utils/aiHelper.js'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -167,12 +168,14 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
       throw new Error('OVERLOADED')
     }
     if (data.error) {
-      // Log spend/rate limit errors explicitly for diagnostics
-      console.error(`[WS Diag] ✘ API error type="${data.error.type}" status=${res.status}: ${data.error.message}`)
-      if (data.error.type==='billing_error'||String(data.error.message||'').toLowerCase().includes('usage limit')) {
-        console.error('[WS Diag] ✘ SPEND LIMIT HIT — "You have reached your specified API usage limits"')
-        console.error('[WS Diag]   Check: https://console.anthropic.com → Plans & Billing → Usage Limits')
+      const errType = data.error.type || ''
+      const errMsg = String(data.error.message || '')
+      console.error(`[API] Error type="${errType}" status=${res.status}: ${errMsg}`)
+      if (errType === 'billing_error' || /usage.?limit|spend.?limit/i.test(errMsg)) {
+        console.error('[API] SPEND LIMIT — increase at console.anthropic.com → Plans & Billing → Usage Limits')
         if (window.__wsDiag) wsDiagEnd()
+      } else if (res.status === 429 || errType === 'rate_limit_error') {
+        console.warn('[API] Rate limit hit — back off and retry')
       }
     }
     if (onStatus) onStatus(null)
@@ -1016,9 +1019,18 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
     return null
   }
 
+  const _budget = data ? checkBudget(data) : null
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
+      {_budget?.warn&&<div style={{position:'fixed',top:0,left:0,right:0,zIndex:500,background:_budget.blocked?'#FEF2F2':'#FFFBEB',borderBottom:`1px solid ${_budget.blocked?'#FCA5A5':'#FDE68A'}`,padding:'7px 20px',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:12}}>
+        <AlertTriangle size={13} style={{color:_budget.blocked?'#dc2626':'#d97706',flexShrink:0}}/>
+        <span style={{color:_budget.blocked?'#991B1B':'#92400E',fontWeight:500}}>
+          {_budget.blocked
+            ? `AI budget limit reached (${_budget.pct.toFixed(0)}% of $${_budget.budget}/mo). Non-essential AI calls are paused. Go to Settings → AI Budget to adjust.`
+            : `AI spend at ${_budget.pct.toFixed(0)}% of monthly budget ($${_budget.spend.toFixed(2)} of $${_budget.budget}). Reduce usage or increase budget in Settings → AI Budget.`}
+        </span>
+      </div>}
       {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
@@ -2909,7 +2921,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const fullInput = SYS_WS + buildPromptWS(inputText)
       wsDiagCall('text extraction (fallback path)', fullInput.length, 8000)
       const {data: resp} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:8000,
+        model: AI_MODELS.cheap, max_tokens: 3000,
         system:SYS_WS,
         messages:[{role:'user',content:buildPromptWS(inputText)}]
       }, effectiveKey, onStatus)
@@ -2917,11 +2929,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const raw = resp.content?.[0]?.text||''
       let parsed = extractJSON(raw)
       if (!parsed) {
-        // DIAGNOSTIC: Fix-JSON call — sends full raw response back as input
-        console.warn('[WS Diag] ⚠ JSON parse failed on extraction response — making fix-JSON call (raw output sent back as input)')
-        wsDiagCall('fix-JSON (fallback path)', raw.length + 80, 4000)
+        // Fix-JSON: send raw response back, use cheap model
+        console.warn('[WS Diag] ⚠ JSON parse failed — making fix-JSON call')
+        wsDiagCall('fix-JSON (fallback path)', raw.length + 80, 1000)
         try {
-          const {data: fix} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:`Fix this malformed JSON and return ONLY valid JSON:\n${raw}`}]}, effectiveKey, null)
+          const {data: fix} = await callClaudeWithRetry({model: AI_MODELS.cheap, max_tokens:1000,messages:[{role:'user',content:`Fix this malformed JSON and return ONLY valid JSON:\n${raw}`}]}, effectiveKey, null)
           parsed = extractJSON(fix.content?.[0]?.text||'')
         } catch {}
       }
@@ -2960,7 +2972,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         const imgInputEst = Math.ceil(cleanBase64.length * 0.75 / 4) + buildPromptWS('').length
         wsDiagCall(`image vision (${wsPendingFile.type||'jpeg'}, ${(wsPendingFile.size/1024).toFixed(0)}KB)`, imgInputEst, 8000)
         const {data: imgData} = await callClaudeWithRetry({
-          model:'claude-sonnet-4-6', max_tokens:8000,
+          model: AI_MODELS.cheap, max_tokens: 3000,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:wsPendingFile.type||'image/jpeg',data:cleanBase64}},
             {type:'text',text:buildPromptWS('')}
@@ -2988,7 +3000,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             // essentially the same content via PDF.js or FileReader — duplicate API submission
             wsDiagCall(`direct PDF-as-document (${(wsPendingFile.size/1024/1024).toFixed(1)}MB base64)`, buildPromptWS('').length + 500, 8000)
             const {data: pdfData} = await callClaudeWithRetry({
-              model:'claude-sonnet-4-6', max_tokens:8000,
+              model: AI_MODELS.cheap, max_tokens: 3000,
               messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:buildPromptWS('')}
@@ -3043,8 +3055,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       setWsUploadedFile(null); setWsPendingFile(null); setWsFileIsDirectType(false)
     } catch(e) {
       const msg = e.message||'Processing failed.'
-      if (msg==='OVERLOADED') setIntelError('Anthropic API is busy right now. Please wait 30 seconds and try again.')
-      else setIntelError('Processing failed: '+(msg||'Unknown error'))
+      setIntelError(friendlyApiError(e))
       console.error('[WS Diag] ✘ processFileIntel threw:', msg)
     } finally {
       // DIAGNOSTIC: Print summary regardless of success or failure
@@ -3072,7 +3083,29 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const processIntel = async (dateOverride) => {
     if (!effectiveKey) { setIntelError('Add your Anthropic API key in Settings first.'); return }
     if (!intelText.trim()) { setIntelError('Please paste some text first.'); return }
+    if (isLocked('processIntel')) { setIntelError('Already processing — please wait.'); return }
     const date = dateOverride || intelDate || new Date().toISOString().split('T')[0]
+
+    // Cache check: if same transcript was already processed, reuse result
+    const _textHash = hashStr(intelText.trim())
+    const _cacheKey = `wsExtract_${_textHash}`
+    const _cached = getAICache(data, _cacheKey)
+    if (_cached) {
+      console.log('[WS] Cache hit — reusing previous extraction for this transcript')
+      const allAccounts = _cached.accounts || []
+      const sel = new Set()
+      allAccounts.forEach((a,i) => {
+        const inCRM = (data.accounts||[]).some(ac=>(ac.name||'').toLowerCase().slice(0,8)===(a.name||'').toLowerCase().slice(0,8))
+        if (!inCRM && !isBlockedAccount(a.name)) sel.add(i)
+      })
+      setPendingIntel({accounts:allAccounts, date})
+      setSelectedIntel(sel)
+      setShowIntel(false)
+      setIntelStatus('Using saved extraction result')
+      setTimeout(()=>setIntelStatus(''),3000)
+      return
+    }
+
     setIntelLoading(true); setIntelError(''); setIntelStatus('')
     // DIAGNOSTIC: Start tracking this upload session
     const chunkCount = intelText.length <= 6000 ? 1 : Math.ceil(intelText.split(/\n\n+/).length)
@@ -3089,7 +3122,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       wsDiagCall(`chunk ${idx+1}/${total} extraction (${txt.length} chars)`, fullInput.length, 8000)
       if (total > 5) console.warn(`[WS Diag] ⚠ HIGH CHUNK COUNT: ${total} calls for this transcript. Large token usage expected.`)
       const {data: resp} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:8000,
+        model: AI_MODELS.cheap, max_tokens: 3000,
         system:SYS,
         messages:[{role:'user',content:buildPrompt(txt)}]
       }, effectiveKey, null)
@@ -3098,12 +3131,11 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       console.log(`[WS Diag] chunk ${idx+1}/${total} raw response (${raw.length} chars):`, raw.slice(0,200)+'…')
       let parsed = extractJSON(raw)
       if (!parsed) {
-        // DIAGNOSTIC: Fix-JSON fallback — raw AI output is sent back as input (token duplication)
-        console.warn(`[WS Diag] ⚠ Chunk ${idx+1} JSON parse failed — making fix-JSON call. Raw output (${raw.length} chars) sent back as input.`)
-        wsDiagCall(`fix-JSON chunk ${idx+1}/${total}`, raw.length + 90, 4000)
+        console.warn(`[WS Diag] ⚠ Chunk ${idx+1} JSON parse failed — making fix-JSON call`)
+        wsDiagCall(`fix-JSON chunk ${idx+1}/${total}`, raw.length + 90, 1000)
         try {
           const {data: fix} = await callClaudeWithRetry({
-            model:'claude-sonnet-4-6', max_tokens:4000,
+            model: AI_MODELS.cheap, max_tokens: 1000,
             messages:[{role:'user',content:`This JSON is malformed. Fix it and return ONLY valid JSON, nothing else:\n${raw}`}]
           }, effectiveKey, null)
           parsed = extractJSON(fix.content?.[0]?.text||'')
@@ -3152,13 +3184,15 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         const blocked = isBlockedAccount(a.name)
         if (!inCRM && !blocked) sel.add(i)
       })
+      // Cache successful extraction result by transcript hash (7-day TTL)
+      setAICache(setData, _cacheKey, { accounts: allAccounts }, 7 * 24 * 3600 * 1000)
       setPendingIntel({accounts:allAccounts, date})
       setSelectedIntel(sel)
       setShowIntel(false)
       wsDiagEnd()
     } catch(e) {
       setIntelStatus('')
-      setIntelError('Processing failed: '+(e.message||'Unknown error'))
+      setIntelError(friendlyApiError(e))
       console.error('[WS Diag] ✘ processIntel threw:', e.message)
       wsDiagEnd()
     }
@@ -5254,7 +5288,7 @@ export default function App() {
       const score = calcDetailedHealthScore({...acct, healthScoreOverrides:acct.healthScoreOverrides||{}}).total
       return {...acct, healthScoreOverrides:acct.healthScoreOverrides||{}, healthScoreHistory:[...history,{date:today,score}].slice(-30)}
     })
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[]})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -5519,7 +5553,7 @@ Remember: every action must have a client-first angle. Never recommend just foll
       const estMinutes = estTime.getMinutes()
       const isAfter745am = estHour > 7 || (estHour === 7 && estMinutes >= 45)
       const todayBriefExists = (data.dailyBriefs||[]).some(b=>b.date===today)
-      if (isAfter745am && !todayBriefExists) { generateDailyBrief() }
+      if (isAfter745am && !todayBriefExists && data.aiSettings?.allowAutoDailyBrief === true) { generateDailyBrief() }
     }
     if (initialLoadDone) checkAndGenerateBrief()
   // eslint-disable-next-line react-hooks/exhaustive-deps
