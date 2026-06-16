@@ -6,39 +6,10 @@ import { uid, fmtDate, daysUntil, daysSince, parseCost, fmtSpend, formatCompactC
 import { SC, PSC } from '../constants.js'
 import { Badge, Btn, Field, Modal, SH, Card } from './UI.jsx'
 import AIChatModal from './AIChatModal.jsx'
+import { callClaudeWithRetry } from '../utils/aiHelper.js'
 
 // Prevent auto-regenerating summary multiple times per session
 const _autoSummaryGenerated = new Set()
-
-// Shared retry wrapper (duplicated from App.jsx)
-const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
-  const lastCall = window._lastAnthropicCall||0
-  const wait = 2000-(Date.now()-lastCall)
-  if (wait>0) await new Promise(r=>setTimeout(r,wait))
-  for (let attempt=0; attempt<maxRetries; attempt++) {
-    window._lastAnthropicCall = Date.now()
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify(body)
-    })
-    const data = await res.json()
-    const overloaded = data.error?.type==='overloaded_error'||res.status===529||res.status===429
-    if (overloaded) {
-      if (attempt<maxRetries-1) {
-        const delay = Math.pow(2,attempt)*2000
-        console.log(`[Claude] Overloaded — retrying in ${delay}ms (attempt ${attempt+1}/${maxRetries})`)
-        if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay/1000)}s… (${attempt+2}/${maxRetries})`)
-        await new Promise(r=>setTimeout(r,delay))
-        continue
-      }
-      throw new Error('OVERLOADED')
-    }
-    if (onStatus) onStatus(null)
-    return {res,data}
-  }
-  throw new Error('OVERLOADED')
-}
 
 const HS_TOOLTIPS = {
   relationship: "Based on the number of contacts with Strong or Building relationship status. Strong contacts add points, contacts Needing Attention deduct points.",

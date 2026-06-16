@@ -6,6 +6,7 @@ import { Btn, Field, Modal } from './UI.jsx'
 import { resolveVendorMapping } from '../securityFramework.js'
 import { STAGES } from '../constants.js'
 import { supabase } from '../supabase.js'
+import { callClaudeWithRetry } from '../utils/aiHelper.js'
 
 // ── Date helpers (only used in IntelLog) ──
 const MONTH_MAP = {january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
@@ -20,33 +21,6 @@ const detectDate = text => {
   const partial = t.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
   if (partial) { const m=MONTH_MAP[partial[1].toLowerCase()]; if(m) return `${new Date().getFullYear()}-${m}-${partial[2].padStart(2,'0')}` }
   return null
-}
-
-// ── Shared retry wrapper (duplicated from App.jsx — only used here) ──
-const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
-  let attempt = 0
-  while (attempt <= maxRetries) {
-    if (attempt > 0) {
-      const wait = attempt === 1 ? 15000 : attempt === 2 ? 30000 : 60000
-      if (onStatus) onStatus(`Rate limited — retrying in ${wait/1000}s (attempt ${attempt+1}/${maxRetries+1})…`)
-      await new Promise(r => setTimeout(r, wait))
-    }
-    if (onStatus && attempt > 0) onStatus(`Retrying… (attempt ${attempt+1})`)
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify(body)
-    })
-    const data = await resp.json()
-    if (data.error?.type === 'rate_limit_error' || data.error?.type === 'overloaded_error') {
-      attempt++
-      if (attempt > maxRetries) return { data: { error: { type: 'OVERLOADED', message: 'OVERLOADED' } } }
-      continue
-    }
-    if (onStatus) onStatus('')
-    return { data }
-  }
-  return { data: { error: { type: 'OVERLOADED', message: 'OVERLOADED' } } }
 }
 
 export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
@@ -335,7 +309,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
     const callTextApi = async (inputText, method) => {
       const {data:d2} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:4000,
+        model:'claude-sonnet-4-6', max_tokens:2000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
         messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
       }, effectiveKey, onStatus)
@@ -381,7 +355,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
         const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
         const {data} = await callClaudeWithRetry({
-          model:'claude-sonnet-4-6', max_tokens:4000,
+          model:'claude-sonnet-4-6', max_tokens:2000,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
             {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
@@ -407,7 +381,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
             if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
             const {data} = await callClaudeWithRetry({
-              model:'claude-sonnet-4-6', max_tokens:4000,
+              model:'claude-sonnet-4-6', max_tokens:2000,
               messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
@@ -504,7 +478,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
       const {data} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6',max_tokens:8000,
+        model:'claude-sonnet-4-6',max_tokens:2000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per insights/risks/opportunities arrays. No markdown, no explanation.',
         messages:[{role:'user',content:`Extract intelligence and return JSON:
 

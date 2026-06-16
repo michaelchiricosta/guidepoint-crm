@@ -225,3 +225,51 @@ export async function callAI({
 
   throw new Error('OVERLOADED')
 }
+
+// ── Low-level retry wrapper ─────────────────────────────────────────────────
+// Canonical replacement for the four duplicate callClaudeWithRetry functions.
+// Returns { data } where data is the raw Anthropic JSON response.
+// Throws on exhausted retries or unrecoverable errors.
+//   - 429 / rate_limit_error: slow backoff (15 s / 30 s / 60 s)
+//   - 529 / overloaded_error: exponential backoff (2 s / 4 s / 8 s)
+// Auto-adds anthropic-beta header when body contains web_search tools.
+export const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3) => {
+  if (!apiKey) throw new Error('No API key configured. Add your Anthropic key in Settings.')
+
+  const lastCall = window._lastAnthropicCall || 0
+  const gap = 2000 - (Date.now() - lastCall)
+  if (gap > 0) await new Promise(r => setTimeout(r, gap))
+
+  const needsWebSearch = Array.isArray(body.tools) && body.tools.some(t => String(t.type || '').includes('web_search'))
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
+    ...(needsWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {}),
+  }
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    window._lastAnthropicCall = Date.now()
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers, body: JSON.stringify(body),
+    })
+    const data = await resp.json()
+
+    const isRateLimit = data.error?.type === 'rate_limit_error' || resp.status === 429
+    const isOverloaded = data.error?.type === 'overloaded_error' || resp.status === 529
+
+    if ((isRateLimit || isOverloaded) && attempt < maxRetries - 1) {
+      const delay = isRateLimit
+        ? [15000, 30000, 60000][Math.min(attempt, 2)]
+        : Math.pow(2, attempt) * 2000
+      if (onStatus) onStatus(`${isRateLimit ? 'Rate limited' : 'API busy'} — retrying in ${Math.round(delay / 1000)}s… (${attempt + 2}/${maxRetries})`)
+      await new Promise(r => setTimeout(r, delay))
+      continue
+    }
+
+    if (onStatus) onStatus('')
+    return { data }
+  }
+  throw new Error('OVERLOADED')
+}

@@ -3,36 +3,7 @@ import { S } from '../theme.js'
 import { uid, fmtDate } from '../utils.js'
 import { STAGES, PROJ_STATS } from '../constants.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
-
-// callClaudeWithRetry is defined in App.jsx — we duplicate or extract it here
-const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
-  const lastCall = window._lastAnthropicCall||0
-  const wait = 2000-(Date.now()-lastCall)
-  if (wait>0) await new Promise(r=>setTimeout(r,wait))
-  for (let attempt=0; attempt<maxRetries; attempt++) {
-    window._lastAnthropicCall = Date.now()
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify(body)
-    })
-    const data = await res.json()
-    const overloaded = data.error?.type==='overloaded_error'||res.status===529||res.status===429
-    if (overloaded) {
-      if (attempt<maxRetries-1) {
-        const delay = Math.pow(2,attempt)*2000
-        console.log(`[Claude] Overloaded — retrying in ${delay}ms (attempt ${attempt+1}/${maxRetries})`)
-        if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay/1000)}s… (${attempt+2}/${maxRetries})`)
-        await new Promise(r=>setTimeout(r,delay))
-        continue
-      }
-      throw new Error('OVERLOADED')
-    }
-    if (onStatus) onStatus(null)
-    return {res,data}
-  }
-  throw new Error('OVERLOADED')
-}
+import { callClaudeWithRetry } from '../utils/aiHelper.js'
 
 const CHAT_INPUT_MAX = 4000
 
