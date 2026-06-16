@@ -4,36 +4,12 @@ import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
 import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
-// TODO: Migrate blog sync to a Vercel serverless function at /api/sync-blog for reliable production use.
-// Client-side direct RSS and CORS proxy are best-effort; CORS headers on the source may block both.
-
-const ALLORIGINS = 'https://api.allorigins.win/get?url='
-const GP_WP_API = 'https://www.guidepointsecurity.com/wp-json/wp/v2/posts?per_page=20&_fields=id,title,link,date,excerpt'
-const GP_RSS_CANDIDATES = [
-  'https://www.guidepointsecurity.com/blog/feed/',
-  'https://www.guidepointsecurity.com/feed/',
-  'https://www.guidepointsecurity.com/blog/rss/',
-]
-
 const stripHtml = html => {
   try {
     const d = document.createElement('div')
     d.innerHTML = html || ''
     return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim()
   } catch { return String(html || '') }
-}
-
-const detectCategory = text => {
-  const t = (text || '').toLowerCase()
-  if (/identity|iam|mfa|pam|privileged|entra|okta|sailpoint|saviynt|access management/.test(t)) return 'Identity & IAM'
-  if (/ransomware|malware|phishing|threat|attack|breach|exploit|apt|adversary/.test(t)) return 'Threat Intelligence'
-  if (/cloud|aws|azure|gcp|cspm|sase|zero.trust|cloudflare|zscaler|cnapp/.test(t)) return 'Cloud Security'
-  if (/compliance|regulatory|hipaa|sox|pci|nist|gdpr|cmmc|audit|governance/.test(t)) return 'Compliance & Risk'
-  if (/siem|soc|incident|detection|response|xdr|chronicle|splunk|mdr/.test(t)) return 'SOC & Detection'
-  if (/\bai\b|machine.learning|llm|genai|artificial.intel/.test(t)) return 'AI Security'
-  if (/endpoint|edr|crowdstrike|sentinelone|defender|epp|carbon.black/.test(t)) return 'Endpoint Security'
-  if (/pen.test|penetration|red.team|vulnerability|patch|asm|scanning/.test(t)) return 'Vulnerability Mgmt'
-  return 'Security News'
 }
 
 export const CAT_COLORS = {
@@ -67,50 +43,6 @@ const timeSince = iso => {
     if (hrs < 24) return `${hrs}h ago`
     return `${Math.floor(hrs / 24)}d ago`
   } catch { return '' }
-}
-
-const parseWpPosts = posts =>
-  (posts || [])
-    .map(p => ({
-      id: uid(),
-      externalId: String(p.id || ''),
-      title: stripHtml(p.title?.rendered || ''),
-      sourceUrl: p.link || '',
-      sourceName: 'GuidePoint Security Blog',
-      sourceId: 'guidepointsecurity',
-      excerpt: stripHtml(p.excerpt?.rendered || '').slice(0, 500),
-      publishedDate: p.date ? p.date.split('T')[0] : '',
-      type: 'blog',
-      aiSummary: '', keyTakeaways: [], whyItMatters: '', applicableAccounts: [], suggestedUse: '',
-      notes: '', relatedAccount: '', relatedVendor: '', tags: [],
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    }))
-    .filter(p => p.title && p.sourceUrl)
-    .map(p => ({ ...p, category: detectCategory(p.title + ' ' + p.excerpt) }))
-
-const parseRssFeed = xml => {
-  try {
-    const doc = new DOMParser().parseFromString(xml, 'text/xml')
-    if (doc.querySelector('parsererror')) throw new Error('XML parse error')
-    return Array.from(doc.querySelectorAll('item')).slice(0, 20).map(item => {
-      const title = stripHtml(item.querySelector('title')?.textContent || '')
-      const link = (item.querySelector('link')?.textContent || item.querySelector('guid')?.textContent || '').trim()
-      const pubDate = item.querySelector('pubDate')?.textContent?.trim() || ''
-      const desc = stripHtml(item.querySelector('description')?.textContent || '').slice(0, 500)
-      let pubDateIso = ''
-      try { if (pubDate) pubDateIso = new Date(pubDate).toISOString().split('T')[0] } catch {}
-      if (!title || !link) return null
-      return {
-        id: uid(), externalId: link,
-        title, sourceUrl: link, sourceName: 'GuidePoint Security Blog', sourceId: 'guidepointsecurity',
-        excerpt: desc, publishedDate: pubDateIso, type: 'blog',
-        category: detectCategory(title + ' ' + desc),
-        aiSummary: '', keyTakeaways: [], whyItMatters: '', applicableAccounts: [], suggestedUse: '',
-        notes: '', relatedAccount: '', relatedVendor: '', tags: [],
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      }
-    }).filter(Boolean)
-  } catch { return [] }
 }
 
 const BLANK_KB = { title: '', sourceUrl: '', category: 'Security News', notes: '', relatedAccount: '', relatedVendor: '', tags: '', excerpt: '' }
@@ -247,58 +179,6 @@ export default function MarketIntelligence({ data, setData, onBack }) {
     return db.localeCompare(da)
   })
 
-  // ---- Blog Fetch ----
-  const fetchBlogPosts = async () => {
-    const tryFetch = async (url, timeoutMs) => {
-      const ctrl = new AbortController()
-      const toId = setTimeout(() => ctrl.abort(), timeoutMs)
-      try {
-        const res = await fetch(url, { signal: ctrl.signal })
-        clearTimeout(toId)
-        return res
-      } catch (err) {
-        clearTimeout(toId)
-        throw err
-      }
-    }
-
-    // 1. Try direct RSS (no CORS proxy) — works if the source sends permissive CORS headers
-    for (const rssUrl of GP_RSS_CANDIDATES) {
-      try {
-        const res = await tryFetch(rssUrl, 8000)
-        if (!res.ok) continue
-        const xml = await res.text()
-        const posts = parseRssFeed(xml)
-        if (posts.length) return { posts, method: 'RSS (direct)' }
-      } catch { /* CORS block or timeout — try next */ }
-    }
-
-    // 2. Try WP REST API via CORS proxy
-    try {
-      const res = await tryFetch(ALLORIGINS + encodeURIComponent(GP_WP_API), 20000)
-      if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`)
-      const wrapper = await res.json()
-      if (!wrapper.contents) throw new Error('Empty proxy response')
-      const posts = JSON.parse(wrapper.contents)
-      if (!Array.isArray(posts) || !posts.length) throw new Error('WP API returned no posts')
-      return { posts: parseWpPosts(posts), method: 'WordPress API (proxy)' }
-    } catch {}
-
-    // 3. Try RSS via CORS proxy
-    for (const rssUrl of GP_RSS_CANDIDATES) {
-      try {
-        const res = await tryFetch(ALLORIGINS + encodeURIComponent(rssUrl), 18000)
-        if (!res.ok) continue
-        const wrapper = await res.json()
-        if (!wrapper.contents) continue
-        const posts = parseRssFeed(wrapper.contents)
-        if (posts.length) return { posts, method: 'RSS (proxy)' }
-      } catch {}
-    }
-
-    return { posts: [], method: 'failed', corsBlocked: true }
-  }
-
   // ---- AI Summarize (batch) ----
   const aiSummarizePosts = async (posts, apiKey) => {
     if (!posts.length || !apiKey) return posts
@@ -355,21 +235,42 @@ export default function MarketIntelligence({ data, setData, onBack }) {
     setSyncResult(null)
     const now = new Date().toISOString()
     try {
-      const { posts, method, corsBlocked } = await fetchBlogPosts()
-      if (corsBlocked) {
+      const res = await fetch('/api/sync-blog?source=guidepoint&limit=25')
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      const json = await res.json()
+
+      if (!json.ok) {
         const updatedSources = ensureGpSource(data.blogSources).map(s =>
           s.id === 'guidepointsecurity'
-            ? { ...s, lastSyncedAt: now, lastSyncStatus: 'error', lastSyncError: 'CORS blocked' }
+            ? { ...s, lastSyncedAt: now, lastSyncStatus: 'error', lastSyncError: json.error || 'RSS sync failed' }
             : s
         )
         setData(prev => ({ ...prev, blogSources: updatedSources }))
-        setSyncError('Client-side sync is blocked by the source site\'s CORS policy. A server-side sync function (/api/sync-blog) is required for reliable syncing.')
+        setSyncError('Market Intel sync failed. The server-side RSS sync could not fetch the feed.')
         return
       }
+
+      const incoming = (json.articles || []).map(a => ({
+        id: a.id || uid(),
+        externalId: a.sourceUrl,
+        title: a.title,
+        sourceUrl: a.sourceUrl,
+        sourceName: a.sourceName || 'GuidePoint Security Blog',
+        sourceId: 'guidepointsecurity',
+        excerpt: a.excerpt || '',
+        publishedDate: a.publishedDate || '',
+        type: 'blog',
+        category: a.category || 'Security News',
+        tags: a.tags || [],
+        aiSummary: '', keyTakeaways: [], whyItMatters: '', applicableAccounts: [], suggestedUse: '',
+        notes: '', relatedAccount: '', relatedVendor: '',
+        createdAt: now, updatedAt: now,
+      }))
+
       const existing = data.marketPulses || []
       const existingUrls = new Set(existing.map(p => p.sourceUrl).filter(Boolean))
-      const newPosts = posts.filter(p => p.sourceUrl && !existingUrls.has(p.sourceUrl))
-      const skipped = posts.length - newPosts.length
+      const newPosts = incoming.filter(p => p.sourceUrl && !existingUrls.has(p.sourceUrl))
+      const skipped = incoming.length - newPosts.length
 
       let finalPosts = newPosts
       if (newPosts.length > 0 && data.apiKey) {
@@ -384,7 +285,7 @@ export default function MarketIntelligence({ data, setData, onBack }) {
           : s
       )
       setData(prev => ({ ...prev, marketPulses: updatedPulses, blogSources: updatedSources }))
-      setSyncResult({ newItems: finalPosts.length, skipped, method, aiDone: !!data.apiKey && newPosts.length > 0 })
+      setSyncResult({ newItems: finalPosts.length, skipped, aiDone: !!data.apiKey && newPosts.length > 0 })
     } catch (err) {
       const updatedSources = ensureGpSource(data.blogSources).map(s =>
         s.id === 'guidepointsecurity'
@@ -392,7 +293,7 @@ export default function MarketIntelligence({ data, setData, onBack }) {
           : s
       )
       setData(prev => ({ ...prev, blogSources: updatedSources }))
-      setSyncError(err.message)
+      setSyncError('Market Intel sync failed. The server-side RSS sync could not fetch the feed.')
     } finally {
       setSyncing(null)
     }
@@ -513,12 +414,11 @@ export default function MarketIntelligence({ data, setData, onBack }) {
           {/* SOURCES CARD */}
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Blog Sources</div>
-            {/* TODO: Add /api/sync-blog serverless function + Vercel cron for auto-sync */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <Globe size={16} color='#2563eb' style={{ flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>GuidePoint Security Blog</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>guidepointsecurity.com/blog · via WordPress API + RSS fallback</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>guidepointsecurity.com/blog · server-side RSS sync</div>
               </div>
               {gpSource?.lastSyncedAt && (
                 <div style={{ fontSize: 11, color: gpSource.lastSyncStatus === 'error' ? '#dc2626' : '#64748b', textAlign: 'right', flexShrink: 0 }}>
@@ -536,13 +436,12 @@ export default function MarketIntelligence({ data, setData, onBack }) {
             </div>
             {syncError && (
               <div style={{ marginTop: 10, background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}>
-                <strong>Sync failed:</strong> {syncError}
-                <div style={{ marginTop: 3, color: '#991b1b', fontSize: 11 }}>If CORS blocked: a server-side /api/sync-blog function is needed. Otherwise try again in a moment.</div>
+                {syncError}
               </div>
             )}
             {syncResult && (
               <div style={{ marginTop: 10, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#15803d' }}>
-                ✓ Synced via {syncResult.method} — <strong>{syncResult.newItems}</strong> new post{syncResult.newItems !== 1 ? 's' : ''} added, {syncResult.skipped} duplicate{syncResult.skipped !== 1 ? 's' : ''} skipped
+                ✓ Synced — <strong>{syncResult.newItems}</strong> new post{syncResult.newItems !== 1 ? 's' : ''} added, {syncResult.skipped} duplicate{syncResult.skipped !== 1 ? 's' : ''} skipped
                 {syncResult.aiDone ? ' · AI summaries generated' : syncResult.newItems > 0 ? ' · Add API key in Settings to enable AI summaries' : ''}
               </div>
             )}
