@@ -1083,7 +1083,7 @@ function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSetting
         <MarketIntelligence data={data} setData={setData} onBack={()=>setShowMarketIntelPage(false)}/>
       </div>}
       {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
-        <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)}/>
+        <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)} apiKey={data?.apiKey} data={data} setData={setData}/>
       </div>}
       <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage?'none':'block'}}>
       {/* HERO SECTION */}

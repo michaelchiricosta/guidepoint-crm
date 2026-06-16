@@ -2,7 +2,7 @@
 // Model routing, cache management, request locks, budget controls, error handling
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { trackAI } from './aiTracker.js'
+import { trackAI, getRecords } from './aiTracker.js'
 
 // ── Model routing ──────────────────────────────────────────────────────────────
 // Cheap: extraction, classification, dedup, short summaries
@@ -78,8 +78,9 @@ export function checkBudget(data) {
   const blockPct = s.blockAtPercent ?? DEFAULT_AI_SETTINGS.blockAtPercent
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthLogs = (data?.aiUsageLog || []).filter(l => l.timestamp >= monthStart)
-  const spend = monthLogs.reduce((sum, l) => sum + (l.estimatedCost || 0), 0)
+  const allLogs = getRecords()
+  const monthLogs = allLogs.filter(l => (l.ts || l.timestamp || '') >= monthStart && l.source !== 'sample')
+  const spend = monthLogs.reduce((sum, l) => sum + (l.estimatedCost ?? l.costEst ?? 0), 0)
   const pct = budget > 0 ? (spend / budget) * 100 : 0
   return {
     spend: parseFloat(spend.toFixed(4)),
@@ -208,9 +209,11 @@ export async function callAI({
     const text = respData.content?.[0]?.text || ''
     const durationMs = Date.now() - _start
 
-    // 4. Track
+    // 4. Track — use actual token counts from API response when available
     const inputChars = (system?.length || 0) + messages.reduce((s, m) => s + String(m.content || '').length, 0)
-    trackAI({ feature, operation, model: body.model, inputChars, maxTokensOut: maxTokens, durationMs, success: true })
+    const actualInputTokens = respData.usage?.input_tokens ?? null
+    const actualOutputTokens = respData.usage?.output_tokens ?? null
+    trackAI({ feature, operation, model: body.model, inputChars, maxTokensOut: maxTokens, actualInputTokens, actualOutputTokens, durationMs, success: true, source: 'anthropic' })
 
     // 5. Write cache
     if (cacheKey && setData) {

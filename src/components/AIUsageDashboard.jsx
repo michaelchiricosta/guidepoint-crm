@@ -1,345 +1,399 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Trash2, RefreshCw } from 'lucide-react'
-import { getRecords, getStats, clearRecords, AI_PRICING } from '../utils/aiTracker.js'
+import { getRecords, clearRecords, clearSampleRecords, addSampleRecords, getStats, AI_PRICING } from '../utils/aiTracker.js'
+import { callAI, AI_MODELS, checkBudget, DEFAULT_AI_SETTINGS } from '../utils/aiHelper.js'
 
 const TIME_WINDOWS = [
-  { label: 'Last 24h',  ms: 86400000 },
-  { label: 'Last 7d',   ms: 604800000 },
-  { label: 'Last 30d',  ms: 2592000000 },
-  { label: 'All time',  ms: null },
+  { label: 'Last 7 days',   ms: 7 * 86400000,  key: '7d' },
+  { label: 'Last 30 days',  ms: 30 * 86400000, key: '30d' },
+  { label: 'This month',    ms: null,           key: 'month' },
+  { label: 'All time',      ms: null,           key: 'all' },
 ]
 
-const FEATURE_COLORS = {
-  'Daily Brief':       '#2563eb',
-  'Meeting Prep':      '#7c3aed',
-  'Journal':           '#0891b2',
-  'Market Intel':      '#059669',
-  'Whitespace Upload': '#dc2626',
-  'AI Chat':           '#ea580c',
-  'Tech Stack':        '#ca8a04',
-  'Intel Log':         '#9333ea',
-  'Account Health':    '#0f172a',
-  'Whitespace Tools':  '#475569',
+function getWindowMs(key) {
+  if (key === 'month') {
+    const now = new Date()
+    return Date.now() - new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  }
+  if (key === 'all') return null
+  const w = TIME_WINDOWS.find(x => x.key === key)
+  return w?.ms ?? null
 }
 
-const OPTIMIZATIONS = [
-  { label: 'Reduce max_tokens on extraction', detail: 'All whitespace upload calls use max_tokens=8000. Responses are typically 200–1000 tokens. Reducing to 2000 cuts billed ceiling by 75%.', severity: 'high', feature: 'Whitespace Upload' },
-  { label: 'Cache Daily Brief by date', detail: 'If a brief was already generated today, skip regeneration. Check if data.dailyBriefs has today\'s date before calling Claude.', severity: 'high', feature: 'Daily Brief' },
-  { label: 'Cache AI opportunity scores', detail: 'scoreOneAccount is called per-account on every scoreAll run. Cache by account ID + data hash so accounts not changed since last score are skipped.', severity: 'medium', feature: 'Whitespace Tools' },
-  { label: 'Cache Meeting Prep by account + date', detail: 'Same account + same day should not regenerate. Add a generatedAt field and skip if already done today.', severity: 'medium', feature: 'Meeting Prep' },
-  { label: 'Cache whitespace recommendations', detail: 'fetchRecommendations re-runs on every click. Cache results in data.whitespaceRecommendations with a generatedAt timestamp and skip if <24h old.', severity: 'medium', feature: 'Whitespace Tools' },
-  { label: 'Chunk reduction for text uploads', detail: 'processIntel uses CHUNK=6000 chars. Reducing to 3000 halves chunk count and cost on large transcripts.', severity: 'medium', feature: 'Whitespace Upload' },
-  { label: 'Prevent double-submit on uploads', detail: 'No guard against rapid re-click on processIntel/processFileIntel. A loading guard at the top of each function prevents duplicate API calls.', severity: 'medium', feature: 'Whitespace Upload' },
-  { label: 'Reduce max_tokens on chat completions', detail: 'AI Chat and Daily Brief chat use max_tokens=500–2000. Chat responses are typically under 300 tokens. Setting 500–700 is more appropriate.', severity: 'low', feature: 'AI Chat' },
-  { label: 'Intel Log caching by transcript hash', detail: 'IntelLog AI summarization could cache by content hash so re-opening the same transcript doesn\'t re-summarize.', severity: 'low', feature: 'Intel Log' },
-]
+const tabBtn = (active) => ({
+  padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+  background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : '#64748b', transition: 'all 0.15s',
+})
+const card = { background: '#fff', borderRadius: 10, padding: '14px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', marginBottom: 0 }
+const pill = (color) => ({ display: 'inline-block', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 700, background: color + '22', color, letterSpacing: 0.2 })
 
-const SEVERITY_COLORS = { high: '#dc2626', medium: '#ea580c', low: '#2563eb' }
-const SEVERITY_BG     = { high: '#fef2f2', medium: '#fff7ed', low: '#eff6ff' }
+function fmtCost(n) { return `$${(n || 0).toFixed(4)}` }
+function fmtK(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
+function fmtDate(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
-export default function AIUsageDashboard({ onBack }) {
-  const [windowIdx, setWindowIdx] = useState(1)
-  const [stats, setStats] = useState(null)
+const MODEL_LABELS = {
+  'claude-sonnet-4-6': 'Sonnet 4.6',
+  'claude-haiku-4-5-20251001': 'Haiku 4.5',
+  'claude-opus-4-8': 'Opus 4.8',
+}
+
+export default function AIUsageDashboard({ onBack, apiKey, data, setData }) {
+  const [tab, setTab] = useState('overview')
+  const [windowKey, setWindowKey] = useState('30d')
   const [records, setRecords] = useState([])
-  const [confirmClear, setConfirmClear] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [featureFilter, setFeatureFilter] = useState('all')
+  const [modelFilter, setModelFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [testStatus, setTestStatus] = useState(null)
+  const [testMsg, setTestMsg] = useState('')
+  const [sampleMsg, setSampleMsg] = useState('')
 
-  const refresh = useCallback(() => {
-    const windowMs = TIME_WINDOWS[windowIdx].ms
-    const recs = getRecords()
-    setRecords(recs)
-    setStats(getStats(null, windowMs))
-  }, [windowIdx])
+  const reload = useCallback(() => setRecords(getRecords()), [])
+  useEffect(() => { reload() }, [reload])
 
-  useEffect(() => { refresh() }, [refresh])
+  const windowMs = getWindowMs(windowKey)
+  const windowRecs = windowMs ? records.filter(r => (Date.now() - new Date(r.ts || r.timestamp).getTime()) <= windowMs) : records
 
-  const handleClear = () => {
-    clearRecords()
-    setConfirmClear(false)
-    setRecords([])
-    setStats(getStats(null, TIME_WINDOWS[windowIdx].ms))
+  const filtered = windowRecs.filter(r => {
+    if (featureFilter !== 'all' && r.feature !== featureFilter) return false
+    if (modelFilter !== 'all' && r.model !== modelFilter) return false
+    if (statusFilter !== 'all' && r.status !== statusFilter) return false
+    return true
+  })
+
+  const stats = getStats(filtered)
+  const allStats = getStats(records)
+  const budget = checkBudget(data)
+
+  const allFeatures = [...new Set(records.map(r => r.feature))].sort()
+  const allModels = [...new Set(records.map(r => r.model).filter(Boolean))].sort()
+
+  async function runTest() {
+    if (!apiKey) { setTestStatus('error'); setTestMsg('No API key set. Add it in Settings.'); return }
+    setTestStatus('running'); setTestMsg('Calling Anthropic API…')
+    try {
+      const result = await callAI({
+        feature: 'Test', operation: 'dashboard-test', model: AI_MODELS.cheap,
+        system: 'You are a test assistant.',
+        messages: [{ role: 'user', content: 'Reply with valid JSON: {"ok":true,"test":"ai-usage"}' }],
+        maxTokens: 64, apiKey, data, setData,
+      })
+      setTestStatus('ok')
+      setTestMsg(`Success! Response: ${result.text.slice(0, 120)}`)
+      reload()
+    } catch (e) {
+      setTestStatus('error')
+      setTestMsg(`Error: ${e.message}`)
+      reload()
+    }
   }
 
-  const fmt$ = v => v >= 0.01 ? `$${v.toFixed(2)}` : v > 0 ? `$${v.toFixed(4)}` : '$0.00'
-  const fmtK = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)
-  const fmtMs = ms => ms >= 60000 ? `${(ms / 60000).toFixed(1)}m` : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
+  function addSample() {
+    const n = addSampleRecords()
+    reload()
+    setSampleMsg(`Added ${n} sample records.`)
+    setTimeout(() => setSampleMsg(''), 3000)
+  }
 
-  const featureRows = stats ? Object.entries(stats.byFeature).sort((a, b) => b[1].costEst - a[1].costEst) : []
-  const totalCalls = stats?.totalCalls || 0
-  const totalCost = stats?.totalCostEst || 0
-  const duplicates = stats?.duplicates || 0
-  const recentRecords = records.slice(0, 30)
+  function clearSample() {
+    clearSampleRecords()
+    reload()
+    setSampleMsg('Sample records cleared.')
+    setTimeout(() => setSampleMsg(''), 3000)
+  }
 
-  const tab = (id, label) => (
-    <button onClick={() => setActiveTab(id)} style={{
-      padding: '8px 16px', border: 'none', background: activeTab === id ? '#0f172a' : 'transparent',
-      color: activeTab === id ? '#fff' : '#64748b', borderRadius: 6, cursor: 'pointer',
-      fontSize: 13, fontWeight: activeTab === id ? 600 : 500, transition: 'all 0.15s',
-    }}>{label}</button>
-  )
+  function clearAll() {
+    if (!window.confirm('Clear ALL usage logs? This cannot be undone.')) return
+    clearRecords()
+    reload()
+  }
+
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'features', label: 'By Feature' },
+    { key: 'activity', label: 'Activity' },
+    { key: 'failed', label: `Failed (${allStats.failures})` },
+    { key: 'devtest', label: 'Dev / Test' },
+  ]
+
+  const budgetPct = budget.pct
+  const budgetColor = budgetPct >= 95 ? '#dc2626' : budgetPct >= 70 ? '#d97706' : '#16a34a'
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '16px 28px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, padding: '6px 10px', borderRadius: 6 }}
-          onMouseEnter={e => e.currentTarget.style.background = '#F1F5F9'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a' }}>AI Usage Dashboard</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-            Estimated costs · {records.length} calls recorded · all costs use max_tokens ceiling (actual output ~20–40% of ceiling)
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px 16px 48px', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 22, lineHeight: 1, padding: '0 4px' }}>←</button>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>AI Usage</h2>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+            Costs estimated from tracked app calls — may not match Claude Console exactly.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Time window selector */}
-          <div style={{ display: 'flex', gap: 2, background: '#F1F5F9', borderRadius: 8, padding: 3 }}>
-            {TIME_WINDOWS.map((w, i) => (
-              <button key={i} onClick={() => setWindowIdx(i)} style={{
-                padding: '5px 12px', border: 'none', background: windowIdx === i ? '#fff' : 'transparent',
-                borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: windowIdx === i ? 600 : 400,
-                color: windowIdx === i ? '#0f172a' : '#64748b', boxShadow: windowIdx === i ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s',
-              }}>{w.label}</button>
-            ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
+        {TIME_WINDOWS.map(w => (
+          <button key={w.key} onClick={() => setWindowKey(w.key)} style={tabBtn(windowKey === w.key)}>{w.label}</button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+        {[
+          { label: 'Est. Cost', value: fmtCost(stats.totalCostEst), sub: `of $${budget.budget} budget` },
+          { label: 'Total Calls', value: stats.totalCalls.toLocaleString() },
+          { label: 'Cache Hits', value: `${stats.cacheHits} (${stats.cacheHitRate}%)` },
+          { label: 'Failures', value: stats.failures, hi: stats.failures > 0 },
+          { label: 'Records Stored', value: `${allStats.recordCount} / 500` },
+        ].map(c => (
+          <div key={c.label} style={{ ...card, textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: c.hi ? '#dc2626' : '#1e293b' }}>{c.value}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{c.label}</div>
+            {c.sub && <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.sub}</div>}
           </div>
-          <button onClick={refresh} title="Refresh" style={{ background: '#F1F5F9', border: 'none', borderRadius: 6, padding: '7px 10px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }}>
-            <RefreshCw size={14} />
-          </button>
-          {!confirmClear ? (
-            <button onClick={() => setConfirmClear(true)} style={{ background: '#FEF2F2', border: 'none', borderRadius: 6, padding: '7px 12px', cursor: 'pointer', color: '#dc2626', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Trash2 size={13} /> Clear
-            </button>
-          ) : (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 500 }}>Confirm?</span>
-              <button onClick={handleClear} style={{ background: '#dc2626', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: '#fff', fontSize: 12, fontWeight: 600 }}>Yes</button>
-              <button onClick={() => setConfirmClear(false)} style={{ background: '#E5E7EB', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', color: '#374151', fontSize: 12 }}>No</button>
+        ))}
+      </div>
+
+      <div style={{ ...card, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Monthly Budget</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: budgetColor }}>${budget.spend.toFixed(4)} / ${budget.budget}</span>
+        </div>
+        <div style={{ height: 8, borderRadius: 4, background: '#e2e8f0', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${Math.min(budgetPct, 100)}%`, background: budgetColor, borderRadius: 4, transition: 'width 0.3s' }} />
+        </div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+          {budgetPct.toFixed(1)}% used this month (sample records excluded)
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Filter:</span>
+        <select value={featureFilter} onChange={e => setFeatureFilter(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <option value="all">All Features</option>
+          {allFeatures.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <select value={modelFilter} onChange={e => setModelFilter(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <option value="all">All Models</option>
+          {allModels.map(m => <option key={m} value={m}>{MODEL_LABELS[m] || m}</option>)}
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <option value="all">All Statuses</option>
+          <option value="success">Success</option>
+          <option value="error">Error</option>
+          <option value="cache_hit">Cache Hit</option>
+        </select>
+        {(featureFilter !== 'all' || modelFilter !== 'all' || statusFilter !== 'all') && (
+          <button onClick={() => { setFeatureFilter('all'); setModelFilter('all'); setStatusFilter('all') }} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Clear filters</button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 8, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={tabBtn(tab === t.key)}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (
+        <div>
+          {stats.totalCalls === 0 ? <EmptyState /> : (
+            <div>
+              <BarChart byFeature={stats.byFeature} />
+              <TopOps topOps={stats.topOps} />
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Tabs */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #E2E8F0', padding: '8px 28px', display: 'flex', gap: 4, flexShrink: 0 }}>
-        {tab('overview', 'Overview')}
-        {tab('byfeature', 'By Feature')}
-        {tab('topops', 'Top Operations')}
-        {tab('activity', 'Recent Activity')}
-        {tab('optimize', 'Optimization Tips')}
-      </div>
-
-      {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
-
-        {/* ── OVERVIEW ── */}
-        {activeTab === 'overview' && (
-          <div>
-            {/* Summary cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-              {[
-                { label: 'Total API Calls', value: totalCalls.toLocaleString(), color: '#2563eb', sub: TIME_WINDOWS[windowIdx].label },
-                { label: 'Est. Total Cost', value: fmt$(totalCost), color: totalCost > 1 ? '#dc2626' : '#059669', sub: 'max_tokens ceiling' },
-                { label: 'Duplicate Warnings', value: duplicates.toLocaleString(), color: duplicates > 0 ? '#ea580c' : '#64748b', sub: duplicates > 0 ? 'same op within 5s' : 'none detected' },
-                { label: 'Records Stored', value: records.length.toLocaleString(), color: '#7c3aed', sub: `max 500 rolling` },
-              ].map(card => (
-                <div key={card.label} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '18px 20px' }}>
-                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 8 }}>{card.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: card.color, lineHeight: 1 }}>{card.value}</div>
-                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>{card.sub}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Feature cost bars */}
-            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>Cost by Feature ({TIME_WINDOWS[windowIdx].label})</div>
-              {featureRows.length === 0 ? (
-                <div style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', padding: '24px 0' }}>No data for this time window. Use AI features to start tracking.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {featureRows.map(([feat, row]) => {
-                    const pct = totalCost > 0 ? (row.costEst / totalCost) * 100 : 0
-                    const color = FEATURE_COLORS[feat] || '#64748b'
-                    return (
-                      <div key={feat}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{feat}</span>
-                          <span style={{ fontSize: 12, color: '#64748b' }}>{fmt$(row.costEst)} · {row.calls} call{row.calls !== 1 ? 's' : ''} · ~{fmtK(row.inputTokensEst)} in</span>
-                        </div>
-                        <div style={{ height: 8, background: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${Math.max(pct, 1)}%`, background: color, borderRadius: 4, transition: 'width 0.3s ease' }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Pricing reference */}
-            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>Anthropic Pricing Reference</div>
-              <div style={{ display: 'flex', gap: 20 }}>
-                {Object.entries(AI_PRICING).map(([model, p]) => (
-                  <div key={model} style={{ background: '#F8FAFC', borderRadius: 8, padding: '12px 16px', flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>{p.label}</div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>${p.inputPer1M}/M input · ${p.outputPer1M}/M output</div>
-                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, fontStyle: 'italic' }}>{model}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 11, color: '#94A3B8' }}>
-                All output costs are estimated at max_tokens ceiling. Actual output tokens are typically 20–40% of ceiling, so real costs are lower. Input costs are accurate (4 chars ≈ 1 token).
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── BY FEATURE ── */}
-        {activeTab === 'byfeature' && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {tab === 'features' && (
+        <div>
+          {Object.keys(stats.byFeature).length === 0 ? <EmptyState /> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  {['Feature', 'Calls', 'Est. Input Tokens', 'Max Output Tokens', 'Est. Cost', '% of Total'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Feature' ? 'left' : 'right', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  {['Feature', 'Calls', 'Cache Hits', 'Failures', 'Input Tokens', 'Est. Cost'].map(h => (
+                    <th key={h} style={{ textAlign: h === 'Feature' ? 'left' : 'right', padding: '6px 10px', color: '#64748b', fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {featureRows.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>No data for this time window.</td></tr>
-                ) : featureRows.map(([feat, row], i) => (
-                  <tr key={feat} style={{ borderBottom: i < featureRows.length - 1 ? '1px solid #F1F5F9' : 'none', background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
-                    <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: FEATURE_COLORS[feat] || '#64748b', flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{feat}</span>
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: '#374151' }}>{row.calls.toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: '#374151' }}>{row.inputTokensEst.toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, color: '#374151' }}>{row.maxOutputTokens.toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: row.costEst > 0.5 ? '#dc2626' : '#374151' }}>{fmt$(row.costEst)}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, color: '#64748b' }}>{totalCost > 0 ? `${((row.costEst / totalCost) * 100).toFixed(1)}%` : '—'}</td>
-                  </tr>
-                ))}
-                {featureRows.length > 0 && (
-                  <tr style={{ borderTop: '2px solid #E2E8F0', background: '#F8FAFC' }}>
-                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>TOTAL</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{totalCalls.toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{(stats?.totalInputTokens || 0).toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{(stats?.totalMaxOutputTokens || 0).toLocaleString()}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 14, fontWeight: 800, color: totalCost > 1 ? '#dc2626' : '#059669' }}>{fmt$(totalCost)}</td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, color: '#64748b' }}>100%</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ── TOP OPERATIONS ── */}
-        {activeTab === 'topops' && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Top 10 Most Expensive Operations</div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Aggregated by feature + operation across all calls in window</div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  {['#', 'Feature', 'Operation', 'Calls', 'Est. Input Tok', 'Est. Cost'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: h === '#' || h === 'Calls' || h.startsWith('Est') ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {!stats?.topOps?.length ? (
-                  <tr><td colSpan={6} style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>No data for this time window.</td></tr>
-                ) : stats.topOps.map((op, i) => (
-                  <tr key={i} style={{ borderBottom: i < stats.topOps.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 12, color: '#94A3B8', fontWeight: 700 }}>#{i + 1}</td>
-                    <td style={{ padding: '11px 14px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: FEATURE_COLORS[op.feature] || '#64748b', flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{op.feature}</span>
-                      </span>
-                    </td>
-                    <td style={{ padding: '11px 14px', fontSize: 12, color: '#374151', fontFamily: 'monospace' }}>{op.operation}</td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, color: '#374151' }}>{op.calls}</td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, color: '#374151' }}>{op.inputTokensEst.toLocaleString()}</td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: op.costEst > 0.5 ? '#dc2626' : '#374151' }}>{fmt$(op.costEst)}</td>
+                {Object.entries(stats.byFeature).sort((a, b) => b[1].costEst - a[1].costEst).map(([feat, s]) => (
+                  <tr key={feat} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: 600, color: '#1e293b' }}>{feat}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{s.calls}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{s.cacheHits}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: s.failures > 0 ? '#dc2626' : '#374151' }}>{s.failures}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: '#374151' }}>{fmtK(s.inputTokensEst)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>{fmtCost(s.costEst)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* ── RECENT ACTIVITY ── */}
-        {activeTab === 'activity' && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Recent Activity <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 400 }}>(last 30 calls)</span></div>
+      {tab === 'activity' && (
+        <div>
+          {filtered.length === 0 ? <EmptyState /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.slice(0, 100).map(r => <ActivityRow key={r.id} r={r} />)}
+              {filtered.length > 100 && <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, padding: 8 }}>Showing 100 of {filtered.length} records</div>}
             </div>
-            {recentRecords.length === 0 ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>No calls recorded yet. Start using AI features to see activity here.</div>
-            ) : (
-              <div>
-                {recentRecords.map((r, i) => {
-                  const isDup = (r.notes || '').includes('DUPLICATE_WARNING')
-                  const model = AI_PRICING[r.model]?.label || r.model
-                  const ts = new Date(r.ts)
-                  const timeStr = ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                  const dateStr = ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  return (
-                    <div key={r.id} style={{ padding: '12px 20px', borderBottom: i < recentRecords.length - 1 ? '1px solid #F1F5F9' : 'none', display: 'flex', alignItems: 'center', gap: 14, background: isDup ? '#FFF7ED' : 'transparent' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: FEATURE_COLORS[r.feature] || '#64748b', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{r.feature}</span>
-                          <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{r.operation}</span>
-                          {isDup && <span style={{ fontSize: 10, background: '#FEF3C7', color: '#92400E', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>DUP</span>}
-                          {!r.success && <span style={{ fontSize: 10, background: '#FEF2F2', color: '#dc2626', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>FAILED</span>}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-                          {model} · ~{r.inputTokensEst?.toLocaleString()} in · max_out={r.maxTokensOut} · {fmtMs(r.durationMs || 0)}
-                          {r.notes && !isDup ? ` · ${r.notes}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: (r.costEst || 0) > 0.1 ? '#dc2626' : '#374151' }}>{fmt$(r.costEst || 0)}</div>
-                        <div style={{ fontSize: 11, color: '#94A3B8' }}>{dateStr} {timeStr}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+          )}
+        </div>
+      )}
+
+      {tab === 'failed' && (() => {
+        const failed = filtered.filter(r => !r.success && r.status !== 'cache_hit')
+        if (failed.length === 0) return <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>No failed calls in this time window.</div>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {failed.map(r => <ActivityRow key={r.id} r={r} />)}
+          </div>
+        )
+      })()}
+
+      {tab === 'devtest' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ ...card, borderLeft: '3px solid #2563eb' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 6 }}>Run AI Usage Test</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>Makes a real minimal Anthropic API call and logs it to usage records.</div>
+            <button onClick={runTest} disabled={testStatus === 'running'} style={{ padding: '8px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: testStatus === 'running' ? 'not-allowed' : 'pointer', opacity: testStatus === 'running' ? 0.7 : 1 }}>
+              {testStatus === 'running' ? 'Running…' : 'Run AI Usage Test'}
+            </button>
+            {testMsg && (
+              <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: testStatus === 'ok' ? '#dcfce7' : testStatus === 'error' ? '#fee2e2' : '#f1f5f9', color: testStatus === 'ok' ? '#166534' : testStatus === 'error' ? '#991b1b' : '#374151', fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                {testMsg}
               </div>
             )}
           </div>
-        )}
 
-        {/* ── OPTIMIZATION TIPS ── */}
-        {activeTab === 'optimize' && (
-          <div>
-            <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#1D4ED8' }}>
-              These are identified optimization opportunities. Each one reduces API cost or prevents unnecessary calls. Implement in priority order (High → Medium → Low) after collecting baseline data.
+          <div style={{ ...card, borderLeft: '3px solid #7c3aed' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 6 }}>Sample Data</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>Add fake records to verify dashboard charts and filters render correctly. Sample records are excluded from budget calculations.</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={addSample} style={{ padding: '8px 16px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Add Sample Records</button>
+              <button onClick={clearSample} style={{ padding: '8px 16px', background: 'transparent', color: '#7c3aed', border: '1px solid #c4b5fd', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Clear Sample Records</button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {OPTIMIZATIONS.map((opt, i) => (
-                <div key={i} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                  <span style={{ flexShrink: 0, marginTop: 2, padding: '3px 8px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: SEVERITY_BG[opt.severity], color: SEVERITY_COLORS[opt.severity], textTransform: 'uppercase' }}>{opt.severity}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>{opt.label}</div>
-                    <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{opt.detail}</div>
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#94A3B8' }}>Affects: <strong style={{ color: FEATURE_COLORS[opt.feature] || '#64748b' }}>{opt.feature}</strong></div>
-                  </div>
-                </div>
-              ))}
+            {sampleMsg && <div style={{ marginTop: 8, fontSize: 12, color: '#6d28d9' }}>{sampleMsg}</div>}
+          </div>
+
+          <div style={{ ...card, borderLeft: '3px solid #dc2626' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 6 }}>Clear All Logs</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 10 }}>Permanently deletes all usage records including real API call history.</div>
+            <button onClick={clearAll} style={{ padding: '8px 16px', background: 'transparent', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Clear All Usage Logs</button>
+          </div>
+
+          <div style={{ ...card, background: '#f8fafc' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: '#475569', marginBottom: 6 }}>Tracking Info</div>
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
+              Tracking begins once this feature is enabled. Historical Claude Console usage is not imported.<br/>
+              Costs are estimated from token counts. Actual Claude Console billing may differ slightly.
             </div>
           </div>
-        )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <div style={{ textAlign: 'center', padding: '40px 24px', color: '#94a3b8' }}>
+      <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>No AI usage has been tracked yet</div>
+      <div style={{ fontSize: 13, maxWidth: 400, margin: '0 auto', lineHeight: 1.6 }}>
+        Usage tracking starts from the date this feature was added.<br/>
+        Historical Claude Console usage is not imported.
+      </div>
+      <div style={{ marginTop: 12, fontSize: 12, color: '#94a3b8' }}>Use the Dev / Test tab to add sample records or run a live test.</div>
+    </div>
+  )
+}
+
+function BarChart({ byFeature }) {
+  const entries = Object.entries(byFeature).sort((a, b) => b[1].costEst - a[1].costEst)
+  const maxCost = Math.max(...entries.map(e => e[1].costEst), 0.0001)
+  const colors = ['#2563eb', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#dc2626', '#db2777']
+  return (
+    <div style={{ ...card, marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 12 }}>Cost by Feature</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {entries.map(([feat, s], i) => (
+          <div key={feat}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+              <span style={{ color: '#374151', fontWeight: 600 }}>{feat}</span>
+              <span style={{ color: '#64748b' }}>{fmtCost(s.costEst)} · {s.calls} calls</span>
+            </div>
+            <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${(s.costEst / maxCost) * 100}%`, background: colors[i % colors.length], borderRadius: 4 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TopOps({ topOps }) {
+  if (!topOps?.length) return null
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 10 }}>Top Operations by Cost</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+            {['Feature', 'Operation', 'Calls', 'Est. Cost'].map(h => (
+              <th key={h} style={{ textAlign: h === 'Feature' || h === 'Operation' ? 'left' : 'right', padding: '4px 8px', color: '#94a3b8', fontWeight: 600 }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {topOps.map((op, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f8fafc' }}>
+              <td style={{ padding: '5px 8px', color: '#475569' }}>{op.feature}</td>
+              <td style={{ padding: '5px 8px', color: '#1e293b', fontFamily: 'monospace', fontSize: 11 }}>{op.operation}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'right', color: '#64748b' }}>{op.calls}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>{fmtCost(op.costEst)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ActivityRow({ r }) {
+  const isSample = r.source === 'sample'
+  const isFailed = !r.success && r.status !== 'cache_hit'
+  const isCache = r.cacheHit || r.status === 'cache_hit'
+  const cost = r.estimatedCost ?? r.costEst ?? 0
+  const inTok = r.estimatedInputTokens ?? r.inputTokensEst ?? 0
+  const outTok = r.estimatedOutputTokens ?? r.maxTokensOut ?? 0
+
+  return (
+    <div style={{ ...card, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 10, background: isFailed ? '#fff5f5' : '#fff' }}>
+      <div style={{ fontSize: 16, lineHeight: 1, marginTop: 2 }}>{isFailed ? '✗' : isCache ? '⚡' : '✓'}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{r.feature}</span>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>›</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#475569' }}>{r.operation}</span>
+          {isSample && <span style={{ ...pill('#7c3aed'), fontSize: 10 }}>SAMPLE</span>}
+          {isFailed && <span style={{ ...pill('#dc2626'), fontSize: 10 }}>FAILED</span>}
+          {isCache && <span style={{ ...pill('#0891b2'), fontSize: 10 }}>CACHE</span>}
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
+          <span>{MODEL_LABELS[r.model] || r.model || '—'}</span>
+          <span>{fmtK(inTok)} in · {fmtK(outTok)} out</span>
+          {!isCache && <span style={{ fontWeight: 600, color: '#374151' }}>{fmtCost(cost)}</span>}
+          {r.durationMs > 0 && <span>{r.durationMs}ms</span>}
+          <span style={{ marginLeft: 'auto', color: '#94a3b8' }}>{fmtDate(r.ts || r.timestamp)}</span>
+        </div>
+        {r.errorMessage && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 3 }}>{r.errorMessage}</div>}
       </div>
     </div>
   )
