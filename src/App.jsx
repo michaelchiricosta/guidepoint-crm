@@ -36,6 +36,106 @@ const TECH_CATS = WHEEL_DOMAINS.flatMap(d => d.subs).sort()
 // Module-level guard — set by the contact photo upload handler so focus/save don't overwrite
 let contactPhotoSaveTime = 0
 
+// ─── WHITESPACE UPLOAD DIAGNOSTICS ─────────────────────────────────────────
+//
+// AUDIT: Every Anthropic API call triggered by a whitespace upload
+//
+// PATH A — Text paste (processIntel):
+//   Text ≤ 6,000 chars  → 1 extraction call (max_tokens=8000)
+//                        → +1 "fix JSON" call if JSON parse fails (max_tokens=4000)
+//   Text > 6,000 chars  → ceil(len/6000) extraction calls, sequential
+//                        → +1 fix call per chunk if JSON parse fails
+//   WORST CASE (100k chars): 17 extraction + 17 fix = 34 API calls
+//
+// PATH B — File upload PDF (processFileIntel):
+//   Attempt 1: Direct PDF-as-document call (max_tokens=8000)
+//              → +1 fix call if JSON parse fails
+//   If attempt 1 fails → Attempt 2: PDF.js text extraction → text call (max_tokens=8000)
+//              → +1 fix call if JSON parse fails
+//   If attempt 2 fails → Attempt 3: FileReader plain text → text call (max_tokens=8000)
+//              → +1 fix call if JSON parse fails
+//   WORST CASE: 3 attempts × 2 calls = 6 API calls on the SAME document content
+//
+// PATH C — Image upload (processFileIntel):
+//   1 call with base64 image (max_tokens=8000)
+//   NOTE: No fix-JSON fallback on image parse failure (throws instead)
+//
+// RETRY AMPLIFIER (callClaudeWithRetry maxRetries=3):
+//   Every call above can retry 3× on 429/529/overload
+//   Multiplies all worst-case numbers by 3
+//   WORST CASE text: 34 × 3 = 102 API calls per single upload
+//
+// TOKEN USAGE ESTIMATES (Sonnet 4-6: $3/M input, $15/M output):
+//   Prompt template (buildPromptWS/buildPrompt): ~300 chars → ~75 tokens overhead
+//   System prompt: ~300 chars → ~75 tokens
+//   Per extraction call: ~2,000 input tokens + max 8,000 output tokens = 10,000 tokens
+//   Small transcript (<6k chars, 1 call): ~10,000 tokens → ~$0.12
+//   Large transcript (100k chars, 17 calls): ~170,000 tokens → ~$2.10
+//   Large transcript with 3× retries: ~510,000 tokens → ~$6.30 per upload
+//
+// WHY "You have reached your specified API usage limits":
+//   This is Anthropic's SPEND LIMIT error (monthly $ cap on workspace).
+//   - NOT a per-minute rate limit (those say "rate_limit_exceeded")
+//   - NOT a tokens-per-minute quota (those say "token quota exceeded")
+//   Root cause: max_tokens=8000 on every call is excessive (typical response is
+//   200-1000 tokens). On large transcripts with retries, this inflates billed tokens.
+//   Verify at: https://console.anthropic.com → Plans & Billing → Usage Limits
+//
+// ADDITIONAL RISKS:
+//   - No guard against double-submit (processIntel/processFileIntel can be called
+//     twice if the user clicks twice before loading state renders)
+//   - PDF fallback re-sends the same transcript text if the direct PDF call fails,
+//     making duplicate submissions to the API on the same content
+//   - JSON fix calls send the full AI response back as input, doubling tokens
+//     on any call that returns malformed JSON
+//
+// FIXES TO CONSIDER (not applied here — diagnostic only):
+//   1. Reduce max_tokens from 8000 → 2000 for extraction (responses never need 8k)
+//   2. Add loading guard: if (intelLoading) return at top of processIntel
+//   3. Reduce CHUNK from 6000 → 3000 chars (fewer tokens per call, cheaper)
+//   4. Hard-cap total chunks: reject inputs > 30k chars with a clear message
+//   5. PDF fallback: only invoke if direct call threw a network error, not parse failure
+// ────────────────────────────────────────────────────────────────────────────
+
+// Diagnostic accumulator — reset at start of each upload, logged at end
+window.__wsDiag = null
+const wsDiagStart = (uploadType) => {
+  window.__wsDiag = { uploadType, calls:0, retries:0, inputTokensEst:0, outputTokensMaxEst:0, startMs:Date.now(), log:[] }
+  console.log(`[WS Diag] ▶ Upload started: ${uploadType}`)
+}
+const wsDiagCall = (label, inputChars, maxTokens) => {
+  if (!window.__wsDiag) return
+  const inputTok = Math.ceil(inputChars / 4)
+  window.__wsDiag.calls++
+  window.__wsDiag.inputTokensEst += inputTok
+  window.__wsDiag.outputTokensMaxEst += maxTokens
+  const entry = `  call #${window.__wsDiag.calls} [${label}]: ~${inputTok.toLocaleString()} input tok | max_tokens=${maxTokens}`
+  window.__wsDiag.log.push(entry)
+  console.log(`[WS Diag]${entry}`)
+}
+const wsDiagRetryLog = (attempt, maxRetries) => {
+  if (!window.__wsDiag) return
+  window.__wsDiag.retries++
+  console.warn(`[WS Diag] ⚠ Retry ${attempt}/${maxRetries-1} (total retries this upload: ${window.__wsDiag.retries})`)
+}
+const wsDiagEnd = () => {
+  if (!window.__wsDiag) return
+  const d = window.__wsDiag
+  const elapsed = ((Date.now() - d.startMs) / 1000).toFixed(1)
+  // Sonnet 4-6 pricing: $3.00/M input, $15.00/M output (max estimate)
+  const costEst = ((d.inputTokensEst / 1e6 * 3) + (d.outputTokensMaxEst / 1e6 * 15)).toFixed(4)
+  console.group(`%c[WS Diag] 📊 Whitespace Upload Stats — ${d.uploadType}`, 'color:#7c3aed;font-weight:bold;font-size:13px')
+  console.log(`  API Calls:             ${d.calls}  (each can retry up to 3× internally)`)
+  console.log(`  Retries (429/overload):${d.retries}`)
+  console.log(`  Est. Input Tokens:     ${d.inputTokensEst.toLocaleString()}`)
+  console.log(`  Est. Output (max cap): ${d.outputTokensMaxEst.toLocaleString()}  ← actual output is usually 200-1000 tok/call`)
+  console.log(`  Est. Max Token Cost:   $${costEst}  (Sonnet 4-6: $3/M in, $15/M out)`)
+  console.log(`  Processing Time:       ${elapsed}s`)
+  if (d.log.length > 0) { console.log('  --- Call Log ---'); d.log.forEach(e => console.log(e)) }
+  console.groupEnd()
+  window.__wsDiag = null
+}
+
 // Shared retry wrapper for all Anthropic API calls — handles rate limits and overload
 const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
   // Throttle: maintain at least 2s between calls to avoid bursting
@@ -56,10 +156,20 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
         const delay = Math.pow(2,attempt)*2000
         console.log(`[Claude] Overloaded — retrying in ${delay}ms (attempt ${attempt+1}/${maxRetries})`)
         if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay/1000)}s… (${attempt+2}/${maxRetries})`)
+        wsDiagRetryLog(attempt+1, maxRetries)
         await new Promise(r=>setTimeout(r,delay))
         continue
       }
       throw new Error('OVERLOADED')
+    }
+    if (data.error) {
+      // Log spend/rate limit errors explicitly for diagnostics
+      console.error(`[WS Diag] ✘ API error type="${data.error.type}" status=${res.status}: ${data.error.message}`)
+      if (data.error.type==='billing_error'||String(data.error.message||'').toLowerCase().includes('usage limit')) {
+        console.error('[WS Diag] ✘ SPEND LIMIT HIT — "You have reached your specified API usage limits"')
+        console.error('[WS Diag]   Check: https://console.anthropic.com → Plans & Billing → Usage Limits')
+        if (window.__wsDiag) wsDiagEnd()
+      }
     }
     if (onStatus) onStatus(null)
     return {res,data}
@@ -2766,6 +2876,8 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     const ext = wsPendingFile.name.split('.').pop().toLowerCase()
     setIntelLoading(true); setIntelError(''); setIntelStatus(''); setWsRetryStatus('')
     setWsPendingDate(date)
+    // DIAGNOSTIC: Start tracking this upload session
+    wsDiagStart(`file upload — ${ext.toUpperCase()} "${wsPendingFile.name}" (${(wsPendingFile.size/1024).toFixed(0)}KB)`)
 
     const SYS_WS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
     const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
@@ -2773,6 +2885,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     const onStatus = msg => { if(msg) setWsRetryStatus(msg); else setWsRetryStatus('') }
 
     const callTextApiWS = async (inputText) => {
+      // DIAGNOSTIC: Track this extraction call (system + prompt template + content)
+      const fullInput = SYS_WS + buildPromptWS(inputText)
+      wsDiagCall('text extraction (fallback path)', fullInput.length, 8000)
       const {data: resp} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:8000,
         system:SYS_WS,
@@ -2782,6 +2897,9 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const raw = resp.content?.[0]?.text||''
       let parsed = extractJSON(raw)
       if (!parsed) {
+        // DIAGNOSTIC: Fix-JSON call — sends full raw response back as input
+        console.warn('[WS Diag] ⚠ JSON parse failed on extraction response — making fix-JSON call (raw output sent back as input)')
+        wsDiagCall('fix-JSON (fallback path)', raw.length + 80, 4000)
         try {
           const {data: fix} = await callClaudeWithRetry({model:'claude-sonnet-4-6',max_tokens:4000,messages:[{role:'user',content:`Fix this malformed JSON and return ONLY valid JSON:\n${raw}`}]}, effectiveKey, null)
           parsed = extractJSON(fix.content?.[0]?.text||'')
@@ -2817,6 +2935,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       if (WS_IMAGE_EXTS.includes(ext)) {
         const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(wsPendingFile)})
         const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
+        // DIAGNOSTIC: Image call — input tokens estimated from base64 size (~0.75 bytes/char) + prompt template
+        // NOTE: Vision input tokens are billed differently by Anthropic (image size-based), this is a rough estimate
+        const imgInputEst = Math.ceil(cleanBase64.length * 0.75 / 4) + buildPromptWS('').length
+        wsDiagCall(`image vision (${wsPendingFile.type||'jpeg'}, ${(wsPendingFile.size/1024).toFixed(0)}KB)`, imgInputEst, 8000)
         const {data: imgData} = await callClaudeWithRetry({
           model:'claude-sonnet-4-6', max_tokens:8000,
           messages:[{role:'user',content:[
@@ -2831,6 +2953,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
         allAccounts = parsed?.accounts || []
       } else if (ext === 'pdf') {
         if (forceFallback) {
+          console.log('[WS Diag] PDF forceFallback=true — skipping direct PDF call, going straight to text extraction')
           const accs = await pdfTextFallbackWS()
           if (!accs) throw new Error('All extraction methods failed for this PDF.')
           allAccounts = accs
@@ -2840,6 +2963,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(wsPendingFile)})
             const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
             if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
+            // DIAGNOSTIC: Direct PDF-as-document call
+            // WARNING: If this fails (parse error or API error), pdfTextFallbackWS() will re-send
+            // essentially the same content via PDF.js or FileReader — duplicate API submission
+            wsDiagCall(`direct PDF-as-document (${(wsPendingFile.size/1024/1024).toFixed(1)}MB base64)`, buildPromptWS('').length + 500, 8000)
             const {data: pdfData} = await callClaudeWithRetry({
               model:'claude-sonnet-4-6', max_tokens:8000,
               messages:[{role:'user',content:[
@@ -2847,15 +2974,26 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 {type:'text',text:buildPromptWS('')}
               ]}]
             }, effectiveKey, onStatus)
-            if (pdfData.error) { directFailed = true; console.log('[WS Direct PDF] Error:', pdfData.error.type, pdfData.error.message) }
+            if (pdfData.error) {
+              directFailed = true
+              console.warn('[WS Diag] ⚠ Direct PDF call returned API error — falling back to text extraction (DUPLICATE SUBMISSION RISK)')
+              console.log('[WS Direct PDF] Error:', pdfData.error.type, pdfData.error.message)
+            }
             else {
               const rawPdf = pdfData.content?.[0]?.text||''
               let parsed = extractJSON(rawPdf)
-              if (!parsed) { directFailed = true }
+              if (!parsed) {
+                directFailed = true
+                console.warn('[WS Diag] ⚠ Direct PDF JSON parse failed — falling back to text extraction (DUPLICATE SUBMISSION)')
+              }
               else allAccounts = parsed?.accounts || []
             }
-          } catch(e1) { directFailed = true; console.log('[WS Direct PDF] Exception:', e1.message) }
+          } catch(e1) {
+            directFailed = true
+            console.warn('[WS Diag] ⚠ Direct PDF threw exception — falling back to text extraction (DUPLICATE SUBMISSION RISK):', e1.message)
+          }
           if (directFailed) {
+            console.log('[WS Diag] ▷ Invoking pdfTextFallbackWS — this re-sends the same document via PDF.js or FileReader')
             const accs = await pdfTextFallbackWS()
             if (!accs) throw new Error('All extraction methods failed. Try a different PDF or copy-paste the text.')
             allAccounts = accs
@@ -2864,7 +3002,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       }
 
       setIntelStatus('')
-      if (allAccounts.length === 0) { setIntelError('No prospect companies found in the document.'); setIntelLoading(false); return }
+      if (allAccounts.length === 0) { setIntelError('No prospect companies found in the document.'); setIntelLoading(false); wsDiagEnd(); return }
       // Fuzzy dedup within batch
       const dedupedDoc = []
       allAccounts.forEach(a => {
@@ -2887,6 +3025,10 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       const msg = e.message||'Processing failed.'
       if (msg==='OVERLOADED') setIntelError('Anthropic API is busy right now. Please wait 30 seconds and try again.')
       else setIntelError('Processing failed: '+(msg||'Unknown error'))
+      console.error('[WS Diag] ✘ processFileIntel threw:', msg)
+    } finally {
+      // DIAGNOSTIC: Print summary regardless of success or failure
+      wsDiagEnd()
     }
     setIntelLoading(false); setWsRetryStatus('')
   }
@@ -2912,12 +3054,20 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
     if (!intelText.trim()) { setIntelError('Please paste some text first.'); return }
     const date = dateOverride || intelDate || new Date().toISOString().split('T')[0]
     setIntelLoading(true); setIntelError(''); setIntelStatus('')
+    // DIAGNOSTIC: Start tracking this upload session
+    const chunkCount = intelText.length <= 6000 ? 1 : Math.ceil(intelText.split(/\n\n+/).length)
+    wsDiagStart(`text paste (${intelText.length.toLocaleString()} chars, ~${chunkCount} chunks expected)`)
 
     const SYS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
     const buildPrompt = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const runChunk = async (txt, idx, total) => {
       if (total > 1) setIntelStatus(`Processing chunk ${idx+1} of ${total}…`)
+      // DIAGNOSTIC: Track each chunk extraction call
+      // WARNING: total > 1 means the same transcript is being sent in N sequential calls
+      const fullInput = SYS + buildPrompt(txt)
+      wsDiagCall(`chunk ${idx+1}/${total} extraction (${txt.length} chars)`, fullInput.length, 8000)
+      if (total > 5) console.warn(`[WS Diag] ⚠ HIGH CHUNK COUNT: ${total} calls for this transcript. Large token usage expected.`)
       const {data: resp} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:8000,
         system:SYS,
@@ -2925,10 +3075,12 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       }, effectiveKey, null)
       if (resp.error) throw new Error(resp.error.message||'API error')
       const raw = resp.content?.[0]?.text||''
-      console.log(`Whitespace AI raw (chunk ${idx+1}/${total}):`, raw)
+      console.log(`[WS Diag] chunk ${idx+1}/${total} raw response (${raw.length} chars):`, raw.slice(0,200)+'…')
       let parsed = extractJSON(raw)
       if (!parsed) {
-        // Fallback: ask Claude to fix the malformed JSON
+        // DIAGNOSTIC: Fix-JSON fallback — raw AI output is sent back as input (token duplication)
+        console.warn(`[WS Diag] ⚠ Chunk ${idx+1} JSON parse failed — making fix-JSON call. Raw output (${raw.length} chars) sent back as input.`)
+        wsDiagCall(`fix-JSON chunk ${idx+1}/${total}`, raw.length + 90, 4000)
         try {
           const {data: fix} = await callClaudeWithRetry({
             model:'claude-sonnet-4-6', max_tokens:4000,
@@ -2972,7 +3124,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       setIntelStatus('')
       if (allAccounts.length === 0) {
         setIntelError('No prospect companies found in the text.')
-        setIntelLoading(false); return
+        setIntelLoading(false); wsDiagEnd(); return
       }
       const sel = new Set()
       allAccounts.forEach((a,i) => {
@@ -2983,9 +3135,12 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
       setPendingIntel({accounts:allAccounts, date})
       setSelectedIntel(sel)
       setShowIntel(false)
+      wsDiagEnd()
     } catch(e) {
       setIntelStatus('')
       setIntelError('Processing failed: '+(e.message||'Unknown error'))
+      console.error('[WS Diag] ✘ processIntel threw:', e.message)
+      wsDiagEnd()
     }
     setIntelLoading(false)
   }
