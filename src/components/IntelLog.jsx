@@ -305,7 +305,11 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const processDirectFile = async (date, forceFallback = false) => {
     if (!pendingFile) return
     const ext = pendingFile.name.split('.').pop().toLowerCase()
-    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&t.aiNotes).map(t=>`${t.vendor}: ${t.aiNotes}`).join('\n')
+    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&(t.aiNotes||(t.aiNotesHistory||[]).length)).map(t=>{
+      const hist=[...(t.aiNotesHistory||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(h=>`[${h.date||'?'}] ${(h.text||h.summary||'').slice(0,300)}`).join('\n')
+      const current=t.aiNotes?`[${t.aiNotesUpdatedAt||'current'}] ${t.aiNotes}`:'';
+      return `${t.vendor}:\n${[hist,current].filter(Boolean).join('\n')}`
+    }).join('\n\n')
     setLoading(true); setError(''); setResult(null); setProcessingLong(false)
     setPendingDate(date); setPdfAnalysisMethod('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
@@ -489,7 +493,11 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
   const process = async (date, textOverride) => {
     const inputText = textOverride !== undefined ? textOverride : text
-    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&t.aiNotes).map(t=>`${t.vendor}: ${t.aiNotes}`).join('\n')
+    const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&(t.aiNotes||(t.aiNotesHistory||[]).length)).map(t=>{
+      const hist=[...(t.aiNotesHistory||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(h=>`[${h.date||'?'}] ${(h.text||h.summary||'').slice(0,300)}`).join('\n')
+      const current=t.aiNotes?`[${t.aiNotesUpdatedAt||'current'}] ${t.aiNotes}`:'';
+      return `${t.vendor}:\n${[hist,current].filter(Boolean).join('\n')}`
+    }).join('\n\n')
     setLoading(true);setError('');setResult(null);setProcessingLong(false);setRetryStatus('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {

@@ -981,7 +981,14 @@ Return ONLY valid JSON — no markdown, no preamble, no commentary:
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
                   {[...(form.aiNotesHistory||[])].reverse().map((h,hi,arr)=>(
                     <div key={h.id||hi} style={{background:'#f8fafc',borderRadius:6,padding:'8px 10px',borderBottom:hi<arr.length-1?'1px solid #e2e8f0':'none'}}>
-                      <div style={{fontSize:10,fontWeight:600,color:'#2563eb',marginBottom:3}}>{fmtDate(h.date)||h.date||'—'}</div>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3}}>
+                        <div style={{fontSize:10,fontWeight:600,color:'#2563eb'}}>{fmtDate(h.date)||h.date||'—'}</div>
+                        <button onClick={()=>{
+                          const newHist=(form.aiNotesHistory||[]).filter(x=>h.id&&x.id?x.id!==h.id:!(x.text===h.text&&x.date===h.date))
+                          setForm(p=>({...p,aiNotesHistory:newHist}))
+                          if(form.id)setAcct(p=>({...p,techStack:p.techStack.map(t=>t.id===form.id?{...t,aiNotesHistory:newHist}:t)}))
+                        }} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}} title='Delete this note'>×</button>
+                      </div>
                       <div style={{fontSize:11,color:'#64748b',lineHeight:1.5}}>{(h.text||h.summary||'').slice(0,200)}{(h.text||h.summary||'').length>200?'…':''}</div>
                     </div>
                   ))}

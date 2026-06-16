@@ -5075,6 +5075,8 @@ function AllProjectsPage({data, setData, onBack}) {
                           <div style={{display:'flex',gap:3,flexShrink:0}} onClick={e=>e.stopPropagation()}>
                             <button title='Edit' onClick={()=>{setEditModal({aid:p._aid});setEditForm({...projBlank,...p})}}
                               style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'4px 6px',borderRadius:4,fontSize:12}}>✏</button>
+                            <button title='Delete project' onClick={()=>{if(window.confirm('Delete this project? This cannot be undone.'))setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===p._aid?{...a,projects:(a.projects||[]).filter(j=>j.id!==p.id)}:a)}))}}
+                              style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:'4px 6px',borderRadius:4,fontSize:14,lineHeight:1}}>×</button>
                             <div style={{position:'relative'}}>
                               <button title='Move status' onClick={()=>setMoveMenu(moveMenu===p.id?null:p.id)}
                                 style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'4px 6px',borderRadius:4,fontSize:12}}>⬆</button>
@@ -5131,6 +5133,7 @@ function AllProjectsPage({data, setData, onBack}) {
                             <div style={{display:'flex',alignItems:'flex-start',gap:4,marginBottom:4}}>
                               <div style={{fontSize:12,fontWeight:700,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
                               <button onClick={()=>{setEditModal({aid:p._aid});setEditForm({...projBlank,...p})}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:'1px 4px',fontSize:12}}>✏</button>
+                              <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete this project? This cannot be undone.'))setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===p._aid?{...a,projects:(a.projects||[]).filter(j=>j.id!==p.id)}:a)}))}} style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:'1px 4px',fontSize:14,lineHeight:1}}>×</button>
                             </div>
                             <span style={{display:'inline-block',fontSize:9,fontWeight:700,color:'#fff',background:acol,borderRadius:999,padding:'1px 6px',marginBottom:4}}>{p._aname}</span>
                             {p.vendor&&<div style={{fontSize:11,color:S.muted,marginBottom:3}}>{p.vendor}</div>}
@@ -5202,9 +5205,12 @@ function AllProjectsPage({data, setData, onBack}) {
                 <Field label='Waiting On' value={editForm.waitingOn||''} onChange={ff('waitingOn')} style={{gridColumn:'span 2'}}/>
                 <Field label='Notes' value={editForm.notes||''} onChange={ff('notes')} multiline style={{gridColumn:'span 2'}}/>
               </div>
-              <div style={{display:'flex',gap:8,marginTop:12}}>
-                <button onClick={saveEdit} style={{padding:'8px 20px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
-                <button onClick={()=>setEditModal(null)} style={{padding:'8px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:13,cursor:'pointer'}}>Cancel</button>
+              <div style={{display:'flex',gap:8,marginTop:12,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
+                {editForm.id&&<button onClick={()=>{if(window.confirm('Delete this project? This cannot be undone.')){setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===editModal.aid?{...a,projects:(a.projects||[]).filter(j=>j.id!==editForm.id)}:a)}));setEditModal(null)}}} style={{padding:'8px 16px',background:'transparent',color:'#dc2626',border:'1px solid #fca5a5',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer'}}>Delete Project</button>}
+                <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
+                  <button onClick={saveEdit} style={{padding:'8px 20px',background:S.blue,color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+                  <button onClick={()=>setEditModal(null)} style={{padding:'8px 14px',background:'transparent',color:S.muted,border:`1px solid ${S.bdr}`,borderRadius:7,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                </div>
               </div>
             </div>
           </div>

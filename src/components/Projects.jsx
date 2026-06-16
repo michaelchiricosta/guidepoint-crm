@@ -91,11 +91,12 @@ export default function Projects({acct,setAcct}) {
                   const comp=p.timeline.filter(s=>s.status==='completed').length
                   return (
                     <div key={p.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'9px 11px',marginBottom:6,position:'relative',boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
-                      {/* Name + notes bubble + edit button */}
+                      {/* Name + notes bubble + edit + delete buttons */}
                       <div style={{display:'flex',alignItems:'flex-start',gap:4,marginBottom:4}}>
                         <div style={{fontSize:12,fontWeight:600,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
                         {p.projectNotes?.length>0&&<span title={`${p.projectNotes.length} note${p.projectNotes.length!==1?'s':''}`} style={{fontSize:9,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 5px',lineHeight:1.6,flexShrink:0}}>💬{p.projectNotes.length}</span>}
                         <button onClick={e=>openEdit(p,e)} style={penBtn} title='Edit'>✏</button>
+                        <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete this project? This cannot be undone.'))setAcct(prev=>({...prev,projects:prev.projects.filter(j=>j.id!==p.id)}))}} style={{...penBtn,color:'#dc2626'}} title='Delete'>×</button>
                       </div>
                       {/* Clickable inline status badge */}
                       <div style={{position:'relative',display:'inline-block',marginBottom:5}} onClick={e=>e.stopPropagation()}>
@@ -341,7 +342,10 @@ export default function Projects({acct,setAcct}) {
         <Field label='Next Action' value={form.nextAction} onChange={f('nextAction')}/>
         <Field label='Waiting On' value={form.waitingOn} onChange={f('waitingOn')}/>
         <Field label='Next Steps' value={form.nextSteps||''} onChange={f('nextSteps')} placeholder='Specific actions to advance this project...'/>
-        <div style={{display:'flex',gap:8,marginTop:4}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
+        <div style={{display:'flex',gap:8,marginTop:4,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
+          {form.id&&<Btn variant='danger' onClick={()=>{if(window.confirm('Delete this project? This cannot be undone.')){setAcct(p=>({...p,projects:p.projects.filter(j=>j.id!==form.id)}));setShowAdd(false);setForm(blank)}}}>Delete Project</Btn>}
+          <div style={{display:'flex',gap:8,marginLeft:'auto'}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
+        </div>
       </Modal>}
     </div>
   )
