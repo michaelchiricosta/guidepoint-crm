@@ -2360,6 +2360,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const mob = typeof window !== 'undefined' && window.innerWidth < 768
   const [mobFilterOpen, setMobFilterOpen] = useState(false)
   const [selectedForExport, setSelectedForExport] = useState(new Set())
+  const [segmentFilter, setSegmentFilter] = useState('All')
 
   const ws = data.whitespaceAccounts || []
   const isLight = S.isLight
@@ -2374,11 +2375,42 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
   const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
+
+  // Parse employee count from strings like "2,500", "2500 employees", "1000-5000", "~3,000"
+  const parseEmployeeCount = s => {
+    if (!s) return null
+    const str = String(s).replace(/[~≈$,\s]/g,'').toLowerCase()
+    const rangeMatch = str.match(/^(\d+)-(\d+)/)
+    if (rangeMatch) return parseInt(rangeMatch[2], 10)
+    const numMatch = str.match(/^([\d.]+)([kmb]?)/)
+    if (!numMatch) return null
+    const v = parseFloat(numMatch[1])
+    if (isNaN(v)) return null
+    if (numMatch[2]==='k') return Math.round(v*1000)
+    if (numMatch[2]==='m') return Math.round(v*1000000)
+    if (numMatch[2]==='b') return Math.round(v*1000000000)
+    return Math.round(v)
+  }
+  // SMB: 0–2498 | Mid-Enterprise: 2499–6000 | Enterprise: 6001+
+  const getSegment = empCount => {
+    if (empCount === null || empCount === undefined) return null
+    if (empCount <= 2498) return 'SMB'
+    if (empCount <= 6000) return 'Mid-Enterprise'
+    return 'Enterprise'
+  }
+  const segmentCounts = {SMB:0,'Mid-Enterprise':0,Enterprise:0,unknown:0}
+  ws.forEach(a => {
+    const seg = getSegment(parseEmployeeCount(a.employees))
+    if (seg) segmentCounts[seg]++
+    else segmentCounts.unknown++
+  })
+
   const fmtRel = iso => {if(!iso)return '';const d=Math.floor((new Date()-new Date(iso))/86400000);if(d===0)return 'Today';if(d===1)return 'Yesterday';if(d<7)return `${d}d ago`;if(d<30)return `${Math.floor(d/7)}w ago`;return `${Math.floor(d/30)}mo ago`}
 
   const filtered = ws.filter(a=>{
     if(statusFilter!=='All'&&a.status!==statusFilter)return false
     if(search.trim()){const q=search.toLowerCase();if(!`${a.name} ${a.hq} ${a.industry}`.toLowerCase().includes(q))return false}
+    if(segmentFilter!=='All'){const seg=getSegment(parseEmployeeCount(a.employees));if(seg!==segmentFilter)return false}
     return true
   })
   const sorted = [...filtered].sort((a,b)=>{
@@ -3323,6 +3355,21 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
                 ))}
               </div>
             </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Segment</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {(['All','SMB','Mid-Enterprise','Enterprise']).map(seg=>{
+                  const cnt = seg==='All' ? ws.length : segmentCounts[seg]
+                  const active = segmentFilter===seg
+                  return (
+                    <button key={seg} onClick={()=>setSegmentFilter(seg)}
+                      style={{padding:'6px 12px',borderRadius:20,border:active?'none':'1px solid #E5E7EB',background:active?'#2563eb':'transparent',color:active?'#fff':'#374151',fontSize:12,fontWeight:active?700:400,cursor:'pointer',flexShrink:0}}>
+                      {seg} ({cnt})
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div style={{fontSize:11,color:'#9CA3AF',marginTop:4}}>{sorted.length} account{sorted.length!==1?'s':''}</div>
           </div>
           <div style={{padding:'12px 16px',borderTop:'1px solid #EEEFF2',flexShrink:0}}>
@@ -3351,7 +3398,7 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
               </div>
               <button onClick={()=>setMobFilterOpen(true)}
                 style={{display:'inline-flex',alignItems:'center',gap:5,padding:'7px 12px',background:isLight?'#f1f5f9':'rgba(255,255,255,0.08)',border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:7,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
-                ⚙ Filters{(search||statusFilter!=='All')?<span style={{width:6,height:6,borderRadius:'50%',background:'#2563eb',display:'inline-block',flexShrink:0}}/>:null}
+                ⚙ Filters{(search||statusFilter!=='All'||segmentFilter!=='All')?<span style={{width:6,height:6,borderRadius:'50%',background:'#2563eb',display:'inline-block',flexShrink:0}}/>:null}
               </button>
               <button onClick={()=>{setIntelText('');setIntelDate('');setIntelError('');setIntelStatus('');resetWsFileState();setShowIntel(true)}}
                 style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:34,height:34,background:'linear-gradient(135deg,#1d4ed8 0%,#2563eb 100%)',border:'none',borderRadius:7,color:'#fff',cursor:'pointer',flexShrink:0}}
@@ -3476,6 +3523,24 @@ function WhitespacePage({data, setData, theme, setTheme, onBack}) {
             <span style={{fontSize:13,color:'#92400e',fontWeight:600}}>⚠ {dupePairs.length} possible duplicate{dupePairs.length!==1?'s':''} found</span>
             <button onClick={()=>setShowDupeReview(true)} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:0}}>Review →</button>
             <button onClick={()=>setDupeDismissed(true)} style={{fontSize:12,color:S.muted,background:'none',border:'none',cursor:'pointer',padding:0,marginLeft:'auto'}}>Dismiss</button>
+          </div>
+        )}
+        {/* ── Segment toggle ── */}
+        {ws.length>0&&(
+          <div style={{padding:'10px 20px',background:isLight?'#f8fafc':S.headerBg,borderBottom:`1px solid ${isLight?'#e2e8f0':S.bdr}`,flexShrink:0,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+            {(['All','SMB','Mid-Enterprise','Enterprise']).map(seg=>{
+              const cnt = seg==='All' ? ws.length : segmentCounts[seg]
+              const active = segmentFilter===seg
+              return (
+                <button key={seg} onClick={()=>setSegmentFilter(seg)}
+                  style={{padding:'5px 13px',borderRadius:20,border:active?'none':`1px solid ${isLight?'#e2e8f0':S.bdr}`,background:active?'#2563eb':'transparent',color:active?'#fff':S.muted,fontSize:12,fontWeight:active?700:500,cursor:'pointer',transition:'all 0.15s',flexShrink:0,lineHeight:1.4}}>
+                  {seg} <span style={{opacity:0.75}}>({cnt})</span>
+                </button>
+              )
+            })}
+            {segmentCounts.unknown>0&&segmentFilter==='All'&&(
+              <span style={{fontSize:11,color:'#94a3b8',marginLeft:4}}>&middot; {segmentCounts.unknown} unknown size</span>
+            )}
           </div>
         )}
         <div style={{flex:1,overflowY:'auto'}}>
