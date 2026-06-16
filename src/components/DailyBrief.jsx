@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { RefreshCw, ArrowLeft, CheckCircle2, Circle, Sparkles, X, ChevronRight } from 'lucide-react'
+import { RefreshCw, ArrowLeft, CheckCircle2, Circle, Sparkles, X, ChevronRight, Copy } from 'lucide-react'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
 import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
@@ -12,6 +12,10 @@ const fmtFull = d => {
   if (!d) return ''
   try { return new Date(d+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) }
   catch { return d }
+}
+const fmtTime = iso => {
+  if (!iso) return ''
+  try { return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) } catch { return '' }
 }
 const groupBriefsByWeek = briefs => {
   const today=new Date(); today.setHours(0,0,0,0)
@@ -29,25 +33,60 @@ const groupBriefsByWeek = briefs => {
 
 const NL={fontSize:10,fontWeight:700,color:'#64748b',letterSpacing:'0.1em',textTransform:'uppercase',padding:'10px 16px 4px'}
 
-const SectionLabel=({icon,label,count})=>(
-  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,marginTop:30}}>
-    <span style={{fontSize:15}}>{icon}</span>
-    <span style={{fontSize:11,fontWeight:700,color:'#9ca3af',letterSpacing:'0.08em',textTransform:'uppercase'}}>{label}</span>
-    {count!=null&&<span style={{fontSize:11,fontWeight:700,background:'#1e293b',color:'#fff',borderRadius:999,padding:'1px 7px'}}>{count}</span>}
+// ── Document-style section headings ──────────────────────────────────────────
+const SectionHead = ({children}) => (
+  <div style={{fontSize:11,fontWeight:700,color:'#374151',letterSpacing:'0.07em',textTransform:'uppercase',
+    paddingBottom:8,marginBottom:10,borderBottom:'1px solid #f1f5f9'}}>
+    {children}
+  </div>
+)
+const SubHead = ({children}) => (
+  <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.06em',textTransform:'uppercase',
+    marginTop:14,marginBottom:6}}>
+    {children}
   </div>
 )
 
-// Compact pill for header rows — truncates if too long
-const MetaPill=({children,color='#64748b',bg='#f1f5f9',border='#e5e7eb'})=>(
-  <span style={{
-    display:'inline-block',fontSize:11,color,background:bg,border:`1px solid ${border}`,
-    borderRadius:6,padding:'2px 8px',whiteSpace:'nowrap',flexShrink:0,fontWeight:500,
-    maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',
-  }}>
-    {children}
-  </span>
-)
+// ── Compact action bullet row ─────────────────────────────────────────────────
+const ActionRow = ({item, type, isPast, onToggle, onClick}) => {
+  const done = item.completedToday
+  const dotColor = type==='actToday' ? '#ef4444' : type==='moveForward' ? '#f59e0b' : '#94a3b8'
+  const context = item.urgencyReason || item.clientFirstAngle || item.relevance || ''
+  return (
+    <div onClick={onClick}
+      style={{display:'flex',alignItems:'flex-start',gap:9,padding:'8px 6px',borderRadius:5,cursor:'pointer',
+        opacity:done?0.42:1,transition:'background 0.1s'}}
+      onMouseEnter={e=>e.currentTarget.style.background='#f9fafb'}
+      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+      {type==='actToday' ? (
+        <button onClick={e=>{e.stopPropagation();if(!isPast&&onToggle)onToggle()}}
+          style={{background:'transparent',border:'none',padding:'2px 0 0',cursor:'pointer',flexShrink:0,
+            color:done?'#22c55e':'#d1d5db',lineHeight:1,display:'flex'}}>
+          {done?<CheckCircle2 size={15}/>:<Circle size={15}/>}
+        </button>
+      ) : (
+        <span style={{width:5,height:5,borderRadius:'50%',background:dotColor,flexShrink:0,marginTop:7}}/>
+      )}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13.5,color:'#111827',lineHeight:1.5,fontWeight:500,
+          display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',
+          textDecoration:done?'line-through':'none'}}>
+          {item.account&&<><strong style={{fontWeight:700}}>{item.account}</strong> — </>}{item.action}
+        </div>
+        {context&&(
+          <div style={{fontSize:11,color:'#6b7280',marginTop:2,lineHeight:1.35,
+            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {context}
+          </div>
+        )}
+      </div>
+      {item.estimatedMinutes&&<span style={{fontSize:11,color:'#9ca3af',flexShrink:0,paddingTop:2}}>{item.estimatedMinutes}m</span>}
+      <ChevronRight size={12} color='#d1d5db' style={{flexShrink:0,marginTop:2}}/>
+    </div>
+  )
+}
 
+// ── Detail modal (unchanged logic, kept intact) ───────────────────────────────
 const DetailModal=({item,type,onClose,isPast,onToggle,data,setData})=>{
   const apiKey=data?.apiKey||''
   const _emailCacheKey = item ? `emailDraft_${hashStr((item.account||'')+'_'+(item.action||'').slice(0,50)+'_'+type)}` : null
@@ -167,7 +206,6 @@ ${(data?.knowledgeBase||[]).length?`\nKB items: ${(data.knowledgeBase||[]).slice
               <div style={{fontSize:11,fontWeight:700,color:'#9ca3af',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:5}}>
                 {item.account}
                 {item.contact&&<span style={{fontWeight:400,textTransform:'none',marginLeft:7,color:'#94a3b8',fontSize:11}}>· {item.contact}</span>}
-                {(item.timeframe||item.urgencyReason===undefined&&item.why)&&<span style={{fontWeight:400,textTransform:'none',marginLeft:7,color:'#f59e0b',fontSize:11}}>{item.timeframe}</span>}
               </div>
             )}
             <div style={{fontSize:16,fontWeight:700,color:'#0f172a',lineHeight:1.45}}>{item.action||item.headline}</div>
@@ -188,14 +226,14 @@ ${(data?.knowledgeBase||[]).length?`\nKB items: ${(data.knowledgeBase||[]).slice
             </div>
           )}
 
-          {/* 3. Drafted email (actToday + moveForward) */}
+          {/* 3. Drafted email */}
           {(type==='actToday'||type==='moveForward')&&(
             <div>
               <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>Drafted Email</div>
               {!draftEmail&&!emailLoading&&(
                 <button onClick={generateEmail} disabled={!apiKey}
                   style={{display:'flex',alignItems:'center',gap:6,background:'#f8fafc',border:'1px solid #e5e7eb',borderRadius:8,padding:'8px 14px',cursor:apiKey?'pointer':'not-allowed',fontSize:13,color:apiKey?'#374151':'#94a3b8',fontWeight:500,width:'100%',justifyContent:'center'}}>
-                  <span style={{fontSize:15}}>✉️</span> {apiKey?'Draft Email':'Add API key to enable email drafting'}
+                  <span style={{fontSize:15}}>✉️</span> {apiKey?'Generate Email Draft':'Add API key to enable email drafting'}
                 </button>
               )}
               {emailLoading&&(
@@ -250,14 +288,12 @@ ${(data?.knowledgeBase||[]).length?`\nKB items: ${(data.knowledgeBase||[]).slice
             </div>
           )}
 
-          {/* urgency / timeframe compact */}
           {item.urgencyReason&&(
             <div style={{fontSize:12,color:'#64748b',fontStyle:'italic',borderTop:'1px solid #f8fafc',paddingTop:10}}>
               <span style={{fontWeight:700,color:'#9ca3af',fontSize:10,textTransform:'uppercase',letterSpacing:'0.06em'}}>Why today: </span>{item.urgencyReason}
             </div>
           )}
 
-          {/* mark complete (actToday only) */}
           {type==='actToday'&&!isPast&&(
             <div style={{paddingTop:6,borderTop:'1px solid #f1f5f9'}}>
               <button onClick={()=>{onToggle&&onToggle();onClose()}}
@@ -317,17 +353,6 @@ ${(data?.knowledgeBase||[]).length?`\nKB items: ${(data.knowledgeBase||[]).slice
   )
 }
 
-// Small helpers for modal
-const Label=({children,color='#9ca3af'})=>(
-  <div style={{fontSize:10,fontWeight:700,color,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:5}}>{children}</div>
-)
-const F=({label,children,color='#374151',italic=false})=>(
-  <div>
-    <Label>{label}</Label>
-    <div style={{fontSize:13,color,lineHeight:1.65,fontStyle:italic?'italic':'normal'}}>{children}</div>
-  </div>
-)
-
 export default function DailyBrief({data,setData,apiKey,briefGenerating,briefError,onGenerateNow,onBack}){
   const today=new Date().toISOString().split('T')[0]
   const briefs=data.dailyBriefs||[]
@@ -335,8 +360,8 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
   const pastBriefs=briefs.filter(b=>b.date!==today).slice(0,29)
 
   const [selectedDate,setSelectedDate]=useState(today)
-  const [summaryExpanded,setSummaryExpanded]=useState(false)
   const [detailModal,setDetailModal]=useState(null)
+  const [briefCopied,setBriefCopied]=useState(false)
 
   const selectedBrief=briefs.find(b=>b.date===selectedDate)||null
   const isToday=selectedDate===today
@@ -368,37 +393,42 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
     )
   }
 
-  const Card=({onClick,leftAccent,dimmed,children})=>(
-    <div onClick={onClick}
-      style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:11,padding:'15px 18px',cursor:'pointer',
-        transition:'box-shadow 0.15s,border-color 0.15s',
-        borderLeft:leftAccent?`3px solid ${leftAccent}`:'1px solid #e5e7eb',
-        opacity:dimmed?0.45:1}}
-      onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.08)';e.currentTarget.style.borderColor='#d1d5db'}}
-      onMouseLeave={e=>{e.currentTarget.style.boxShadow='none';e.currentTarget.style.borderColor=leftAccent?leftAccent:'#e5e7eb'}}>
-      {children}
-    </div>
-  )
-
   const renderBrief=brief=>{
     if(!brief)return(
       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'55vh',flexDirection:'column',gap:14}}>
         {briefGenerating
           ?<><div style={{width:32,height:32,border:'3px solid #e2e8f0',borderTopColor:'#2563eb',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/><div style={{fontSize:14,color:'#64748b',marginTop:4}}>Generating your morning brief...</div></>
-          :<div style={{fontSize:14,color:'#94a3b8'}}>No brief yet. Click "+ Generate Now" to create one.</div>
+          :<div style={{textAlign:'center'}}>
+            <div style={{fontSize:14,color:'#94a3b8',marginBottom:16}}>No brief yet for this date.</div>
+            {isToday&&<button onClick={onGenerateNow} style={{padding:'9px 20px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>+ Generate Now</button>}
+          </div>
         }
       </div>
     )
 
     const {actToday=[],moveForward=[],longGame=[],renewalRadar=[],marketPulse=[]}=brief.sections||{}
     const isPast=brief.date!==today
-    const fullSummary=brief.briefSummary||''
-    const firstEnd=fullSummary.search(/[.!?](\s|$)/)
-    const firstSentence=firstEnd>0?fullSummary.slice(0,firstEnd+1):fullSummary
-    const restSummary=firstEnd>0?fullSummary.slice(firstEnd+1).trim():''
+
+    // Executive summary: up to 4 sentences
+    const rawSummary=brief.briefSummary||''
+    const sentenceMatches=rawSummary.match(/[^.!?]*[.!?]+(?:\s|$)/g)||[]
+    const shortSummary=(sentenceMatches.slice(0,4).join('').trim()||rawSummary.slice(0,400)).trim()
+
+    const copyBrief=()=>{
+      const lines=[`Daily Executive Briefing — ${fmtFull(brief.date)}`,'']
+      if(shortSummary){lines.push('EXECUTIVE SUMMARY');lines.push(shortSummary);lines.push('')}
+      if(actToday.length){lines.push('MUST DO TODAY');actToday.forEach(i=>lines.push(`• ${i.account?i.account+' — ':''}${i.action}`));lines.push('')}
+      if(moveForward.length){lines.push('SHOULD DO TODAY');moveForward.forEach(i=>lines.push(`• ${i.account?i.account+' — ':''}${i.action}`));lines.push('')}
+      if(longGame.length){lines.push('NICE TO DO / PREP');longGame.forEach(i=>lines.push(`• ${i.account?i.account+' — ':''}${i.action}`));lines.push('')}
+      if(renewalRadar.length){lines.push('KEY SIGNALS');renewalRadar.forEach(i=>lines.push(`• ${i.vendor} renewal — ${i.account}${i.daysUntil!=null?' in '+i.daysUntil+'d':''}`));lines.push('')}
+      if(marketPulse.length){lines.push('MARKET PULSE');marketPulse.slice(0,3).forEach(i=>lines.push(`• ${i.headline}`));lines.push('')}
+      navigator.clipboard.writeText(lines.join('\n')).then(()=>{setBriefCopied(true);setTimeout(()=>setBriefCopied(false),2000)}).catch(()=>{})
+    }
+
+    const hasContent=actToday.length||moveForward.length||longGame.length||renewalRadar.length||marketPulse.length
 
     return(
-      <div style={{maxWidth:680}}>
+      <div style={{maxWidth:700}}>
         {isPast&&(
           <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'8px 14px',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
             <Sparkles size={13} color='#2563eb'/>
@@ -406,194 +436,153 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
           </div>
         )}
 
-        <div style={{fontSize:22,fontWeight:800,color:'#0f172a',lineHeight:1.15,letterSpacing:'-0.02em',marginBottom:16}}>
-          {isToday?`Today — ${fmtFull(today)}`:fmtFull(brief.date)}
-        </div>
+        {/* Document card */}
+        <div style={{background:'#fff',borderRadius:12,border:'1px solid #e5e7eb',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
 
-        {firstSentence&&(
-          <div style={{marginBottom:22}}>
-            <div style={{borderLeft:'2px solid #2563eb',paddingLeft:14,paddingTop:3,paddingBottom:3}}>
-              <div style={{fontSize:14,color:'#0f172a',lineHeight:1.65}}>{firstSentence}</div>
+          {/* Card header */}
+          <div style={{padding:'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:11,fontWeight:600,color:'#9ca3af',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:5}}>
+                Daily Executive Briefing
+              </div>
+              <div style={{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.02em',lineHeight:1.2}}>
+                {isToday?`Today — ${fmtFull(today)}`:fmtFull(brief.date)}
+              </div>
+              {brief.generatedAt&&<div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>Generated {fmtTime(brief.generatedAt)}</div>}
             </div>
-            {restSummary&&(
-              <div style={{marginTop:5,paddingLeft:16}}>
-                <button onClick={()=>setSummaryExpanded(p=>!p)} style={{background:'transparent',border:'none',color:'#9ca3af',fontSize:11,cursor:'pointer',padding:0,fontWeight:500}}>
-                  {summaryExpanded?'▲ Hide context':'▼ Full context'}
+            <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+              {hasContent&&(
+                <button onClick={copyBrief}
+                  style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:600,
+                    color:briefCopied?'#15803d':'#64748b',background:briefCopied?'#f0fdf4':'#f8fafc',
+                    border:'1px solid',borderColor:briefCopied?'#86efac':'#e5e7eb',
+                    borderRadius:7,padding:'5px 10px',cursor:'pointer',whiteSpace:'nowrap'}}>
+                  <Copy size={12}/>{briefCopied?'Copied':'Copy'}
                 </button>
-                {summaryExpanded&&<div style={{fontSize:12,color:'#64748b',lineHeight:1.6,marginTop:4}}>{restSummary}</div>}
+              )}
+              {isToday&&(
+                <button onClick={onGenerateNow} disabled={briefGenerating} title="Regenerate brief"
+                  style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:500,
+                    color:briefGenerating?'#94a3b8':'#64748b',background:'#f8fafc',
+                    border:'1px solid #e5e7eb',borderRadius:7,padding:'5px 10px',cursor:briefGenerating?'not-allowed':'pointer',opacity:briefGenerating?0.5:1}}>
+                  <RefreshCw size={12} style={{animation:briefGenerating?'spin 0.8s linear infinite':'none'}}/>
+                  {briefGenerating?'Generating…':'Regenerate'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Document body */}
+          <div style={{padding:'24px 32px 28px'}}>
+
+            {/* 1. Executive Summary */}
+            {shortSummary&&(
+              <div style={{marginBottom:28}}>
+                <SectionHead>Executive Summary</SectionHead>
+                <div style={{fontSize:14,color:'#374151',lineHeight:1.75}}>{shortSummary}</div>
               </div>
             )}
-          </div>
-        )}
 
-        <div style={{height:1,background:'#f1f5f9',marginBottom:4}}/>
+            {/* 2. Today's Action Items */}
+            {(actToday.length>0||moveForward.length>0||longGame.length>0)&&(
+              <div style={{marginBottom:28}}>
+                <SectionHead>Today's Action Items</SectionHead>
 
-        {/* ACT TODAY */}
-        <SectionLabel icon='🎯' label='Act Today' count={actToday.length}/>
-        {actToday.length===0&&<div style={{fontSize:13,color:'#94a3b8',marginBottom:24}}>No urgent actions for today.</div>}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {actToday.map((item,idx)=>(
-            <Card key={idx}
-              onClick={()=>setDetailModal({item,type:'actToday',idx,briefDate:brief.date})}
-              leftAccent={item.completedToday?'#22c55e':null}
-              dimmed={item.completedToday}>
-              {/* Row 1: checkbox · ACCOUNT · contact · time · › */}
-              <div style={{display:'flex',alignItems:'center',gap:7,minWidth:0}}>
-                <button
-                  onClick={e=>{e.stopPropagation();if(!isPast)toggleActToday(brief.date,idx)}}
-                  style={{background:'transparent',border:'none',padding:0,cursor:'pointer',flexShrink:0,color:item.completedToday?'#22c55e':'#d1d5db',display:'flex',alignItems:'center'}}>
-                  {item.completedToday?<CheckCircle2 size={16}/>:<Circle size={16}/>}
-                </button>
-                <span style={{
-                  fontSize:11,fontWeight:700,color:'#374151',letterSpacing:'0.07em',textTransform:'uppercase',
-                  flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                  textDecoration:item.completedToday?'line-through':'none'}}>
-                  {item.account}
-                </span>
-                {item.contact&&(
-                  <span style={{
-                    fontSize:11,color:'#94a3b8',flexShrink:0,
-                    maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                    {item.contact}
-                  </span>
+                {actToday.length>0&&(
+                  <>
+                    <SubHead>Must Do Today</SubHead>
+                    {actToday.slice(0,5).map((item,idx)=>(
+                      <ActionRow key={idx} item={item} type='actToday' isPast={isPast}
+                        onToggle={()=>toggleActToday(brief.date,idx)}
+                        onClick={()=>setDetailModal({item,type:'actToday',idx,briefDate:brief.date})}/>
+                    ))}
+                    {actToday.length>5&&<div style={{fontSize:11,color:'#94a3b8',padding:'4px 6px'}}>+{actToday.length-5} more — click a card to expand</div>}
+                  </>
                 )}
-                {item.estimatedMinutes&&(
-                  <MetaPill>{item.estimatedMinutes}m</MetaPill>
-                )}
-                <ChevronRight size={13} color='#d1d5db' style={{flexShrink:0}}/>
-              </div>
-              {/* Row 2: action title — dominant */}
-              <div style={{
-                fontSize:15,fontWeight:700,color:'#0f172a',lineHeight:1.45,marginTop:8,
-                display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',
-                textDecoration:item.completedToday?'line-through':'none'}}>
-                {item.action}
-              </div>
-              {/* Row 3: urgency pill — single line, truncated, visually secondary */}
-              {item.urgencyReason&&(
-                <div style={{marginTop:6,overflow:'hidden'}}>
-                  <span style={{
-                    display:'inline-block',boxSizing:'border-box',
-                    maxWidth:'100%',overflow:'hidden',
-                    textOverflow:'ellipsis',whiteSpace:'nowrap',
-                    fontSize:11,color:'#64748b',fontStyle:'italic',
-                    background:'#f8fafc',border:'1px solid #e5e7eb',
-                    borderRadius:5,padding:'2px 8px',
-                  }}>
-                    {item.urgencyReason}
-                  </span>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
 
-        {/* MOVE FORWARD */}
-        <SectionLabel icon='📅' label='Move Forward This Week' count={moveForward.length}/>
-        {moveForward.length===0&&<div style={{fontSize:13,color:'#94a3b8',marginBottom:24}}>Nothing queued this week.</div>}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {moveForward.map((item,idx)=>(
-            <Card key={idx} onClick={()=>setDetailModal({item,type:'moveForward',idx})}>
-              <div style={{display:'flex',alignItems:'center',gap:7,minWidth:0}}>
-                <span style={{
-                  fontSize:11,fontWeight:700,color:'#374151',letterSpacing:'0.07em',textTransform:'uppercase',
-                  flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {item.account}
-                </span>
-                {item.contact&&(
-                  <span style={{
-                    fontSize:11,color:'#94a3b8',flexShrink:0,
-                    maxWidth:110,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                    {item.contact}
-                  </span>
+                {moveForward.length>0&&(
+                  <>
+                    <SubHead>Should Do Today</SubHead>
+                    {moveForward.slice(0,5).map((item,idx)=>(
+                      <ActionRow key={idx} item={item} type='moveForward' isPast={isPast}
+                        onClick={()=>setDetailModal({item,type:'moveForward',idx})}/>
+                    ))}
+                  </>
                 )}
-                {item.timeframe&&(
-                  <MetaPill color='#92400e' bg='#fef3c7' border='#fde68a'>{item.timeframe}</MetaPill>
+
+                {longGame.length>0&&(
+                  <>
+                    <SubHead>Nice to Do / Prep</SubHead>
+                    {longGame.slice(0,3).map((item,idx)=>(
+                      <ActionRow key={idx} item={item} type='longGame' isPast={isPast}
+                        onClick={()=>setDetailModal({item,type:'longGame',idx})}/>
+                    ))}
+                  </>
                 )}
-                <ChevronRight size={13} color='#d1d5db' style={{flexShrink:0}}/>
               </div>
-              <div style={{
-                fontSize:14,fontWeight:600,color:'#1e293b',lineHeight:1.5,marginTop:8,
-                display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                {item.action}
-              </div>
-            </Card>
-          ))}
-        </div>
+            )}
 
-        {/* LONG GAME */}
-        <SectionLabel icon='🌱' label='Long Game' count={longGame.length}/>
-        {longGame.length===0&&<div style={{fontSize:13,color:'#94a3b8',marginBottom:24}}>No long-game seeds right now.</div>}
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {longGame.map((item,idx)=>(
-            <Card key={idx} onClick={()=>setDetailModal({item,type:'longGame',idx})}>
-              <div style={{display:'flex',alignItems:'center',gap:7,minWidth:0}}>
-                <span style={{
-                  fontSize:11,fontWeight:700,color:'#374151',letterSpacing:'0.07em',textTransform:'uppercase',
-                  flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {item.account}
-                </span>
-                <ChevronRight size={13} color='#d1d5db' style={{flexShrink:0}}/>
+            {/* 3. Key Signals (renewal radar) */}
+            {renewalRadar.length>0&&(
+              <div style={{marginBottom:28}}>
+                <SectionHead>Key Signals</SectionHead>
+                {renewalRadar.slice(0,5).map((item,idx)=>{
+                  const dot=item.daysUntil!=null&&item.daysUntil<30?'#ef4444':item.daysUntil!=null&&item.daysUntil<60?'#f59e0b':'#22c55e'
+                  return(
+                    <div key={idx} onClick={()=>setDetailModal({item,type:'renewalRadar',idx})}
+                      style={{display:'flex',alignItems:'center',gap:9,padding:'8px 6px',borderRadius:5,cursor:'pointer',transition:'background 0.1s'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f9fafb'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <span style={{width:5,height:5,borderRadius:'50%',background:dot,flexShrink:0}}/>
+                      <span style={{fontSize:13,color:'#111827',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        <strong>{item.vendor}</strong> renewal — {item.account}
+                        {item.inConversation!=null&&<span style={{fontSize:11,color:item.inConversation?'#15803d':'#dc2626',marginLeft:8,fontWeight:600}}>{item.inConversation?'Active':'At Risk'}</span>}
+                      </span>
+                      {item.daysUntil!=null&&<span style={{fontSize:11,fontWeight:700,color:dot,flexShrink:0}}>{item.daysUntil}d</span>}
+                      {item.annualCost&&<span style={{fontSize:12,color:'#64748b',flexShrink:0}}>{item.annualCost}</span>}
+                      <ChevronRight size={12} color='#d1d5db' style={{flexShrink:0}}/>
+                    </div>
+                  )
+                })}
               </div>
-              <div style={{
-                fontSize:13,fontWeight:500,color:'#1e293b',lineHeight:1.55,marginTop:8,
-                display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                {item.action}
-              </div>
-            </Card>
-          ))}
-        </div>
+            )}
 
-        {/* RENEWAL RADAR */}
-        {renewalRadar.length>0&&(
-          <>
-            <SectionLabel icon='🔄' label='Renewal Radar' count={renewalRadar.length}/>
-            <div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:11,overflow:'hidden'}}>
-              {renewalRadar.map((item,idx)=>{
-                const dot=item.daysUntil<30?'#ef4444':item.daysUntil<60?'#f59e0b':'#22c55e'
-                return(
-                  <div key={idx}
-                    onClick={()=>setDetailModal({item,type:'renewalRadar',idx})}
-                    style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',borderBottom:idx<renewalRadar.length-1?'1px solid #f8fafc':'none',cursor:'pointer',transition:'background 0.1s',minWidth:0}}
+            {/* 4. Market Pulse */}
+            {marketPulse.length>0&&(
+              <div style={{marginBottom:8}}>
+                <SectionHead>Market Pulse</SectionHead>
+                {marketPulse.slice(0,3).map((item,idx)=>(
+                  <div key={idx} onClick={()=>setDetailModal({item,type:'marketPulse',idx})}
+                    style={{display:'flex',alignItems:'flex-start',gap:9,padding:'8px 6px',borderRadius:5,cursor:'pointer',transition:'background 0.1s'}}
                     onMouseEnter={e=>e.currentTarget.style.background='#f9fafb'}
                     onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <span style={{width:8,height:8,borderRadius:'50%',background:dot,flexShrink:0}}/>
-                    <span style={{fontSize:13,fontWeight:600,color:'#0f172a',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.vendor}</span>
-                    <span style={{fontSize:12,color:'#64748b',flexShrink:0,maxWidth:130,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.account}</span>
-                    {item.daysUntil!=null&&<span style={{fontSize:11,fontWeight:700,color:dot,flexShrink:0,minWidth:24,textAlign:'right'}}>{item.daysUntil}d</span>}
-                    {item.annualCost&&<span style={{fontSize:12,color:'#475569',fontWeight:500,flexShrink:0}}>{item.annualCost}</span>}
-                    {item.inConversation!=null&&<span style={{fontSize:11,color:item.inConversation?'#15803d':'#dc2626',fontWeight:600,flexShrink:0}}>{item.inConversation?'✓ Active':'⚠ Risk'}</span>}
-                    <ChevronRight size={13} color='#d1d5db' style={{flexShrink:0}}/>
-                  </div>
-                )
-              })}
-            </div>
-          </>
-        )}
-
-        {/* MARKET PULSE */}
-        {marketPulse.length>0&&(
-          <>
-            <SectionLabel icon='📡' label='Market Pulse'/>
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
-              {marketPulse.map((item,idx)=>(
-                <Card key={idx} onClick={()=>setDetailModal({item,type:'marketPulse',idx})}>
-                  <div style={{display:'flex',alignItems:'flex-start',gap:8,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:600,color:'#0f172a',flex:1,lineHeight:1.45,minWidth:0}}>{item.headline}</div>
-                    <ChevronRight size={13} color='#d1d5db' style={{flexShrink:0,marginTop:1}}/>
-                  </div>
-                  {item.relevance&&(
-                    <div style={{fontSize:12,color:'#64748b',marginTop:5,lineHeight:1.5,
-                      display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
-                      {item.relevance}
+                    <span style={{width:5,height:5,borderRadius:'50%',background:'#2563eb',flexShrink:0,marginTop:6}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,color:'#0f172a',fontWeight:600,lineHeight:1.45,
+                        display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>
+                        {item.headline}
+                      </div>
+                      {item.relevance&&(
+                        <div style={{fontSize:11,color:'#6b7280',marginTop:2,lineHeight:1.35,
+                          overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {item.relevance}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
+                    <ChevronRight size={12} color='#d1d5db' style={{flexShrink:0,marginTop:2}}/>
+                  </div>
+                ))}
+              </div>
+            )}
 
+            {!hasContent&&(
+              <div style={{textAlign:'center',padding:'20px 0',color:'#94a3b8',fontSize:13}}>
+                Brief was generated but contains no content sections.
+              </div>
+            )}
+
+          </div>
+        </div>
         <div style={{height:64}}/>
       </div>
     )
@@ -603,7 +592,7 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden',background:'#f8fafc'}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* TOP BAR — consistent across all detail pages */}
+      {/* TOP BAR */}
       <div style={{background:'#0f172a',padding:'11px 20px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
         <button onClick={onBack}
           style={{background:'transparent',border:'none',color:'#94a3b8',cursor:'pointer',display:'flex',alignItems:'center',gap:6,padding:0,fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}
@@ -614,21 +603,12 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
         <div style={{width:1,height:16,background:'rgba(255,255,255,0.15)',flexShrink:0}}/>
         <Sparkles size={15} color='#60a5fa'/>
         <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>Daily Brief</span>
-        {isToday&&(
-          <button onClick={onGenerateNow} disabled={briefGenerating}
-            style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:5,
-              background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',
-              borderRadius:7,padding:'5px 12px',cursor:briefGenerating?'not-allowed':'pointer',
-              color:'#cbd5e1',fontSize:12,fontWeight:500,opacity:briefGenerating?0.5:1,whiteSpace:'nowrap'}}>
-            <RefreshCw size={12} style={{animation:briefGenerating?'spin 0.8s linear infinite':'none'}}/> Regenerate
-          </button>
-        )}
       </div>
 
       {/* BODY: sidebar + main content */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* LEFT NAV — secondary date/history panel */}
+        {/* LEFT NAV */}
         <div style={{width:216,flexShrink:0,background:'#fff',display:'flex',flexDirection:'column',borderRight:'1px solid #e5e7eb',boxShadow:'2px 0 6px rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
             <div style={NL}>Today</div>
@@ -664,7 +644,7 @@ export default function DailyBrief({data,setData,apiKey,briefGenerating,briefErr
         {/* MAIN CONTENT */}
         <div style={{flex:1,overflowY:'auto',padding:'28px 36px',WebkitOverflowScrolling:'touch'}}>
           {briefError&&(
-            <div style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:8,padding:'10px 14px',marginBottom:20,color:'#dc2626',fontSize:13,display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:680}}>
+            <div style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:8,padding:'10px 14px',marginBottom:20,color:'#dc2626',fontSize:13,display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:700}}>
               <span>{briefError}</span>
               <button onClick={onGenerateNow} style={{marginLeft:12,background:'transparent',border:'none',color:'#dc2626',cursor:'pointer',textDecoration:'underline',fontSize:12,fontWeight:600,flexShrink:0}}>Retry</button>
             </div>
