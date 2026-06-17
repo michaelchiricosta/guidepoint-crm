@@ -4,6 +4,43 @@ import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
 import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
 
+function extractJsonFromAIResponse(response) {
+  let text =
+    typeof response === 'string'
+      ? response
+      : response?.content?.[0]?.text ||
+        response?.data?.content?.[0]?.text ||
+        response?.message ||
+        ''
+
+  text = String(text || '').trim()
+
+  // Strip markdown code fences (handles both leading and trailing)
+  text = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+
+  const firstObj = text.indexOf('{')
+  const firstArr = text.indexOf('[')
+
+  let start = -1
+  if (firstObj === -1) start = firstArr
+  else if (firstArr === -1) start = firstObj
+  else start = Math.min(firstObj, firstArr)
+
+  if (start === -1) throw new Error('No JSON found in AI response')
+
+  const openChar = text[start]
+  const closeChar = openChar === '{' ? '}' : ']'
+  const end = text.lastIndexOf(closeChar)
+
+  if (end === -1 || end <= start) throw new Error('Incomplete JSON in AI response')
+
+  return JSON.parse(text.slice(start, end + 1))
+}
+
 const fmt = d => {
   if (!d) return ''
   try { return new Date(d+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) }
@@ -368,7 +405,7 @@ export default function EndOfDayJournal({data,setData,onBack}){
 
     const sys = `You are Ledgr, an AI chief of staff for Mike Chiricosta at GuidePoint Security. Analyze Mike's journal entry and extract CRM intelligence.
 
-Return ONLY valid JSON:
+Return only valid JSON. No markdown. No code fences. No commentary. Output must start with { and end with }.
 {
   "aiAnalysis": {
     "summary": "2-3 sentence day analysis — momentum, client relationships, pipeline movement",
@@ -423,14 +460,13 @@ Open follow-ups: ${openFollowUps.slice(0,10).map(f=>`${f.account}: ${f.task}`).j
       trackAI({feature:FEATURES.JOURNAL,operation:'analyze-journal',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:2000,durationMs:Date.now()-_analyzeStart,success:res.ok})
       const rd = await res.json()
       if(!res.ok) throw new Error(`API error ${res.status}: ${rd.error?.message||JSON.stringify(rd)}`)
-      const raw = rd.content?.[0]?.text||''
-      let parsed = null
-      try{let c=raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();parsed=JSON.parse(c)}catch{
-        let d=0,s=-1,e=-1
-        for(let i=0;i<raw.length;i++){if(raw[i]==='{'){if(d===0)s=i;d++}else if(raw[i]==='}'){d--;if(d===0){e=i;break}}}
-        if(s!==-1&&e!==-1){try{parsed=JSON.parse(raw.slice(s,e+1))}catch{}}
+      let parsed
+      try {
+        parsed = extractJsonFromAIResponse(rd)
+      } catch(parseErr) {
+        if (import.meta.env.DEV) console.error('[Journal] AI parse failed. Raw response:', JSON.stringify(rd))
+        throw new Error(`Could not parse AI response: ${parseErr.message}`)
       }
-      if(!parsed) throw new Error('Could not parse AI response')
       const updates = (parsed.suggestedUpdates||[]).map(u=>({...u,id:uid(),approved:null}))
       setAICache(setData,_analysisCacheKey,{aiAnalysis:parsed.aiAnalysis||null,suggestedUpdates:parsed.suggestedUpdates||[]},7*24*3600*1000)
       upsert({aiAnalysis:parsed.aiAnalysis||null,suggestedUpdates:updates,appliedAt:null})

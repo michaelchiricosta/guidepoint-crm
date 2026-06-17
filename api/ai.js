@@ -48,17 +48,29 @@ export default async function handler(req, res) {
     ...(needsWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {}),
   }
 
-  let anthropicRes
-  try {
-    anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-  } catch {
-    return res.status(502).json({ error: { type: 'server_error', message: 'Could not reach Anthropic API' } })
+  const OVERLOAD_DELAYS = [2000, 5000, 10000]
+  let anthropicRes, data
+
+  for (let attempt = 0; attempt <= OVERLOAD_DELAYS.length; attempt++) {
+    try {
+      anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+    } catch {
+      return res.status(502).json({ error: { type: 'server_error', message: 'Could not reach Anthropic API' } })
+    }
+
+    data = await anthropicRes.json()
+
+    const isOverloaded = data.error?.type === 'overloaded_error' || anthropicRes.status === 529
+    if (isOverloaded && attempt < OVERLOAD_DELAYS.length) {
+      await new Promise(r => setTimeout(r, OVERLOAD_DELAYS[attempt]))
+      continue
+    }
+    break
   }
 
-  const data = await anthropicRes.json()
   return res.status(anthropicRes.status).json(data)
 }

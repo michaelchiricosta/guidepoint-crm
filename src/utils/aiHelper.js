@@ -185,7 +185,7 @@ export async function callAI({
 
     const overloaded = respData.error?.type === 'overloaded_error' || res.status === 529 || res.status === 429
     if (overloaded && attempt < maxRetries - 1) {
-      const delay = Math.pow(2, attempt) * 2000
+      const delay = [2000, 5000, 10000][Math.min(attempt, 2)]
       if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay / 1000)}s… (${attempt + 2}/${maxRetries})`)
       await new Promise(r => setTimeout(r, delay))
       continue
@@ -248,7 +248,7 @@ export const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3
     if ((isRateLimit || isOverloaded) && attempt < maxRetries - 1) {
       const delay = isRateLimit
         ? [15000, 30000, 60000][Math.min(attempt, 2)]
-        : Math.pow(2, attempt) * 2000
+        : [2000, 5000, 10000][Math.min(attempt, 2)]
       if (onStatus) onStatus(`${isRateLimit ? 'Rate limited' : 'API busy'} — retrying in ${Math.round(delay / 1000)}s… (${attempt + 2}/${maxRetries})`)
       await new Promise(r => setTimeout(r, delay))
       continue
