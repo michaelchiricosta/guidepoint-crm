@@ -1459,7 +1459,7 @@ export default function App() {
     // Merge API key from localStorage — it is never persisted to Supabase (stripped in saveData).
     // Fallback to loaded.apiKey for one-time migration of keys stored in old saves.
     const localApiKey = localStorage.getItem('ledgr_anthropic_api_key') || loaded.apiKey || ''
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[], apiKey:localApiKey})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[], apiKey: localApiKey || 'server-managed'})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -1536,8 +1536,6 @@ export default function App() {
 
   const generateDailyBrief = async () => {
     if (briefGenerating || !data) return
-    const effectiveApiKey = data.apiKey || ''
-    if (!effectiveApiKey) { setBriefError('No API key configured. Add your Anthropic key in Settings.'); return }
     setBriefGenerating(true)
     setBriefError(null)
     try {
@@ -1674,14 +1672,9 @@ Keep every text field to 1-2 sentences max. Every actToday/moveForward action mu
 
       const _briefInputChars = systemPrompt.length + userPrompt.length
       const _briefStart = Date.now()
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': effectiveApiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: 1500,
@@ -1741,8 +1734,7 @@ Keep every text field to 1-2 sentences max. Every actToday/moveForward action mu
         return {...prev,dailyBriefs:[newBrief,...existingBriefs].slice(0,30)}
       })
     } catch(err) {
-      console.error('Brief generation error details:', err.message, err)
-      console.log('API key available:', !!data?.apiKey)
+      console.error('Brief generation error:', err.message)
       setBriefError(`Generation failed: ${err.message}`)
     } finally {
       setBriefGenerating(false)
@@ -1752,7 +1744,7 @@ Keep every text field to 1-2 sentences max. Every actToday/moveForward action mu
   // Auto-generate brief after 7:45am EST if not already generated today
   useEffect(()=>{
     const checkAndGenerateBrief = async () => {
-      if (!data || !data.apiKey || briefGenerating) return
+      if (!data || briefGenerating) return
       const today = new Date().toISOString().split('T')[0]
       const now = new Date()
       const estTime = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}))

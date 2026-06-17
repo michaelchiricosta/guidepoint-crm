@@ -147,9 +147,9 @@ Why it matters: ${whyText}
 ${acctCtxShort?`Account context: ${JSON.stringify(acctCtxShort)}`:''}
 ${item.suggestedOpener?`Suggested opener: ${item.suggestedOpener}`:''}`
       const _emailStart=Date.now()
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
+      const res=await fetch('/api/ai',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,system:sys,messages:[{role:'user',content:usr}]})
       })
       trackAI({feature:FEATURES.DAILY_BRIEF,operation:'draft-email',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:800,durationMs:Date.now()-_emailStart,success:res.ok})
@@ -184,9 +184,9 @@ ${openFollowUps.length?`\nOpen follow-ups: ${openFollowUps.map(f=>f.task).join('
     const _chatSys=buildChatSys()
     const _chatStart=Date.now()
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
+      const res=await fetch('/api/ai',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,system:_chatSys,messages:newMsgs})
       })
       trackAI({feature:FEATURES.DAILY_BRIEF,operation:'brief-chat',model:'claude-sonnet-4-6',inputChars:_chatSys.length+newMsgs.reduce((s,m)=>s+(m.content||'').length,0),maxTokensOut:500,durationMs:Date.now()-_chatStart,success:res.ok})

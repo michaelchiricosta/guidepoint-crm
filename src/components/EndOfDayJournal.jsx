@@ -415,9 +415,9 @@ Open follow-ups: ${openFollowUps.slice(0,10).map(f=>`${f.account}: ${f.task}`).j
 
     const _analyzeStart = Date.now()
     try{
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
+      const res = await fetch('/api/ai',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:2000,system:sys,messages:[{role:'user',content:usr}]})
       })
       trackAI({feature:FEATURES.JOURNAL,operation:'analyze-journal',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:2000,durationMs:Date.now()-_analyzeStart,success:res.ok})
@@ -486,9 +486,9 @@ ${JSON.stringify(acctCtx,null,2)}`
 
     const _previewStart = Date.now()
     try{
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
+      const res = await fetch('/api/ai',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,system:sys,messages:[{role:'user',content:usr}]})
       })
       trackAI({feature:FEATURES.JOURNAL,operation:'generate-preview',model:'claude-sonnet-4-6',inputChars:sys.length+usr.length,maxTokensOut:1500,durationMs:Date.now()-_previewStart,success:res.ok})

@@ -115,9 +115,9 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
       </Card>
       <SH>Anthropic API Key</SH>
       <Card style={{padding:16,marginBottom:20}}>
-        <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>Required for AI transcript processing in the Intel Log tab. Get your free key at <strong style={{color:S.blue}}>console.anthropic.com</strong> under API Keys. Each transcript costs roughly $0.01–0.05.</p>
-        <Field label='API Key (starts with sk-ant-)' value={key} onChange={setKey}/>
-        <Btn variant='primary' onClick={saveKey}>{saved?'Saved!':'Save API Key'}</Btn>
+        <p style={{fontSize:13,color:S.muted,marginBottom:0,lineHeight:1.6}}>
+          AI is now managed server-side. The Anthropic API key is configured in the Vercel project environment variables (<strong style={{color:S.txt}}>ANTHROPIC_API_KEY</strong>) — it never reaches the browser.
+        </p>
       </Card>
       <SH>Account Settings</SH>
       <Card style={{padding:16,marginBottom:20}}>

@@ -198,14 +198,9 @@ export default function MarketIntelligence({ data, setData, onBack }) {
 [{"id":"same as input","aiSummary":"2-3 sentences: enterprise security insight and business relevance","keyTakeaways":["takeaway 1","takeaway 2","takeaway 3"],"whyItMatters":"one sentence on strategic significance for enterprise buyers","applicableAccounts":["insurance","financial services","healthcare","or other relevant industries"],"suggestedUse":"one specific way Mike could reference this in a client call"}]`
     const usr = `Analyze these blog posts for sales intelligence:\n${JSON.stringify(input, null, 2)}`
     const _miStart = Date.now()
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/ai', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 3000, system: sys, messages: [{ role: 'user', content: usr }] }),
     })
     trackAI({ feature: FEATURES.MARKET_INTEL, operation: 'summarize-posts', model: 'claude-sonnet-4-6', inputChars: sys.length + usr.length, maxTokensOut: 3000, durationMs: Date.now() - _miStart, success: res.ok, notes: `${posts.length} posts` })

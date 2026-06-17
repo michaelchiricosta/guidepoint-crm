@@ -106,7 +106,7 @@ export function friendlyApiError(err) {
   if (/CORS|cors|blocked by|socket hang up|network|fetch/i.test(msg)) {
     return 'Client-side sync is blocked by the source site\'s CORS policy. A server-side sync function is required.'
   }
-  if (msg.includes('API key')) return 'Invalid API key. Check your Anthropic key in Settings.'
+  if (msg.includes('API key')) return 'Invalid API key. Update the ANTHROPIC_API_KEY in the Vercel project settings.'
   return `AI error: ${msg}`
 }
 
@@ -133,7 +133,7 @@ export async function callAI({
   system,           // string — system prompt (optional)
   messages,         // array — messages
   maxTokens,        // number — max_tokens
-  apiKey,           // string — Anthropic API key
+  apiKey,           // kept for call-site compat — not used; /api/ai handles auth
   cacheKey,         // string|null — if set, results are cached in data.aiCache
   data,             // object — data (for cache reads)
   setData,          // function — setData (for cache writes)
@@ -141,7 +141,6 @@ export async function callAI({
   maxRetries = 3,
   ttlMs = 24 * 3600 * 1000,   // cache TTL in ms (default 24h)
 }) {
-  if (!apiKey) throw new Error('No API key configured. Add your Anthropic key in Settings.')
 
   // 1. Cache check
   if (cacheKey && data) {
@@ -168,14 +167,9 @@ export async function callAI({
     window._lastAnthropicCall = Date.now()
     let res, respData
     try {
-      res = await fetch('https://api.anthropic.com/v1/messages', {
+      res = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       respData = await res.json()
@@ -227,32 +221,24 @@ export async function callAI({
 }
 
 // ── Low-level retry wrapper ─────────────────────────────────────────────────
-// Canonical replacement for the four duplicate callClaudeWithRetry functions.
+// Routes through /api/ai serverless proxy — no API key needed in the browser.
+// apiKey param is kept for call-site backward compat but is not sent.
 // Returns { data } where data is the raw Anthropic JSON response.
 // Throws on exhausted retries or unrecoverable errors.
 //   - 429 / rate_limit_error: slow backoff (15 s / 30 s / 60 s)
 //   - 529 / overloaded_error: exponential backoff (2 s / 4 s / 8 s)
-// Auto-adds anthropic-beta header when body contains web_search tools.
+// web_search beta header is added server-side when body contains web_search tools.
 export const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3) => {
-  if (!apiKey) throw new Error('No API key configured. Add your Anthropic key in Settings.')
-
   const lastCall = window._lastAnthropicCall || 0
   const gap = 2000 - (Date.now() - lastCall)
   if (gap > 0) await new Promise(r => setTimeout(r, gap))
 
-  const needsWebSearch = Array.isArray(body.tools) && body.tools.some(t => String(t.type || '').includes('web_search'))
-  const headers = {
-    'Content-Type': 'application/json',
-    'x-api-key': apiKey,
-    'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-access': 'true',
-    ...(needsWebSearch ? { 'anthropic-beta': 'web-search-2025-03-05' } : {}),
-  }
-
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     window._lastAnthropicCall = Date.now()
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers, body: JSON.stringify(body),
+    const resp = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
     const data = await resp.json()
 

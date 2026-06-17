@@ -369,14 +369,9 @@ Generate the 60-second pre-call briefing.`
 
     const _start = Date.now()
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
       })
       trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 2500, durationMs: Date.now() - _start, success: res.ok })

@@ -1,18 +1,20 @@
-export const callClaude = async (apiKey, messages, system) => {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+// SUPERSEDED — Anthropic calls now go through /api/ai (Vercel serverless proxy).
+// The browser no longer sends the API key or calls Anthropic directly.
+// This file is kept only for reference and is not imported by any component.
+//
+// To use AI from a component, call callClaudeWithRetry or callAI from
+// src/utils/aiHelper.js — both route through /api/ai automatically.
+
+export const callClaude = async (messages, system) => {
+  const res = await fetch('/api/ai', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       system,
-      messages
-    })
+      messages,
+    }),
   })
   return res.json()
 }

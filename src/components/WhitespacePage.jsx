@@ -722,9 +722,9 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
       const _autoFillStart = Date.now()
       try {
         const _autoFillPrompt = `Research the employee count and annual revenue for ${account.name}${account.hq?' headquartered in '+account.hq:''}${account.industry?' in the '+account.industry+' industry':''}`
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        const resp = await fetch('/api/ai', {
           method: 'POST',
-          headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','anthropic-beta':'web-search-2025-03-05'},
+          headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 600,
@@ -779,9 +779,9 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
       const _cleanInput = `You are cleaning up sales intelligence notes for ${account.name}. Here are all the notes and intel entries:\n\n${allNotesText}\n\nConsolidate these into clean, non-redundant notes.`
       const _cleanStart = Date.now()
       try {
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        const resp = await fetch('/api/ai', {
           method: 'POST',
-          headers: {'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          headers: {'Content-Type':'application/json'},
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 2000,
@@ -835,9 +835,9 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     const _recBody = JSON.stringify(context)
     const _recStart = Date.now()
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('/api/ai', {
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':effectiveKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           model:'claude-sonnet-4-6',
           max_tokens:2000,

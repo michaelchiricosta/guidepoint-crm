@@ -70,11 +70,14 @@ drop policy if exists "Allow public contact photo reads" on storage.objects;
 drop policy if exists "Allow contact photo updates" on storage.objects;
 drop policy if exists "Allow contact photo deletion" on storage.objects;
 
--- Anon can upload photos only into contact-photos bucket
+-- Anon can upload photos only into contact-photos bucket, restricted to safe image types
 create policy "contact-photos anon insert"
   on storage.objects for insert
   to anon
-  with check (bucket_id = 'contact-photos');
+  with check (
+    bucket_id = 'contact-photos'
+    and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'gif', 'webp')
+  );
 
 -- Anyone can read (bucket is public; explicit policy for clarity)
 create policy "contact-photos public read"

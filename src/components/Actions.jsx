@@ -5,16 +5,15 @@ import { uid, fmtDate, daysUntil, sendToAppleReminders } from '../utils.js'
 import { saveActionBrief } from '../supabase.js'
 import { Btn, Field, Modal } from './UI.jsx'
 
-// ── Claude API helper (same pattern as TechStack.jsx / IntelLog.jsx) ───────────
 const callClaudeWithRetry = async (body, apiKey, maxRetries=3) => {
   const lastCall = window._lastAnthropicCall||0
   const wait = 2000-(Date.now()-lastCall)
   if (wait>0) await new Promise(r=>setTimeout(r,wait))
   for (let attempt=0; attempt<maxRetries; attempt++) {
     window._lastAnthropicCall = Date.now()
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
+    const res = await fetch('/api/ai',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)
     })
     const data = await res.json()

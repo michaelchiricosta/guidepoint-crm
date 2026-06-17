@@ -73,9 +73,9 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3) => {
       if (onStatus) onStatus(`Rate limited — retrying in ${Math.round(wait / 1000)}s…`)
       await new Promise(r => setTimeout(r, wait))
     }
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('/api/ai', {
       method: 'POST',
-      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     })
     const data = await resp.json()

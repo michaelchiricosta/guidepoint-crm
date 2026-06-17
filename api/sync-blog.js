@@ -114,8 +114,19 @@ async function fetchFeed(url) {
   }
 }
 
+const ALLOWED_ORIGINS = new Set([
+  'https://myledgr.io',
+  'https://www.myledgr.io',
+  'http://localhost:5173',
+  'http://localhost:4173',
+])
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  const origin = req.headers.origin || ''
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS.has(origin) ? origin : 'https://myledgr.io')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Vary', 'Origin')
   res.setHeader('Content-Type', 'application/json')
 
   if (req.method === 'OPTIONS') return res.status(200).end()

@@ -1,15 +1,16 @@
--- Supabase Storage setup for contact-photos bucket
+-- ⚠️  DEPRECATED — DO NOT RUN THIS FILE
+-- =========================================================
+-- This file is superseded by supabase-rls-policies.sql
+-- which includes updated policies with:
+--   - anon role restriction (not open to all)
+--   - image extension allowlist (jpg, jpeg, png, gif, webp)
+--   - account-files private bucket policies
 --
--- Run this in the Supabase SQL editor at:
---   https://supabase.com/dashboard/project/aenlxbxkrxgylgknlcft/sql
+-- Run supabase-rls-policies.sql instead.
+-- This file is kept for historical reference only.
+-- =========================================================
 --
--- Steps:
---   1. Go to Supabase dashboard → Storage → Create bucket named "contact-photos"
---      Set it to PUBLIC so photos are served via stable URLs.
---   2. Run the RLS policies below in the SQL editor.
---
--- Alternatively, run all statements below and the bucket will be created
--- if it does not already exist.
+-- Original: Supabase Storage setup for contact-photos bucket
 
 -- Create the public bucket (safe to run if it already exists)
 insert into storage.buckets (id, name, public)
