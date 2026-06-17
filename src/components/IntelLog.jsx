@@ -1,12 +1,39 @@
 import { useState, useRef } from 'react'
 import { Trash2 } from 'lucide-react'
 import { S, PC } from '../theme.js'
-import { uid, extractJSON, fmtDate } from '../utils.js'
+import { uid, fmtDate } from '../utils.js'
 import { Btn, Field, Modal } from './UI.jsx'
 import { resolveVendorMapping } from '../securityFramework.js'
 import { STAGES } from '../constants.js'
 import { supabase } from '../supabase.js'
 import { callClaudeWithRetry } from '../utils/aiHelper.js'
+
+function extractJsonFromAIResponse(response) {
+  let text =
+    typeof response === 'string'
+      ? response
+      : response?.content?.[0]?.text ||
+        response?.data?.content?.[0]?.text ||
+        ''
+  text = String(text || '').trim()
+  text = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+  const firstObj = text.indexOf('{')
+  const firstArr = text.indexOf('[')
+  let start = -1
+  if (firstObj === -1) start = firstArr
+  else if (firstArr === -1) start = firstObj
+  else start = Math.min(firstObj, firstArr)
+  if (start === -1) return null
+  const openChar = text[start]
+  const closeChar = openChar === '{' ? '}' : ']'
+  const end = text.lastIndexOf(closeChar)
+  if (end === -1 || end <= start) return null
+  try { return JSON.parse(text.slice(start, end + 1)) } catch { return null }
+}
 
 // ── Date helpers (only used in IntelLog) ──
 const MONTH_MAP = {january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
@@ -310,14 +337,16 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     const callTextApi = async (inputText, method) => {
       const {data:d2} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6', max_tokens:2000,
-        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise.',
+        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary.',
         messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
       }, effectiveKey, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
-      const raw2 = d2.content?.[0]?.text||''
-      const parsed2 = extractJSON(raw2)
-      if (!parsed2) throw new Error('Could not parse AI response. Please try again or simplify your input.')
+      const parsed2 = extractJsonFromAIResponse(d2)
+      if (!parsed2) {
+        if (import.meta.env.DEV) console.error('IntelLog AI parse failed (callTextApi)', { rawResponse: d2 })
+        throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+      }
       return parsed2
     }
 
@@ -364,9 +393,11 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
         console.log('[Image] Error details:', data.error)
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
-        const rawImg = data.content?.[0]?.text||''
-        const parsedImg = extractJSON(rawImg)
-        if (!parsedImg) throw new Error('Could not parse AI response. Please try again or simplify your input.')
+        const parsedImg = extractJsonFromAIResponse(data)
+        if (!parsedImg) {
+          if (import.meta.env.DEV) console.error('IntelLog AI parse failed (image)', { rawResponse: data })
+          throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+        }
         finalizeResult(parsedImg, 'Direct image')
       } else if (ext === 'pdf') {
         if (forceFallback) {
@@ -391,8 +422,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             console.log('[Direct PDF] Error details:', data.error)
             if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
             else {
-              const rawPdf = data.content?.[0]?.text||''
-              const parsedPdf = extractJSON(rawPdf)
+              const parsedPdf = extractJsonFromAIResponse(data)
               if (!parsedPdf) { directFailed = true; console.log('[Direct PDF] Could not parse response') }
               else finalizeResult(parsedPdf, 'Direct PDF')
             }
@@ -469,6 +499,10 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const process = async (date, textOverride) => {
     if (loading) return
     const inputText = textOverride !== undefined ? textOverride : text
+    const SAFE_CHAR_LIMIT = 18000
+    const promptInput = inputText.length > SAFE_CHAR_LIMIT
+      ? inputText.slice(0, 12000) + '\n\n[...transcript truncated — including end of transcript...]\n\n' + inputText.slice(-6000)
+      : inputText
     const vendorCtx = (acct.techStack||[]).filter(t=>t.vendor&&(t.aiNotes||(t.aiNotesHistory||[]).length)).map(t=>{
       const hist=[...(t.aiNotesHistory||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(h=>`[${h.date||'?'}] ${(h.text||h.summary||'').slice(0,300)}`).join('\n')
       const current=t.aiNotes?`[${t.aiNotesUpdatedAt||'current'}] ${t.aiNotes}`:'';
@@ -479,7 +513,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     try {
       const {data} = await callClaudeWithRetry({
         model:'claude-sonnet-4-6',max_tokens:2000,
-        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return ONLY valid compact JSON. Be concise. Max 5 items per insights/risks/opportunities arrays. No markdown, no explanation.',
+        system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary. Max 5 items per insights/risks/opportunities arrays.',
         messages:[{role:'user',content:`Extract intelligence and return JSON:
 
 FOLLOW-UP RULES: Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.
@@ -500,13 +534,14 @@ For techStackUpdates: for each vendor/technology mentioned that relates to the a
 For projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT:\n'+vendorCtx:''}
 
 INPUT:
-${inputText}`}]
+${promptInput}`}]
       }, effectiveKey, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
       if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
-      const raw = data.content?.[0]?.text||''
-      console.log('Intel Log AI raw response:', raw)
-      const parsed = extractJSON(raw)
-      if (!parsed) throw new Error('Could not parse AI response. Please try again or simplify your input.')
+      const parsed = extractJsonFromAIResponse(data)
+      if (!parsed) {
+        if (import.meta.env.DEV) console.error('IntelLog AI parse failed', { rawResponse: data })
+        throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+      }
       if (parsed.newFollowUps?.length) {
         const fuWithIds=parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
         setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
@@ -593,16 +628,12 @@ Rules:
         effectiveKey, null
       )
       if (data.error) throw new Error(data.error.message || 'API error')
-      const raw = data.content?.[0]?.text || ''
-      let parsed = null
-      try { parsed = JSON.parse(raw) } catch {
-        const m = raw.match(/\{[\s\S]*\}/)
-        if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
-      }
+      const parsed = extractJsonFromAIResponse(data)
       if (parsed) {
         setPendingActionFromIntel({...parsed, _sourceEntryId: entry.id, _today: today})
       } else {
-        setError('Could not generate action. Please try again.')
+        if (import.meta.env.DEV) console.error('IntelLog AI parse failed (generateAction)', { rawResponse: data })
+        setError('AI returned an unexpected format. Please try again with a shorter transcript.')
       }
     } catch(err) {
       setError(err.message==='OVERLOADED'?'API busy — try again in a moment.':'Action generation failed. Please try again.')
