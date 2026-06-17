@@ -121,31 +121,58 @@ export const loadData = async () => {
       .throwOnError()
     _recordTiming(_LS_LOAD_MS, _LS_LOAD_TS, Date.now() - t0)
     if (!data) return null
-    return data.data
+    return { appData: data.data, version: data.version ?? null }
   } catch (e) {
     console.error('[loadData] error:', e.message)
     return null
   }
 }
 
-export const saveData = async (appData) => {
+export const saveData = async (appData, expectedVersion = null) => {
   const t0 = Date.now()
-  // Strip secrets + volatile fields, prune large caches before persisting.
   const pruned = _prepareForSave(appData)
-  const { error } = await supabase
-    .from('accounts')
-    .upsert({ id: 'user-data', data: pruned, updated_at: new Date().toISOString() })
-  _recordTiming(_LS_SAVE_MS, _LS_SAVE_TS, Date.now() - t0)
-  if (error) console.error('[saveData] error:', error.message)
-  // Dual-write: sync normalized tables after a successful blob save.
-  // Best-effort, fire-and-forget — blob result is returned immediately regardless
-  // of sync outcome. Toggle off via ENABLE_NORMALIZED_DUAL_WRITE above.
-  if (!error && ENABLE_NORMALIZED_DUAL_WRITE) {
+  let error = null
+  let nextVersion = null
+
+  if (expectedVersion !== null) {
+    // Optimistic concurrency: only update if the row version still matches what we last read.
+    // An empty result (no rows matched) means another save already incremented the version.
+    const newVersion = expectedVersion + 1
+    const { data: updated, error: updateError } = await supabase
+      .from('accounts')
+      .update({ data: pruned, version: newVersion, updated_at: new Date().toISOString() })
+      .eq('id', 'user-data')
+      .eq('version', expectedVersion)
+      .select('version')
+    _recordTiming(_LS_SAVE_MS, _LS_SAVE_TS, Date.now() - t0)
+    if (updateError) {
+      console.error('[saveData] update error:', updateError.message)
+      return { error: updateError, conflict: false }
+    }
+    if (!updated || updated.length === 0) {
+      console.warn('[saveData] version conflict (expected:', expectedVersion, ')')
+      return { error: null, conflict: true }
+    }
+    nextVersion = newVersion
+  } else {
+    // version column not yet present (migration not applied) — fall back to legacy upsert.
+    const { error: upsertError } = await supabase
+      .from('accounts')
+      .upsert({ id: 'user-data', data: pruned, updated_at: new Date().toISOString() })
+    _recordTiming(_LS_SAVE_MS, _LS_SAVE_TS, Date.now() - t0)
+    error = upsertError
+    if (error) {
+      console.error('[saveData] error:', error.message)
+      return { error, conflict: false }
+    }
+  }
+
+  if (ENABLE_NORMALIZED_DUAL_WRITE) {
     syncAppDataToNormalized(appData).catch(e =>
       console.warn('[saveData] normalized sync failed (non-fatal):', e.message)
     )
   }
-  return { error }
+  return { error: null, conflict: false, nextVersion }
 }
 
 // ─── Account files ────────────────────────────────────────────────────────────

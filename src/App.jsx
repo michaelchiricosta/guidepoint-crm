@@ -1421,7 +1421,11 @@ export default function App() {
   const searchRef = useRef(null)
   const saveInProgress = useRef(false)
   const lastSaveTime = useRef(0)
+  const lastKnownVersion = useRef(null)
+  const saveBroadcast = useRef(null)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
+  const [conflictWarning,setConflictWarning] = useState(false)
+  const [remoteUpdateWarning,setRemoteUpdateWarning] = useState(false)
   const [isLandingPage,setIsLandingPage] = useState(true)
   const [showAccounts,setShowAccounts] = useState(false)
   const [showWhitespace,setShowWhitespace] = useState(false)
@@ -1447,8 +1451,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme',t)
   }
 
-  const applyLoad = d => {
-    const loaded = d || SAMPLE
+  const applyLoad = result => {
+    const loaded = result?.appData || result || SAMPLE
+    lastKnownVersion.current = result?.version ?? null
+    setConflictWarning(false)
+    setRemoteUpdateWarning(false)
     const today = new Date().toISOString().split('T')[0]
     const accounts = loaded.accounts.map(acct=>{
       const history = acct.healthScoreHistory || []
@@ -1494,19 +1501,26 @@ export default function App() {
     const timer = setTimeout(()=>{
       setSaveStatus('saving')
       const saved = new Date()
-      saveData(data).then(({error})=>{
+      saveData(data, lastKnownVersion.current).then(({ error, conflict, nextVersion }) => {
+        if (conflict) {
+          setSaveStatus('idle')
+          setConflictWarning(true)
+          return
+        }
         if(error){
           setSaveStatus('error')
-        } else {
-          setSaveStatus('saved')
-          setLastSavedLabel('just now')
-          iv = setInterval(()=>{
-            const mins=Math.floor((new Date()-saved)/60000)
-            if(mins<1)setLastSavedLabel('just now')
-            else if(mins===1)setLastSavedLabel('1 min ago')
-            else setLastSavedLabel(`${mins} mins ago`)
-          },30000)
+          return
         }
+        if (nextVersion != null) lastKnownVersion.current = nextVersion
+        try { saveBroadcast.current?.postMessage({ type: 'saved', version: nextVersion }) } catch {}
+        setSaveStatus('saved')
+        setLastSavedLabel('just now')
+        iv = setInterval(()=>{
+          const mins=Math.floor((new Date()-saved)/60000)
+          if(mins<1)setLastSavedLabel('just now')
+          else if(mins===1)setLastSavedLabel('1 min ago')
+          else setLastSavedLabel(`${mins} mins ago`)
+        },30000)
       })
     }, 2000)
     return()=>{clearTimeout(timer);clearInterval(iv)}
@@ -1533,6 +1547,21 @@ export default function App() {
     return () => window.removeEventListener('focus', handleFocus)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
+
+  useEffect(() => {
+    let channel
+    try {
+      channel = new BroadcastChannel('ledgr-saves')
+      saveBroadcast.current = channel
+      channel.onmessage = e => {
+        if (e.data?.type === 'saved') setRemoteUpdateWarning(true)
+      }
+    } catch {}
+    return () => {
+      try { channel?.close() } catch {}
+      saveBroadcast.current = null
+    }
+  }, [])
 
   const generateDailyBrief = async () => {
     if (briefGenerating || !data) return
@@ -1822,6 +1851,24 @@ Keep every text field to 1-2 sentences max. Every actToday/moveForward action mu
 
   return (
     <div style={{height:mob?'auto':'100vh',minHeight:mob?'100vh':'auto',overflow:mob?'visible':'hidden',background:S.bg}}>
+      {conflictWarning&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#7c3aed',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,fontSize:13,fontWeight:500,boxShadow:'0 2px 8px rgba(0,0,0,0.2)'}}>
+          <span>&#9888; This data was changed in another tab or device. Reload before saving to avoid overwriting newer changes.</span>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <button onClick={()=>{setConflictWarning(false);handleRefresh()}} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,color:'#fff',fontSize:12,fontWeight:700,padding:'4px 12px',cursor:'pointer'}}>Reload Now</button>
+            <button onClick={()=>setConflictWarning(false)} style={{background:'transparent',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,color:'#fff',fontSize:12,padding:'4px 10px',cursor:'pointer'}}>Dismiss</button>
+          </div>
+        </div>
+      )}
+      {remoteUpdateWarning&&!conflictWarning&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,zIndex:9998,background:'#0066CC',color:'#fff',padding:'10px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,fontSize:13,fontWeight:500,boxShadow:'0 2px 8px rgba(0,0,0,0.2)'}}>
+          <span>&#8505; Another tab saved newer data. Reload to get the latest changes.</span>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <button onClick={()=>{setRemoteUpdateWarning(false);handleRefresh()}} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:6,color:'#fff',fontSize:12,fontWeight:700,padding:'4px 12px',cursor:'pointer'}}>Reload Now</button>
+            <button onClick={()=>setRemoteUpdateWarning(false)} style={{background:'transparent',border:'1px solid rgba(255,255,255,0.3)',borderRadius:6,color:'#fff',fontSize:12,padding:'4px 10px',cursor:'pointer'}}>Dismiss</button>
+          </div>
+        </div>
+      )}
       {mob&&(
         <button onClick={()=>setMobileMenuOpen(true)} style={{position:'fixed',top:12,left:12,zIndex:200,background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'8px 10px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.15)'}}>
           <div style={{width:18,height:2,background:S.txt,marginBottom:4,borderRadius:1}}/>
