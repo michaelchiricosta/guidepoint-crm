@@ -1,9 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
+import { callClaudeWithRetry } from '../utils/aiHelper.js'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { S, IC } from '../theme.js'
 import { fmtDate } from '../utils.js'
 import { INTERACTION_COLORS, INTERACTION_TYPES } from '../constants.js'
 import { Badge } from './UI.jsx'
+
+function parseResolverResponse(data) {
+  const text = data?.content?.[0]?.text || ''
+  const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+  const start = clean.indexOf('[')
+  if (start === -1) return null
+  let depth = 0, inStr = false, esc = false, end = -1
+  for (let i = start; i < clean.length; i++) {
+    const c = clean[i]
+    if (esc) { esc = false; continue }
+    if (c === '\\' && inStr) { esc = true; continue }
+    if (c === '"') { inStr = !inStr; continue }
+    if (inStr) continue
+    if (c === '[') depth++
+    else if (c === ']') { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (end === -1) return null
+  try { return JSON.parse(clean.slice(start, end + 1)) } catch { return null }
+}
 
 export default function AccountDashboard({acct, setTab}) {
   const [groupBy,setGroupBy] = useState('monthly')
@@ -18,6 +38,9 @@ export default function AccountDashboard({acct, setTab}) {
   const [calHovered,setCalHovered] = useState(null)
   const [breakMonth,setBreakMonth] = useState(()=>{const n=new Date();return{y:n.getFullYear(),m:n.getMonth()}})
   const filterRef = useRef(null)
+  const resolvedForAcctRef = useRef(null)
+  const [nameMap, setNameMap] = useState({})
+  const [resolving, setResolving] = useState(false)
 
   useEffect(()=>{
     if(!filterOpen)return
@@ -26,14 +49,50 @@ export default function AccountDashboard({acct, setTab}) {
     return()=>document.removeEventListener('mousedown',h)
   },[filterOpen])
 
-  const allContacts = Array.from(new Set(acct.interactions.map(i=>i.contact).filter(Boolean))).sort()
-  const filtered = selectedContacts.length===0 ? acct.interactions : acct.interactions.filter(i=>selectedContacts.includes(i.contact))
+  const canonicalize = name => (name && nameMap[name]) || name || ''
+
+  const resolveChartIdentities = async () => {
+    const rawNames = Array.from(new Set(acct.interactions.map(i => i.contact).filter(Boolean)))
+    const contacts = (acct.contacts || []).filter(c => c.name).map(c => ({id: c.id, name: c.name}))
+    if (!rawNames.length || !contacts.length) { resolvedForAcctRef.current = acct.id; return }
+    setResolving(true)
+    try {
+      const {data} = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: 'You are a contact identity resolver. Given a list of existing contacts and raw name strings, determine which raw names refer to the same person as an existing contact. Account for: partial names, nicknames, phonetic equivalents, alternate spellings, and initials. Return JSON only.',
+        messages: [{role: 'user', content: `Existing contacts: ${JSON.stringify(contacts)}\nRaw names: ${JSON.stringify(rawNames)}\n\nFor each raw name, return one of:\n- MATCH: {"extractedName":"...","matchedContactName":"...","confidence":"high"|"medium"}\n- NEW: {"extractedName":"...","confidence":"high"}\n\nReturn a JSON array only. No explanation.`}]
+      }, null, null)
+      if (!data.error) {
+        const resolutions = parseResolverResponse(data)
+        if (Array.isArray(resolutions)) {
+          const map = {}
+          resolutions.forEach(r => {
+            if (r.matchedContactName && r.extractedName && r.confidence === 'high') map[r.extractedName] = r.matchedContactName
+          })
+          setNameMap(map)
+        }
+      }
+    } catch {}
+    setResolving(false)
+    resolvedForAcctRef.current = acct.id
+  }
+
+  useEffect(() => {
+    if (resolvedForAcctRef.current === acct.id || resolving) return
+    if (!acct.interactions?.length || !acct.contacts?.length) return
+    resolveChartIdentities()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acct.id, acct.interactions?.length])
+
+  const allContacts = Array.from(new Set(acct.interactions.map(i=>canonicalize(i.contact)).filter(Boolean))).sort()
+  const filtered = selectedContacts.length===0 ? acct.interactions : acct.interactions.filter(i=>selectedContacts.includes(canonicalize(i.contact)))
 
   const now = new Date()
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
   const last30Start = new Date(now); last30Start.setDate(now.getDate()-30); last30Start.setHours(0,0,0,0)
   const last30Count = acct.interactions.filter(i=>{if(!i.date)return false;const d=new Date(i.date+'T12:00:00');return d>=last30Start&&d<=now}).length
-  const cntMap={}; acct.interactions.forEach(i=>{if(i.contact)cntMap[i.contact]=(cntMap[i.contact]||0)+1})
+  const cntMap={}; acct.interactions.forEach(i=>{if(i.contact){const cn=canonicalize(i.contact);cntMap[cn]=(cntMap[cn]||0)+1}})
   const topContact = Object.entries(cntMap).sort((a,b)=>b[1]-a[1])[0]
   const typeMap={}; acct.interactions.forEach(i=>{if(i.type)typeMap[i.type]=(typeMap[i.type]||0)+1})
   const topType = Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]
@@ -55,12 +114,12 @@ export default function AccountDashboard({acct, setTab}) {
   }
 
   const LINE_PALETTE = ['#007AFF','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777']
-  const lineContacts = Array.from(new Set(filtered.map(i=>i.contact).filter(Boolean))).sort()
+  const lineContacts = Array.from(new Set(filtered.map(i=>canonicalize(i.contact)).filter(Boolean))).sort()
   const lineColorMap = Object.fromEntries(lineContacts.map((c,i)=>[c, LINE_PALETTE[i%LINE_PALETTE.length]]))
   const lineData = buckets.map(b => {
     const row = {date: fmtBucket(b)}
     lineContacts.forEach(c => {
-      row[c] = filtered.filter(i => i.contact===c && (groupBy==='weekly' ? getWeekKey(i.date) : getMonthKey(i.date)) === b).length
+      row[c] = filtered.filter(i => canonicalize(i.contact)===c && (groupBy==='weekly' ? getWeekKey(i.date) : getMonthKey(i.date)) === b).length
     })
     return row
   })
@@ -117,8 +176,8 @@ export default function AccountDashboard({acct, setTab}) {
     const c=(acct.contacts||[]).find(ct=>ct.name===name);const inf=c?.influence||'Stakeholder'
     return{name,count,inf,color:IC[inf]?.c||S.muted}
   }).sort((a,b)=>b.count-a.count)
-  const contactLastIx=name=>{const ixs=acct.interactions.filter(i=>i.contact===name).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return ixs[0]?.date||null}
-  const contactTypes=name=>[...new Set(acct.interactions.filter(i=>i.contact===name).map(i=>i.type).filter(Boolean))]
+  const contactLastIx=name=>{const ixs=acct.interactions.filter(i=>canonicalize(i.contact)===name).sort((a,b)=>(b.date||'').localeCompare(a.date||''));return ixs[0]?.date||null}
+  const contactTypes=name=>[...new Set(acct.interactions.filter(i=>canonicalize(i.contact)===name).map(i=>i.type).filter(Boolean))]
 
   const breakMonthStr=`${breakMonth.y}-${String(breakMonth.m+1).padStart(2,'0')}`
   const breakIxs=acct.interactions.filter(i=>(i.date||'').startsWith(breakMonthStr))
@@ -136,6 +195,7 @@ export default function AccountDashboard({acct, setTab}) {
 
   return (
     <div>
+      <style>{`@keyframes adSpin{to{transform:rotate(360deg)}}`}</style>
       {/* ── STAT CARDS ── */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:20}}>
         {[
@@ -173,6 +233,12 @@ export default function AccountDashboard({acct, setTab}) {
               ))}
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+              {resolving && (
+                <div style={{fontSize:11,color:'#94a3b8',display:'flex',alignItems:'center',gap:5}}>
+                  <span style={{display:'inline-block',width:10,height:10,border:'1.5px solid #e2e8f0',borderTop:'1.5px solid #007AFF',borderRadius:'50%',animation:'adSpin 0.75s linear infinite'}}/>
+                  Resolving contacts…
+                </div>
+              )}
               <div style={{position:'relative'}} ref={filterRef}>
                 <button onClick={()=>setFilterOpen(v=>!v)} style={{display:'flex',alignItems:'center',gap:6,padding:'6px 12px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,color:S.secondary,fontSize:12,fontWeight:500,cursor:'pointer'}}>
                   {selectedContacts.length===0?'All Contacts':`${selectedContacts.length} Contact${selectedContacts.length!==1?'s':''}`} <span style={{fontSize:10,color:S.muted}}>▾</span>

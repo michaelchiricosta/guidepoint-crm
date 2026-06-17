@@ -109,6 +109,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [pendingProjectUpdates, setPendingProjectUpdates] = useState(null)
   const [projUpdateChecked, setProjUpdateChecked] = useState({})
   const [newProjForms, setNewProjForms] = useState({})
+  const [pendingIdentityConfirm, setPendingIdentityConfirm] = useState([])
 
   const maybeShowTechSuggestions = (parsed) => {
     const raw = (parsed.techStackSuggestions || []).filter(s =>
@@ -313,6 +314,73 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
   const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid JSON. No markdown. No code fences. No commentary.\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}],\n  "projectUpdates":[{"projectName":"deal or project name if identifiable","vendorName":"vendor or solution name if mentioned","suggestedStage":"Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed — most advanced stage clearly implied, or empty string","suggestedStatus":"In Discussion|In Flight|Stalled|Won|Not Started — only if clearly implied, or empty string","suggestedCloseDate":"YYYY-MM-DD only if client gave explicit date, or empty string","suggestedRevenue":"dollar amount if stated, or empty string","waitingOn":"what or who is blocking this deal, if mentioned — or empty string","nextSteps":"specific next actions mentioned for this deal — or empty string","note":"1-2 sentence summary of this project update — always populated","isNewProject":false,"confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.\n\nFor projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
 
+  const runIdentityResolver = async (parsed, date) => {
+    const names = (parsed.contactUpdates || []).map(u => u.name).filter(Boolean)
+    const contacts = (acct.contacts || []).filter(c => c.name).map(c => ({id: c.id, name: c.name}))
+    if (!names.length || !contacts.length) return parsed
+    try {
+      setRetryStatus('Resolving contacts…')
+      const {data: rd} = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: 'You are a contact identity resolver. Given a list of existing contacts and newly extracted names, determine which extracted names refer to the same person as an existing contact. Account for: partial names (Rudy vs Rudy Montoya), nicknames, phonetic equivalents, alternate spellings, and initials. Return JSON only.',
+        messages: [{role: 'user', content: `Existing contacts: ${JSON.stringify(contacts)}\nExtracted names: ${JSON.stringify(names)}\n\nFor each extracted name, return one of:\n- MATCH: {"extractedName":"...","matchedContactId":"...","matchedContactName":"...","confidence":"high"|"medium"}\n- NEW: {"extractedName":"...","confidence":"high"}\n\nReturn a JSON array only. No explanation.`}]
+      }, null, null)
+      setRetryStatus('')
+      if (rd.error) return parsed
+      const resolutions = extractJsonFromAIResponse(rd)
+      if (!Array.isArray(resolutions)) return parsed
+      const updatedContactUpdates = []
+      const newPendingConfirm = []
+      for (const cu of (parsed.contactUpdates || [])) {
+        const res = resolutions.find(r => r.extractedName === cu.name)
+        if (!res) { updatedContactUpdates.push(cu); continue }
+        if (res.matchedContactId && res.confidence === 'high') {
+          updatedContactUpdates.push({...cu, name: res.matchedContactName})
+        } else if (res.matchedContactId && res.confidence === 'medium') {
+          newPendingConfirm.push({extractedName: cu.name, matchedContactId: res.matchedContactId, matchedContactName: res.matchedContactName, updateEntry: cu, date})
+        } else {
+          updatedContactUpdates.push(cu)
+        }
+      }
+      if (newPendingConfirm.length) setPendingIdentityConfirm(prev => [...prev, ...newPendingConfirm])
+      return {...parsed, contactUpdates: updatedContactUpdates}
+    } catch {
+      setRetryStatus('')
+      return parsed
+    }
+  }
+
+  const confirmIdentityYes = (item) => {
+    const {matchedContactId, updateEntry, date} = item
+    setAcct(prev => ({
+      ...prev,
+      contacts: (prev.contacts || []).map(c => {
+        if (c.id !== matchedContactId) return c
+        const note = updateEntry.noteToAppend
+          ? (c.notes ? c.notes + ' | [' + date + ']: ' + updateEntry.noteToAppend : '[' + date + ']: ' + updateEntry.noteToAppend)
+          : c.notes
+        return {...c, lastInteracted: updateEntry.lastInteracted || c.lastInteracted, notes: note}
+      })
+    }))
+    setPendingIdentityConfirm(prev => prev.filter(i => i.extractedName !== item.extractedName))
+  }
+
+  const confirmIdentityNo = (item) => {
+    const {extractedName, date} = item
+    setAcct(prev => {
+      const alreadyUnknown = (prev.unknownMentions || []).some(m => m.name.toLowerCase() === extractedName.toLowerCase())
+      if (alreadyUnknown) return prev
+      return {
+        ...prev,
+        unknownMentions: [...(prev.unknownMentions || []), {
+          id: uid(), name: extractedName, mentionedDate: date, context: '', sourceIntelId: lastIntelEntryIdRef.current
+        }]
+      }
+    })
+    setPendingIdentityConfirm(prev => prev.filter(i => i.extractedName !== item.extractedName))
+  }
+
   const processDirectFile = async (date, forceFallback = false) => {
     if (loading) return
     if (!pendingFile) return
@@ -326,18 +394,19 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     setPendingDate(date); setPdfAnalysisMethod('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
 
-    const finalizeResult = (parsed, method) => {
+    const finalizeResult = async (parsed, method) => {
       setPdfAnalysisMethod(method)
-      if (parsed.newFollowUps?.length) {
-        const fuWithIds = parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
-        setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
+      const rp = await runIdentityResolver(parsed, date)
+      if (rp.newFollowUps?.length) {
+        const fuWithIds = rp.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
+        setPendingParsed({parsed:{...rp,newFollowUps:fuWithIds},date})
         setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
       } else {
-        commitSave(parsed,date,new Set())
-        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(parsed)})
-        maybeShowTechSuggestions(parsed)
+        commitSave(rp,date,new Set())
+        setResult({followUps:0,contacts:rp.contactUpdates?.length||0,entry:!!rp.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(rp)})
+        maybeShowTechSuggestions(rp)
       }
-      const _det = detectCompanyMentions(`${parsed?.intelEntry?.participants||''} ${parsed?.intelEntry?.summary||''}`)
+      const _det = detectCompanyMentions(`${rp?.intelEntry?.participants||''} ${rp?.intelEntry?.summary||''}`)
       if (_det.length > 0) setDetectedCompanies(prev=>[...new Set([...prev,..._det])])
       setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
     }
@@ -371,7 +440,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         if (fullText.trim().length > 50) {
           let txt = fullText.length > FILE_CHAR_LIMIT ? '[Truncated]\n\n'+fullText.slice(0,FILE_CHAR_LIMIT) : fullText
           const parsed = await callTextApi(txt, 'PDF.js')
-          finalizeResult(parsed, 'Text extraction (PDF.js)')
+          await finalizeResult(parsed, 'Text extraction (PDF.js)')
           return true
         }
       } catch(e2) { console.log('[PDF.js fallback error]', e2.message) }
@@ -381,7 +450,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         if (pt.trim().length > 50) {
           let txt = pt.length > FILE_CHAR_LIMIT ? '[Truncated]\n\n'+pt.slice(0,FILE_CHAR_LIMIT) : pt
           const parsed = await callTextApi(txt, 'PlainText')
-          finalizeResult(parsed, 'Plain text read')
+          await finalizeResult(parsed, 'Plain text read')
           return true
         }
       } catch(e3) { console.log('[Plain text fallback error]', e3.message) }
@@ -408,7 +477,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
           if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
           throw new Error('AI returned an unexpected format. Please try again.')
         }
-        finalizeResult(parsedImg, 'Direct image')
+        await finalizeResult(parsedImg, 'Direct image')
       } else if (ext === 'pdf') {
         if (forceFallback) {
           // Retry: skip direct API, go straight to text extraction
@@ -434,7 +503,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             else {
               const parsedPdf = extractJsonFromAIResponse(data)
               if (!parsedPdf) { directFailed = true; console.log('[Direct PDF] Could not parse response') }
-              else finalizeResult(parsedPdf, 'Direct PDF')
+              else await finalizeResult(parsedPdf, 'Direct PDF')
             }
           } catch(e1) { directFailed = true; console.log('[Direct PDF] Falling back — exception:', e1.message) }
           // Fallback chain if direct failed
@@ -552,20 +621,21 @@ ${promptInput}`}]
         if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
         throw new Error('AI returned an unexpected format. Please try again.')
       }
-      if (parsed.newFollowUps?.length) {
-        const fuWithIds=parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
-        setPendingParsed({parsed:{...parsed,newFollowUps:fuWithIds},date})
+      const rp = await runIdentityResolver(parsed, date)
+      if (rp.newFollowUps?.length) {
+        const fuWithIds=rp.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
+        setPendingParsed({parsed:{...rp,newFollowUps:fuWithIds},date})
         setFuSelections(new Set(fuWithIds.map(fu=>fu._tempId)))
       } else {
-        commitSave(parsed,date,new Set())
-        setResult({followUps:0,contacts:parsed.contactUpdates?.length||0,entry:!!parsed.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(parsed)})
-        maybeShowTechSuggestions(parsed)
+        commitSave(rp,date,new Set())
+        setResult({followUps:0,contacts:rp.contactUpdates?.length||0,entry:!!rp.intelEntry,noFollowUps:true,notesUpdated:countNotesUpdated(rp)})
+        maybeShowTechSuggestions(rp)
       }
       setText('')
       setUploadedFile(null)
       setFileCharCount(0)
       setLargeDocWarning(false)
-      const _det2 = detectCompanyMentions(`${inputText} ${parsed?.intelEntry?.participants||''} ${parsed?.intelEntry?.summary||''}`)
+      const _det2 = detectCompanyMentions(`${inputText} ${rp?.intelEntry?.participants||''} ${rp?.intelEntry?.summary||''}`)
       if (_det2.length > 0) setDetectedCompanies(prev=>[...new Set([...prev,..._det2])])
     } catch(e) {
       const msg = e.message||''
@@ -876,6 +946,21 @@ Rules:
         </button>
       </div>
 
+      {pendingIdentityConfirm.length > 0 && (
+        <div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'14px 16px',marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#0066CC',marginBottom:2}}>Contact Identity Check</div>
+          <div style={{fontSize:11,color:'#64748b',marginBottom:4}}>The AI found similar names to existing contacts. Please confirm:</div>
+          {pendingIdentityConfirm.map((item,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'8px 12px',background:'#fff',borderRadius:8,border:'1px solid #dbeafe',flexWrap:'wrap'}}>
+              <span style={{fontSize:13,color:'#1e40af'}}>Is <strong>"{item.extractedName}"</strong> the same person as <strong>{item.matchedContactName}</strong>?</span>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>confirmIdentityYes(item)} style={{padding:'4px 14px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>Yes</button>
+                <button onClick={()=>confirmIdentityNo(item)} style={{padding:'4px 14px',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,color:'#64748b',fontSize:12,cursor:'pointer'}}>No</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* ─── SEARCH AND FILTER BAR ─── */}
       <div style={{background:'#ffffff',borderRadius:12,border:'1px solid #e2e8f0',padding:'12px 16px',marginBottom:16,display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
         <div style={{position:'relative',flex:1,minWidth:200}}>
