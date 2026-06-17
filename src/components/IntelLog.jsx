@@ -51,7 +51,6 @@ const detectDate = text => {
 }
 
 export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
-  const effectiveKey = apiKey || ''
   const [text,setText] = useState('')
   const [loading,setLoading] = useState(false)
   const [error,setError] = useState('')
@@ -246,7 +245,6 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       setShowDate(true)
     } else if (IMAGE_EXTS.includes(ext)) {
       if (file.size > 20 * 1024 * 1024) { setFileError2('File too large. Maximum size is 20MB.'); return }
-      if (!effectiveKey) { setFileError2('Add your Anthropic API key in Settings to process images.'); return }
       setUploadedFile({name:file.name, size:file.size})
       setFileIsDirectType(true)
       setPendingFile(file)
@@ -339,7 +337,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         model:'claude-sonnet-4-6', max_tokens:2000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary.',
         messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
-      }, effectiveKey, onStatus)
+      }, null, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
       const parsed2 = extractJsonFromAIResponse(d2)
@@ -389,7 +387,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
             {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
           ]}]
-        }, effectiveKey, onStatus)
+        }, null, onStatus)
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
         console.log('[Image] Error details:', data.error)
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
@@ -417,7 +415,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
               ]}]
-            }, effectiveKey, onStatus)
+            }, null, onStatus)
             console.log('[Direct PDF] Claude API response:', JSON.stringify(data, null, 2))
             console.log('[Direct PDF] Error details:', data.error)
             if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
@@ -535,7 +533,7 @@ For projectUpdates: extract updates about specific deals, projects, or initiativ
 
 INPUT:
 ${promptInput}`}]
-      }, effectiveKey, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
+      }, null, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
       if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
       const parsed = extractJsonFromAIResponse(data)
       if (!parsed) {
@@ -559,13 +557,12 @@ ${promptInput}`}]
       if (_det2.length > 0) setDetectedCompanies(prev=>[...new Set([...prev,..._det2])])
     } catch(e) {
       const msg = e.message||''
-      setError(msg==='OVERLOADED'?'Anthropic API is busy right now. Please wait 30 seconds and try again.':'Error: '+(msg||'Processing failed. Check your API key in Settings.'))
+      setError(msg==='OVERLOADED'?'Anthropic API is busy right now. Please wait 30 seconds and try again.':'Error: '+(msg||'Processing failed. Please try again.'))
     } finally { clearTimeout(longTimer); setProcessingLong(false); setRetryStatus('') }
     setLoading(false)
   }
 
   const handleProcess = () => {
-    if (!effectiveKey) { setError('Add your Anthropic API key in Settings first.'); return }
     if (fileIsDirectType && pendingFile) {
       setDateModalIsFile(true)
       setShowDate(true)
@@ -578,7 +575,6 @@ ${promptInput}`}]
   }
 
   const generateActionFromIntel = async (entry) => {
-    if (!effectiveKey) { setError('Add your Anthropic API key in Settings first.'); return }
     setGeneratingActionId(entry.id)
     const today = new Date().toISOString().split('T')[0]
     const contacts = (acct.contacts||[]).map(c=>`${c.name} (${c.title||'?'})`).join(', ')
@@ -625,7 +621,7 @@ Rules:
     try {
       const {data} = await callClaudeWithRetry(
         {model:'claude-sonnet-4-6', max_tokens:700, messages:[{role:'user',content:prompt}]},
-        effectiveKey, null
+        null, null
       )
       if (data.error) throw new Error(data.error.message || 'API error')
       const parsed = extractJsonFromAIResponse(data)
@@ -755,12 +751,6 @@ Rules:
           {!fileIsDirectType&&<span style={{fontSize:11,color:'#94a3b8'}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</span>}
         </div>
         <div style={{fontSize:12,color:'#64748b',marginBottom:12,lineHeight:1.5}}>Paste a call transcript, meeting notes, or upload a file. AI extracts follow-ups, updates contacts, and logs intel automatically.</div>
-        {!effectiveKey&&(
-          <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <span style={{color:'#d97706',fontSize:14,flexShrink:0}}>⚠</span>
-            <span style={{fontSize:12,color:'#92400e'}}>No API key — go to Settings and add your Anthropic API key to enable AI processing.</span>
-          </div>
-        )}
         {/* Textarea — hidden when PDF or image is loaded */}
         {!fileIsDirectType&&(
           <>
