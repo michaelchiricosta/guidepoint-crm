@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { S } from '../theme.js'
 import { Field, Btn, SH, Card } from './UI.jsx'
-import { supabase } from '../supabase.js'
+import { supabase, getLoadTiming, getSaveTiming } from '../supabase.js'
 import { DEFAULT_AI_SETTINGS, checkBudget, get529Retries } from '../utils/aiHelper.js'
 import { getRecords, getStats } from '../utils/aiTracker.js'
 
@@ -184,6 +184,57 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
               Cheap model (extraction): Haiku 4.5 · Strong model (briefs/drafts): Sonnet 4.6
             </div>
           </>)
+        })()}
+      </Card>
+      <SH>Data Health</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        {(()=>{
+          const accounts = data.accounts || []
+          const contactCount = accounts.reduce((s,a) => s + (a.contacts||[]).length, 0)
+          const intelCount   = accounts.reduce((s,a) => s + (a.intelLog||[]).length, 0)
+          const actionCount  = accounts.reduce((s,a) => s + (a.followUps||[]).length, 0)
+          const healthCount  = accounts.reduce((s,a) => s + (a.healthScoreHistory||[]).length, 0)
+          const cacheCount   = Object.keys(data.aiCache || {}).length
+
+          // Estimate blob size: serialize everything that would go to Supabase
+          const { apiKey: _k, aiUsageLog: _ul, ...forSize } = data
+          const blobBytes = new Blob([JSON.stringify(forSize)]).size
+          const blobKB = (blobBytes / 1024).toFixed(1)
+          const blobMB = (blobBytes / 1048576).toFixed(2)
+          const blobDisplay = blobBytes >= 1048576 ? `${blobMB} MB` : `${blobKB} KB`
+          const blobWarn = blobBytes > 800 * 1024
+
+          const loadT = getLoadTiming()
+          const saveT = getSaveTiming()
+          const fmtMs = ms => ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms/1000).toFixed(1)} s`
+          const fmtAt = iso => iso ? new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—'
+
+          const row = (label, value, accent, sub) => (
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`}}>
+              <div>
+                <span style={{fontSize:12,color:S.muted}}>{label}</span>
+                {sub && <span style={{fontSize:11,color:S.muted,marginLeft:6}}>{sub}</span>}
+              </div>
+              <span style={{fontSize:13,fontWeight:700,color:accent||S.txt}}>{value}</span>
+            </div>
+          )
+
+          return (
+            <div>
+              {row('Blob size (est.)', blobDisplay, blobWarn ? '#dc2626' : blobBytes > 400*1024 ? '#d97706' : '#15803d')}
+              {row('Accounts', accounts.length)}
+              {row('Contacts', contactCount)}
+              {row('Intel log entries', intelCount)}
+              {row('Open actions', actionCount)}
+              {row('AI cache entries', `${cacheCount}`, cacheCount > 180 ? '#d97706' : undefined, '(max 200)')}
+              {row('Health score history', `${healthCount}`, undefined, '(90-day rolling)')}
+              {row('Last load', fmtMs(loadT.durationMs), undefined, loadT.at ? `at ${fmtAt(loadT.at)}` : '')}
+              {row('Last save', fmtMs(saveT.durationMs), undefined, saveT.at ? `at ${fmtAt(saveT.at)}` : '')}
+              <div style={{marginTop:10,fontSize:11,color:S.muted,lineHeight:1.5}}>
+                Blob size is the estimated Supabase payload. Green &lt;400 KB · Yellow 400–800 KB · Red &gt;800 KB.{blobWarn && <strong style={{color:'#dc2626'}}> Consider archiving old intel or actions to reduce size.</strong>}
+              </div>
+            </div>
+          )
         })()}
       </Card>
       <SH>AI Diagnostics</SH>

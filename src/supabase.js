@@ -48,9 +48,70 @@ const sanitizeFileName = name => {
 // Set to false to disable normalized dual-write without touching any other logic.
 const ENABLE_NORMALIZED_DUAL_WRITE = true
 
+// ─── Save/load timing (localStorage, never Supabase) ─────────────────────────
+const _LS_LOAD_MS = 'ledgr_load_duration_ms'
+const _LS_LOAD_TS = 'ledgr_load_time'
+const _LS_SAVE_MS = 'ledgr_save_duration_ms'
+const _LS_SAVE_TS = 'ledgr_save_time'
+
+const _recordTiming = (msKey, tsKey, ms) => {
+  try { localStorage.setItem(msKey, String(ms)); localStorage.setItem(tsKey, new Date().toISOString()) } catch {}
+}
+
+export const getLoadTiming = () => {
+  try {
+    const ms = parseInt(localStorage.getItem(_LS_LOAD_MS) || '0') || null
+    return { durationMs: ms, at: localStorage.getItem(_LS_LOAD_TS) || null }
+  } catch { return { durationMs: null, at: null } }
+}
+
+export const getSaveTiming = () => {
+  try {
+    const ms = parseInt(localStorage.getItem(_LS_SAVE_MS) || '0') || null
+    return { durationMs: ms, at: localStorage.getItem(_LS_SAVE_TS) || null }
+  } catch { return { durationMs: null, at: null } }
+}
+
+// ─── Pre-save pruning ─────────────────────────────────────────────────────────
+
+// Cap aiCache to 200 newest entries (by cachedAt).
+const _pruneAICache = (cache) => {
+  if (!cache || typeof cache !== 'object') return {}
+  const entries = Object.entries(cache)
+  if (entries.length <= 200) return cache
+  const sorted = entries.sort((a, b) =>
+    new Date(b[1]?.cachedAt || 0).getTime() - new Date(a[1]?.cachedAt || 0).getTime()
+  )
+  return Object.fromEntries(sorted.slice(0, 200))
+}
+
+// Cap healthScoreHistory to last 90 days per account.
+const _pruneHealthHistory = (accounts) => {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+  return accounts.map(a => {
+    if (!a.healthScoreHistory?.length) return a
+    const pruned = a.healthScoreHistory.filter(e => (e.date || '') >= cutoffStr)
+    return pruned.length === a.healthScoreHistory.length ? a : { ...a, healthScoreHistory: pruned }
+  })
+}
+
+// Master pre-save transform: prune volatile/large fields, never persists apiKey.
+const _prepareForSave = (data) => {
+  // apiKey — never reaches Supabase (stripped by caller too, belt-and-suspenders)
+  // aiUsageLog — legacy field superseded by aiTracker localStorage; strip to save space
+  // aiCache — cap to 200 entries to prevent unbounded growth
+  // healthScoreHistory — cap to 90 days per account
+  const { apiKey: _k, aiUsageLog: _ul, ...safe } = data
+  if (safe.aiCache) safe.aiCache = _pruneAICache(safe.aiCache)
+  if (safe.accounts?.length) safe.accounts = _pruneHealthHistory(safe.accounts)
+  return safe
+}
+
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 export const loadData = async () => {
+  const t0 = Date.now()
   try {
     const { data } = await supabase
       .from('accounts')
@@ -58,6 +119,7 @@ export const loadData = async () => {
       .eq('id', 'user-data')
       .single()
       .throwOnError()
+    _recordTiming(_LS_LOAD_MS, _LS_LOAD_TS, Date.now() - t0)
     if (!data) return null
     return data.data
   } catch (e) {
@@ -67,11 +129,13 @@ export const loadData = async () => {
 }
 
 export const saveData = async (appData) => {
-  // Strip secrets before persisting — apiKey must live in localStorage only, not in Supabase.
-  const { apiKey: _stripped, ...safeData } = appData
+  const t0 = Date.now()
+  // Strip secrets + volatile fields, prune large caches before persisting.
+  const pruned = _prepareForSave(appData)
   const { error } = await supabase
     .from('accounts')
-    .upsert({ id: 'user-data', data: safeData, updated_at: new Date().toISOString() })
+    .upsert({ id: 'user-data', data: pruned, updated_at: new Date().toISOString() })
+  _recordTiming(_LS_SAVE_MS, _LS_SAVE_TS, Date.now() - t0)
   if (error) console.error('[saveData] error:', error.message)
   // Dual-write: sync normalized tables after a successful blob save.
   // Best-effort, fire-and-forget — blob result is returned immediately regardless
