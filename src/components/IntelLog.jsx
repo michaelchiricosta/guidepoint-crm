@@ -9,6 +9,7 @@ import { supabase } from '../supabase.js'
 import { callClaudeWithRetry } from '../utils/aiHelper.js'
 
 function extractJsonFromAIResponse(response) {
+  // Accept raw string, response.content[0].text, or response.data.content[0].text
   let text =
     typeof response === 'string'
       ? response
@@ -16,11 +17,9 @@ function extractJsonFromAIResponse(response) {
         response?.data?.content?.[0]?.text ||
         ''
   text = String(text || '').trim()
-  text = text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim()
+  // Strip markdown code fences wherever they appear
+  text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+  // Locate the first JSON object or array
   const firstObj = text.indexOf('{')
   const firstArr = text.indexOf('[')
   let start = -1
@@ -28,10 +27,23 @@ function extractJsonFromAIResponse(response) {
   else if (firstArr === -1) start = firstObj
   else start = Math.min(firstObj, firstArr)
   if (start === -1) return null
+  // Balanced bracket walk — correctly handles nested objects/arrays and strings
   const openChar = text[start]
   const closeChar = openChar === '{' ? '}' : ']'
-  const end = text.lastIndexOf(closeChar)
-  if (end === -1 || end <= start) return null
+  let depth = 0
+  let inString = false
+  let escape = false
+  let end = -1
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]
+    if (escape) { escape = false; continue }
+    if (c === '\\' && inString) { escape = true; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (c === openChar) depth++
+    else if (c === closeChar) { depth--; if (depth === 0) { end = i; break } }
+  }
+  if (end === -1) return null
   try { return JSON.parse(text.slice(start, end + 1)) } catch { return null }
 }
 
@@ -299,7 +311,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     }
   }
 
-  const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid compact JSON, no markdown:\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}],\n  "projectUpdates":[{"projectName":"deal or project name if identifiable","vendorName":"vendor or solution name if mentioned","suggestedStage":"Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed — most advanced stage clearly implied, or empty string","suggestedStatus":"In Discussion|In Flight|Stalled|Won|Not Started — only if clearly implied, or empty string","suggestedCloseDate":"YYYY-MM-DD only if client gave explicit date, or empty string","suggestedRevenue":"dollar amount if stated, or empty string","waitingOn":"what or who is blocking this deal, if mentioned — or empty string","nextSteps":"specific next actions mentioned for this deal — or empty string","note":"1-2 sentence summary of this project update — always populated","isNewProject":false,"confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.\n\nFor projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
+  const FILE_INTEL_PROMPT = (date, vendorCtx='') => `Analyze this document and extract intelligence for a cybersecurity sales rep at GuidePoint Security. Extract a MAXIMUM of 3 follow-up tasks. Write each task like a real human to-do list item — short, action-oriented, no corporate speak. The task field should be 3-8 words maximum, starting with a verb. Like: 'Call Rudy about NetSpy demo' or 'Send pricing to Jamie' or 'Schedule ThreatLocker intro call'. Put any extra context, background, or detail in the context field — NOT in the task title. Consolidate related actions into one task. Only include tasks that are genuinely important and time-sensitive. Skip anything vague or aspirational.\n\nReturn ONLY valid JSON. No markdown. No code fences. No commentary.\n{\n  "intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note|Document","participants":"string","summary":"2-3 sentences","insights":["string"],"risks":["string"],"opportunities":["string"]},\n  "newFollowUps":[{"contact":"first name and last name of most relevant contact","task":"3-8 words max, starts with a verb, reads like a sticky note (e.g. 'Follow up with Rudy on pricing', 'Schedule NetSpy demo', 'Send contract to legal')","priority":"Critical|High|Medium|Low","dueDate":"YYYY-MM-DD or empty","context":"1-2 sentences of background detail and context — this is where the longer explanation goes"}],\n  "contactUpdates":[{"name":"exact contact name","lastInteracted":"${date}","noteToAppend":"brief note about what was discussed — 1-2 sentences","suggestedRole":"new job title only if clearly stated or changed — empty string if no change","suggestedInfluence":"Executive Sponsor|Technical Gatekeeper|Financial Gatekeeper|Final Approval|Stakeholder|Risk Factor|Ally — empty string if no change","context":"one sentence explaining the role/influence change — empty string if no suggestion"}],\n  "techStackSuggestions":[{"vendor":"vendor name","products":"product or solution name if mentioned","category":"Endpoint / EDR|Identity / IAM|Cloud Security|SIEM / SOC|Email Security|Network / SASE|Data Security|GRC|Vulnerability Management|MDR|Pen Test / Red Team|IGA|PAM|Other","status":"Active|Evaluating|Replacing","context":"one sentence about what was said","confidence":"high|medium"}],\n  "techStackUpdates":[{"vendor":"exact vendor name matching tech stack","aiNotesUpdate":"exactly 3 sentences: (1) current state or recent activity with this vendor, (2) any changes concerns or opportunities, (3) next steps or outlook","bullets":["bullet 1","bullet 2","bullet 3"],"date":"${date}"}],\n  "projectUpdates":[{"projectName":"deal or project name if identifiable","vendorName":"vendor or solution name if mentioned","suggestedStage":"Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed — most advanced stage clearly implied, or empty string","suggestedStatus":"In Discussion|In Flight|Stalled|Won|Not Started — only if clearly implied, or empty string","suggestedCloseDate":"YYYY-MM-DD only if client gave explicit date, or empty string","suggestedRevenue":"dollar amount if stated, or empty string","waitingOn":"what or who is blocking this deal, if mentioned — or empty string","nextSteps":"specific next actions mentioned for this deal — or empty string","note":"1-2 sentence summary of this project update — always populated","isNewProject":false,"confidence":"high|medium"}]\n}\n\nFor techStackSuggestions: only include vendors explicitly mentioned as used, evaluated, or replaced by THIS account. Do not include GuidePoint or GuidePoint Security. Do not include vendors mentioned only in passing with no account context. Minimum confidence: medium — skip low confidence suggestions.\n\nFor techStackUpdates: for each vendor/technology mentioned that relates to the account's security stack, extract an AI notes update. Only include vendors that have meaningful intel in this document — not just passing mentions. Keep the aiNotesUpdate factual and specific to this account.\n\nFor projectUpdates: extract updates about specific deals, projects, or initiatives. Look for stage progression signals (e.g. 'demo scheduled', 'in legal review', 'PO signed'), timeline mentions, blockers, next steps, and deal size. Set isNewProject:true if this appears to be a new opportunity not previously tracked. Only include if there is meaningful intel — skip vague passing mentions.${vendorCtx?'\n\nEXISTING VENDOR CONTEXT (use as background when writing new summaries so they reflect continuity and change over time):\n'+vendorCtx:''}`
 
   const processDirectFile = async (date, forceFallback = false) => {
     if (loading) return
@@ -334,7 +346,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
     const callTextApi = async (inputText, method) => {
       const {data:d2} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:2000,
+        model:'claude-sonnet-4-6', max_tokens:2500,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary.',
         messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
       }, null, onStatus)
@@ -342,8 +354,8 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
       const parsed2 = extractJsonFromAIResponse(d2)
       if (!parsed2) {
-        if (import.meta.env.DEV) console.error('IntelLog AI parse failed (callTextApi)', { rawResponse: d2 })
-        throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: d2 })
+        throw new Error('AI returned an unexpected format. Please try again.')
       }
       return parsed2
     }
@@ -382,7 +394,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         const b64raw = await new Promise(resolve=>{const r=new FileReader();r.onload=e=>resolve(e.target.result);r.readAsDataURL(pendingFile)})
         const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
         const {data} = await callClaudeWithRetry({
-          model:'claude-sonnet-4-6', max_tokens:2000,
+          model:'claude-sonnet-4-6', max_tokens:2500,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:pendingFile.type||'image/jpeg',data:cleanBase64}},
             {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
@@ -393,8 +405,8 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
         const parsedImg = extractJsonFromAIResponse(data)
         if (!parsedImg) {
-          if (import.meta.env.DEV) console.error('IntelLog AI parse failed (image)', { rawResponse: data })
-          throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+          if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
+          throw new Error('AI returned an unexpected format. Please try again.')
         }
         finalizeResult(parsedImg, 'Direct image')
       } else if (ext === 'pdf') {
@@ -410,7 +422,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
             if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
             const {data} = await callClaudeWithRetry({
-              model:'claude-sonnet-4-6', max_tokens:2000,
+              model:'claude-sonnet-4-6', max_tokens:2500,
               messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
@@ -510,7 +522,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
       const {data} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6',max_tokens:2000,
+        model:'claude-sonnet-4-6',max_tokens:2500,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary. Max 5 items per insights/risks/opportunities arrays.',
         messages:[{role:'user',content:`Extract intelligence and return JSON:
 
@@ -537,8 +549,8 @@ ${promptInput}`}]
       if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
       const parsed = extractJsonFromAIResponse(data)
       if (!parsed) {
-        if (import.meta.env.DEV) console.error('IntelLog AI parse failed', { rawResponse: data })
-        throw new Error('AI returned an unexpected format. Please try again with a shorter transcript.')
+        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
+        throw new Error('AI returned an unexpected format. Please try again.')
       }
       if (parsed.newFollowUps?.length) {
         const fuWithIds=parsed.newFollowUps.map((fu,i)=>({...fu,_tempId:i}))
@@ -594,7 +606,7 @@ Insights: ${(entry.insights||[]).join('; ')||'none'}
 Risks: ${(entry.risks||[]).join('; ')||'none'}
 Opportunities: ${(entry.opportunities||[]).join('; ')||'none'}
 
-Today is ${today}. Generate a concrete action item from this intel. Return ONLY valid JSON:
+Today is ${today}. Generate a concrete action item from this intel. Return ONLY valid JSON. No markdown. No code fences. No commentary.
 {
   "task": "3-8 word action item starting with a strong verb — reads like a sticky note",
   "priority": "Critical|High|Medium|Low",
@@ -628,8 +640,8 @@ Rules:
       if (parsed) {
         setPendingActionFromIntel({...parsed, _sourceEntryId: entry.id, _today: today})
       } else {
-        if (import.meta.env.DEV) console.error('IntelLog AI parse failed (generateAction)', { rawResponse: data })
-        setError('AI returned an unexpected format. Please try again with a shorter transcript.')
+        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
+        setError('AI returned an unexpected format. Please try again.')
       }
     } catch(err) {
       setError(err.message==='OVERLOADED'?'API busy — try again in a moment.':'Action generation failed. Please try again.')
