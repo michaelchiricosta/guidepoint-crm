@@ -236,6 +236,59 @@ export async function callAI({
   throw new Error('OVERLOADED')
 }
 
+// ── Structured AI response extractor ──────────────────────────────────────────
+// Normalises the many response shapes that /api/ai can return and extracts the
+// first valid JSON object or array, handling code fences and extra surrounding text.
+export function extractStructuredAIResponse(response) {
+  let text
+
+  if (typeof response === 'string') {
+    text = response
+  } else if (typeof response?.content?.[0]?.text === 'string') {
+    text = response.content[0].text
+  } else if (typeof response?.data?.content?.[0]?.text === 'string') {
+    text = response.data.content[0].text
+  } else if (typeof response?.message?.content?.[0]?.text === 'string') {
+    text = response.message.content[0].text
+  } else if (response !== null && typeof response === 'object' && !Array.isArray(response) && !('content' in response)) {
+    return response
+  } else {
+    return null
+  }
+
+  if (typeof text !== 'string' || !text.trim()) return null
+
+  // Strip markdown code fences
+  text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+
+  // Fast path: the whole string is valid JSON
+  try { return JSON.parse(text) } catch {}
+
+  // Find the first { or [ and walk with full string-awareness
+  const objIdx = text.indexOf('{')
+  const arrIdx = text.indexOf('[')
+  if (objIdx === -1 && arrIdx === -1) return null
+
+  let startIdx, startChar, endChar
+  if (objIdx === -1) { startIdx = arrIdx; startChar = '['; endChar = ']' }
+  else if (arrIdx === -1) { startIdx = objIdx; startChar = '{'; endChar = '}' }
+  else if (objIdx <= arrIdx) { startIdx = objIdx; startChar = '{'; endChar = '}' }
+  else { startIdx = arrIdx; startChar = '['; endChar = ']' }
+
+  let depth = 0, inStr = false, esc = false, endIdx = -1
+  for (let i = startIdx; i < text.length; i++) {
+    const c = text[i]
+    if (esc) { esc = false; continue }
+    if (c === '\\' && inStr) { esc = true; continue }
+    if (c === '"') { inStr = !inStr; continue }
+    if (inStr) continue
+    if (c === startChar) depth++
+    else if (c === endChar) { depth--; if (depth === 0) { endIdx = i; break } }
+  }
+  if (endIdx === -1) return null
+  try { return JSON.parse(text.slice(startIdx, endIdx + 1)) } catch { return null }
+}
+
 // ── Low-level retry wrapper ─────────────────────────────────────────────────
 // Routes through /api/ai serverless proxy — no API key needed in the browser.
 // apiKey param is kept for call-site backward compat but is not sent.

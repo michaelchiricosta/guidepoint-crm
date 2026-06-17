@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Trash2, RefreshCw, Copy, ChevronDown, ChevronUp, FileText, Loader } from 'lucide-react'
 import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
-import { hashStr, getAICache, setAICache, withLock } from '../utils/aiHelper.js'
+import { hashStr, getAICache, setAICache, withLock, callClaudeWithRetry, extractStructuredAIResponse } from '../utils/aiHelper.js'
 
 const fmtDate = iso => {
   if (!iso) return ''
@@ -344,7 +344,7 @@ Think like a cybersecurity advisor, reseller, and account executive — not a no
 
 Generate a focused 60-second pre-call briefing. Total output must stay under 500 words across all text fields. Be specific, direct, and actionable.
 
-Return ONLY valid JSON (no markdown, no preamble):
+Return only valid JSON. No markdown. No code fences. No commentary.
 {
   "matchedAccount": "account name or null",
   "whyThisMeeting": "2-3 sentences: why the meeting exists, what changed recently, and what success looks like for this specific call",
@@ -373,31 +373,19 @@ Generate the 60-second pre-call briefing.`
 
     const _start = Date.now()
     try {
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
-      })
-      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 1500, durationMs: Date.now() - _start, success: res.ok })
+      const { data: resData } = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }, null, null)
+      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 1500, durationMs: Date.now() - _start, success: true })
 
-      const resData = await res.json()
-      if (!res.ok) throw new Error(`API error ${res.status}: ${resData.error?.message || JSON.stringify(resData)}`)
-
-      const rawText = resData.content?.[0]?.text || ''
-      let briefData = null
-      try {
-        briefData = JSON.parse(rawText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim())
-      } catch {
-        let depth = 0, start = -1, end = -1
-        for (let i = 0; i < rawText.length; i++) {
-          if (rawText[i] === '{') { if (depth === 0) start = i; depth++ }
-          else if (rawText[i] === '}') { depth--; if (depth === 0) { end = i; break } }
-        }
-        if (start !== -1 && end !== -1) {
-          try { briefData = JSON.parse(rawText.slice(start, end + 1)) } catch {}
-        }
+      const briefData = extractStructuredAIResponse(resData)
+      if (!briefData) {
+        if (import.meta.env.DEV) console.error('MeetingPrep parse failed', { responseShape: resData })
+        throw new Error('AI returned an unexpected format. Please try again.')
       }
-      if (!briefData) throw new Error('Could not parse response')
 
       const newPrep = { id: uid(), input: effectiveInput, createdAt: new Date().toISOString(), brief: briefData }
       setAICache(setData, _cacheKey, briefData, 24 * 3600 * 1000)
