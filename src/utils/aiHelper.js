@@ -110,6 +110,21 @@ export function friendlyApiError(err) {
   return `AI error: ${msg}`
 }
 
+// ── 529 retry telemetry (browser localStorage) ─────────────────────────────────
+const RETRY_529_KEY = 'ledgr_529_retries'
+
+function log529Retry(feature = 'unknown') {
+  try {
+    const existing = JSON.parse(localStorage.getItem(RETRY_529_KEY) || '[]')
+    const updated = [{ ts: new Date().toISOString(), feature }, ...existing].slice(0, 100)
+    localStorage.setItem(RETRY_529_KEY, JSON.stringify(updated))
+  } catch {}
+}
+
+export function get529Retries() {
+  try { return JSON.parse(localStorage.getItem(RETRY_529_KEY) || '[]') } catch { return [] }
+}
+
 // ── Request lock: prevents duplicate concurrent calls for the same key ──────────
 export async function withLock(key, fn) {
   if (_inFlight.has(key)) {
@@ -185,6 +200,7 @@ export async function callAI({
 
     const overloaded = respData.error?.type === 'overloaded_error' || res.status === 529 || res.status === 429
     if (overloaded && attempt < maxRetries - 1) {
+      log529Retry(feature || 'unknown')
       const delay = [2000, 5000, 10000][Math.min(attempt, 2)]
       if (onStatus) onStatus(`API busy — retrying in ${Math.round(delay / 1000)}s… (${attempt + 2}/${maxRetries})`)
       await new Promise(r => setTimeout(r, delay))
@@ -246,6 +262,7 @@ export const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3
     const isOverloaded = data.error?.type === 'overloaded_error' || resp.status === 529
 
     if ((isRateLimit || isOverloaded) && attempt < maxRetries - 1) {
+      if (isOverloaded) log529Retry()
       const delay = isRateLimit
         ? [15000, 30000, 60000][Math.min(attempt, 2)]
         : [2000, 5000, 10000][Math.min(attempt, 2)]

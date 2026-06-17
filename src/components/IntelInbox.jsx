@@ -66,22 +66,21 @@ const extractFileText = async (file) => {
 // ── AI client ─────────────────────────────────────────────────────────────────
 
 const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3) => {
-  let attempt = 0
-  while (attempt <= maxRetries) {
-    if (attempt > 0) {
-      const wait = attempt === 1 ? 15000 : attempt === 2 ? 30000 : 60000
-      if (onStatus) onStatus(`Rate limited — retrying in ${Math.round(wait / 1000)}s…`)
-      await new Promise(r => setTimeout(r, wait))
-    }
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const resp = await fetch('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     })
     const data = await resp.json()
-    if (data.error?.type === 'rate_limit_error' || data.error?.type === 'overloaded_error') {
-      attempt++
-      if (attempt > maxRetries) throw new Error('OVERLOADED')
+    const isRateLimit = data.error?.type === 'rate_limit_error' || resp.status === 429
+    const isOverloaded = data.error?.type === 'overloaded_error' || resp.status === 529
+    if ((isRateLimit || isOverloaded) && attempt < maxRetries - 1) {
+      const delay = isRateLimit
+        ? [15000, 30000, 60000][Math.min(attempt, 2)]
+        : [2000, 5000, 10000][Math.min(attempt, 2)]
+      if (onStatus) onStatus(`${isRateLimit ? 'Rate limited' : 'API busy'} — retrying in ${Math.round(delay / 1000)}s…`)
+      await new Promise(r => setTimeout(r, delay))
       continue
     }
     if (onStatus) onStatus('')
@@ -404,7 +403,7 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
     try {
       setLoadStatus('Analyzing with AI…')
       const { data: resp } = await callClaudeWithRetry({
-        model: 'claude-sonnet-4-6', max_tokens: 8000,
+        model: 'claude-sonnet-4-6', max_tokens: 4000,
         system: 'You are an intelligence routing AI for a cybersecurity sales CRM. Return ONLY valid compact JSON.',
         messages: [{ role: 'user', content: prompt }]
       }, effectiveKey, msg => { if (msg) setLoadStatus(msg) })

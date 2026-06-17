@@ -2,7 +2,8 @@ import { useState, useRef } from 'react'
 import { S } from '../theme.js'
 import { Field, Btn, SH, Card } from './UI.jsx'
 import { supabase } from '../supabase.js'
-import { DEFAULT_AI_SETTINGS, checkBudget } from '../utils/aiHelper.js'
+import { DEFAULT_AI_SETTINGS, checkBudget, get529Retries } from '../utils/aiHelper.js'
+import { getRecords, getStats } from '../utils/aiTracker.js'
 
 const LS_API_KEY = 'ledgr_anthropic_api_key'
 
@@ -183,6 +184,45 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
               Cheap model (extraction): Haiku 4.5 · Strong model (briefs/drafts): Sonnet 4.6
             </div>
           </>)
+        })()}
+      </Card>
+      <SH>AI Diagnostics</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        {(()=>{
+          const todayStr = new Date().toISOString().split('T')[0]
+          const allRecords = getRecords()
+          const todayRecords = allRecords.filter(r => (r.ts||r.timestamp||'').startsWith(todayStr) && r.source !== 'sample')
+          const allStats = getStats(allRecords.filter(r => r.source !== 'sample'))
+          const todayInputTokens = todayRecords.reduce((s,r) => s + (r.estimatedInputTokens ?? r.inputTokensEst ?? 0), 0)
+          const todayOutputTokens = todayRecords.reduce((s,r) => s + (r.estimatedOutputTokens ?? r.maxTokensOut ?? 0), 0)
+          const todayCost = todayRecords.reduce((s,r) => s + (r.estimatedCost ?? r.costEst ?? 0), 0)
+          const todayCacheHits = todayRecords.filter(r => r.cacheHit || r.status === 'cache_hit').length
+          const retries = get529Retries()
+          const retryCount = retries.length
+          const last529 = retries[0]?.ts ? new Date(retries[0].ts) : null
+          const fmt529 = last529 ? last529.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' at ' + last529.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : 'None recorded'
+
+          const row = (label, value, accent) => (
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`}}>
+              <span style={{fontSize:12,color:S.muted}}>{label}</span>
+              <span style={{fontSize:13,fontWeight:700,color:accent||S.txt}}>{value}</span>
+            </div>
+          )
+
+          return (
+            <div>
+              {row('Requests today', `${todayRecords.length} calls`)}
+              {row('Tokens today (est.)', `${(todayInputTokens + todayOutputTokens).toLocaleString()} tokens`)}
+              {row('Est. cost today', `$${todayCost.toFixed(4)}`)}
+              {row('Cache hits today', todayCacheHits > 0 ? `${todayCacheHits} saved` : '0')}
+              {row('Cache hit rate (all time)', `${allStats.cacheHitRate ?? 0}%`, allStats.cacheHitRate >= 20 ? '#15803d' : undefined)}
+              {row('529 retries (all time)', retryCount > 0 ? `${retryCount}` : '0', retryCount > 5 ? '#dc2626' : undefined)}
+              {row('Last 529 overload', fmt529, retryCount > 0 ? '#92400e' : undefined)}
+              <div style={{marginTop:10,fontSize:11,color:S.muted,lineHeight:1.5}}>
+                Tokens are estimated from max_tokens ceiling. Cache hits save cost and speed. 529 retries indicate Anthropic server overload.
+              </div>
+            </div>
+          )
         })()}
       </Card>
       <SH>Data Management</SH>

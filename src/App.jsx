@@ -1536,6 +1536,10 @@ export default function App() {
 
   const generateDailyBrief = async () => {
     if (briefGenerating || !data) return
+    return withLock('daily-brief', _doGenerateDailyBrief)
+  }
+
+  const _doGenerateDailyBrief = async () => {
     setBriefGenerating(true)
     setBriefError(null)
     try {

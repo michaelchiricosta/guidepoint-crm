@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Trash2, RefreshCw, Copy, ChevronDown, ChevronUp, FileText, Loader } from 'lucide-react'
 import { uid } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
-import { hashStr, getAICache, setAICache } from '../utils/aiHelper.js'
+import { hashStr, getAICache, setAICache, withLock } from '../utils/aiHelper.js'
 
 const fmtDate = iso => {
   if (!iso) return ''
@@ -234,6 +234,10 @@ export default function MeetingPrep({ data, setData, onBack }) {
   const generatePrep = async (inputOverride, forceRegen = false) => {
     const effectiveInput = (typeof inputOverride === 'string' ? inputOverride : input).trim()
     if (!effectiveInput || generating) return
+    return withLock(`meetingPrep_${effectiveInput}`, () => _doGeneratePrep(inputOverride, effectiveInput, forceRegen))
+  }
+
+  const _doGeneratePrep = async (inputOverride, effectiveInput, forceRegen) => {
     const apiKey = data.apiKey || ''
     if (!apiKey) { setError('No API key configured. Add it in Settings.'); return }
 
@@ -372,9 +376,9 @@ Generate the 60-second pre-call briefing.`
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 2500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
       })
-      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 2500, durationMs: Date.now() - _start, success: res.ok })
+      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 1500, durationMs: Date.now() - _start, success: res.ok })
 
       const resData = await res.json()
       if (!res.ok) throw new Error(`API error ${res.status}: ${resData.error?.message || JSON.stringify(resData)}`)
