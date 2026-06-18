@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Target } from 'lucide-react'
 import { S } from '../theme.js'
 import { uid, fmtDate, daysSince } from '../utils.js'
@@ -40,6 +40,36 @@ export default function Projects({acct,setAcct}) {
     document.addEventListener('click',h)
     return()=>document.removeEventListener('click',h)
   },[])
+
+  // Normalize legacy projects that are missing ids (run once when projects first load)
+  const projIdsNormalized = useRef(false)
+  useEffect(()=>{
+    if (projIdsNormalized.current) return
+    const projs = acct.projects
+    if (!projs?.length) return
+    projIdsNormalized.current = true
+    if (projs.every(p=>p.id)) return
+    setAcct(prev=>({...prev,projects:(prev.projects||[]).map(p=>p.id?p:{...p,id:uid()})}))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[!!acct.projects?.length])
+
+  // Centralised delete: stops propagation, guards reload race, handles missing ids
+  const deleteProject = (proj, e) => {
+    if (e) e.stopPropagation()
+    if (!window.confirm(`Delete "${proj.name}"?`)) return
+    // Prevent focus-triggered safeLoadData from overwriting the delete before auto-save fires
+    window._lastDirectSave = Date.now()
+    if (proj.id) {
+      setAcct(prev=>({...prev,projects:(prev.projects||[]).filter(j=>j.id!==proj.id)}))
+    } else {
+      // Fallback for legacy id-less projects: remove first exact name match only
+      let removed = false
+      setAcct(prev=>({...prev,projects:(prev.projects||[]).filter(j=>{
+        if (!removed && j.name===proj.name && !j.id){removed=true;return false}
+        return true
+      })}))
+    }
+  }
 
   const penBtn={background:'none',border:'none',color:S.muted,cursor:'pointer',fontSize:13,padding:'2px 5px',borderRadius:4,lineHeight:1,flexShrink:0}
 
@@ -96,7 +126,7 @@ export default function Projects({acct,setAcct}) {
                         <div style={{fontSize:12,fontWeight:600,color:S.txt,flex:1,lineHeight:1.3}}>{p.name}</div>
                         {p.projectNotes?.length>0&&<span title={`${p.projectNotes.length} note${p.projectNotes.length!==1?'s':''}`} style={{fontSize:9,color:S.muted,background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:4,padding:'1px 5px',lineHeight:1.6,flexShrink:0}}>💬{p.projectNotes.length}</span>}
                         <button onClick={e=>openEdit(p,e)} style={penBtn} title='Edit'>✏</button>
-                        <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete this project? This cannot be undone.'))setAcct(prev=>({...prev,projects:prev.projects.filter(j=>j.id!==p.id)}))}} style={{...penBtn,color:'#dc2626'}} title='Delete'>×</button>
+                        <button onClick={e=>deleteProject(p,e)} style={{...penBtn,color:'#dc2626'}} title='Delete'>×</button>
                       </div>
                       {/* Clickable inline status badge */}
                       <div style={{position:'relative',display:'inline-block',marginBottom:5}} onClick={e=>e.stopPropagation()}>
@@ -293,7 +323,7 @@ export default function Projects({acct,setAcct}) {
                     <button onClick={()=>{setAddingNoteFor(p.id);setNewNoteText('')}} style={{fontSize:11,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:'3px 0',fontWeight:600}}>+ Add note</button>
                   )}
                 </div>
-                <div style={{display:'flex',gap:8}}><Btn onClick={()=>openEdit(p,null)}>Edit</Btn><Btn variant='danger' onClick={()=>{if(window.confirm('Delete?'))setAcct(prev=>({...prev,projects:prev.projects.filter(j=>j.id!==p.id)}))}}>Delete</Btn></div>
+                <div style={{display:'flex',gap:8}}><Btn onClick={()=>openEdit(p,null)}>Edit</Btn><Btn variant='danger' onClick={e=>deleteProject(p,e)}>Delete</Btn></div>
               </div>}
             </div>
           </Card>)
@@ -343,7 +373,7 @@ export default function Projects({acct,setAcct}) {
         <Field label='Waiting On' value={form.waitingOn} onChange={f('waitingOn')}/>
         <Field label='Next Steps' value={form.nextSteps||''} onChange={f('nextSteps')} placeholder='Specific actions to advance this project...'/>
         <div style={{display:'flex',gap:8,marginTop:4,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
-          {form.id&&<Btn variant='danger' onClick={()=>{if(window.confirm('Delete this project? This cannot be undone.')){setAcct(p=>({...p,projects:p.projects.filter(j=>j.id!==form.id)}));setShowAdd(false);setForm(blank)}}}>Delete Project</Btn>}
+          {form.id&&<Btn variant='danger' onClick={e=>{e.stopPropagation();if(window.confirm(`Delete "${form.name}"?`)){window._lastDirectSave=Date.now();setAcct(p=>({...p,projects:p.projects.filter(j=>j.id!==form.id)}));setShowAdd(false);setForm(blank)}}}>Delete Project</Btn>}
           <div style={{display:'flex',gap:8,marginLeft:'auto'}}><Btn variant='primary' onClick={save}>Save</Btn><Btn onClick={()=>{setShowAdd(false);setForm(blank)}}>Cancel</Btn></div>
         </div>
       </Modal>}
