@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import * as XLSX from 'xlsx'
 import { ArrowLeft, Pencil, User, Cpu, Zap, Trash2, GitMerge } from 'lucide-react'
 import { saveData } from '../supabase.js'
 import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from '../namedAccounts.js'
@@ -447,6 +448,8 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [wsFileStatus, setWsFileStatus] = useState('')
   const [wsDragOver, setWsDragOver] = useState(false)
   const wsFileInputRef = useRef(null)
+  const ssImportInputRef = useRef(null)
+  const [importSsError, setImportSsError] = useState('')
   const [wsPendingFile, setWsPendingFile] = useState(null)
   const [wsFileIsDirectType, setWsFileIsDirectType] = useState(false)
   const [wsShowDate, setWsShowDate] = useState(false)
@@ -706,6 +709,103 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     const link = document.createElement('a')
     link.href = url; link.download = 'whitespace-selected-full-details.csv'; link.click()
     URL.revokeObjectURL(url)
+  }
+
+  const SS_COL_MAP = {
+    name:      ['account name','account','company','company name','name'],
+    hq:        ['hq','headquarters','location','city','state'],
+    industry:  ['industry','vertical'],
+    employees: ['employees','employee count','headcount'],
+    revenue:   ['revenue','annual revenue'],
+    notes:     ['notes','ai notes','description'],
+    website:   ['website','domain','url'],
+  }
+  const SS_MAX_BYTES = 10 * 1024 * 1024
+  const SS_MAX_ROWS  = 5000
+
+  const handleSpreadsheetImport = async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['xlsx','xls','csv'].includes(ext)) {
+      setImportSsError('Unsupported file type. Please upload a .xlsx, .xls, or .csv file.')
+      return
+    }
+    if (file.size > SS_MAX_BYTES) {
+      setImportSsError(`File too large (${(file.size/1024/1024).toFixed(1)}MB). Maximum is 10MB.`)
+      return
+    }
+    setImportSsError('')
+    try {
+      const ab = await file.arrayBuffer()
+      const workbook = XLSX.read(ab, {type:'array'})
+      const sheetName = workbook.SheetNames[0]
+      if (!sheetName) { setImportSsError('No worksheets found in the file.'); return }
+      const sheet = workbook.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''})
+      if (rows.length < 2) { setImportSsError('No data rows found — the file must have a header row and at least one data row.'); return }
+      const headers = rows[0].map(h => String(h).trim().toLowerCase())
+      const colIdx = {}
+      for (const [field, aliases] of Object.entries(SS_COL_MAP)) {
+        const idx = headers.findIndex(h => aliases.includes(h))
+        if (idx !== -1) colIdx[field] = idx
+      }
+      if (colIdx.name === undefined) {
+        setImportSsError('Could not map an Account Name column. Expected a header named: "Account Name", "Account", "Company", "Company Name", or "Name".')
+        return
+      }
+      const dataRows = rows.slice(1).filter(r => r.some(c => c !== '')).slice(0, SS_MAX_ROWS)
+      if (dataRows.length === 0) { setImportSsError('No data rows found after the header row.'); return }
+      const get = (row, field) => {
+        if (colIdx[field] === undefined) return ''
+        const v = row[colIdx[field]]
+        return v !== undefined && v !== null ? String(v).trim() : ''
+      }
+      const now = new Date().toISOString()
+      const today = now.split('T')[0]
+      let added = 0, updated = 0
+      setData(prev => {
+        const wsList = [...(prev.whitespaceAccounts || [])]
+        for (const row of dataRows) {
+          const name = get(row,'name')
+          if (!name) continue
+          const hq = get(row,'hq'), industry = get(row,'industry')
+          const employees = get(row,'employees'), revenue = get(row,'revenue')
+          const notes = get(row,'notes'), website = get(row,'website')
+          const existIdx = wsList.findIndex(w => w.name.toLowerCase() === name.toLowerCase())
+          if (existIdx >= 0) {
+            const ex = {...wsList[existIdx]}
+            if (!ex.hq && hq) ex.hq = hq
+            if (!ex.industry && industry) ex.industry = industry
+            if (!ex.employees && employees) ex.employees = employees
+            if (!ex.revenue && revenue) ex.revenue = revenue
+            if (!ex.website && website) ex.website = website
+            if (notes && !(ex.notes||[]).some(n => n.text === notes)) {
+              ex.notes = [{id:uid(),text:notes,date:today,addedBy:'import'},...(ex.notes||[])]
+            }
+            ex.updatedAt = now
+            wsList[existIdx] = ex
+            updated++
+          } else {
+            wsList.push({
+              id:uid(), name, hq, industry, employees, revenue,
+              website: website||'', status:'Prospect',
+              contacts:[], technologies:[],
+              notes: notes ? [{id:uid(),text:notes,date:today,addedBy:'import'}] : [],
+              intelLog:[], addedAt:now, updatedAt:now,
+            })
+            added++
+          }
+        }
+        return {...prev, whitespaceAccounts: wsList}
+      })
+      const msg = `Imported ${added} new account${added!==1?'s':''}${updated>0?`, updated ${updated}`:''} from ${file.name}`
+      setWsToast(msg)
+      setTimeout(()=>setWsToast(''), 5000)
+    } catch(err) {
+      console.error('Spreadsheet import error:', err)
+      setImportSsError('Failed to parse the file. Make sure it is a valid Excel or CSV file.')
+    }
+    if (ssImportInputRef.current) ssImportInputRef.current.value = ''
   }
 
   const handleAutoFill = async () => {
@@ -1354,6 +1454,17 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
 
   return (
     <div style={{display:'flex',flexDirection:mob?'column':'row',height:mob?'auto':'100vh',minHeight:mob?'100vh':undefined,overflow:mob?'visible':'hidden',background:isLight?'#f1f5f9':S.bg}}>
+      {/* Hidden spreadsheet import input */}
+      <input ref={ssImportInputRef} type='file'
+        accept='.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv'
+        style={{display:'none'}}
+        onChange={e=>{const f=e.target.files?.[0];if(f)handleSpreadsheetImport(f)}}/>
+      {importSsError&&(
+        <div style={{position:'fixed',bottom:70,left:'50%',transform:'translateX(-50%)',background:'#fef2f2',border:'1px solid #fecaca',color:'#dc2626',padding:'10px 20px',borderRadius:10,fontSize:13,fontWeight:600,zIndex:3000,boxShadow:'0 4px 20px rgba(0,0,0,0.15)',display:'flex',alignItems:'center',gap:10,maxWidth:480,whiteSpace:'pre-wrap'}}>
+          {importSsError}
+          <button onClick={()=>setImportSsError('')} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:18,lineHeight:1,marginLeft:8,flexShrink:0}}>×</button>
+        </div>
+      )}
       {/* SIDEBAR — desktop only */}
       {!mob&&<div style={{width:240,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',borderRight:'1px solid #EEEFF2'}}>
         <div style={{padding:'12px 16px 12px',flexShrink:0,borderBottom:'1px solid #EEEFF2'}}>
@@ -1499,6 +1610,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                   <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:200}}>
                     {[
                       {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                      {label:'Import from Spreadsheet', action:()=>{setImportSsError('');setShowMoreMenu(false);ssImportInputRef.current?.click()}},
                       {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
                       {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                       {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
@@ -1550,6 +1662,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                     <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:100}}>
                       {[
                         {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                        {label:'Import from Spreadsheet', action:()=>{setImportSsError('');setShowMoreMenu(false);ssImportInputRef.current?.click()}},
                         {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                         {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
                         {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
