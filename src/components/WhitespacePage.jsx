@@ -97,6 +97,7 @@ const parseTechFromEntries = entries => {
 function ProspectBriefPanel({acct, updateAccount, effectiveKey, isLight}) {
   const [briefLoading, setBriefLoading] = useState(false)
   const [briefError, setBriefError] = useState('')
+  const [briefWarning, setBriefWarning] = useState('')
   const [showBrief, setShowBrief] = useState(!!acct.prospect_brief)
   const [copied, setCopied] = useState(false)
 
@@ -106,26 +107,64 @@ function ProspectBriefPanel({acct, updateAccount, effectiveKey, isLight}) {
   const generateBrief = async () => {
     if (briefLoading) return
     if (!effectiveKey) { setBriefError('Add your Anthropic API key in Settings first.'); return }
-    setBriefLoading(true); setBriefError('')
-    const prompt = `You are a cybersecurity sales intelligence analyst. Research the company "${acct.name}"${acct.hq ? ` located in "${acct.hq}"` : ''} and generate a prospect intelligence brief for a cybersecurity VAR called GuidePoint Security whose Enterprise Client Manager is trying to determine if and how to engage this account.\n\nReturn ONLY a JSON object with no preamble or markdown backticks in this exact structure:\n\n{\n  "security_contacts": [\n    {\n      "name": "string or null",\n      "title": "string",\n      "linkedin_url": "string or null",\n      "confidence": "high|medium|low",\n      "confidence_reason": "string (e.g. Found on LinkedIn, Listed on company website, Inferred from job posting)"\n    }\n  ],\n  "recent_news": [\n    {\n      "headline": "string",\n      "date": "string",\n      "relevance": "string (why this matters for a cybersecurity conversation)"\n    }\n  ],\n  "active_job_postings": [\n    {\n      "title": "string",\n      "posted_date": "string",\n      "guidepoint_signal": "string (what this tells us about their security gaps or investments)",\n      "source_url": "string or null"\n    }\n  ],\n  "guidepoint_service_matches": [\n    {\n      "service_area": "string (e.g. GRC Advisory, Cloud Security, MDR, Identity, AppSec, Pen Testing)",\n      "signal": "string (what triggered this match -- job posting, news, industry pressure)",\n      "urgency": "high|medium|low"\n    }\n  ],\n  "timing_signal": {\n    "is_time_sensitive": true,\n    "reason": "string or null (e.g. recent breach in industry, regulation deadline, new CISO hire)"\n  },\n  "suggested_outreach": {\n    "primary_contact": "string (name and title of who to contact first)",\n    "opening_angle": "string (1-2 sentences -- the specific reason to reach out right now)",\n    "first_line": "string (suggested literal first sentence of an outreach email or LinkedIn message)"\n  }\n}\n\nOnly include job postings from the last 60 days. Flag confidence on all contacts. Do not include generic industry boilerplate -- every insight must be specific to this company.`
+    setBriefLoading(true); setBriefError(''); setBriefWarning('')
+    const prompt = `You are a cybersecurity sales intelligence analyst. Research the company "${acct.name}"${acct.hq ? ` located in "${acct.hq}"` : ''} and generate a prospect intelligence brief for a cybersecurity VAR called GuidePoint Security whose Enterprise Client Manager is trying to determine if and how to engage this account.\n\nReturn ONLY a JSON object with no preamble or markdown backticks in this exact structure:\n\n{\n  "security_contacts": [\n    {\n      "name": "string or null",\n      "title": "string",\n      "linkedin_url": "string or null",\n      "confidence": "high|medium|low",\n      "confidence_reason": "string (e.g. Found on LinkedIn, Listed on company website, Inferred from job posting)"\n    }\n  ],\n  "recent_news": [\n    {\n      "headline": "string",\n      "date": "string",\n      "relevance": "string (why this matters for a cybersecurity conversation)"\n    }\n  ],\n  "active_job_postings": [\n    {\n      "title": "string",\n      "posted_date": "string",\n      "guidepoint_signal": "string (what this tells us about their security gaps or investments)",\n      "source_url": "string or null"\n    }\n  ],\n  "guidepoint_service_matches": [\n    {\n      "service_area": "string (e.g. GRC Advisory, Cloud Security, MDR, Identity, AppSec, Pen Testing)",\n      "signal": "string (what triggered this match -- job posting, news, industry pressure)",\n      "urgency": "high|medium|low"\n    }\n  ],\n  "timing_signal": {\n    "is_time_sensitive": true|false,\n    "reason": "string or null (e.g. recent breach in industry, regulation deadline, new CISO hire)"\n  },\n  "suggested_outreach": {\n    "primary_contact": "string (name and title of who to contact first)",\n    "opening_angle": "string (1-2 sentences -- the specific reason to reach out right now)",\n    "first_line": "string (suggested literal first sentence of an outreach email or LinkedIn message)"\n  }\n}\n\nOnly include job postings from the last 60 days. Flag confidence on all contacts. Do not include generic industry boilerplate -- every insight must be specific to this company.\nReturn only valid JSON. No markdown. No code fences. No commentary. Start your response with { and end with }.`
     try {
       const resp = await fetch('/api/ai', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 2500,
+          max_tokens: 3000,
           tools: [{ type: 'web_search_20250305', name: 'web_search' }],
           messages: [{ role: 'user', content: prompt }]
         })
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const result = await resp.json()
+      // Check for API-level error before attempting parse
+      if (result.error) throw new Error(result.error.message || result.error.type || 'API error')
+
+      // Collect all text blocks; try each, keep the last successful parse
+      // (web_search responses can have multiple text blocks — the final one has the JSON)
+      const textBlocks = (result.content || []).filter(b => b.type === 'text').map(b => b.text)
       let briefData = null
-      for (const block of (result.content || [])) {
-        if (block.type === 'text') { briefData = extractStructuredAIResponse(block.text); if (briefData) break }
+      let rawText = ''
+      for (const txt of textBlocks) {
+        const parsed = extractStructuredAIResponse(txt)
+        if (parsed) briefData = parsed
+        rawText = txt // keep last text block for repair/fallback
       }
-      if (!briefData) throw new Error('Could not parse brief — try again.')
+
+      // Repair pass: send raw output back to AI once and ask it to re-format
+      if (!briefData && rawText) {
+        if (import.meta.env.DEV) console.log('[ProspectBrief] Primary parse failed. Blocks:', result.content?.length, '| First 500 chars:', rawText.slice(0, 500))
+        try {
+          const {data: fixResult} = await callClaudeWithRetry({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: `Convert this into valid JSON matching the Prospect Brief schema exactly. Return only valid JSON. No markdown. No code fences. No commentary.\n\nRequired fields: security_contacts (array), recent_news (array), active_job_postings (array), guidepoint_service_matches (array), timing_signal (object with is_time_sensitive bool and reason string), suggested_outreach (object with primary_contact, opening_angle, first_line).\n\nText to convert:\n${rawText}` }]
+          }, effectiveKey)
+          briefData = extractStructuredAIResponse(fixResult)
+        } catch (repairErr) {
+          console.error('[ProspectBrief] Repair attempt failed:', repairErr)
+        }
+      }
+
+      // Fallback: create a usable brief from raw text rather than hard-failing
+      if (!briefData) {
+        briefData = {
+          security_contacts: [],
+          recent_news: rawText ? [{ headline: 'AI Research Summary', date: new Date().toISOString().split('T')[0], relevance: rawText.slice(0, 600) }] : [],
+          active_job_postings: [],
+          guidepoint_service_matches: [],
+          timing_signal: { is_time_sensitive: false, reason: null },
+          suggested_outreach: { primary_contact: '', opening_angle: 'See the research summary in Recent News above.', first_line: '' },
+          _fallback: true
+        }
+        setBriefWarning('AI returned an unexpected format. Displaying fallback brief.')
+      }
+
       const now = new Date().toISOString()
       const isTS = !!briefData.timing_signal?.is_time_sensitive
       // Merge discovered contacts into account contacts (dedupe by name)
@@ -177,6 +216,7 @@ function ProspectBriefPanel({acct, updateAccount, effectiveKey, isLight}) {
         </button>
       </div>
       {briefError&&<div style={{fontSize:12,color:'#dc2626',marginTop:6,marginBottom:4}}>{briefError}</div>}
+      {briefWarning&&<div style={{fontSize:12,color:'#b45309',background:'#fffbeb',border:'1px solid #fde68a',borderRadius:6,padding:'6px 10px',marginTop:6,marginBottom:4}}>{briefWarning}</div>}
 
       {brief&&showBrief&&(
         <div style={{background:'#ffffff',border:'1px solid #EEEFF2',borderRadius:12,padding:20,marginTop:8}}>
