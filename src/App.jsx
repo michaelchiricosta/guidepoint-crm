@@ -1423,6 +1423,7 @@ export default function App() {
   const lastSaveTime = useRef(0)
   const lastKnownVersion = useRef(null)
   const saveBroadcast = useRef(null)
+  const navRestoredRef = useRef(false)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [conflictWarning,setConflictWarning] = useState(false)
   const [remoteUpdateWarning,setRemoteUpdateWarning] = useState(false)
@@ -1473,6 +1474,45 @@ export default function App() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ loadData().then(applyLoad) },[])
+
+  // Restore navigation state once, after data first loads.
+  // Runs after every render but navRestoredRef guards it to execute only once.
+  useEffect(()=>{
+    if (!initialLoadDone || !data || navRestoredRef.current) return
+    navRestoredRef.current = true
+    try {
+      const saved = JSON.parse(localStorage.getItem('ledgr-nav') || 'null')
+      if (!saved) return
+      if (saved.page === 'whitespace') {
+        setShowWhitespace(true); setIsLandingPage(false)
+      } else if (saved.page === 'allprojects') {
+        setShowAllProjects(true); setIsLandingPage(false)
+      } else if (saved.page === 'vendors') {
+        setShowVendors(true); setIsLandingPage(false)
+      } else if (saved.page === 'account' && saved.activeId) {
+        const exists = data.accounts.find(a => a.id === saved.activeId)
+        if (exists) {
+          setActiveId(saved.activeId)
+          setTab(saved.tab || 'overview')
+          setIsLandingPage(false)
+        }
+        // account no longer exists → fall through to landing (default state)
+      }
+      // saved.page === 'landing' → keep default state (isLandingPage=true)
+    } catch(e) { console.warn('[NavRestore]', e) }
+  }, [initialLoadDone, data])
+
+  // Persist navigation state to localStorage whenever it changes.
+  // Skip before initial load so we don't overwrite a saved state with default values.
+  useEffect(()=>{
+    if (!initialLoadDone) return
+    const page = showWhitespace ? 'whitespace'
+      : showAllProjects ? 'allprojects'
+      : showVendors ? 'vendors'
+      : !isLandingPage ? 'account'
+      : 'landing'
+    try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
+  }, [showWhitespace, showAllProjects, showVendors, isLandingPage, activeId, tab, initialLoadDone])
 
   const safeLoadData = async () => {
     if (Date.now() - contactPhotoSaveTime < 5000) { console.log('Skipping reload — contact photo save in progress'); return }
