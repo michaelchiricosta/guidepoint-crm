@@ -93,7 +93,215 @@ const parseTechFromEntries = entries => {
   } catch(e) { return [] }
 }
 
-function ExpandedWhitespaceRow({acct, updateAccount, isLight, onRescore, scoringId}) {
+// ── Prospect Intelligence Brief ──────────────────────────────────────────────
+function ProspectBriefPanel({acct, updateAccount, effectiveKey, isLight}) {
+  const [briefLoading, setBriefLoading] = useState(false)
+  const [briefError, setBriefError] = useState('')
+  const [showBrief, setShowBrief] = useState(!!acct.prospect_brief)
+  const [copied, setCopied] = useState(false)
+
+  const brief = acct.prospect_brief || null
+  const generatedAt = acct.prospect_brief_generated_at || null
+
+  const generateBrief = async () => {
+    if (briefLoading) return
+    if (!effectiveKey) { setBriefError('Add your Anthropic API key in Settings first.'); return }
+    setBriefLoading(true); setBriefError('')
+    const prompt = `You are a cybersecurity sales intelligence analyst. Research the company "${acct.name}"${acct.hq ? ` located in "${acct.hq}"` : ''} and generate a prospect intelligence brief for a cybersecurity VAR called GuidePoint Security whose Enterprise Client Manager is trying to determine if and how to engage this account.\n\nReturn ONLY a JSON object with no preamble or markdown backticks in this exact structure:\n\n{\n  "security_contacts": [\n    {\n      "name": "string or null",\n      "title": "string",\n      "linkedin_url": "string or null",\n      "confidence": "high|medium|low",\n      "confidence_reason": "string (e.g. Found on LinkedIn, Listed on company website, Inferred from job posting)"\n    }\n  ],\n  "recent_news": [\n    {\n      "headline": "string",\n      "date": "string",\n      "relevance": "string (why this matters for a cybersecurity conversation)"\n    }\n  ],\n  "active_job_postings": [\n    {\n      "title": "string",\n      "posted_date": "string",\n      "guidepoint_signal": "string (what this tells us about their security gaps or investments)",\n      "source_url": "string or null"\n    }\n  ],\n  "guidepoint_service_matches": [\n    {\n      "service_area": "string (e.g. GRC Advisory, Cloud Security, MDR, Identity, AppSec, Pen Testing)",\n      "signal": "string (what triggered this match -- job posting, news, industry pressure)",\n      "urgency": "high|medium|low"\n    }\n  ],\n  "timing_signal": {\n    "is_time_sensitive": true,\n    "reason": "string or null (e.g. recent breach in industry, regulation deadline, new CISO hire)"\n  },\n  "suggested_outreach": {\n    "primary_contact": "string (name and title of who to contact first)",\n    "opening_angle": "string (1-2 sentences -- the specific reason to reach out right now)",\n    "first_line": "string (suggested literal first sentence of an outreach email or LinkedIn message)"\n  }\n}\n\nOnly include job postings from the last 60 days. Flag confidence on all contacts. Do not include generic industry boilerplate -- every insight must be specific to this company.`
+    try {
+      const resp = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2500,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages: [{ role: 'user', content: prompt }]
+        })
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const result = await resp.json()
+      let briefData = null
+      for (const block of (result.content || [])) {
+        if (block.type === 'text') { briefData = extractStructuredAIResponse(block.text); if (briefData) break }
+      }
+      if (!briefData) throw new Error('Could not parse brief — try again.')
+      const now = new Date().toISOString()
+      const isTS = !!briefData.timing_signal?.is_time_sensitive
+      // Merge discovered contacts into account contacts (dedupe by name)
+      const existing = acct.contacts || []
+      const newContacts = (briefData.security_contacts || [])
+        .filter(c => c.name && c.name !== 'null' && c.name !== null)
+        .filter(c => !existing.some(e => (e.name||'').toLowerCase() === (c.name||'').toLowerCase()))
+        .map(c => ({
+          id: uid(), name: c.name, title: c.title || '',
+          linkedin: c.linkedin_url || '',
+          notes: `Confidence: ${c.confidence} — ${c.confidence_reason||''}`,
+          addedBy: 'prospect_brief'
+        }))
+      updateAccount(acct.id, {
+        prospect_brief: briefData,
+        prospect_brief_generated_at: now,
+        is_time_sensitive: isTS,
+        contacts: [...existing, ...newContacts]
+      })
+      setShowBrief(true)
+    } catch(err) {
+      console.error('[ProspectBrief]', err)
+      setBriefError(err.message || 'Could not generate brief. Try again in a moment.')
+    }
+    setBriefLoading(false)
+  }
+
+  const sHdr = label => (
+    <div style={{fontSize:11,fontWeight:600,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,marginTop:16}}>{label}</div>
+  )
+  const confC = c => c==='high'?'#15803d':c==='medium'?'#b45309':'#64748b'
+  const confBg = c => c==='high'?'#dcfce7':c==='medium'?'#fef3c7':'#f1f5f9'
+  const urgDot = u => u==='high'?'#dc2626':u==='medium'?'#f59e0b':'#3b82f6'
+
+  return (
+    <div style={{borderTop:'1px solid #EEEFF2',paddingTop:16,marginTop:4}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:brief&&showBrief?14:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>Prospect Intelligence Brief</span>
+          {generatedAt&&<span style={{fontSize:11,color:'#9CA3AF'}}>{fmtDate(generatedAt.split('T')[0])}</span>}
+          {brief&&<button onClick={()=>setShowBrief(v=>!v)} style={{fontSize:11,color:'#9CA3AF',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>{showBrief?'Hide':'Show'}</button>}
+        </div>
+        <button onClick={generateBrief} disabled={briefLoading}
+          style={{display:'inline-flex',alignItems:'center',gap:5,padding:'6px 14px',background:'#ffffff',border:'1px solid #007AFF',borderRadius:8,color:'#007AFF',fontSize:12,fontWeight:600,cursor:briefLoading?'default':'pointer',opacity:briefLoading?0.75:1,flexShrink:0}}>
+          {briefLoading
+            ? <><span style={{display:'inline-block',width:10,height:10,border:'2px solid rgba(0,122,255,0.3)',borderTopColor:'#007AFF',borderRadius:'50%',animation:'ilSpin 0.7s linear infinite'}}/>Researching…</>
+            : <><span style={{fontSize:13}}>✦</span>{brief?'Regenerate':'Generate Prospect Brief'}</>
+          }
+        </button>
+      </div>
+      {briefError&&<div style={{fontSize:12,color:'#dc2626',marginTop:6,marginBottom:4}}>{briefError}</div>}
+
+      {brief&&showBrief&&(
+        <div style={{background:'#ffffff',border:'1px solid #EEEFF2',borderRadius:12,padding:20,marginTop:8}}>
+
+          {/* Time Sensitive Banner */}
+          {brief.timing_signal?.is_time_sensitive&&(
+            <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'10px 14px',marginBottom:4,display:'flex',gap:8,alignItems:'flex-start'}}>
+              <span style={{fontSize:14,flexShrink:0}}>⚡</span>
+              <div><span style={{fontSize:12,fontWeight:700,color:'#92400e'}}>Time Sensitive — </span><span style={{fontSize:12,color:'#78350f'}}>{brief.timing_signal.reason||''}</span></div>
+            </div>
+          )}
+
+          {/* Security Contacts */}
+          {(brief.security_contacts||[]).filter(c=>c.name&&c.name!=='null').length>0&&(
+            <div>
+              {sHdr('Security Contacts')}
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {(brief.security_contacts||[]).filter(c=>c.name&&c.name!=='null').map((c,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,padding:'8px 10px',background:'#F9FAFB',borderRadius:7}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:500,color:'#111827'}}>{c.name}</div>
+                      <div style={{fontSize:13,color:'#6B7280'}}>{c.title}</div>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                      <span title={c.confidence_reason||''} style={{fontSize:10,fontWeight:600,color:confC(c.confidence),background:confBg(c.confidence),borderRadius:999,padding:'2px 7px',cursor:'help',whiteSpace:'nowrap'}}>
+                        {(c.confidence||'low').charAt(0).toUpperCase()+(c.confidence||'low').slice(1)}
+                      </span>
+                      {c.linkedin_url&&<a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'#007AFF',textDecoration:'none',fontWeight:600,whiteSpace:'nowrap'}}>LinkedIn ↗</a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent News */}
+          {(brief.recent_news||[]).length>0&&(
+            <div>
+              {sHdr('Recent News')}
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {(brief.recent_news||[]).map((n,i)=>(
+                  <div key={i}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
+                      <span style={{fontSize:13,fontWeight:500,color:'#111827',flex:1}}>{n.headline}</span>
+                      <span style={{fontSize:12,color:'#9CA3AF',whiteSpace:'nowrap',flexShrink:0}}>{n.date}</span>
+                    </div>
+                    <div style={{fontSize:13,color:'#6B7280',fontStyle:'italic',marginTop:2,lineHeight:1.5}}>{n.relevance}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active Job Postings */}
+          {(brief.active_job_postings||[]).length>0&&(
+            <div>
+              {sHdr('Active Job Postings')}
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {(brief.active_job_postings||[]).map((j,i)=>(
+                  <div key={i} style={{padding:'8px 10px',background:'#F9FAFB',borderRadius:7}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:3,gap:8}}>
+                      <span style={{fontSize:13,fontWeight:500,color:'#111827',flex:1}}>{j.title}</span>
+                      <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                        <span style={{fontSize:12,color:'#9CA3AF',whiteSpace:'nowrap'}}>{j.posted_date}</span>
+                        {j.source_url&&<a href={j.source_url} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'#007AFF',lineHeight:1}}>↗</a>}
+                      </div>
+                    </div>
+                    <div style={{fontSize:13,color:'#007AFF',lineHeight:1.4}}>{j.guidepoint_signal}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Service Matches */}
+          {(brief.guidepoint_service_matches||[]).length>0&&(
+            <div>
+              {sHdr('GuidePoint Service Matches')}
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {(brief.guidepoint_service_matches||[]).map((m,i)=>(
+                  <div key={i}>
+                    <div style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px',background:'#F3F4F6',borderRadius:999,marginBottom:3}}>
+                      <div style={{width:6,height:6,borderRadius:'50%',background:urgDot(m.urgency),flexShrink:0}}/>
+                      <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{m.service_area}</span>
+                    </div>
+                    <div style={{fontSize:12,color:'#6B7280',paddingLeft:4,lineHeight:1.5}}>{m.signal}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Suggested Outreach */}
+          {brief.suggested_outreach&&(
+            <div style={{marginTop:16}}>
+              {sHdr('Suggested Outreach')}
+              <div style={{borderLeft:'3px solid #007AFF',border:'1px solid #DBEAFE',borderLeft:'3px solid #007AFF',background:'#ffffff',borderRadius:'0 8px 8px 0',padding:'16px 20px'}}>
+                {brief.suggested_outreach.primary_contact&&(
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:11,color:'#9CA3AF',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:3}}>Primary Contact</div>
+                    <div style={{fontSize:13,fontWeight:600,color:'#111827'}}>{brief.suggested_outreach.primary_contact}</div>
+                  </div>
+                )}
+                {brief.suggested_outreach.opening_angle&&(
+                  <div style={{fontSize:14,color:'#374151',lineHeight:1.6,marginBottom:12}}>{brief.suggested_outreach.opening_angle}</div>
+                )}
+                {brief.suggested_outreach.first_line&&(
+                  <div style={{background:'#F9FAFB',borderRadius:6,padding:'10px 12px',display:'flex',alignItems:'flex-start',gap:10}}>
+                    <span style={{fontSize:13,color:'#111827',fontWeight:500,fontStyle:'italic',flex:1,lineHeight:1.6}}>{brief.suggested_outreach.first_line}</span>
+                    <button onClick={()=>{try{navigator.clipboard?.writeText(brief.suggested_outreach.first_line)}catch{}setCopied(true);setTimeout(()=>setCopied(false),2000)}}
+                      style={{fontSize:11,color:copied?'#15803d':'#9CA3AF',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',fontWeight:600,flexShrink:0,whiteSpace:'nowrap'}}>
+                      {copied?'Copied!':'Copy'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExpandedWhitespaceRow({acct, updateAccount, isLight, onRescore, scoringId, effectiveKey}) {
   const [editForm, setEditForm] = useState({name:acct.name||'',hq:acct.hq||'',industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',status:acct.status||'Prospect'})
   const [addingNote, setAddingNote] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -380,6 +588,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight, onRescore, scoring
           )}
         </div>
       </div>
+      <ProspectBriefPanel acct={acct} updateAccount={updateAccount} effectiveKey={effectiveKey} isLight={isLight}/>
     </div>
   )
 }
@@ -498,7 +707,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
   const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
   const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
-  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity','Hot']
+  const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity','Hot','Sort by Time Sensitive']
   const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
@@ -552,6 +761,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
       case 'Intel':return((b.intelLog||[]).length+(b.notes||[]).length)-((a.intelLog||[]).length+(a.notes||[]).length)
       case 'Sort by Opportunity':return(b.ai_opportunity_score||0)-(a.ai_opportunity_score||0)
       case 'Hot':return(isHot(b)?1:0)-(isHot(a)?1:0)
+      case 'Sort by Time Sensitive':return(b.is_time_sensitive?1:0)-(a.is_time_sensitive?1:0)||(b.addedAt||'').localeCompare(a.addedAt||'')
       default:return(b.addedAt||'').localeCompare(a.addedAt||'')
     }
   })
@@ -1970,8 +2180,10 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                       <div style={{width:28,flexShrink:0,textAlign:'center',fontSize:14}}>
                         {isHot(acct)?<span title='Hot account'>🔥</span>:null}
                       </div>
-                      <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',paddingRight:12,minWidth:0}}>
-                        <span style={{fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{acct.name}</span>
+                      <div style={{flex:'0 0 200px',display:'flex',alignItems:'center',paddingRight:12,minWidth:0,gap:4}}>
+                        <span style={{fontWeight:700,fontSize:14,color:isLight?'#0f172a':S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{acct.name}</span>
+                        {acct.is_time_sensitive&&<span title='Time sensitive' style={{fontSize:11,flexShrink:0}}>⚡</span>}
+                        {acct.prospect_brief&&!acct.is_time_sensitive&&<span title='Prospect brief available' style={{fontSize:10,color:'#007AFF',fontWeight:700,flexShrink:0}}>✓</span>}
                       </div>
                       <div style={{flex:'0 0 120px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.hq||''}</div>
                       <div style={{flex:'1 1 140px',fontSize:12,color:'#64748b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',paddingRight:12}}>{acct.industry||''}</div>
@@ -1989,7 +2201,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                           onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Trash2 size={12}/></button>
                       </div>
                     </div>
-                    {isExp&&<ExpandedWhitespaceRow key={acct.id+'-exp'} acct={acct} updateAccount={updateAccount} isLight={isLight} onRescore={rescoreAccount} scoringId={scoringId}/>}
+                    {isExp&&<ExpandedWhitespaceRow key={acct.id+'-exp'} acct={acct} updateAccount={updateAccount} isLight={isLight} onRescore={rescoreAccount} scoringId={scoringId} effectiveKey={effectiveKey}/>}
                   </div>
                 )
               })}
