@@ -449,6 +449,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [wsDragOver, setWsDragOver] = useState(false)
   const wsFileInputRef = useRef(null)
   const [wsPendingFile, setWsPendingFile] = useState(null)
+  const [wsSpreadsheetRows, setWsSpreadsheetRows] = useState(null)
   const [wsFileIsDirectType, setWsFileIsDirectType] = useState(false)
   const [wsShowDate, setWsShowDate] = useState(false)
   const [wsCustomDate, setWsCustomDate] = useState('')
@@ -976,14 +977,19 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const WS_IMAGE_EXTS = ['png','jpg','jpeg','webp']
   const WS_TEXT_EXTS = ['txt','pdf','doc','docx','md']
   const WS_SS_EXTS   = ['xlsx','xls','csv']
+  // Strip /, _, -, . from headers then collapse whitespace so "state/province" → "state province"
+  const normalizeHdr = h => h.toLowerCase().replace(/[/_\-\.]+/g, ' ').replace(/\s+/g, ' ').trim()
+
   const WS_SS_COL_MAP = {
-    name:      ['account name','account','company','company name','name'],
-    hq:        ['hq','headquarters','location','city','state'],
-    industry:  ['industry','vertical'],
-    employees: ['employees','employee count','headcount'],
-    revenue:   ['revenue','annual revenue'],
-    notes:     ['notes','ai notes','description'],
-    website:   ['website','domain','url'],
+    name:      ['account name','account','company','company name','name','organization','org name','client','client name','customer name','customer','contact name','lead name'],
+    hq:        ['hq','headquarters','location','city','state','state province','province','region','state region','territory','office location','city state'],
+    industry:  ['industry','vertical','sector','business type','market','market segment'],
+    employees: ['employees','employee count','headcount','company size','size','team size','num employees','number of employees','staff','staff count','employee size'],
+    revenue:   ['revenue','annual revenue','arr','mrr','total revenue','yearly revenue'],
+    notes:     ['notes','ai notes','description','comments','comment','details','additional info','intel'],
+    owner:     ['account owner','owner','rep','sales rep','assigned to','assigned rep','territory owner','ae','se'],
+    type:      ['customer type','account type','type','prospect type','lead type','classification','segment'],
+    website:   ['website','domain','url','web','website url','homepage'],
   }
 
   const loadMammothWS = () => new Promise((resolve, reject) => {
@@ -1007,7 +1013,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const resetWsFileState = () => {
     setWsUploadedFile(null); setWsPendingFile(null); setWsFileIsDirectType(false)
     setWsFileError(''); setWsFileStatus(''); setWsFileCharCount(0); setWsLargeDocWarning(false)
-    setWsCustomDate(''); setWsPendingDate('')
+    setWsCustomDate(''); setWsPendingDate(''); setWsSpreadsheetRows(null)
   }
 
   const wsHandleFile = async (file) => {
@@ -1084,41 +1090,52 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
         const allRows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''})
         if (allRows.length < 2) throw new Error('No data rows found')
         const rawHeaders = allRows[0].map(h => String(h).trim())
-        const headerLower = rawHeaders.map(h => h.toLowerCase())
-        // Map known column indices
+        const normHeaders = rawHeaders.map(normalizeHdr)
+        // Map column indices using normalized headers (strips /, _, - so "state/province" → "state province")
         const colIdx = {}
         for (const [field, aliases] of Object.entries(WS_SS_COL_MAP)) {
-          const idx = headerLower.findIndex(h => aliases.includes(h))
+          const idx = normHeaders.findIndex(h => aliases.includes(h))
           if (idx !== -1) colIdx[field] = idx
         }
         const dataRows = allRows.slice(1).filter(r => r.some(c => c !== '')).slice(0, 5000)
         if (dataRows.length === 0) throw new Error('No data rows found')
-        // Convert to labeled text the AI can parse
-        const FIELD_LABEL = {name:'Company', hq:'HQ', industry:'Industry', employees:'Employees', revenue:'Revenue', notes:'Notes', website:'Website'}
-        const lines = dataRows.map(row => {
-          const parts = []
-          // Known fields first (in label order)
-          for (const [field, label] of Object.entries(FIELD_LABEL)) {
-            if (colIdx[field] === undefined) continue
-            const v = row[colIdx[field]]
-            const s = v !== undefined && v !== null ? String(v).trim() : ''
-            if (s) parts.push(`${label}: ${s}`)
-          }
-          // Any unmapped columns
+        const getCell = (row, i) => { const v = row[i]; return v !== undefined && v !== null ? String(v).trim() : '' }
+        // Build structured row objects for AI and direct-parse fallback
+        const structuredRows = dataRows.map(row => {
+          const obj = {}
+          if (colIdx.name !== undefined)     { const v = getCell(row,colIdx.name);      if (v) obj.accountName  = v }
+          if (colIdx.hq !== undefined)        { const v = getCell(row,colIdx.hq);        if (v) obj.location     = v }
+          if (colIdx.industry !== undefined)  { const v = getCell(row,colIdx.industry);  if (v) obj.industry     = v }
+          if (colIdx.employees !== undefined) { const v = getCell(row,colIdx.employees); if (v) obj.companySize  = v }
+          if (colIdx.revenue !== undefined)   { const v = getCell(row,colIdx.revenue);   if (v) obj.revenue      = v }
+          if (colIdx.notes !== undefined)     { const v = getCell(row,colIdx.notes);     if (v) obj.notes        = v }
+          if (colIdx.owner !== undefined)     { const v = getCell(row,colIdx.owner);     if (v) obj.accountOwner = v }
+          if (colIdx.type !== undefined)      { const v = getCell(row,colIdx.type);      if (v) obj.customerType = v }
+          if (colIdx.website !== undefined)   { const v = getCell(row,colIdx.website);   if (v) obj.website      = v }
+          // Include any unmapped columns as-is
           rawHeaders.forEach((h, i) => {
-            const alreadyMapped = Object.values(colIdx).includes(i)
-            if (!alreadyMapped) {
-              const v = row[i]
-              const s = v !== undefined && v !== null ? String(v).trim() : ''
-              if (s) parts.push(`${h}: ${s}`)
+            if (!Object.values(colIdx).includes(i)) {
+              const v = getCell(row, i)
+              if (v) {
+                const key = normalizeHdr(h).replace(/\s+(.)/g, (_, c) => c.toUpperCase()).replace(/^\s+|\s+$/g,'') || `col${i}`
+                obj[key] = v
+              }
             }
           })
-          return parts.join(' | ')
-        }).filter(Boolean)
-        let extracted = `Whitespace account list from spreadsheet [${file.name}] — ${dataRows.length} rows:\n\n` + lines.join('\n')
+          return obj
+        }).filter(obj => Object.keys(obj).length > 0)
+        // Store all rows for direct-parse fallback (used in processIntel if AI returns 0)
+        setWsSpreadsheetRows(structuredRows)
+        // Format as structured JSON rows with a recognizable import marker
+        const markerLine = `[SPREADSHEET_IMPORT: ${file.name} — ${structuredRows.length} rows]`
+        const rowLines = structuredRows.map((obj, i) => `Row ${i+1}: ${JSON.stringify(obj)}`)
+        let extracted = markerLine + '\n' + rowLines.join('\n')
         setWsFileCharCount(extracted.length)
         if (extracted.length > WS_FILE_CHAR_LIMIT) {
-          extracted = '[Note: Truncated to 100,000 characters.]\n\n' + extracted.slice(0, WS_FILE_CHAR_LIMIT)
+          const truncLines = []
+          let len = markerLine.length + 1
+          for (const l of rowLines) { if (len + l.length + 1 > WS_FILE_CHAR_LIMIT) break; truncLines.push(l); len += l.length + 1 }
+          extracted = `[SPREADSHEET_IMPORT: ${file.name} — showing first ${truncLines.length} of ${structuredRows.length} rows]\n` + truncLines.join('\n')
           setWsLargeDocWarning(true)
         }
         setIntelText(extracted)
@@ -1126,6 +1143,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
         setWsDateModalIsFile(false)
         setWsShowDate(true)
       } catch(e) {
+        console.error('[WS Spreadsheet]', e)
         setWsFileError('Could not read spreadsheet. Please try .xlsx, .xls, or .csv.')
         setWsUploadedFile(null)
       }
@@ -1312,13 +1330,20 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
 
     setIntelLoading(true); setIntelError(''); setIntelStatus('')
 
-    const SYS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
-    const buildPrompt = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+    const isSpreadsheet = intelText.trimStart().startsWith('[SPREADSHEET_IMPORT:')
+
+    const SYS = isSpreadsheet
+      ? 'You are mapping structured spreadsheet rows into whitespace sales accounts. Return ONLY valid JSON with no markdown or explanation. Start with { and end with }.'
+      : 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
+
+    const buildPrompt = isSpreadsheet
+      ? txt => `These are structured rows from a whitespace account spreadsheet. Map EVERY row into a whitespace account.\n\nReturn ONLY this JSON:\n{"accounts":[{"name":"Account Name","hq":"state or city/state or empty","industry":"industry or empty","employees":"company size or headcount as string or empty","revenue":"revenue or empty","note":"brief note using customerType/accountOwner/other fields","status":"Prospect"}]}\n\nRules:\n- accountName = company name — INCLUDE EVERY ROW that has an accountName, do not skip any\n- location, stateProvince, state, or province = use as hq field\n- companySize, employees, headcount = use as employees field\n- customerType: if "Customer" set status to "Researching", otherwise "Prospect"\n- accountOwner + customerType = include in note field\n- Revenue and industry may be empty — leave as empty string, do not skip the row\n- Return ALL rows as accounts — do not filter or omit any\n- CRITICAL: Return valid JSON only, nothing else\n\nSpreadsheet rows:\n${txt}`
+      : txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const runChunk = async (txt, idx, total) => {
       if (total > 1) setIntelStatus(`Processing chunk ${idx+1} of ${total}…`)
       const {data: resp} = await callClaudeWithRetry({
-        model: AI_MODELS.cheap, max_tokens: 2000,
+        model: AI_MODELS.cheap, max_tokens: isSpreadsheet ? 8000 : 2000,
         system:SYS,
         messages:[{role:'user',content:buildPrompt(txt)}]
       }, effectiveKey, null)
@@ -1338,20 +1363,34 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     }
 
     try {
-      const CHUNK = 6000
+      // Spreadsheets get larger chunks per call; text uses paragraph-based 6k chunks
+      const CHUNK = isSpreadsheet ? 24000 : 6000
       let allAccounts = []
 
       if (intelText.length <= CHUNK) {
         allAccounts = await runChunk(intelText, 0, 1)
       } else {
-        // Split on double-newlines into chunks of max CHUNK chars
         const chunks = []
-        let cur = ''
-        for (const para of intelText.split(/\n\n+/)) {
-          if (cur && (cur + '\n\n' + para).length > CHUNK) { chunks.push(cur.trim()); cur = para }
-          else { cur = cur ? cur + '\n\n' + para : para }
+        if (isSpreadsheet) {
+          // Chunk by rows (one JSON object per line) keeping the header marker on each chunk
+          const lines = intelText.split('\n')
+          const headerLine = lines[0]
+          const dataLines = lines.slice(1)
+          let cur = headerLine + '\n'
+          for (const line of dataLines) {
+            if ((cur + line + '\n').length > CHUNK) { if (cur.trim() !== headerLine.trim()) chunks.push(cur.trim()); cur = headerLine + '\n' + line + '\n' }
+            else { cur += line + '\n' }
+          }
+          if (cur.trim() && cur.trim() !== headerLine.trim()) chunks.push(cur.trim())
+        } else {
+          // Original paragraph-based chunking for pasted text
+          let cur = ''
+          for (const para of intelText.split(/\n\n+/)) {
+            if (cur && (cur + '\n\n' + para).length > CHUNK) { chunks.push(cur.trim()); cur = para }
+            else { cur = cur ? cur + '\n\n' + para : para }
+          }
+          if (cur.trim()) chunks.push(cur.trim())
         }
-        if (cur.trim()) chunks.push(cur.trim())
         for (let i = 0; i < chunks.length; i++) {
           const chunk_accounts = await runChunk(chunks[i], i, chunks.length)
           allAccounts.push(...chunk_accounts)
@@ -1366,9 +1405,27 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
         allAccounts = deduped
       }
 
+      // Spreadsheet fallback: if AI returned nothing, parse rows directly without AI
+      if (allAccounts.length === 0 && isSpreadsheet && wsSpreadsheetRows?.length > 0) {
+        console.log('[WS] Spreadsheet AI returned 0 — falling back to direct row import')
+        allAccounts = wsSpreadsheetRows
+          .filter(r => r.accountName)
+          .map(r => ({
+            name: r.accountName,
+            hq: r.location || r.hq || '',
+            industry: r.industry || '',
+            employees: r.companySize || r.employees || '',
+            revenue: r.revenue || '',
+            note: [r.customerType && `Type: ${r.customerType}`, r.accountOwner && `Owner: ${r.accountOwner}`, r.notes && r.notes, 'Imported from spreadsheet.'].filter(Boolean).join(' '),
+            status: 'Prospect',
+          }))
+      }
+
       setIntelStatus('')
       if (allAccounts.length === 0) {
-        setIntelError('No prospect companies found in the text.')
+        setIntelError(isSpreadsheet
+          ? 'No account names found in the spreadsheet. Make sure there is a column named "Account Name", "Company", or "Name".'
+          : 'No prospect companies found in the text.')
         setIntelLoading(false); return
       }
       const sel = new Set()
@@ -1952,16 +2009,23 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                   )}
                 </div>
               )}
-              {/* DOCX / TXT file pill */}
-              {!wsFileIsDirectType&&wsUploadedFile&&(
-                <div>
-                  <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:999,padding:'4px 10px',fontSize:12,color:'#1d4ed8'}}>
-                    <span>📄 {wsUploadedFile.name} · {(wsUploadedFile.size/1024).toFixed(0)} KB</span>
-                    <button onClick={e=>{e.stopPropagation();resetWsFileState()}} style={{background:'none',border:'none',color:'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+              {/* DOCX / TXT / Spreadsheet file pill */}
+              {!wsFileIsDirectType&&wsUploadedFile&&(()=>{
+                const isSs = wsSpreadsheetRows != null
+                const rowCount = wsSpreadsheetRows?.length || 0
+                return (
+                  <div>
+                    <div style={{display:'inline-flex',alignItems:'center',gap:6,background:isSs?'#f0fdf4':'#eff6ff',border:`1px solid ${isSs?'#bbf7d0':'#bfdbfe'}`,borderRadius:999,padding:'4px 10px',fontSize:12,color:isSs?'#15803d':'#1d4ed8'}}>
+                      <span>{isSs?'📊':'📄'} {wsUploadedFile.name} · {(wsUploadedFile.size/1024).toFixed(0)} KB</span>
+                      <button onClick={e=>{e.stopPropagation();resetWsFileState()}} style={{background:'none',border:'none',color:isSs?'#4ade80':'#60a5fa',cursor:'pointer',fontSize:16,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+                    </div>
+                    {isSs
+                      ? <div style={{fontSize:11,color:'#15803d',marginTop:3,paddingLeft:2}}>Spreadsheet parsed — {rowCount} rows mapped for AI review{wsSpreadsheetRows?.length>0&&!wsSpreadsheetRows[0].accountName?' (no Account Name column detected — AI will attempt mapping)':''}</div>
+                      : wsFileCharCount>0&&<div style={{fontSize:11,color:S.muted,marginTop:3,paddingLeft:2}}>Extracted: {wsFileCharCount.toLocaleString()} characters{wsFileCharCount>WS_FILE_CHAR_LIMIT?` (processing first ${WS_FILE_CHAR_LIMIT.toLocaleString()})`:''}</div>
+                    }
                   </div>
-                  {wsFileCharCount>0&&<div style={{fontSize:11,color:S.muted,marginTop:3,paddingLeft:2}}>Extracted: {wsFileCharCount.toLocaleString()} characters{wsFileCharCount>WS_FILE_CHAR_LIMIT?` (processing first ${WS_FILE_CHAR_LIMIT.toLocaleString()})`:''}</div>}
-                </div>
-              )}
+                )
+              })()}
               {wsLargeDocWarning&&(
                 <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#92400e',display:'flex',alignItems:'flex-start',gap:6}}>
                   <span style={{flexShrink:0,fontSize:14}}>⚠</span>
@@ -2011,8 +2075,8 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
       {wsShowDate&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1100,padding:20}} onClick={()=>setWsShowDate(false)}>
           <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:24,width:'100%',maxWidth:380,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:6}}>{wsDateModalIsFile?'When did this document originate?':'Confirm document date'}</div>
-            <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>{wsDateModalIsFile?'When was this document created or the event it describes occurred?':'Is the date in this document correct?'}</p>
+            <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:6}}>{wsDateModalIsFile?'When did this document originate?':wsSpreadsheetRows?'Set import date for this spreadsheet':'Confirm document date'}</div>
+            <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>{wsDateModalIsFile?'When was this document created or the event it describes occurred?':wsSpreadsheetRows?'Choose a date to associate with these imported accounts (defaults to today).':'Is the date in this document correct?'}</p>
             {wsCustomDate&&<div style={{fontSize:12,color:'#15803d',padding:'6px 10px',background:'rgba(34,197,94,0.08)',border:'1px solid rgba(34,197,94,0.2)',borderRadius:5,marginBottom:12}}>Date detected: <strong>{fmtDate(wsCustomDate)}</strong></div>}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,color:S.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>Custom date (leave blank for today)</div>
