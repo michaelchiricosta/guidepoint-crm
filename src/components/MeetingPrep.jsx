@@ -215,6 +215,7 @@ export default function MeetingPrep({ data, setData, onBack }) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
   const [openPrep, setOpenPrep] = useState(null)
+  const [fallbackWarning, setFallbackWarning] = useState(false)
 
   const preps = data.meetingPreps || []
 
@@ -373,22 +374,59 @@ Generate the 60-second pre-call briefing.`
 
     const _start = Date.now()
     try {
+      // LAYER 1 — structured response
       const { data: resData } = await callClaudeWithRetry({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       }, null, null)
-      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 1500, durationMs: Date.now() - _start, success: true })
+      trackAI({ feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: systemPrompt.length + userPrompt.length, maxTokensOut: 2000, durationMs: Date.now() - _start, success: true })
 
-      const briefData = extractStructuredAIResponse(resData)
+      let briefData = extractStructuredAIResponse(resData)
+      const rawText = resData?.content?.[0]?.text || ''
+      let usedFallback = false
+
       if (!briefData) {
-        if (import.meta.env.DEV) console.error('MeetingPrep parse failed', { responseShape: resData })
-        throw new Error('AI returned an unexpected format. Please try again.')
+        if (import.meta.env.DEV) console.warn('MeetingPrep Layer 1 parse failed', { responseShape: resData, preview: rawText.slice(0, 500) })
+
+        // LAYER 2 — automatic repair retry
+        if (rawText) {
+          try {
+            const repairSchema = '{"matchedAccount":"string|null","whyThisMeeting":"string","recentActivity":["string"],"mustCover":[{"topic":"string","why":"string"}],"questionsNeeded":["string"],"opportunities":[{"opportunity":"string","whyNow":"string"}],"suggestedClose":"string","stakeholders":[{"name":"string","title":"string","relationship":"string","note":"string"}],"accountHistory":"string","supportingNotes":["string"]}'
+            const { data: repairData } = await callClaudeWithRetry({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 2000,
+              messages: [{ role: 'user', content: `Convert the following content into the exact Meeting Prep JSON schema. Return only valid JSON. No markdown. No commentary.\n\nSchema: ${repairSchema}\n\nContent:\n${rawText}` }],
+            }, null, null)
+            briefData = extractStructuredAIResponse(repairData)
+            if (import.meta.env.DEV && !briefData) console.warn('MeetingPrep Layer 2 repair also failed', { repairShape: repairData })
+          } catch (repairErr) {
+            if (import.meta.env.DEV) console.warn('MeetingPrep Layer 2 repair error', repairErr.message)
+          }
+        }
+
+        // LAYER 3 — plain-text fallback: never hard-fail
+        if (!briefData) {
+          briefData = {
+            matchedAccount: matched?.name || null,
+            whyThisMeeting: '',
+            recentActivity: [],
+            mustCover: [],
+            questionsNeeded: [],
+            opportunities: [],
+            suggestedClose: '',
+            stakeholders: [],
+            accountHistory: rawText || 'No content returned from AI.',
+            supportingNotes: [],
+          }
+          usedFallback = true
+        }
       }
 
+      setFallbackWarning(usedFallback)
       const newPrep = { id: uid(), input: effectiveInput, createdAt: new Date().toISOString(), brief: briefData }
-      setAICache(setData, _cacheKey, briefData, 24 * 3600 * 1000)
+      if (!usedFallback) setAICache(setData, _cacheKey, briefData, 24 * 3600 * 1000)
       setData(prev => ({ ...prev, meetingPreps: [newPrep, ...(prev.meetingPreps || [])].slice(0, 50) }))
       setOpenPrep(newPrep)
       if (typeof inputOverride !== 'string') setInput('')
@@ -420,11 +458,17 @@ Generate the 60-second pre-call briefing.`
         <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Meeting Prep</span>
       </div>
 
+      {openPrep && fallbackWarning && (
+        <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'8px 14px',margin:'8px 20px 0',fontSize:12,color:'#92400e',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          <span style={{fontWeight:700}}>⚠</span> AI returned an imperfect format, so Ledgr displayed a fallback prep.
+        </div>
+      )}
+
       {openPrep ? (
         <PrepView
           prep={openPrep}
           generating={generating}
-          onBack={() => setOpenPrep(null)}
+          onBack={() => { setOpenPrep(null); setFallbackWarning(false) }}
           onDelete={deletePrep}
           onRegenerate={() => generatePrep(openPrep.input, true)}
         />
