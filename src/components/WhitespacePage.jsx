@@ -448,6 +448,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [wsFileStatus, setWsFileStatus] = useState('')
   const [wsDragOver, setWsDragOver] = useState(false)
   const wsFileInputRef = useRef(null)
+  const wsIdsNormalized = useRef(false)
   const [wsPendingFile, setWsPendingFile] = useState(null)
   const [wsSpreadsheetRows, setWsSpreadsheetRows] = useState(null)
   const [wsFileIsDirectType, setWsFileIsDirectType] = useState(false)
@@ -647,10 +648,27 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     }
     setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===id?{...a,...changes,updatedAt:now}:a)}))
   }
-  const deleteAccount = id => {
-    if(!window.confirm('Delete this whitespace account?'))return
-    setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).filter(a=>a.id!==id)}))
-    if(expandedId===id)setExpandedId(null)
+  const deleteAccount = (id, accountName, accountIndex) => {
+    if(!window.confirm(`Delete "${accountName}" from whitespace tracker?`))return
+    if (import.meta.env.DEV) console.log('Deleting whitespace account', { id, name: accountName, index: accountIndex })
+    // Set _lastDirectSave so the focus-triggered safeLoadData in App.jsx does not reload stale
+    // data from Supabase and overwrite the delete before the auto-save fires (2s debounce).
+    window._lastDirectSave = Date.now()
+    if (id) {
+      setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).filter(a=>a.id!==id)}))
+      if(expandedId===id)setExpandedId(null)
+    } else {
+      // Fallback for legacy accounts with no id: remove first exact name match only
+      let removed = false
+      setData(prev=>({
+        ...prev,
+        whitespaceAccounts:(prev.whitespaceAccounts||[]).filter(a=>{
+          if(!removed && a.name===accountName && !a.id){removed=true;return false}
+          return true
+        })
+      }))
+      setExpandedId(null)
+    }
   }
   const addAccount = () => {
     if(!addForm.name.trim())return
@@ -815,6 +833,20 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     document.addEventListener('mousedown',h)
     return()=>document.removeEventListener('mousedown',h)
   },[showMoreMenu])
+
+  // Normalize legacy whitespace accounts that are missing ids (run once when accounts first load)
+  useEffect(()=>{
+    if (wsIdsNormalized.current) return
+    const wsList = data?.whitespaceAccounts
+    if (!wsList?.length) return
+    wsIdsNormalized.current = true
+    if (wsList.every(a => a.id)) return
+    setData(prev=>({
+      ...prev,
+      whitespaceAccounts: (prev.whitespaceAccounts||[]).map(a => a.id ? a : {...a, id: uid()})
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!data?.whitespaceAccounts?.length])
 
   const fetchRecommendations = async () => {
     if (recLoading) return
@@ -1891,7 +1923,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                         <span style={{fontSize:11,fontWeight:700,color:'#fff',background:sc,borderRadius:999,padding:'3px 10px',whiteSpace:'nowrap'}}>{acct.status}</span>
                       </div>
                       <div style={{width:44,flexShrink:0,display:'flex',justifyContent:'flex-end'}} onClick={e=>e.stopPropagation()}>
-                        <button onClick={()=>deleteAccount(acct.id)} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:10,padding:'2px 4px',display:'flex',alignItems:'center'}}
+                        <button onClick={e=>{e.stopPropagation();deleteAccount(acct.id,acct.name,i)}} style={{background:'transparent',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:10,padding:'2px 4px',display:'flex',alignItems:'center'}}
                           onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}><Trash2 size={12}/></button>
                       </div>
                     </div>
