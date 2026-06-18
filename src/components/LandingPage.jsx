@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
-import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2 } from 'lucide-react'
+import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, daysSince, parseCost, formatCompactCurrency, calcHealthScore, getHealthColor, sendToAppleReminders } from '../utils.js'
@@ -431,6 +431,9 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   const [todayEditRow, setTodayEditRow] = useState(null)
   const [todayEditFlash, setTodayEditFlash] = useState(null)
   const [remindersToast, setRemindersToast] = useState(false)
+  const [taskContexts, setTaskContexts] = useState({})
+  const [taskContextLoading, setTaskContextLoading] = useState(null)
+  const [expandedContextIds, setExpandedContextIds] = useState(new Set())
   const lpTodayStr = new Date().toISOString().split('T')[0]
   const totalOpenFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open').length, 0)
   const highCriticalFUs = data.accounts.reduce((s,a)=>s+(a.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length, 0)
@@ -471,6 +474,31 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   const markAllTodayDone = () => {if(!window.confirm(`Mark all ${todayTasksCount} task${todayTasksCount!==1?'s':''} complete?`))return;setData(prev=>({...prev,accounts:prev.accounts.map(a=>({...a,followUps:(a.followUps||[]).map(fu=>fu.status==='Open'&&fu.dueDate&&fu.dueDate<=lpTodayStr?{...fu,status:'Done'}:fu)}))}));setTodayModal(false)}
   const openTaskDetail = (accountId,fu) => { setSelectedTask({accountId}); setTaskForm({...fu}); setTaskSnoozeOpen(false) }
   const closeDetail = () => { setSelectedTask(null); setTaskForm(null); setTaskSnoozeOpen(false) }
+
+  const toggleTaskContext = async (key, taskTitle, dueDate, contact, account) => {
+    const isExpanded = expandedContextIds.has(key)
+    setExpandedContextIds(prev => { const n=new Set(prev); isExpanded?n.delete(key):n.add(key); return n })
+    if (isExpanded || taskContexts[key]) return // already cached or collapsing
+    setTaskContextLoading(key)
+    try {
+      const recentIntel = [...(account.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5).map(e=>`[${e.date||''}] ${(e.summary||e.text||'').slice(0,250)}`).join('\n')
+      const activeProjs = (account.projects||[]).filter(p=>['In Flight','In Discussion'].includes(p.status)).slice(0,3).map(p=>`${p.name} (${p.status})${p.nextSteps?': '+p.nextSteps:''}`).join('; ')
+      const recentNotes = (account.followUps||[]).filter(f=>f.status==='Done'&&f.context).sort((a,b)=>(b.dueDate||'').localeCompare(a.dueDate||'')).slice(0,3).map(f=>f.context).join(' | ')
+      const prompt = `You are a sales intelligence assistant for an Enterprise Client Manager at GuidePoint Security.\n\nTask: "${taskTitle}"\nDue: ${dueDate||'today'}\nAccount: ${account.name}${contact?`\nContact: ${contact}`:''}\n\nRecent intel (last 3-5 entries):\n${recentIntel||'None available'}\n\nActive projects:\n${activeProjs||'None'}\n\nRecent completed task notes:\n${recentNotes||'None'}\n\nWrite 2-3 sentences of specific, actionable context for this task. Reference actual names, dates, deals, vendors, or decisions from the intel above. Be concrete — not generic. Do not add headers or bullet points, just prose.`
+      const resp = await fetch('/api/ai', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:200,messages:[{role:'user',content:prompt}]})
+      })
+      const result = await resp.json()
+      if (result.error) throw new Error(result.error.message||'API error')
+      const text = (result.content||[]).find(b=>b.type==='text')?.text?.trim()||''
+      setTaskContexts(prev=>({...prev,[key]:{text:text||'No context available.',generatedAt:new Date().toISOString()}}))
+    } catch(err) {
+      console.error('[TaskContext]',err)
+      setTaskContexts(prev=>({...prev,[key]:{text:'Could not generate context.',generatedAt:new Date().toISOString(),error:true}}))
+    }
+    setTaskContextLoading(null)
+  }
 
   const openEditItem = (type, accountId, item) => {
     setEditingItem(prev => prev?.itemId===item.id ? null : {type, accountId, itemId:item.id, form:{...item}})
@@ -562,6 +590,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   const _budget = data ? checkBudget(data) : null
   return (
     <div style={{height:'100vh',background:S.bg,color:S.txt,overflow:'hidden'}}>
+      <style>{`@keyframes tcDot{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
       {_budget?.warn&&<div style={{position:'fixed',top:0,left:0,right:0,zIndex:500,background:_budget.blocked?'#FEF2F2':'#FFFBEB',borderBottom:`1px solid ${_budget.blocked?'#FCA5A5':'#FDE68A'}`,padding:'7px 20px',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:12}}>
         <AlertTriangle size={13} style={{color:_budget.blocked?'#dc2626':'#d97706',flexShrink:0}}/>
@@ -1193,6 +1222,12 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                                   title='Send to Apple Reminders'
                                   style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
                                   onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Share2 size={14}/></button>
+                                <button onClick={e=>{e.stopPropagation();toggleTaskContext(fu.id,fu.task,fu.dueDate,fu.contact,g.account)}}
+                                  title='AI context'
+                                  style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0,transition:'color 0.15s'}}
+                                  onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}>
+                                  <ChevronRight size={16} style={{transform:expandedContextIds.has(fu.id)?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s'}}/>
+                                </button>
                               </div>
                             </div>
                             {isEditingThis&&todayEditRow&&(
@@ -1221,6 +1256,20 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                                   <button onClick={saveTodayEdit} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
                                   <button onClick={()=>setTodayEditRow(null)} style={{padding:'5px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
                                 </div>
+                              </div>
+                            )}
+                            {expandedContextIds.has(fu.id)&&(
+                              <div style={{background:'#F9FAFB',borderTop:'1px solid #F3F4F6',padding:'10px 28px 14px 28px'}}>
+                                {taskContextLoading===fu.id?(
+                                  <div style={{display:'flex',gap:5,alignItems:'center',padding:'4px 0'}}>
+                                    {[0,1,2].map(i=><span key={i} style={{width:5,height:5,borderRadius:'50%',background:'#9CA3AF',display:'inline-block',animation:`tcDot 1.2s ${i*0.3}s ease-in-out infinite`}}/>)}
+                                  </div>
+                                ):taskContexts[fu.id]?(
+                                  <div>
+                                    <p style={{fontSize:13,color:'#374151',lineHeight:1.6,fontStyle:'italic',margin:'0 0 6px 0'}}>{taskContexts[fu.id].text}</p>
+                                    <div style={{fontSize:11,color:'#9CA3AF',textAlign:'right'}}>Generated just now</div>
+                                  </div>
+                                ):null}
                               </div>
                             )}
                           </div>
@@ -1313,6 +1362,12 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                         <button onClick={()=>openEditItem('followup',item.accountId,item)} title='Edit'
                           style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0}}
                           onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}><Pencil size={14}/></button>
+                        <button onClick={e=>{e.stopPropagation();const acct=data.accounts.find(a=>a.id===item.accountId)||{name:item.accountName||'',intelLog:[],projects:[],followUps:[]};toggleTaskContext(item.id,item.task,item.dueDate,item.contact,acct)}}
+                          title='AI context'
+                          style={{background:'transparent',border:'none',color:'#D1D5DB',cursor:'pointer',padding:'2px',display:'flex',alignItems:'center',flexShrink:0,transition:'color 0.15s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#6B7280'} onMouseLeave={e=>e.currentTarget.style.color='#D1D5DB'}>
+                          <ChevronRight size={16} style={{transform:expandedContextIds.has(item.id)?'rotate(90deg)':'rotate(0deg)',transition:'transform 0.15s'}}/>
+                        </button>
                       </div>
                     </div>
                     {isEditingThis&&ef&&(
@@ -1341,6 +1396,20 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                           <button onClick={saveEditItem} style={{padding:'5px 14px',background:'#2563eb',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
                           <button onClick={()=>setEditingItem(null)} style={{padding:'5px 10px',background:'transparent',border:'1px solid #bfdbfe',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer'}}>Cancel</button>
                         </div>
+                      </div>
+                    )}
+                    {expandedContextIds.has(item.id)&&(
+                      <div style={{background:'#F9FAFB',borderTop:'1px solid #F3F4F6',padding:'10px 28px 14px 28px'}}>
+                        {taskContextLoading===item.id?(
+                          <div style={{display:'flex',gap:5,alignItems:'center',padding:'4px 0'}}>
+                            {[0,1,2].map(i2=><span key={i2} style={{width:5,height:5,borderRadius:'50%',background:'#9CA3AF',display:'inline-block',animation:`tcDot 1.2s ${i2*0.3}s ease-in-out infinite`}}/>)}
+                          </div>
+                        ):taskContexts[item.id]?(
+                          <div>
+                            <p style={{fontSize:13,color:'#374151',lineHeight:1.6,fontStyle:'italic',margin:'0 0 6px 0'}}>{taskContexts[item.id].text}</p>
+                            <div style={{fontSize:11,color:'#9CA3AF',textAlign:'right'}}>Generated just now</div>
+                          </div>
+                        ):null}
                       </div>
                     )}
                   </div>
