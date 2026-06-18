@@ -6,7 +6,7 @@ import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from '../namedA
 import { S } from '../theme.js'
 import { uid, extractJSON, fmtDate } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
-import { AI_MODELS, hashStr, getAICache, setAICache, friendlyApiError, isLocked, callClaudeWithRetry } from '../utils/aiHelper.js'
+import { AI_MODELS, hashStr, getAICache, setAICache, friendlyApiError, isLocked, callClaudeWithRetry, extractStructuredAIResponse } from '../utils/aiHelper.js'
 
 const MONTH_MAP = {january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'}
 const detectDate = text => {
@@ -912,21 +912,83 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   }
 
   const scoreAllAccounts = async () => {
+    if (scoringAll) return
     if (!effectiveKey) {alert('Add your Anthropic API key in Settings first.');return}
     const unscored = ws.filter(a=>a.ai_opportunity_score==null)
     if (!unscored.length) {alert('All accounts are already scored. Use Rescore on individual accounts to refresh.');return}
     setScoringAll(true)
-    let done = 0
-    for (const acct of unscored) {
-      setScoreProgress(`Scoring ${acct.name}… (${done+1}/${unscored.length})`)
+    let scored = 0, enrichedCount = 0, skipped = 0
+
+    for (let i = 0; i < unscored.length; i++) {
+      const acct = unscored[i]
+      setScoreProgress(`Scoring ${i+1} of ${unscored.length}: ${acct.name}…`)
+
+      // ── Step 1: Enrich missing firmographic fields via web search ──────────
+      let acctForScoring = acct
+      const needsEnrich = !acct.hq || !acct.industry || !acct.employees || !acct.revenue
+      if (needsEnrich) {
+        try {
+          const knowns = [
+            acct.hq       && `HQ: ${acct.hq}`,
+            acct.industry && `Industry: ${acct.industry}`,
+            acct.employees && `Employees: ${acct.employees}`,
+            acct.revenue  && `Revenue: ${acct.revenue}`,
+          ].filter(Boolean).join(', ')
+          const enrichPrompt = `Research the company "${acct.name}"${knowns ? ` (known: ${knowns})` : ''} using trusted public sources (company website, LinkedIn, Crunchbase, Wikipedia, Bloomberg, public filings). Return ONLY valid JSON. No markdown. No code fences. No commentary:\n{"hq":"city, state or country or empty string","industry":"primary industry vertical or empty string","employees":"headcount as rounded integer string e.g. 5000 or empty string","revenue":"annual revenue as short clean string e.g. $500M or empty string","website":"primary domain e.g. acme.com or empty string","confidence":"High|Medium|Low","sourcesSummary":"brief note on sources used"}`
+          const _enrichStart = Date.now()
+          const enrichResp = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 600,
+              tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+              messages: [{ role: 'user', content: enrichPrompt }]
+            })
+          })
+          trackAI({ feature: FEATURES.WHITESPACE_TOOLS, operation: 'enrich-firmographic', model: 'claude-sonnet-4-6', inputChars: enrichPrompt.length, maxTokensOut: 600, durationMs: Date.now() - _enrichStart, success: enrichResp.ok, notes: acct.name })
+          if (enrichResp.ok) {
+            const enrichResult = await enrichResp.json()
+            let enrichData = null
+            for (const block of (enrichResult.content || [])) {
+              if (block.type === 'text') { enrichData = extractStructuredAIResponse(block.text); if (enrichData) break }
+            }
+            if (enrichData) {
+              const clean = v => { const s = v != null ? String(v).trim() : ''; return s && !/^(unknown|n\/a|none|null|-)$/i.test(s) ? s : '' }
+              const changes = {}
+              if (!acct.hq && clean(enrichData.hq)) changes.hq = clean(enrichData.hq)
+              if (!acct.industry && clean(enrichData.industry)) changes.industry = clean(enrichData.industry)
+              if (!acct.employees) {
+                const emp = clean(enrichData.employees).replace(/[~≈,\s]/g,'')
+                if (emp && !emp.includes('-') && !/[a-df-wyz]/i.test(emp)) changes.employees = emp
+              }
+              if (!acct.revenue) {
+                const rev = clean(enrichData.revenue).replace(/[~≈]/g,'')
+                if (rev && !/^(notfound|n\/a|unknown)$/i.test(rev)) changes.revenue = rev
+              }
+              if (!acct.website && clean(enrichData.website)) changes.website = clean(enrichData.website)
+              if (Object.keys(changes).length > 0) {
+                acctForScoring = {...acct, ...changes}
+                setData(prev=>({...prev, whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acct.id?{...a,...changes}:a)}))
+                enrichedCount++
+              }
+            }
+          }
+        } catch(enrichErr) { console.error(`[ScoreAll] Enrich failed for ${acct.name}:`, enrichErr) }
+      }
+
+      // ── Step 2: Score (using enriched data if available) ───────────────────
       try {
-        const {score,reasoning} = await scoreOneAccount(acct)
+        const {score,reasoning} = await scoreOneAccount(acctForScoring)
         console.log(`[Score] ✓ ${acct.name}: score=${score}, reasoning="${reasoning}"`)
-        setData(prev=>({...prev,whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acct.id?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
-        done++
-      } catch(err){console.error(`Score failed for ${acct.name}:`,err)}
+        setData(prev=>({...prev, whitespaceAccounts:(prev.whitespaceAccounts||[]).map(a=>a.id===acct.id?{...a,ai_opportunity_score:score,ai_score_reasoning:reasoning,ai_score_updated_at:new Date().toISOString()}:a)}))
+        scored++
+      } catch(scoreErr) { console.error(`[ScoreAll] Score failed for ${acct.name}:`, scoreErr); skipped++ }
     }
+
     setScoringAll(false); setScoreProgress('')
+    const summary = `Scored and enriched ${scored} account${scored!==1?'s':''}${enrichedCount>0?` (${enrichedCount} enriched)`:''}${skipped>0?`. ${skipped} skipped.`:'. '}`
+    setWsToast(summary); setTimeout(()=>setWsToast(''), 6000)
   }
 
   const rescoreAccount = async (acctId) => {
