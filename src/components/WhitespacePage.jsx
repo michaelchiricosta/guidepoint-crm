@@ -737,8 +737,13 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [mobFilterOpen, setMobFilterOpen] = useState(false)
   const [selectedForExport, setSelectedForExport] = useState(new Set())
   const [segmentFilter, setSegmentFilter] = useState('All')
+  const [showPromoteModal, setShowPromoteModal] = useState(false)
+  const [promoteTarget, setPromoteTarget] = useState(null)
+  const [promoteDuplicate, setPromoteDuplicate] = useState(null)
 
   const ws = data.whitespaceAccounts || []
+  // The single selected WS account used for promote / export brief actions
+  const selectedWsAcct = selectedForExport.size === 1 ? ws.find(a => selectedForExport.has(a.id)) || null : null
   const isLight = S.isLight
   const effectiveKey = data.apiKey || ''
 
@@ -1821,6 +1826,140 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
 
   const closeIntelModal = () => { setPendingIntel(null); setPendingNames({}); setEditingNameIdx(null); setEditingNameDraft('') }
 
+  // ── Prospect Brief HTML export ────────────────────────────────────────────────
+  const generateBriefHTML = (wsAcct) => {
+    const brief = wsAcct.prospect_brief || null
+    const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
+    const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    const confC = c => c==='high'?'#D1FAE5;color:#065F46':c==='medium'?'#FEF3C7;color:#92400E':'#F1F5F9;color:#64748B'
+    const urgC = u => u==='high'?'#dc2626':u==='medium'?'#f59e0b':'#3b82f6'
+    const firm = [
+      wsAcct.hq&&`<div class="fi"><div class="fl">HQ</div><div class="fv">${esc(wsAcct.hq)}</div></div>`,
+      wsAcct.industry&&`<div class="fi"><div class="fl">Industry</div><div class="fv">${esc(wsAcct.industry)}</div></div>`,
+      wsAcct.employees&&`<div class="fi"><div class="fl">Employees</div><div class="fv">${esc(wsAcct.employees)}</div></div>`,
+      wsAcct.revenue&&`<div class="fi"><div class="fl">Revenue</div><div class="fv">${esc(wsAcct.revenue)}</div></div>`,
+      wsAcct.website&&`<div class="fi"><div class="fl">Website</div><div class="fv"><a href="https://${esc(wsAcct.website)}">${esc(wsAcct.website)}</a></div></div>`,
+    ].filter(Boolean).join('')
+    const contacts = brief ? (brief.security_contacts||[]).filter(c=>c.name&&c.name!=='null').map(c=>`
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:10px 12px;margin-bottom:8px">
+        <span style="font-weight:600;font-size:14px">${esc(c.name)}</span>
+        <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;background:${confC(c.confidence)}" title="${esc(c.confidence_reason||'')}">${esc(c.confidence||'low').charAt(0).toUpperCase()+esc(c.confidence||'low').slice(1)}</span>
+        ${c.title?`<div style="color:#6B7280;font-size:12px;margin-top:2px">${esc(c.title)}</div>`:''}
+        ${c.linkedin_url?`<div style="margin-top:4px"><a href="${esc(c.linkedin_url)}" style="color:#007AFF;font-size:11px;font-weight:600">LinkedIn ↗</a></div>`:''}
+      </div>`).join('') : ''
+    const news = brief ? (brief.recent_news||[]).map(n=>`
+      <div style="margin-bottom:12px;border-bottom:1px solid #F3F4F6;padding-bottom:12px">
+        <div style="font-weight:500;font-size:13px">${esc(n.headline)}</div>
+        <div style="color:#9CA3AF;font-size:11px;margin-top:2px">${esc(n.date)}</div>
+        <div style="color:#6B7280;font-size:12px;font-style:italic;margin-top:4px">${esc(n.relevance)}</div>
+      </div>`).join('') : ''
+    const jobs = brief ? (brief.active_job_postings||[]).map(j=>`
+      <div style="background:#F9FAFB;border-radius:6px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-weight:500;font-size:13px">${esc(j.title)} <span style="color:#9CA3AF;font-size:11px">${esc(j.posted_date||'')}</span>${j.source_url?` <a href="${esc(j.source_url)}" style="color:#007AFF;font-size:11px">↗</a>`:''}</div>
+        <div style="color:#007AFF;font-size:12px;margin-top:3px">${esc(j.guidepoint_signal)}</div>
+      </div>`).join('') : ''
+    const svcs = brief ? (brief.guidepoint_service_matches||[]).map(m=>`
+      <div style="margin-bottom:8px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#F3F4F6;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600">
+          <span style="width:7px;height:7px;border-radius:50%;background:${urgC(m.urgency)};display:inline-block"></span>${esc(m.service_area)}
+        </span>
+        <div style="font-size:12px;color:#6B7280;padding-left:4px;margin-top:2px">${esc(m.signal)}</div>
+      </div>`).join('') : ''
+    const outreach = brief?.suggested_outreach ? `
+      <div style="border-left:3px solid #007AFF;border:1px solid #DBEAFE;border-left:3px solid #007AFF;border-radius:0 8px 8px 0;padding:16px 20px">
+        ${brief.suggested_outreach.primary_contact?`<div style="font-size:11px;color:#9CA3AF;font-weight:600;text-transform:uppercase;margin-bottom:3px">Primary Contact</div><div style="font-size:13px;font-weight:600;margin-bottom:10px">${esc(brief.suggested_outreach.primary_contact)}</div>`:''}
+        ${brief.suggested_outreach.opening_angle?`<div style="font-size:14px;color:#374151;line-height:1.6;margin-bottom:12px">${esc(brief.suggested_outreach.opening_angle)}</div>`:''}
+        ${brief.suggested_outreach.first_line?`<div style="background:#F9FAFB;border-radius:6px;padding:10px 12px;font-size:13px;font-style:italic">${esc(brief.suggested_outreach.first_line)}</div>`:''}
+      </div>` : ''
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Prospect Brief – ${esc(wsAcct.name)}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:860px;margin:0 auto;padding:40px 24px;color:#111827}h1{font-size:24px;margin:0 0 4px}a{color:#007AFF}.meta{color:#6B7280;font-size:13px;margin-bottom:28px}h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9CA3AF;margin:24px 0 10px}.firm{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin-bottom:24px}.fi{}.fl{font-size:11px;color:#9CA3AF;font-weight:600;text-transform:uppercase}.fv{font-size:13px;font-weight:500;margin-top:2px}.alert{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;gap:8px;align-items:flex-start}@media print{body{padding:20px}}</style>
+</head><body>
+<h1>${esc(wsAcct.name)}</h1>
+<div class="meta">Prospect Intelligence Brief · Generated ${today}</div>
+${firm?`<div class="firm">${firm}</div>`:''}
+${brief?.timing_signal?.is_time_sensitive?`<div class="alert"><span>⚡</span><div><strong>Time Sensitive:</strong> ${esc(brief.timing_signal.reason||'')}</div></div>`:''}
+${contacts?`<h2>Security Contacts</h2>${contacts}`:''}
+${news?`<h2>Recent News</h2>${news}`:''}
+${jobs?`<h2>Active Job Postings</h2>${jobs}`:''}
+${svcs?`<h2>GuidePoint Service Matches</h2><div style="margin-bottom:16px">${svcs}</div>`:''}
+${outreach?`<h2>Suggested Outreach</h2>${outreach}`:''}
+${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated yet.</p>':''}
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF">Generated by Ledgr · ${new Date().toISOString()}</div>
+</body></html>`
+  }
+
+  const exportBrief = (wsAcct) => {
+    const html = generateBriefHTML(wsAcct)
+    const today = new Date().toISOString().split('T')[0]
+    const fname = `Prospect Brief - ${wsAcct.name} - ${today}.html`
+    const blob = new Blob([html],{type:'text/html'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href=url; a.download=fname; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const initiatePromote = (wsAcct) => {
+    const existing = (data.accounts||[]).find(a => a.name.toLowerCase().trim() === (wsAcct.name||'').toLowerCase().trim())
+    if (existing) { setPromoteDuplicate(existing); setPromoteTarget(wsAcct); setShowPromoteModal(true) }
+    else { doPromote(wsAcct, null) }
+  }
+
+  const doPromote = (wsAcct, existingAcct) => {
+    const now = new Date().toISOString()
+    const today = now.split('T')[0]
+    const html = wsAcct.prospect_brief ? generateBriefHTML(wsAcct) : null
+    const briefFile = html ? {
+      id: uid(), name:`Prospect Brief - ${wsAcct.name} - ${today}.html`,
+      type:'text/html', size:html.length, uploadedAt:now,
+      category:'Prospect Brief', notes:'Generated from Whitespace Tracker',
+      path:'', isInline:true, content:html
+    } : null
+    if (existingAcct) {
+      const merged = {...existingAcct}
+      if (!merged.hq && wsAcct.hq) merged.hq = wsAcct.hq
+      if (!merged.industry && wsAcct.industry) merged.industry = wsAcct.industry
+      if (!merged.employees && wsAcct.employees) merged.employees = wsAcct.employees
+      if (!merged.revenue && wsAcct.revenue) merged.revenue = wsAcct.revenue
+      if (!merged.website && wsAcct.website) merged.website = wsAcct.website
+      if (!merged.prospect_brief && wsAcct.prospect_brief) merged.prospect_brief = wsAcct.prospect_brief
+      if (!merged.prospect_brief_generated_at && wsAcct.prospect_brief_generated_at) merged.prospect_brief_generated_at = wsAcct.prospect_brief_generated_at
+      const existingIntelIds = new Set((merged.intelLog||[]).map(e=>e.id))
+      const newIntel = (wsAcct.intelLog||[]).filter(e=>!existingIntelIds.has(e.id))
+      if (newIntel.length) merged.intelLog = [...(merged.intelLog||[]),...newIntel]
+      if (briefFile && !(merged.files||[]).some(f=>f.category==='Prospect Brief')) merged.files = [...(merged.files||[]),briefFile]
+      setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===existingAcct.id?merged:a)}))
+      setWsToast(`${wsAcct.name} merged into existing account.`)
+    } else {
+      const newContacts = (wsAcct.contacts||[]).map(c=>({
+        id:uid(), name:c.name, title:c.title||'', email:'', cell:'',
+        linkedin:c.linkedin||'', notes:c.notes||'', addedManually:false, addedFrom:'whitespace'
+      }))
+      const allNoteText = (wsAcct.notes||[]).map(n=>n.text).filter(Boolean).join('\n')
+      const newAcct = {
+        id:uid(), name:wsAcct.name, short:(wsAcct.name||'').slice(0,6).toUpperCase(),
+        industry:wsAcct.industry||'', hq:wsAcct.hq||'', employees:wsAcct.employees||'',
+        revenue:wsAcct.revenue||'', website:wsAcct.website||'', status:'Prospect', health:50,
+        lastContact:'', notes:allNoteText, endpoints:'', cloud:'', users:'', relationship:'',
+        contacts:newContacts, followUps:[], projects:[], techStack:[], interactions:[],
+        intelLog:wsAcct.intelLog||[], files:briefFile?[briefFile]:[], savedLinks:[],
+        adminData:{}, upcomingDates:[], unknownMentions:[], relSuggestions:[],
+        contactSuggestions:[], dismissedAlerts:[], snoozedAlerts:[],
+        healthScoreOverrides:{}, healthScoreHistory:[], aiHistory:[], logoImage:'',
+        orgChart:{nodes:[]}, createdAt:now, createdFromWhitespace:true,
+        prospect_brief:wsAcct.prospect_brief||null,
+        prospect_brief_generated_at:wsAcct.prospect_brief_generated_at||null,
+        is_time_sensitive:wsAcct.is_time_sensitive||false,
+        ai_opportunity_score:wsAcct.ai_opportunity_score||null,
+        ai_score_reasoning:wsAcct.ai_score_reasoning||null,
+      }
+      setData(prev=>({...prev,accounts:[...prev.accounts,newAcct]}))
+      setWsToast(`${wsAcct.name} added to Accounts.`)
+    }
+    setTimeout(()=>setWsToast(''),5000)
+    setShowPromoteModal(false); setPromoteTarget(null); setPromoteDuplicate(null)
+    setSelectedForExport(new Set())
+  }
+
   const SM = S.sideMuted; const ST = S.sideTxt; const SB = S.sideBdr
 
   return (
@@ -1970,6 +2109,8 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                   <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:200}}>
                     {[
                       {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                      {label:selectedWsAcct?`Add to Accounts: ${selectedWsAcct.name.slice(0,20)}`:'Add to Accounts (select 1)',dim:!selectedWsAcct, action:()=>{if(!selectedWsAcct)return;setShowMoreMenu(false);initiatePromote(selectedWsAcct)}},
+                      {label:selectedWsAcct?.prospect_brief?'Export Prospect Brief':'Export Brief (generate first)',dim:!selectedWsAcct?.prospect_brief, action:()=>{if(!selectedWsAcct?.prospect_brief)return;setShowMoreMenu(false);exportBrief(selectedWsAcct)}},
                       {label:'Score All Accounts', action:()=>{setShowMoreMenu(false);scoreAllAccounts()}},
                       {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                       {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
@@ -1977,9 +2118,9 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                       {label:'Export Summary CSV', action:()=>{exportSummaryCSV();setShowMoreMenu(false)}},
                       {label:'Export Selected Full Details', action:()=>{exportSelectedFullDetailsCSV();setShowMoreMenu(false)}},
                     ].map((item,i,arr)=>(
-                      <button key={item.label} onClick={item.action}
-                        style={{display:'block',width:'100%',padding:'12px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
-                        onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                      <button key={item.label} onClick={item.action} disabled={item.dim}
+                        style={{display:'block',width:'100%',padding:'12px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:item.dim?S.muted:S.txt,fontSize:13,cursor:item.dim?'default':'pointer',textAlign:'left',opacity:item.dim?0.5:1}}
+                        onMouseEnter={e=>{if(!item.dim)e.currentTarget.style.background=S.surf2}}
                         onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                         {item.label}
                       </button>
@@ -2021,6 +2162,8 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                     <div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.15)',overflow:'hidden',minWidth:210,zIndex:100}}>
                       {[
                         {label:'+ Add Account', action:()=>{setShowAdd(true);setShowMoreMenu(false)}},
+                        {label:selectedWsAcct?`Add to Accounts: ${selectedWsAcct.name.slice(0,22)}`:'Add to Accounts (select 1)',dim:!selectedWsAcct, action:()=>{if(!selectedWsAcct)return;setShowMoreMenu(false);initiatePromote(selectedWsAcct)}},
+                        {label:selectedWsAcct?.prospect_brief?'Export Prospect Brief':'Export Brief (generate first)',dim:!selectedWsAcct?.prospect_brief, action:()=>{if(!selectedWsAcct?.prospect_brief)return;setShowMoreMenu(false);exportBrief(selectedWsAcct)}},
                         {label:'Merge Accounts', action:()=>{setShowMerge(true);setMergeStep(1);setMergeSelected(new Set());setMergePrimary(null);setMergeSearch('');setShowMoreMenu(false)}},
                         {label:'Auto-fill Missing Data', action:()=>{const missing=ws.filter(a=>!a.employees||!a.revenue);if(missing.length===0){alert('All accounts already have employee and revenue data!');setShowMoreMenu(false);return}setAiOpSummary('');setShowAutoFillModal(true);setShowMoreMenu(false)}},
                         {label:'Clean Duplicate Notes', action:()=>{const accts=ws.filter(a=>((a.intelLog||[]).length+(a.notes||[]).length)>2);if(accts.length===0){alert('No accounts with more than 2 notes entries found.');setShowMoreMenu(false);return}setAiOpSummary('');setShowCleanNotesModal(true);setShowMoreMenu(false)}},
@@ -2028,9 +2171,9 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
                         {label:'Export Summary CSV', action:()=>{exportSummaryCSV();setShowMoreMenu(false)}},
                         {label:'Export Selected Full Details', action:()=>{exportSelectedFullDetailsCSV();setShowMoreMenu(false)}},
                       ].map((item,i,arr)=>(
-                        <button key={item.label} onClick={item.action}
-                          style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:S.txt,fontSize:13,cursor:'pointer',textAlign:'left'}}
-                          onMouseEnter={e=>e.currentTarget.style.background=S.surf2}
+                        <button key={item.label} onClick={item.action} disabled={item.dim}
+                          style={{display:'block',width:'100%',padding:'10px 16px',background:'transparent',border:'none',borderBottom:i<arr.length-1?`1px solid ${S.bdr}`:'none',color:item.dim?S.muted:S.txt,fontSize:13,cursor:item.dim?'default':'pointer',textAlign:'left',opacity:item.dim?0.5:1}}
+                          onMouseEnter={e=>{if(!item.dim)e.currentTarget.style.background=S.surf2}}
                           onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                           {item.label}
                         </button>
@@ -2764,6 +2907,23 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
             <div style={{fontSize:28,marginBottom:12}}>⏳</div>
             <div style={{fontSize:15,fontWeight:700,color:S.txt,marginBottom:8}}>AI Working…</div>
             <div style={{fontSize:13,color:S.muted,lineHeight:1.6}}>{aiOpProgress}</div>
+          </div>
+        </div>
+      )}
+
+      {/* PROMOTE TO ACCOUNT — DUPLICATE CONFIRM MODAL */}
+      {showPromoteModal&&promoteTarget&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2200,padding:20}} onClick={()=>{setShowPromoteModal(false);setPromoteTarget(null);setPromoteDuplicate(null)}}>
+          <div style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:12,padding:28,width:'100%',maxWidth:460,boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:16,fontWeight:700,color:S.txt,marginBottom:10}}>Account Already Exists</div>
+            <div style={{fontSize:13,color:S.muted,lineHeight:1.6,marginBottom:20}}>
+              <strong style={{color:S.txt}}>{promoteTarget.name}</strong> already exists in your Accounts. Update the existing account with whitespace data?<br/><br/>
+              Only blank fields will be filled. Existing data will not be overwritten.
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>doPromote(promoteTarget,promoteDuplicate)} style={{flex:1,padding:'10px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Update Existing</button>
+              <button onClick={()=>{setShowPromoteModal(false);setPromoteTarget(null);setPromoteDuplicate(null)}} style={{padding:'10px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
           </div>
         </div>
       )}

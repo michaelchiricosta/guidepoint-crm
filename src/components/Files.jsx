@@ -23,6 +23,7 @@ export default function Files({acct,setAcct}) {
   const fileIcon = type => {
     if(!type) return {icon:'📄',c:'#9CA3AF'}
     if(type.includes('pdf')) return {icon:'📕',c:'#dc2626'}
+    if(type.includes('html')) return {icon:'📋',c:'#007AFF'}
     if(type.includes('word')||type.includes('document')) return {icon:'📘',c:'#007AFF'}
     if(type.includes('sheet')||type.includes('excel')||type.includes('csv')) return {icon:'📗',c:'#16a34a'}
     if(type.includes('presentation')||type.includes('powerpoint')) return {icon:'📙',c:'#ea580c'}
@@ -43,6 +44,11 @@ export default function Files({acct,setAcct}) {
   }
 
   const doView = async f => {
+    if (f.isInline && f.content) {
+      const w = window.open('','_blank')
+      if (w) { w.document.write(f.content); w.document.close() }
+      return
+    }
     setViewingId(f.id); setActionErr('')
     try { const url=await getFileUrl(f.path); if(url)window.open(url,'_blank') }
     catch(e){setActionErr('Could not load file. Please try again.')}
@@ -50,6 +56,13 @@ export default function Files({acct,setAcct}) {
   }
 
   const doDownload = async f => {
+    if (f.isInline && f.content) {
+      const blob = new Blob([f.content],{type:f.type||'text/html'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href=url; a.download=f.name; a.click()
+      URL.revokeObjectURL(url)
+      return
+    }
     setViewingId(f.id); setActionErr('')
     try {
       const url=await getFileUrl(f.path)
@@ -61,6 +74,10 @@ export default function Files({acct,setAcct}) {
   const doDelete = async f => {
     if(!window.confirm(`Delete "${f.name}"?`)) return
     setActionErr('')
+    if (f.isInline) {
+      setAcct(p=>({...p, files:(p.files||[]).filter(x=>x.id!==f.id)}))
+      return
+    }
     try {
       await deleteFile(f.path)
       setAcct(p=>({...p, files:(p.files||[]).filter(x=>x.id!==f.id)}))
