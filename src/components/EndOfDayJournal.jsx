@@ -66,6 +66,14 @@ const CHIPS = [
   {label:'Remember tomorrow', template:'Remember tomorrow: '},
 ]
 
+// Build an alphabetical account list template — 3 blank lines between each account
+const buildAccountTemplate = (accounts) => {
+  const sorted = [...(accounts || [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  const names = sorted.map(a => a.name || '').filter(Boolean)
+  if (!names.length) return ''
+  return names.join('\n\n\n\n')
+}
+
 const CONFIDENCE_COLORS = {high:'#15803d',medium:'#92400e',low:'#6b7280'}
 const CONFIDENCE_BG    = {high:'#f0fdf4',medium:'#fffbeb',low:'#f8fafc'}
 const CONFIDENCE_BORDER= {high:'#86efac',medium:'#fde68a',low:'#e5e7eb'}
@@ -273,7 +281,10 @@ export default function EndOfDayJournal({data,setData,onBack}){
   const [followUpsStatus, setFollowUpsStatus] = useState(()=>todayJournal?.followUpsStatus||{})
   const [risksStatus, setRisksStatus] = useState(()=>todayJournal?.risksStatus||{})
   const [itemNotes, setItemNotes] = useState(()=>todayJournal?.itemNotes||{})
-  const [debriefText, setDebriefText] = useState(()=>todayJournal?.debriefText||'')
+  const [debriefText, setDebriefText] = useState(()=>{
+    const existing = todayJournal?.debriefText || ''
+    return existing || buildAccountTemplate(data.accounts)
+  })
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -293,7 +304,7 @@ export default function EndOfDayJournal({data,setData,onBack}){
       setFollowUpsStatus(todayJournal.followUpsStatus||{})
       setRisksStatus(todayJournal.risksStatus||{})
       setItemNotes(todayJournal.itemNotes||{})
-      setDebriefText(todayJournal.debriefText||'')
+      setDebriefText(todayJournal.debriefText || buildAccountTemplate(data.accounts))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[todayJournal?.id])
@@ -381,6 +392,15 @@ export default function EndOfDayJournal({data,setData,onBack}){
     const next = before+insert+after
     setDebriefText(next)
     setTimeout(()=>{ta.focus();ta.selectionStart=ta.selectionEnd=pos+insert.length},0)
+  }
+
+  const insertAccountList = () => {
+    const template = buildAccountTemplate(data.accounts)
+    if(!template) return
+    const separator = debriefText ? '\n\n' : ''
+    const next = debriefText + separator + template
+    handleDebrief(next)
+    setTimeout(()=>debriefRef.current?.focus(), 0)
   }
 
   const analyzeJournal = async() => {
@@ -763,6 +783,17 @@ ${JSON.stringify(acctCtx,null,2)}`
                           + {c.label}
                         </button>
                       ))}
+                      {(data.accounts||[]).length>0&&(
+                        <>
+                          <div style={{width:1,background:'#e5e7eb',alignSelf:'stretch',margin:'0 2px'}}/>
+                          <button onClick={insertAccountList}
+                            style={{fontSize:11,fontWeight:600,color:'#2563eb',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,padding:'3px 10px',cursor:'pointer'}}
+                            onMouseEnter={e=>{e.currentTarget.style.background='#dbeafe';e.currentTarget.style.color='#1d4ed8'}}
+                            onMouseLeave={e=>{e.currentTarget.style.background='#eff6ff';e.currentTarget.style.color='#2563eb'}}>
+                            📋 Insert Account List
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
