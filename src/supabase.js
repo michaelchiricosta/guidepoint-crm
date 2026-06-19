@@ -99,10 +99,17 @@ const _pruneHealthHistory = (accounts) => {
 // Master pre-save transform: prune volatile/large fields, never persists apiKey.
 const _prepareForSave = (data) => {
   // apiKey — never reaches Supabase (stripped by caller too, belt-and-suspenders)
-  // aiUsageLog — legacy field superseded by aiTracker localStorage; strip to save space
+  // aiUsageLog — now synced to Supabase so data is consistent across devices;
+  //              pruned to last 90 days / 1000 entries to prevent unbounded growth
   // aiCache — cap to 200 entries to prevent unbounded growth
   // healthScoreHistory — cap to 90 days per account
-  const { apiKey: _k, aiUsageLog: _ul, ...safe } = data
+  const { apiKey: _k, ...safe } = data
+  if (safe.aiUsageLog?.length) {
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString()
+    safe.aiUsageLog = safe.aiUsageLog
+      .filter(r => (r.ts || r.timestamp || '') >= cutoff)
+      .slice(0, 1000)
+  }
   if (safe.aiCache) safe.aiCache = _pruneAICache(safe.aiCache)
   if (safe.accounts?.length) safe.accounts = _pruneHealthHistory(safe.accounts)
   return safe

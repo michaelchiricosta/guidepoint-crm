@@ -23,7 +23,7 @@ import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
-import { trackAI, FEATURES } from './utils/aiTracker.js'
+import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
 import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
@@ -1424,6 +1424,11 @@ export default function App() {
   const lastKnownVersion = useRef(null)
   const saveBroadcast = useRef(null)
   const navRestoredRef = useRef(false)
+  // saveBlockedRef: true after a version conflict — stops auto-saves until user reloads.
+  // Using a ref (not state) so stale closures (focus handler) see the live value.
+  const saveBlockedRef = useRef(false)
+  // pendingChanges: true while a save is queued but not yet committed.
+  const pendingChanges = useRef(false)
   const [lastSavedLabel,setLastSavedLabel] = useState('')
   const [conflictWarning,setConflictWarning] = useState(false)
   const [remoteUpdateWarning,setRemoteUpdateWarning] = useState(false)
@@ -1455,6 +1460,9 @@ export default function App() {
   const applyLoad = result => {
     const loaded = result?.appData || result || SAMPLE
     lastKnownVersion.current = result?.version ?? null
+    // Unblock saves — a fresh load gives us the authoritative version
+    saveBlockedRef.current = false
+    pendingChanges.current = false
     setConflictWarning(false)
     setRemoteUpdateWarning(false)
     const today = new Date().toISOString().split('T')[0]
@@ -1467,7 +1475,12 @@ export default function App() {
     // Merge API key from localStorage — it is never persisted to Supabase (stripped in saveData).
     // Fallback to loaded.apiKey for one-time migration of keys stored in old saves.
     const localApiKey = localStorage.getItem('ledgr_anthropic_api_key') || loaded.apiKey || ''
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:loaded.aiUsageLog||[], apiKey: localApiKey || 'server-managed'})
+    // Merge AI usage records: union of localStorage (current session) + Supabase blob (other devices).
+    // The merged set is written back to localStorage so the AI Usage Dashboard sees cross-device data.
+    const localAI = getRecords()
+    const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
+    try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed'})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -1515,6 +1528,11 @@ export default function App() {
   }, [showWhitespace, showAllProjects, showVendors, isLandingPage, activeId, tab, initialLoadDone])
 
   const safeLoadData = async () => {
+    // Skip focus reload if a save is queued but not yet committed — reloading now would discard
+    // the pending local changes before they reach Supabase (2-second auto-save debounce window).
+    if (pendingChanges.current) { console.log('Skipping reload — unsaved changes pending'); return }
+    // Skip if we're in a conflict state — the user needs to consciously click "Reload Now".
+    if (saveBlockedRef.current) { console.log('Skipping reload — save blocked (version conflict)'); return }
     if (Date.now() - contactPhotoSaveTime < 5000) { console.log('Skipping reload — contact photo save in progress'); return }
     if (Date.now() - (window._lastDirectSave || 0) < 8000) { console.log('Skipping reload — direct save in progress'); return }
     console.log('safeLoadData called, inProgress:', saveInProgress.current, 'lastSave:', lastSaveTime.current)
@@ -1534,16 +1552,24 @@ export default function App() {
 
   useEffect(()=>{
     if(!data || !initialLoadDone || !storageReady) return
+    // Do not attempt to save while blocked by a version conflict — saves would always fail
+    // with the stale version. User must reload to get a fresh version before saving resumes.
+    if (saveBlockedRef.current) return
     if (Date.now() - contactPhotoSaveTime < 5000) return
     if (Date.now() - (window._lastDirectSave || 0) < 8000) return
     console.log('Auto-save triggered')
+    pendingChanges.current = true  // a save is queued; safeLoadData will skip focus reloads
     let iv
     const timer = setTimeout(()=>{
       setSaveStatus('saving')
       const saved = new Date()
       saveData(data, lastKnownVersion.current).then(({ error, conflict, nextVersion }) => {
+        pendingChanges.current = false  // save attempt completed (success or failure)
         if (conflict) {
           setSaveStatus('idle')
+          // Block all future auto-saves — lastKnownVersion is now stale.
+          // The user must reload to get the server's current version before saving can resume.
+          saveBlockedRef.current = true
           setConflictWarning(true)
           return
         }
@@ -1551,6 +1577,7 @@ export default function App() {
           setSaveStatus('error')
           return
         }
+        lastSaveTime.current = Date.now()  // guard future focus reloads from overwriting unsaved changes
         if (nextVersion != null) lastKnownVersion.current = nextVersion
         try { saveBroadcast.current?.postMessage({ type: 'saved', version: nextVersion }) } catch {}
         setSaveStatus('saved')
@@ -1618,9 +1645,9 @@ export default function App() {
         const daysSinceContact = acct.lastContact ? Math.floor((Date.now()-new Date(acct.lastContact))/86400000) : 999
         const openFollowUps = (acct.followUps||[]).filter(f=>f.status==='Open')
         const criticalFollowUps = openFollowUps.filter(f=>f.priority==='Critical'||f.priority==='High')
-        const overdueFollowUps = openFollowUps.filter(f=>f.dueDate&&new Date(f.dueDate)<todayDate)
+        const overdueFollowUps = openFollowUps.filter(f=>f.dueDate&&new Date(f.dueDate+'T12:00:00')<todayDate)
         const activeProjects = (acct.projects||[]).filter(p=>['In Flight','In Discussion','Not Started','Stalled'].includes(p.status))
-        const upcomingRenewals = (acct.techStack||[]).filter(t=>{if(!t.renewalDate)return false;const days=Math.floor((new Date(t.renewalDate)-todayDate)/86400000);return days>=0&&days<=90})
+        const upcomingRenewals = (acct.techStack||[]).filter(t=>{if(!t.renewalDate)return false;const days=Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000);return days>=0&&days<=90})
         const recentIntel = (acct.intelLog||[]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3).map(e=>e.text?.slice(0,400)||'').join(' | ')
         const promisedDeliverables = openFollowUps.filter(f=>f.task?.toLowerCase().includes('send')||f.task?.toLowerCase().includes('share')||f.task?.toLowerCase().includes('provide')||f.task?.toLowerCase().includes('forward')||(f.waitingOn||'').toLowerCase().includes('mike'))
         return {
@@ -1632,7 +1659,7 @@ export default function App() {
           promisedDeliverables:promisedDeliverables.map(f=>f.task),
           activeProjects:activeProjects.map(p=>({name:p.name,vendor:p.vendor,status:p.status,stage:(p.timeline||[]).find(s=>s.status==='current')?.stage||'',waitingOn:p.waitingOn||'',nextSteps:p.nextSteps||'',estimatedCloseDate:p.estimatedCloseDate||'',estimatedRevenue:p.estimatedRevenue||''})),
           stalledProjects:activeProjects.filter(p=>p.status==='Stalled').map(p=>p.name),
-          upcomingRenewals:upcomingRenewals.map(t=>({vendor:t.vendor,renewalDate:t.renewalDate,daysUntil:Math.floor((new Date(t.renewalDate)-todayDate)/86400000),annualCost:t.annualCost||''})),
+          upcomingRenewals:upcomingRenewals.map(t=>({vendor:t.vendor,renewalDate:t.renewalDate,daysUntil:Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000),annualCost:t.annualCost||''})),
           recentIntel,
           techStackVendors:(acct.techStack||[]).map(t=>t.vendor).filter(Boolean).join(', '),
           contacts:(acct.contacts||[]).map(c=>({name:c.name,title:c.title,relationship:c.relationship}))

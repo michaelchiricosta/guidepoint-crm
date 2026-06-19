@@ -242,3 +242,25 @@ export function getStats(records = null, windowMs = null) {
     recordCount: data.length,
   }
 }
+
+/**
+ * Merge AI usage records from two sources (localStorage + Supabase blob).
+ * Deduplicates by id, sorts newest-first, caps to 90 days / 1000 entries.
+ * Used in App.jsx applyLoad to keep the blob and localStorage in sync.
+ */
+export function mergeAIRecords(localRecords, blobRecords) {
+  const seen = new Set()
+  const combined = [...(localRecords || []), ...(blobRecords || [])]
+  const deduped = []
+  for (const r of combined) {
+    const key = r.id || `${r.ts || r.timestamp || ''}|${r.feature || ''}|${r.operation || ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(r)
+  }
+  deduped.sort((a, b) =>
+    new Date(b.ts || b.timestamp || 0).getTime() - new Date(a.ts || a.timestamp || 0).getTime()
+  )
+  const cutoff = new Date(Date.now() - 90 * 86400000).toISOString()
+  return deduped.filter(r => (r.ts || r.timestamp || '') >= cutoff).slice(0, 1000)
+}
