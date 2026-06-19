@@ -103,18 +103,12 @@ const SAMPLE = {
   dailyJournals: [],
   knowledgeBase: [],
   marketPulses: [],
+  marketIntelPinned: [],
+  marketIntelDeleted: [],
   blogSources: [
-    {
-      id: 'guidepointsecurity',
-      name: 'GuidePoint Security Blog',
-      url: 'https://www.guidepointsecurity.com/blog/',
-      enabled: true,
-      lastSyncedAt: null,
-      lastSyncStatus: null,
-      lastSyncNewItems: 0,
-      lastSyncSkipped: 0,
-      lastSyncError: null,
-    }
+    { id: 'guidepointsecurity', name: 'GuidePoint Security Blog', url: 'https://www.guidepointsecurity.com/blog/', feedUrl: 'https://www.guidepointsecurity.com/blog/feed/', enabled: true },
+    { id: 'darkreading',        name: 'Dark Reading',             url: 'https://www.darkreading.com/',              feedUrl: 'https://www.darkreading.com/rss/all.xml',          enabled: true },
+    { id: 'cio',                name: 'CIO.com',                  url: 'https://www.cio.com/',                      feedUrl: 'https://www.cio.com/feed/',                        enabled: true },
   ]
 }
 
@@ -1480,7 +1474,7 @@ export default function App() {
     const localAI = getRecords()
     const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
     try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed'})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed'})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
