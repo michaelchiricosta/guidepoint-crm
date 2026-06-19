@@ -726,6 +726,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [aiOpSummary, setAiOpSummary] = useState('')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef(null)
+  const recScrollRef = useRef(null)
   const [recOpen, setRecOpen] = useState(false)
   const [recLoading, setRecLoading] = useState(false)
   const [recError, setRecError] = useState('')
@@ -2272,15 +2273,17 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
                   )}
                   {(()=>{
                     const dismissed=data.dismissedWhitespaceSuggestions||[]
-                    const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).sort((a,b)=>{const aS=ws.find(w=>w.name===a.name)?.ai_opportunity_score??-1;const bS=ws.find(w=>w.name===b.name)?.ai_opportunity_score??-1;if(aS>=0&&bS>=0)return bS-aS;return 0}).slice(0,3)
+                    const visibleRecs=(data.whitespaceRecommendations||[]).filter(r=>!dismissed.includes(r.name)).sort((a,b)=>{const aS=ws.find(w=>w.name===a.name)?.ai_opportunity_score??-1;const bS=ws.find(w=>w.name===b.name)?.ai_opportunity_score??-1;if(aS>=0&&bS>=0)return bS-aS;return 0})
                     const dismissRec=(name)=>setData(prev=>({...prev,dismissedWhitespaceSuggestions:[...(prev.dismissedWhitespaceSuggestions||[]),name]}))
                     return visibleRecs.length>0?(
-                      <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'repeat(3,1fr)',gap:12}}>
+                      <div style={{position:'relative'}}>
+                        <button onClick={()=>recScrollRef.current?.scrollBy({left:-300,behavior:'smooth'})} aria-label="Scroll left" style={{position:'absolute',left:-4,top:'50%',transform:'translateY(-50%)',zIndex:3,background:isLight?'#ffffff':S.surf,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:'50%',width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.12)',color:S.muted,fontSize:18,lineHeight:1,padding:0}}>‹</button>
+                        <div ref={recScrollRef} style={{display:'flex',flexDirection:'row',gap:12,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none',paddingBottom:2,paddingLeft:2,paddingRight:2}}>
                         {visibleRecs.map((rec,i)=>{
                           const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
                           const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
                           return (
-                            <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:'relative'}}>
+                            <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:'relative',minWidth:260,flexShrink:0}}>
                               <button onClick={()=>dismissRec(rec.name)}
                                 title="Dismiss"
                                 style={{position:'absolute',top:8,right:8,background:'transparent',border:'none',cursor:'pointer',color:S.muted,fontSize:14,lineHeight:1,padding:'2px 4px',borderRadius:4}}
@@ -2304,6 +2307,8 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
                             </div>
                           )
                         })}
+                        </div>
+                        <button onClick={()=>recScrollRef.current?.scrollBy({left:300,behavior:'smooth'})} aria-label="Scroll right" style={{position:'absolute',right:-4,top:'50%',transform:'translateY(-50%)',zIndex:3,background:isLight?'#ffffff':S.surf,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,borderRadius:'50%',width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.12)',color:S.muted,fontSize:18,lineHeight:1,padding:0}}>›</button>
                       </div>
                     ):null
                   })()}
