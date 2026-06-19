@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@supabase/supabase-js": "^2.106.2",
     "html2canvas": "^1.4.1",
+    "jsdom": "^29.1.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
