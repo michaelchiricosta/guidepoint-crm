@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getRecords, clearRecords, clearSampleRecords, addSampleRecords, getStats, AI_PRICING } from '../utils/aiTracker.js'
+import { getRecords, clearRecords, clearSampleRecords, addSampleRecords, getStats, mergeAIRecords, AI_PRICING } from '../utils/aiTracker.js'
 import { callAI, AI_MODELS, checkBudget, DEFAULT_AI_SETTINGS } from '../utils/aiHelper.js'
 
 const TIME_WINDOWS = [
@@ -52,7 +52,19 @@ export default function AIUsageDashboard({ onBack, apiKey, data, setData }) {
   const [sampleMsg, setSampleMsg] = useState('')
 
   const reload = useCallback(() => setRecords(getRecords()), [])
-  useEffect(() => { reload() }, [reload])
+  useEffect(() => {
+    // Sync Supabase blob records into localStorage so cross-device usage is visible.
+    // App.jsx does this in applyLoad, but there can be a timing window; doing it again
+    // here is cheap and idempotent.
+    const blob = data?.aiUsageLog
+    if (Array.isArray(blob) && blob.length > 0) {
+      const local = getRecords()
+      const merged = mergeAIRecords(local, blob)
+      try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(merged)) } catch {}
+    }
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally only on mount
 
   const windowMs = getWindowMs(windowKey)
   const windowRecs = windowMs ? records.filter(r => (Date.now() - new Date(r.ts || r.timestamp).getTime()) <= windowMs) : records
@@ -129,7 +141,7 @@ export default function AIUsageDashboard({ onBack, apiKey, data, setData }) {
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>AI Usage</h2>
           <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-            Costs estimated from tracked app calls — may not match Claude Console exactly.
+            Estimated from Ledgr AI calls — may not match Claude Console exactly.
           </div>
         </div>
       </div>
