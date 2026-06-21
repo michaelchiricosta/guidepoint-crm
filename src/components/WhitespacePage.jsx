@@ -730,6 +730,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   const [recOpen, setRecOpen] = useState(false)
   const [recLoading, setRecLoading] = useState(false)
   const [recError, setRecError] = useState('')
+  const [wsDetailAccount, setWsDetailAccount] = useState(null)
   const [wsToast, setWsToast] = useState('')
   const [scoringAll, setScoringAll] = useState(false)
   const [scoringId, setScoringId] = useState(null)
@@ -2283,8 +2284,8 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
                           const pc=rec.priority==='Hot'?'#dc2626':rec.priority==='Warm'?'#f59e0b':'#2563eb'
                           const pb=rec.priority==='Hot'?'#fef2f2':rec.priority==='Warm'?'#fffbeb':'#eff6ff'
                           return (
-                            <div key={i} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:'relative',minWidth:260,flexShrink:0}}>
-                              <button onClick={()=>dismissRec(rec.name)}
+                            <div key={i} onClick={()=>{const a=ws.find(x=>x.name===rec.name);if(a)setWsDetailAccount({acct:a,rec})}} style={{background:isLight?'#ffffff':S.surf,borderRadius:12,border:`1px solid ${isLight?'#e2e8f0':S.bdr}`,padding:14,boxShadow:isLight?'0 1px 3px rgba(0,0,0,0.06)':'none',position:'relative',minWidth:156,flexShrink:0,cursor:'pointer'}}>
+                              <button onClick={e=>{e.stopPropagation();dismissRec(rec.name)}}
                                 title="Dismiss"
                                 style={{position:'absolute',top:8,right:8,background:'transparent',border:'none',cursor:'pointer',color:S.muted,fontSize:14,lineHeight:1,padding:'2px 4px',borderRadius:4}}
                                 onMouseEnter={e=>e.currentTarget.style.color=isLight?'#0f172a':S.txt}
@@ -2299,9 +2300,9 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
                                 ))}
                               </ul>
                               {ws.find(a=>a.name===rec.name)&&(
-                                <button onClick={()=>setExpandedId(ws.find(a=>a.name===rec.name)?.id||null)}
+                                <button onClick={e=>{e.stopPropagation();setExpandedId(ws.find(a=>a.name===rec.name)?.id||null);setWsDetailAccount(null)}}
                                   style={{marginTop:10,fontSize:11,fontWeight:600,color:'#2563eb',background:'transparent',border:'none',cursor:'pointer',padding:0}}>
-                                  View Account →
+                                  View Full →
                                 </button>
                               )}
                             </div>
@@ -2928,6 +2929,96 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>doPromote(promoteTarget,promoteDuplicate)} style={{flex:1,padding:'10px',background:'#2563eb',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Update Existing</button>
               <button onClick={()=>{setShowPromoteModal(false);setPromoteTarget(null);setPromoteDuplicate(null)}} style={{padding:'10px 20px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:8,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WS ACCOUNT DETAIL MODAL */}
+      {wsDetailAccount&&(
+        <div onClick={()=>setWsDetailAccount(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2300,padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#ffffff',borderRadius:14,width:'100%',maxWidth:560,maxHeight:'88vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            <div style={{padding:'20px 24px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#0f172a'}}>{wsDetailAccount.acct.name}</div>
+                  {wsDetailAccount.rec?.priority&&(
+                    <span style={{fontSize:10,fontWeight:700,color:wsDetailAccount.rec.priority==='Hot'?'#dc2626':wsDetailAccount.rec.priority==='Warm'?'#f59e0b':'#2563eb',background:wsDetailAccount.rec.priority==='Hot'?'#fef2f2':wsDetailAccount.rec.priority==='Warm'?'#fffbeb':'#eff6ff',borderRadius:999,padding:'2px 8px',whiteSpace:'nowrap'}}>{wsDetailAccount.rec.priority}</span>
+                  )}
+                </div>
+                <div style={{fontSize:12,color:'#64748b'}}>{wsDetailAccount.acct.status||''}</div>
+              </div>
+              <div style={{display:'flex',gap:8,flexShrink:0}}>
+                <button onClick={()=>{setExpandedId(wsDetailAccount.acct.id);setWsDetailAccount(null)}}
+                  style={{padding:'6px 14px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>
+                  View Full →
+                </button>
+                <button onClick={()=>setWsDetailAccount(null)} style={{background:'#f1f5f9',border:'none',borderRadius:8,padding:'6px 12px',cursor:'pointer',color:'#64748b',fontSize:18,lineHeight:1}}>×</button>
+              </div>
+            </div>
+            <div style={{padding:'20px 24px 28px',display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                {[
+                  {label:'HQ',val:wsDetailAccount.acct.hq},
+                  {label:'Industry',val:wsDetailAccount.acct.industry},
+                  {label:'Employees',val:wsDetailAccount.acct.employees},
+                  {label:'Revenue',val:wsDetailAccount.acct.revenue},
+                  {label:'Website',val:wsDetailAccount.acct.website},
+                  {label:'AI Score',val:wsDetailAccount.acct.ai_opportunity_score!=null?`${wsDetailAccount.acct.ai_opportunity_score}/100`:null},
+                ].filter(f=>f.val).map(f=>(
+                  <div key={f.label}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:2}}>{f.label}</div>
+                    <div style={{fontSize:13,color:'#0f172a',fontWeight:500}}>{f.val}</div>
+                  </div>
+                ))}
+              </div>
+              {wsDetailAccount.acct.ai_score_reasoning&&(
+                <div style={{background:'#f8fafc',borderRadius:8,padding:'10px 12px',borderLeft:'2px solid #2563eb'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:4}}>Score Reasoning</div>
+                  <div style={{fontSize:12,color:'#374151',lineHeight:1.55}}>{wsDetailAccount.acct.ai_score_reasoning}</div>
+                </div>
+              )}
+              {wsDetailAccount.rec?.reasons?.length>0&&(
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:8}}>Why Prioritize</div>
+                  <ul style={{margin:0,padding:'0 0 0 16px',listStyle:'disc',display:'flex',flexDirection:'column',gap:4}}>
+                    {wsDetailAccount.rec.reasons.map((r,i)=>(
+                      <li key={i} style={{fontSize:13,color:'#374151',lineHeight:1.5}}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {((wsDetailAccount.acct.intelLog||[]).length+(wsDetailAccount.acct.notes||[]).length)>0&&(()=>{
+                const allEntries=[
+                  ...(wsDetailAccount.acct.notes||[]).map(n=>({...n,_src:'note'})),
+                  ...(wsDetailAccount.acct.intelLog||[]).map(n=>({...n,_src:'intel'}))
+                ].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,3)
+                return(
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:8}}>Recent Notes</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {allEntries.map((n,i)=>(
+                        <div key={i} style={{padding:'8px 10px',background:'#f9fafb',borderRadius:7,border:'1px solid #f1f5f9'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                            <span style={{fontSize:10,color:'#94a3b8'}}>{n.date||''}</span>
+                            {n._src==='intel'&&<span style={{fontSize:9,fontWeight:700,color:'#7c3aed',background:'#ede9fe',borderRadius:4,padding:'1px 5px'}}>AI</span>}
+                          </div>
+                          <div style={{fontSize:12,color:'#374151',lineHeight:1.55}}>{(n.text||n.summary||'').slice(0,200)}{(n.text||n.summary||'').length>200?'…':''}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+              {wsDetailAccount.acct.prospect_brief?.suggested_outreach?.opening_angle&&(
+                <div style={{background:'#eff6ff',borderRadius:8,padding:'12px 14px',border:'1px solid #bfdbfe',borderLeft:'3px solid #2563eb'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'#1d4ed8',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>Suggested Outreach</div>
+                  {wsDetailAccount.acct.prospect_brief.suggested_outreach.primary_contact&&(
+                    <div style={{fontSize:12,fontWeight:600,color:'#0f172a',marginBottom:4}}>{wsDetailAccount.acct.prospect_brief.suggested_outreach.primary_contact}</div>
+                  )}
+                  <div style={{fontSize:13,color:'#1e40af',lineHeight:1.55}}>{wsDetailAccount.acct.prospect_brief.suggested_outreach.opening_angle}</div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -19,7 +19,8 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
   const todayBrief = (data.dailyBriefs||[]).find(b=>b.date===today)
   const briefIncompleteCount = todayBrief ? (todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length : 0
   const nowHour = new Date().getHours()
-  const afterFourPm = nowHour >= 16
+  const nowDay = new Date().getDay()
+  const afterFourPm = nowHour >= 16 && nowDay >= 1 && nowDay <= 5
   const todayJournal = (data.dailyJournals||[]).find(j=>j.date===today)
   const journalBadge = afterFourPm && (!todayJournal || todayJournal.status!=='complete') ? '!' : null
 
@@ -1060,7 +1061,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
               {(()=>{
                 const today=new Date().toISOString().split('T')[0]
                 const nowHour=new Date().getHours()
-                const afterFourPm=nowHour>=16
+                const afterFourPm=nowHour>=16&&new Date().getDay()>=1&&new Date().getDay()<=5
                 const todayJournal=(data.dailyJournals||[]).find(j=>j.date===today)
                 if(!afterFourPm)return null
                 return(
