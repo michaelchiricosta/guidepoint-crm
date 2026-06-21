@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { ArrowLeft, Plus, Search, Trash2, Pencil, Upload, X } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Trash2, Pencil, Upload, X, ChevronRight, ChevronDown } from 'lucide-react'
 import { S } from '../theme.js'
 import { uid, extractJSON } from '../utils.js'
 import { SECURITY_FRAMEWORK } from '../securityFramework.js'
@@ -10,11 +10,7 @@ const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries=3) => {
   if (wait>0) await new Promise(r=>setTimeout(r,wait))
   for (let attempt=0; attempt<maxRetries; attempt++) {
     window._lastAnthropicCall = Date.now()
-    const res = await fetch('/api/ai',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body)
-    })
+    const res = await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     const data = await res.json()
     const overloaded = data.error?.type==='overloaded_error'||res.status===529||res.status===429
     if (overloaded) {
@@ -63,17 +59,46 @@ const fuzzyMatchVendor = (a, b) => {
 }
 
 const VENDOR_CATS = [...SECURITY_FRAMEWORK.domains.map(d=>d.name), 'Technology', 'Professional Services', 'Hardware', 'Other']
-const BLANK_CO = {id:'',companyName:'',website:'',category:'',notes:'',contacts:[]}
-const BLANK_CT = {id:'',name:'',title:'',email:'',phone:'',region:'',territory:'',notes:'',sourceDocument:''}
+const STATUS_OPTS = ['Customer', 'Engaged', 'Target']
+const STATUS_STYLE = {
+  Customer: {bg:'#dcfce7', color:'#15803d', border:'#86efac'},
+  Engaged:  {bg:'#dbeafe', color:'#1d4ed8', border:'#93c5fd'},
+  Target:   {bg:'#f1f5f9', color:'#475569', border:'#cbd5e1'}
+}
+const BLANK_VENDOR = {id:'', name:'', companyName:'', website:'', category:'', notes:'', reps:[]}
+const BLANK_REP    = {id:'', name:'', email:'', phone:'', title:'', notes:'', accounts:[]}
+const BLANK_ACCT   = {id:'', accountName:'', status:'Target', notes:''}
+
+// Migrate legacy vendors that have contacts[] but no reps[]
+const normalizeVendor = v => {
+  if (v.reps !== undefined) return {...v, name: v.name || v.companyName || ''}
+  return {
+    ...v,
+    name: v.name || v.companyName || '',
+    reps: (v.contacts || []).map(ct => ({
+      id: ct.id || uid(),
+      name: ct.name || '',
+      email: ct.email || '',
+      phone: ct.phone || '',
+      title: ct.title || '',
+      notes: [ct.notes, ct.region && `Region: ${ct.region}`, ct.territory && `Territory: ${ct.territory}`, ct.sourceDocument && `Source: ${ct.sourceDocument}`].filter(Boolean).join('\n'),
+      accounts: []
+    }))
+  }
+}
 
 export default function VendorsPage({data, setData, onBack, apiKey}) {
-  const directory = data.vendorDirectory || []
-  const [selId, setSelId] = useState(directory[0]?.id||null)
+  const directory = (data.vendorDirectory || []).map(normalizeVendor)
+
+  const [selId, setSelId] = useState(directory[0]?.id || null)
   const [search, setSearch] = useState('')
-  const [showCoForm, setShowCoForm] = useState(false)
-  const [coForm, setCoForm] = useState(BLANK_CO)
-  const [showCtForm, setShowCtForm] = useState(false)
-  const [ctForm, setCtForm] = useState(BLANK_CT)
+  const [expandedReps, setExpandedReps] = useState(new Set())
+  const [showVendorForm, setShowVendorForm] = useState(false)
+  const [vendorForm, setVendorForm] = useState(BLANK_VENDOR)
+  const [repModal, setRepModal] = useState(null)
+  const [repForm, setRepForm] = useState(BLANK_REP)
+  const [addingAccountForRep, setAddingAccountForRep] = useState(null)
+  const [newAcctForm, setNewAcctForm] = useState(BLANK_ACCT)
   const [uploadStatus, setUploadStatus] = useState('')
   const [uploadError, setUploadError] = useState('')
   const [review, setReview] = useState(null)
@@ -82,49 +107,102 @@ export default function VendorsPage({data, setData, onBack, apiKey}) {
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef(null)
 
-  const sel = directory.find(c=>c.id===selId)
-  const filtered = directory.filter(c=>!search.trim()||c.companyName.toLowerCase().includes(search.toLowerCase())||(c.category||'').toLowerCase().includes(search.toLowerCase()))
+  const sel = directory.find(v => v.id === selId) || null
+  const filtered = directory.filter(v =>
+    !search.trim() ||
+    (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (v.category || '').toLowerCase().includes(search.toLowerCase())
+  )
 
-  const persist = newDir => setData(prev=>({...prev, vendorDirectory:newDir}))
+  const persist = dirs => setData(prev => ({...prev, vendorDirectory: dirs}))
+  const updateVendor = (id, changes) => persist(directory.map(v => v.id === id ? {...v, ...changes} : v))
 
-  const saveCo = () => {
-    if (!coForm.companyName.trim()) return
-    if (coForm.id) {
-      persist(directory.map(c=>c.id===coForm.id?{...c,...coForm,contacts:c.contacts||[]}:c))
+  // Vendor CRUD
+  const saveVendor = () => {
+    if (!vendorForm.name.trim()) return
+    const name = vendorForm.name.trim()
+    if (vendorForm.id) {
+      persist(directory.map(v => v.id === vendorForm.id ? {...v, ...vendorForm, name, companyName: name} : v))
     } else {
-      const nc={...coForm, id:uid(), contacts:[]}
-      persist([...directory, nc])
-      setSelId(nc.id)
+      const nv = {id: uid(), ...BLANK_VENDOR, ...vendorForm, name, companyName: name, reps: []}
+      persist([...directory, nv])
+      setSelId(nv.id)
     }
-    setShowCoForm(false); setCoForm(BLANK_CO)
+    setShowVendorForm(false)
+    setVendorForm(BLANK_VENDOR)
   }
 
-  const delCo = id => {
-    if (!window.confirm('Delete this vendor company and all its contacts?')) return
-    persist(directory.filter(c=>c.id!==id))
-    if (selId===id) setSelId(directory.find(c=>c.id!==id)?.id||null)
+  const deleteVendor = id => {
+    if (!window.confirm('Delete this vendor and all reps?')) return
+    persist(directory.filter(v => v.id !== id))
+    if (selId === id) setSelId(directory.find(v => v.id !== id)?.id || null)
   }
 
-  const saveCt = () => {
-    if (!ctForm.name.trim()||!sel) return
-    const updated = ctForm.id
-      ? (sel.contacts||[]).map(c=>c.id===ctForm.id?{...c,...ctForm}:c)
-      : [...(sel.contacts||[]), {...ctForm, id:uid()}]
-    persist(directory.map(c=>c.id===selId?{...c,contacts:updated}:c))
-    setShowCtForm(false); setCtForm(BLANK_CT)
+  // Rep CRUD
+  const saveRep = () => {
+    if (!repForm.name.trim() || !repModal) return
+    const vendor = directory.find(v => v.id === repModal.vendorId)
+    if (!vendor) return
+    const reps = repForm.id
+      ? (vendor.reps || []).map(r => r.id === repForm.id ? {...r, ...repForm} : r)
+      : [...(vendor.reps || []), {id: uid(), ...repForm, accounts: repForm.accounts || []}]
+    updateVendor(repModal.vendorId, {reps})
+    setRepModal(null)
+    setRepForm(BLANK_REP)
   }
 
-  const delCt = cid => {
-    if (!window.confirm('Delete this contact?')||!sel) return
-    persist(directory.map(c=>c.id===selId?{...c,contacts:(c.contacts||[]).filter(ct=>ct.id!==cid)}:c))
+  const deleteRep = (vendorId, repId) => {
+    if (!window.confirm('Delete this rep and their accounts?')) return
+    const vendor = directory.find(v => v.id === vendorId)
+    if (!vendor) return
+    updateVendor(vendorId, {reps: (vendor.reps || []).filter(r => r.id !== repId)})
+    setExpandedReps(prev => { const s = new Set(prev); s.delete(repId); return s })
   }
 
-  const VENDOR_DOC_MAX = 30 * 1024 * 1024  // 30 MB
+  // Account CRUD
+  const addAccount = (vendorId, repId) => {
+    if (!newAcctForm.accountName.trim()) return
+    const vendor = directory.find(v => v.id === vendorId)
+    if (!vendor) return
+    const reps = (vendor.reps || []).map(r =>
+      r.id === repId ? {...r, accounts: [...(r.accounts || []), {id: uid(), ...newAcctForm}]} : r
+    )
+    updateVendor(vendorId, {reps})
+    setNewAcctForm(BLANK_ACCT)
+    setAddingAccountForRep(null)
+  }
+
+  const updateAccount = (vendorId, repId, acctId, changes) => {
+    const vendor = directory.find(v => v.id === vendorId)
+    if (!vendor) return
+    const reps = (vendor.reps || []).map(r =>
+      r.id === repId
+        ? {...r, accounts: (r.accounts || []).map(a => a.id === acctId ? {...a, ...changes} : a)}
+        : r
+    )
+    updateVendor(vendorId, {reps})
+  }
+
+  const deleteAccount = (vendorId, repId, acctId) => {
+    const vendor = directory.find(v => v.id === vendorId)
+    if (!vendor) return
+    const reps = (vendor.reps || []).map(r =>
+      r.id === repId ? {...r, accounts: (r.accounts || []).filter(a => a.id !== acctId)} : r
+    )
+    updateVendor(vendorId, {reps})
+  }
+
+  const toggleRep = repId => setExpandedReps(prev => {
+    const s = new Set(prev); s.has(repId) ? s.delete(repId) : s.add(repId); return s
+  })
+
+  // File upload
+  const VENDOR_DOC_MAX = 30 * 1024 * 1024
   const handleFile = async file => {
     if (!apiKey) { setUploadError('Add your Anthropic API key in Settings first.'); return }
     const ext = file.name.split('.').pop().toLowerCase()
     if (!['pdf','doc','docx','txt'].includes(ext)) { setUploadError('Unsupported type. Use PDF, DOC, DOCX, or TXT.'); return }
-    if (file.size > VENDOR_DOC_MAX) { setUploadError(`File is too large (${(file.size/1024/1024).toFixed(1)} MB). Maximum file size: 30 MB.`); return }
+    if (file.size > VENDOR_DOC_MAX) { setUploadError(`File too large (${(file.size/1024/1024).toFixed(1)} MB). Max 30 MB.`); return }
     setUploadError(''); setUploadStatus('Reading document…')
     try {
       const ab = await file.arrayBuffer()
@@ -175,7 +253,6 @@ ${text}`
       setReviewSel(new Set(parsed.companies.map((_,i)=>i)))
       setUploadStatus('')
     } catch(err) {
-      console.error('[VendorsPage] extraction error:', err)
       setUploadError(`Extraction failed: ${err.message}`)
       setUploadStatus('')
     }
@@ -183,49 +260,49 @@ ${text}`
 
   const confirmReview = () => {
     if (!review) return
-    const toImport = review.companies.filter((_,i)=>reviewSel.has(i))
+    const toImport = review.companies.filter((_,i) => reviewSel.has(i))
     let newDir = [...directory]
-    let addedVendors = 0, addedContacts = 0
-    toImport.forEach(ec=>{
-      const existing = newDir.find(c=>fuzzyMatchVendor(c.companyName,ec.companyName))
+    let addedVendors = 0, addedReps = 0
+    const toRep = c => ({
+      id: uid(), name: c.name||'', email: c.email||'', phone: c.phone||'', title: c.title||'',
+      notes: [c.notes, c.region&&`Region: ${c.region}`, c.territory&&`Territory: ${c.territory}`, c.sourceDocument&&`Source: ${c.sourceDocument}`].filter(Boolean).join('\n'),
+      accounts: []
+    })
+    toImport.forEach(ec => {
+      const existing = newDir.find(v => fuzzyMatchVendor(v.name || v.companyName, ec.companyName))
       if (existing) {
-        const knownEmails = new Set((existing.contacts||[]).map(c=>(c.email||'').toLowerCase()).filter(Boolean))
-        const knownNames  = new Set((existing.contacts||[]).map(c=>(c.name||'').toLowerCase()).filter(Boolean))
-        const fresh = (ec.contacts||[]).filter(c=>{
+        const knownEmails = new Set((existing.reps||[]).map(r=>(r.email||'').toLowerCase()).filter(Boolean))
+        const knownNames  = new Set((existing.reps||[]).map(r=>(r.name||'').toLowerCase()).filter(Boolean))
+        const fresh = (ec.contacts||[]).filter(c => {
           if (c.email && knownEmails.has(c.email.toLowerCase())) return false
           if (!c.email && c.name && knownNames.has(c.name.toLowerCase())) return false
           return true
-        }).map(c=>({...BLANK_CT,...c,id:uid()}))
-        addedContacts += fresh.length
-        newDir = newDir.map(c=>c.id===existing.id?{...existing,contacts:[...(existing.contacts||[]),...fresh]}:c)
+        }).map(toRep)
+        addedReps += fresh.length
+        newDir = newDir.map(v => v.id===existing.id ? {...existing, reps:[...(existing.reps||[]),...fresh]} : v)
       } else {
-        const cts = (ec.contacts||[]).map(c=>({...BLANK_CT,...c,id:uid()}))
-        addedContacts += cts.length
+        const reps = (ec.contacts||[]).map(toRep)
+        addedReps += reps.length
         addedVendors++
-        const nv = {id:uid(),companyName:ec.companyName,website:ec.website||'',category:ec.category||'',notes:ec.notes||'',contacts:cts}
+        const nv = {id:uid(), name:ec.companyName, companyName:ec.companyName, website:ec.website||'', category:ec.category||'', notes:ec.notes||'', reps}
         newDir.push(nv)
         if (!selId) setSelId(nv.id)
       }
     })
     persist(newDir)
     setReview(null); setReviewSel(new Set())
-    const msg = [
-      addedVendors  ? `${addedVendors} vendor${addedVendors!==1?'s':''}`   : '',
-      addedContacts ? `${addedContacts} contact${addedContacts!==1?'s':''}` : '',
-    ].filter(Boolean).join(' and ')
-    setImportToast(msg ? `Added ${msg}.` : 'Nothing new to import — all contacts already existed.')
-    setTimeout(()=>setImportToast(null), 5000)
+    const msg = [addedVendors?`${addedVendors} vendor${addedVendors!==1?'s':''}`:null, addedReps?`${addedReps} rep${addedReps!==1?'s':''}`:null].filter(Boolean).join(' and ')
+    setImportToast(msg ? `Added ${msg}.` : 'Nothing new to import — all reps already existed.')
+    setTimeout(() => setImportToast(null), 5000)
   }
 
-  const cfk = k => v => setCtForm(p=>({...p,[k]:v}))
-  const cok = k => v => setCoForm(p=>({...p,[k]:v}))
-  const inputStyle = {width:'100%',padding:'8px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:13,color:S.txt,background:S.surf2,boxSizing:'border-box'}
+  const inp = {width:'100%',padding:'7px 10px',border:`1px solid ${S.bdr}`,borderRadius:6,fontSize:13,color:S.txt,background:S.surf2,boxSizing:'border-box',outline:'none'}
 
   return (
     <div style={{display:'flex',height:'100vh',overflow:'hidden',background:S.bg}}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <div style={{width:221,flexShrink:0,background:'#FFFFFF',display:'flex',flexDirection:'column',borderRight:'1px solid #EEEFF2',overflow:'hidden'}}>
         <div style={{padding:'12px 14px 10px',borderBottom:'1px solid #EEEFF2',flexShrink:0}}>
           <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:5,background:'transparent',border:'none',cursor:'pointer',color:'#6B7280',fontSize:12,fontWeight:600,padding:'2px 0',marginBottom:8}}
@@ -233,80 +310,76 @@ ${text}`
             <ArrowLeft size={13}/> Back
           </button>
           <div style={{fontSize:16,fontWeight:700,color:'#111827'}}>Vendor Directory</div>
-          <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>{directory.length} vendor compan{directory.length===1?'y':'ies'}</div>
+          <div style={{fontSize:11,color:'#6B7280',marginTop:2}}>{directory.length} vendor{directory.length!==1?'s':''}</div>
         </div>
         <div style={{padding:'10px 10px 4px',flexShrink:0}}>
           <div style={{position:'relative'}}>
             <Search size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'#9CA3AF',pointerEvents:'none'}}/>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Search vendors…'
-              style={{width:'100%',padding:'7px 8px 7px 26px',fontSize:12,background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:6,color:'#111827',boxSizing:'border-box'}}/>
+              style={{width:'100%',padding:'7px 8px 7px 26px',fontSize:12,background:'#F9FAFB',border:'1px solid #EEEFF2',borderRadius:6,color:'#111827',boxSizing:'border-box',outline:'none'}}/>
           </div>
         </div>
         <div style={{padding:'4px 10px 8px',flexShrink:0}}>
-          <button onClick={()=>{setCoForm(BLANK_CO);setShowCoForm(true)}}
+          <button onClick={()=>{setVendorForm(BLANK_VENDOR);setShowVendorForm(true)}}
             style={{width:'100%',padding:'7px',background:'#EBF4FF',border:'1px solid #BFDBFE',borderRadius:6,color:'#007AFF',fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
-            <Plus size={12}/> Add Vendor Company
+            <Plus size={12}/> Add Vendor
           </button>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
           {filtered.length===0&&(
             <div style={{padding:'20px 14px',fontSize:12,color:'#6B7280',textAlign:'center'}}>
-              {directory.length===0?'No vendors yet. Add your first vendor company.':'No vendors match your search.'}
+              {directory.length===0 ? 'No vendors yet.' : 'No vendors match.'}
             </div>
           )}
-          {filtered.map(c=>{
-            const isAct = selId===c.id
+          {filtered.map(v => {
+            const isAct = selId===v.id
+            const repCount = (v.reps||[]).length
             return (
-              <div key={c.id} onClick={()=>setSelId(c.id)}
+              <div key={v.id} onClick={()=>setSelId(v.id)}
                 style={{padding:'9px 12px',cursor:'pointer',borderLeft:isAct?'3px solid #007AFF':'3px solid transparent',background:isAct?'#EBF4FF':'transparent',color:isAct?'#007AFF':'#374151',transition:'all 0.1s',borderBottom:'1px solid #EEEFF2'}}
                 onMouseEnter={e=>{if(!isAct){e.currentTarget.style.background='#F9FAFB';e.currentTarget.style.color='#111827'}}}
                 onMouseLeave={e=>{if(!isAct){e.currentTarget.style.background='transparent';e.currentTarget.style.color='#374151'}}}>
-                <div style={{fontSize:13,fontWeight:600,marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.companyName}</div>
-                <div style={{fontSize:10,color:'#9CA3AF'}}>{c.category||'Uncategorized'} · {(c.contacts||[]).length} contact{(c.contacts||[]).length!==1?'s':''}</div>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v.name||v.companyName}</div>
+                <div style={{fontSize:10,color:'#9CA3AF'}}>{v.category||'Uncategorized'} · {repCount} rep{repCount!==1?'s':''}</div>
               </div>
             )
           })}
         </div>
       </div>
 
-      {/* Main */}
+      {/* ── Main ── */}
       <div style={{flex:1,overflow:'auto',padding:'20px 24px'}}>
-
-        {/* Hidden file input — always rendered at top level */}
         <input ref={fileRef} type='file' accept='.pdf,.doc,.docx,.txt' style={{display:'none'}}
           onChange={e=>{const f=e.target.files?.[0];if(f)handleFile(f);e.target.value=''}}/>
 
-        {/* Top-level upload card — always visible when not in review */}
+        {/* Upload card */}
         {!review&&(
           <div
             onDragOver={e=>{e.preventDefault();setDragOver(true)}}
             onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragOver(false)}}
             onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files?.[0];if(f)handleFile(f)}}
             onClick={()=>!uploadStatus&&fileRef.current?.click()}
-            style={{background:dragOver?(S.isLight?'#EBF4FF':'rgba(0,122,255,0.08)'):S.surf,border:`2px dashed ${dragOver?'#007AFF':uploadStatus?'#d97706':S.bdr}`,borderRadius:10,padding:'20px 24px',marginBottom:20,cursor:uploadStatus?'default':'pointer',transition:'border-color 0.15s,background 0.15s',userSelect:'none'}}>
+            style={{background:dragOver?(S.isLight?'#EBF4FF':'rgba(0,122,255,0.08)'):S.surf,border:`2px dashed ${dragOver?'#007AFF':uploadStatus?'#d97706':S.bdr}`,borderRadius:10,padding:'16px 20px',marginBottom:20,cursor:uploadStatus?'default':'pointer',transition:'border-color 0.15s,background 0.15s',userSelect:'none'}}>
             {uploadStatus?(
               <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:18,height:18,border:'2px solid #2563eb',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:S.txt}}>Extracting vendors…</div>
-                  <div style={{fontSize:12,color:S.blue,marginTop:2}}>{uploadStatus}</div>
-                </div>
+                <div style={{width:16,height:16,border:'2px solid #2563eb',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.7s linear infinite',flexShrink:0}}/>
+                <div style={{fontSize:13,fontWeight:600,color:S.txt}}>{uploadStatus}</div>
               </div>
             ):(
-              <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap'}}>
-                <Upload size={22} style={{color:'#007AFF',flexShrink:0}}/>
-                <div style={{flex:1,minWidth:180}}>
-                  <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Upload Vendor Contact PDF</div>
-                  <div style={{fontSize:12,color:S.muted,marginTop:2}}>PDF, DOCX, or TXT — AI extracts all vendor companies and contacts &nbsp;·&nbsp; Drag &amp; drop or click to browse &nbsp;·&nbsp; Maximum file size: 30 MB</div>
+              <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
+                <Upload size={18} style={{color:'#007AFF',flexShrink:0}}/>
+                <div style={{flex:1,minWidth:160}}>
+                  <div style={{fontSize:13,fontWeight:700,color:S.txt}}>Upload Vendor Contact PDF</div>
+                  <div style={{fontSize:11,color:S.muted,marginTop:1}}>PDF, DOCX, or TXT — AI extracts vendors and reps · Drag &amp; drop or click · Max 30 MB</div>
                 </div>
                 <button onClick={e=>{e.stopPropagation();fileRef.current?.click()}}
-                  style={{padding:'8px 18px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0,pointerEvents:'auto'}}>
-                  Browse File
+                  style={{padding:'6px 14px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                  Browse
                 </button>
               </div>
             )}
             {uploadError&&(
-              <div style={{marginTop:10,background:S.isLight?'#fef2f2':'rgba(220,38,38,0.1)',border:'1px solid #fca5a5',borderRadius:6,padding:'8px 12px',fontSize:12,color:'#dc2626',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{marginTop:10,background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:6,padding:'7px 10px',fontSize:12,color:'#dc2626',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span>{uploadError}</span>
                 <button onClick={e=>{e.stopPropagation();setUploadError('')}} style={{background:'none',border:'none',color:'#dc2626',cursor:'pointer',fontSize:15,lineHeight:1,padding:'0 2px'}}>×</button>
               </div>
@@ -340,9 +413,9 @@ ${text}`
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
               {review.companies.map((ec,i)=>{
-                const willMerge = !!directory.find(d=>fuzzyMatchVendor(d.companyName,ec.companyName))
+                const willMerge = !!directory.find(d=>fuzzyMatchVendor(d.name||d.companyName,ec.companyName))
                 const isChecked = reviewSel.has(i)
-                const totalCts = (ec.contacts||[]).length
+                const totalReps = (ec.contacts||[]).length
                 return (
                   <div key={i} onClick={()=>setReviewSel(prev=>{const ns=new Set(prev);ns.has(i)?ns.delete(i):ns.add(i);return ns})}
                     style={{padding:'12px 14px',background:isChecked?(S.isLight?'#EBF4FF':'rgba(37,99,235,0.1)'):(S.isLight?'#f8fafc':S.surf2),border:`1px solid ${isChecked?'rgba(0,122,255,0.5)':S.bdr}`,borderRadius:8,cursor:'pointer',userSelect:'none'}}>
@@ -351,9 +424,9 @@ ${text}`
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
                           <span style={{fontSize:13,fontWeight:700,color:S.txt}}>{ec.companyName}</span>
-                          {ec.category&&<span style={{fontSize:10,background:S.isLight?'#e0f2fe':'rgba(0,122,255,0.2)',color:S.isLight?'#0369a1':'#007AFF',padding:'1px 7px',borderRadius:4}}>{ec.category}</span>}
+                          {ec.category&&<span style={{fontSize:10,background:'#e0f2fe',color:'#0369a1',padding:'1px 7px',borderRadius:4}}>{ec.category}</span>}
                           {willMerge&&<span style={{fontSize:10,background:'#fef3c7',color:'#d97706',padding:'1px 7px',borderRadius:4,fontWeight:600}}>Will merge</span>}
-                          {totalCts>0&&<span style={{fontSize:10,color:S.muted}}>{totalCts} contact{totalCts!==1?'s':''}</span>}
+                          {totalReps>0&&<span style={{fontSize:10,color:S.muted}}>{totalReps} rep{totalReps!==1?'s':''}</span>}
                         </div>
                         {(ec.contacts||[]).length>0&&(
                           <div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>
@@ -374,161 +447,273 @@ ${text}`
           </div>
         )}
 
+        {/* Empty state */}
         {!sel&&!review&&(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'35vh',gap:10,color:S.muted}}>
             <div style={{fontSize:36,opacity:0.3}}>🏢</div>
             <div style={{fontSize:15,fontWeight:600,color:S.txt}}>No vendor selected</div>
-            <div style={{fontSize:13}}>Select a vendor from the sidebar, upload a PDF to extract contacts, or add one manually.</div>
+            <div style={{fontSize:13}}>Select a vendor from the sidebar, upload a PDF, or add one manually.</div>
           </div>
         )}
 
+        {/* Vendor detail */}
         {sel&&!review&&(
           <>
-            {/* Company header */}
+            {/* Header */}
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20,gap:12,flexWrap:'wrap'}}>
               <div style={{minWidth:0}}>
-                <div style={{fontSize:22,fontWeight:800,color:S.txt,lineHeight:1.2}}>{sel.companyName}</div>
+                <div style={{fontSize:22,fontWeight:800,color:S.txt,lineHeight:1.2}}>{sel.name||sel.companyName}</div>
                 <div style={{display:'flex',gap:8,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
-                  {sel.category&&<span style={{fontSize:11,background:S.isLight?'#EBF4FF':'rgba(0,122,255,0.15)',color:S.blue,padding:'2px 9px',borderRadius:4}}>{sel.category}</span>}
+                  {sel.category&&<span style={{fontSize:11,background:S.isLight?'#EBF4FF':'rgba(0,122,255,0.15)',color:'#007AFF',padding:'2px 9px',borderRadius:4}}>{sel.category}</span>}
                   {sel.website&&<a href={sel.website.startsWith('http')?sel.website:`https://${sel.website}`} target='_blank' rel='noreferrer'
-                    style={{fontSize:12,color:S.blue,textDecoration:'none',fontWeight:500}}
-                    onClick={e=>e.stopPropagation()}>{sel.website}</a>}
+                    style={{fontSize:12,color:S.blue,textDecoration:'none',fontWeight:500}}>{sel.website}</a>}
                 </div>
                 {sel.notes&&<div style={{fontSize:13,color:S.muted,marginTop:6,maxWidth:560,lineHeight:1.5}}>{sel.notes}</div>}
               </div>
               <div style={{display:'flex',gap:8,flexShrink:0}}>
-                <button onClick={()=>{setCoForm({...sel});setShowCoForm(true)}}
+                <button onClick={()=>{setVendorForm({...sel,name:sel.name||sel.companyName||''});setShowVendorForm(true)}}
                   style={{padding:'7px 13px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.txt,fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
                   <Pencil size={12}/> Edit
                 </button>
-                <button onClick={()=>delCo(sel.id)}
+                <button onClick={()=>deleteVendor(sel.id)}
                   style={{padding:'7px 13px',background:'transparent',border:'1px solid #fca5a5',borderRadius:6,color:'#dc2626',fontSize:12,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
                   <Trash2 size={12}/> Delete
                 </button>
               </div>
             </div>
 
-            {/* Contacts header */}
+            {/* Reps header */}
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Contacts ({(sel.contacts||[]).length})</div>
-              <button onClick={()=>{setCtForm(BLANK_CT);setShowCtForm(true)}}
+              <div style={{fontSize:14,fontWeight:700,color:S.txt}}>Sales Reps ({(sel.reps||[]).length})</div>
+              <button onClick={()=>{setRepModal({vendorId:sel.id});setRepForm(BLANK_REP)}}
                 style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                <Plus size={12}/> Add Contact
+                <Plus size={12}/> Add Rep
               </button>
             </div>
 
-            {(sel.contacts||[]).length===0&&(
-              <div style={{textAlign:'center',padding:'32px 20px',color:S.muted,fontSize:13,background:S.surf,borderRadius:8,border:`1px dashed ${S.bdr}`}}>
-                No contacts yet. Add manually or upload a PDF above to extract contacts with AI.
+            {(sel.reps||[]).length===0&&(
+              <div style={{textAlign:'center',padding:'28px 20px',color:S.muted,fontSize:13,background:S.surf,borderRadius:8,border:`1px dashed ${S.bdr}`}}>
+                No reps yet. Add a sales rep or upload a PDF to extract contacts automatically.
               </div>
             )}
 
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(290px,1fr))',gap:12}}>
-              {(sel.contacts||[]).map(ct=>(
-                <div key={ct.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'14px 16px'}}>
-                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:8}}>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:700,color:S.txt,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ct.name}</div>
-                      {ct.title&&<div style={{fontSize:12,color:S.muted,marginTop:1}}>{ct.title}</div>}
+            {/* Rep list */}
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {(sel.reps||[]).map(rep => {
+                const isExpanded = expandedReps.has(rep.id)
+                const acctCount = (rep.accounts||[]).length
+                return (
+                  <div key={rep.id} style={{background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
+                    {/* Rep header row */}
+                    <div style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',cursor:'pointer',userSelect:'none'}}
+                      onClick={()=>toggleRep(rep.id)}>
+                      <span style={{color:S.muted,display:'flex',flexShrink:0}}>
+                        {isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                      </span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <span style={{fontSize:14,fontWeight:700,color:S.txt}}>{rep.name}</span>
+                          {rep.title&&<span style={{fontSize:12,color:S.muted}}>{rep.title}</span>}
+                          {acctCount>0&&(
+                            <span style={{fontSize:10,fontWeight:600,color:'#007AFF',background:'#EBF4FF',borderRadius:999,padding:'1px 7px'}}>
+                              {acctCount} account{acctCount!==1?'s':''}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{display:'flex',gap:14,marginTop:2,flexWrap:'wrap'}}>
+                          {rep.email&&<span style={{fontSize:12,color:S.muted}}>{rep.email}</span>}
+                          {rep.phone&&<span style={{fontSize:12,color:S.muted}}>{rep.phone}</span>}
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:3,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                        <button onClick={()=>{setRepModal({vendorId:sel.id,repId:rep.id});setRepForm({...rep})}}
+                          style={{padding:5,background:'transparent',border:'none',cursor:'pointer',color:S.muted,borderRadius:4,display:'flex'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#007AFF'} onMouseLeave={e=>e.currentTarget.style.color=S.muted}>
+                          <Pencil size={13}/>
+                        </button>
+                        <button onClick={()=>deleteRep(sel.id,rep.id)}
+                          style={{padding:5,background:'transparent',border:'none',cursor:'pointer',color:S.muted,borderRadius:4,display:'flex'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color=S.muted}>
+                          <Trash2 size={13}/>
+                        </button>
+                      </div>
                     </div>
-                    <div style={{display:'flex',gap:2,flexShrink:0}}>
-                      <button onClick={()=>{setCtForm({...ct});setShowCtForm(true)}}
-                        style={{padding:4,background:'transparent',border:'none',cursor:'pointer',color:S.muted,borderRadius:4,display:'flex'}}
-                        onMouseEnter={e=>e.currentTarget.style.color=S.blue} onMouseLeave={e=>e.currentTarget.style.color=S.muted}><Pencil size={13}/></button>
-                      <button onClick={()=>delCt(ct.id)}
-                        style={{padding:4,background:'transparent',border:'none',cursor:'pointer',color:S.muted,borderRadius:4,display:'flex'}}
-                        onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color=S.muted}><Trash2 size={13}/></button>
-                    </div>
+
+                    {/* Expanded body */}
+                    {isExpanded&&(
+                      <div style={{borderTop:`1px solid ${S.bdr}`,padding:'14px 16px',background:S.isLight?'#fafafa':'rgba(255,255,255,0.02)'}}>
+                        {rep.notes&&(
+                          <div style={{fontSize:12,color:S.muted,fontStyle:'italic',marginBottom:12,lineHeight:1.55,paddingLeft:2}}>{rep.notes}</div>
+                        )}
+
+                        {/* Accounts sub-header */}
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                          <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                            Accounts {acctCount>0&&`(${acctCount})`}
+                          </div>
+                          {addingAccountForRep!==rep.id&&(
+                            <button onClick={()=>{setAddingAccountForRep(rep.id);setNewAcctForm(BLANK_ACCT)}}
+                              style={{fontSize:12,fontWeight:600,color:'#007AFF',background:'transparent',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}>
+                              <Plus size={11}/> Add Account
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Existing accounts */}
+                        {acctCount>0&&(
+                          <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:8}}>
+                            {(rep.accounts||[]).map(acct => {
+                              const ss = STATUS_STYLE[acct.status] || STATUS_STYLE.Target
+                              return (
+                                <div key={acct.id} style={{display:'flex',alignItems:'center',gap:7,padding:'6px 8px',background:'#fff',borderRadius:6,border:`1px solid ${S.bdr}`}}>
+                                  <input
+                                    value={acct.accountName}
+                                    onChange={e=>updateAccount(sel.id,rep.id,acct.id,{accountName:e.target.value})}
+                                    placeholder='Account name'
+                                    style={{flex:'0 0 170px',padding:'4px 7px',border:`1px solid ${S.bdr}`,borderRadius:5,fontSize:13,fontWeight:600,color:S.txt,background:'transparent',outline:'none',minWidth:0}}
+                                  />
+                                  <select
+                                    value={acct.status}
+                                    onChange={e=>updateAccount(sel.id,rep.id,acct.id,{status:e.target.value})}
+                                    style={{flex:'0 0 96px',padding:'4px 5px',border:`1px solid ${ss.border}`,borderRadius:5,fontSize:11,fontWeight:700,color:ss.color,background:ss.bg,outline:'none',cursor:'pointer'}}>
+                                    {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                  <input
+                                    value={acct.notes}
+                                    onChange={e=>updateAccount(sel.id,rep.id,acct.id,{notes:e.target.value})}
+                                    placeholder='Quick notes…'
+                                    style={{flex:1,padding:'4px 7px',border:`1px solid ${S.bdr}`,borderRadius:5,fontSize:12,color:S.txt,background:'transparent',outline:'none',minWidth:0}}
+                                  />
+                                  <button onClick={()=>deleteAccount(sel.id,rep.id,acct.id)}
+                                    style={{padding:'3px 4px',background:'transparent',border:'none',cursor:'pointer',color:S.muted,flexShrink:0,display:'flex',alignItems:'center'}}
+                                    onMouseEnter={e=>e.currentTarget.style.color='#dc2626'} onMouseLeave={e=>e.currentTarget.style.color=S.muted}>
+                                    <Trash2 size={13}/>
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* Add account inline form */}
+                        {addingAccountForRep===rep.id&&(
+                          <div style={{display:'flex',alignItems:'center',gap:7,padding:'7px 8px',background:'#EBF4FF',borderRadius:6,border:'1px solid #BFDBFE',marginBottom:8}}>
+                            <input
+                              autoFocus
+                              value={newAcctForm.accountName}
+                              onChange={e=>setNewAcctForm(p=>({...p,accountName:e.target.value}))}
+                              onKeyDown={e=>{if(e.key==='Enter')addAccount(sel.id,rep.id);if(e.key==='Escape'){setAddingAccountForRep(null);setNewAcctForm(BLANK_ACCT)}}}
+                              placeholder='Account name…'
+                              style={{flex:'0 0 170px',padding:'4px 7px',border:'1px solid #BFDBFE',borderRadius:5,fontSize:13,fontWeight:600,color:S.txt,background:'#fff',outline:'none'}}
+                            />
+                            <select
+                              value={newAcctForm.status}
+                              onChange={e=>setNewAcctForm(p=>({...p,status:e.target.value}))}
+                              style={{flex:'0 0 96px',padding:'4px 5px',border:'1px solid #BFDBFE',borderRadius:5,fontSize:11,fontWeight:700,color:'#475569',background:'#fff',outline:'none',cursor:'pointer'}}>
+                              {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
+                            </select>
+                            <button onClick={()=>addAccount(sel.id,rep.id)}
+                              style={{padding:'4px 12px',background:'#007AFF',border:'none',borderRadius:5,color:'#fff',fontSize:12,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                              Add
+                            </button>
+                            <button onClick={()=>{setAddingAccountForRep(null);setNewAcctForm(BLANK_ACCT)}}
+                              style={{padding:'4px 8px',background:'transparent',border:'1px solid #BFDBFE',borderRadius:5,color:S.muted,fontSize:12,cursor:'pointer',flexShrink:0}}>
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+
+                        {acctCount===0&&addingAccountForRep!==rep.id&&(
+                          <div style={{fontSize:12,color:S.muted,fontStyle:'italic',paddingLeft:2}}>No accounts tracked yet.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                    {ct.email&&<div style={{fontSize:12,color:S.txt}}><span style={{color:S.muted,fontSize:11}}>Email </span>{ct.email}</div>}
-                    {ct.phone&&<div style={{fontSize:12,color:S.txt}}><span style={{color:S.muted,fontSize:11}}>Phone </span>{ct.phone}</div>}
-                    {(ct.region||ct.territory)&&<div style={{fontSize:12,color:S.txt}}><span style={{color:S.muted,fontSize:11}}>Territory </span>{[ct.region,ct.territory].filter(Boolean).join(' / ')}</div>}
-                    {ct.notes&&<div style={{fontSize:12,color:S.muted,marginTop:3,fontStyle:'italic',lineHeight:1.4}}>{ct.notes}</div>}
-                    {ct.sourceDocument&&<div style={{fontSize:10,color:S.muted,marginTop:3,opacity:0.7}}>Source: {ct.sourceDocument}</div>}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
       </div>
 
-      {/* Success toast */}
+      {/* Toast */}
       {importToast&&(
         <div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(22,163,74,0.93)',color:'#fff',padding:'10px 24px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 20px rgba(0,0,0,0.3)',pointerEvents:'none',whiteSpace:'nowrap'}}>
           {importToast}
         </div>
       )}
 
-      {/* Company form modal */}
-      {showCoForm&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:S.surf,borderRadius:10,padding:'24px 28px',width:'100%',maxWidth:460,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}}>
+      {/* Vendor form modal */}
+      {showVendorForm&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{setShowVendorForm(false);setVendorForm(BLANK_VENDOR)}}>
+          <div style={{background:S.surf,borderRadius:10,padding:'24px 28px',width:'100%',maxWidth:460,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-              <div style={{fontSize:16,fontWeight:700,color:S.txt}}>{coForm.id?'Edit Vendor':'Add Vendor Company'}</div>
-              <button onClick={()=>{setShowCoForm(false);setCoForm(BLANK_CO)}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:2}}><X size={16}/></button>
+              <div style={{fontSize:16,fontWeight:700,color:S.txt}}>{vendorForm.id?'Edit Vendor':'Add Vendor'}</div>
+              <button onClick={()=>{setShowVendorForm(false);setVendorForm(BLANK_VENDOR)}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:2}}><X size={16}/></button>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              <div><div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Company Name *</div>
-                <input value={coForm.companyName} onChange={e=>cok('companyName')(e.target.value)} style={inputStyle}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Company Name *</div>
+                <input value={vendorForm.name||''} onChange={e=>setVendorForm(p=>({...p,name:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&saveVendor()} autoFocus style={inp}/>
               </div>
-              <div><div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Category</div>
-                <select value={coForm.category} onChange={e=>cok('category')(e.target.value)} style={inputStyle}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Category</div>
+                <select value={vendorForm.category||''} onChange={e=>setVendorForm(p=>({...p,category:e.target.value}))} style={inp}>
                   <option value=''>Select category…</option>
                   {VENDOR_CATS.map(c=><option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div><div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Website</div>
-                <input value={coForm.website} onChange={e=>cok('website')(e.target.value)} placeholder='acme.com' style={inputStyle}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Website</div>
+                <input value={vendorForm.website||''} onChange={e=>setVendorForm(p=>({...p,website:e.target.value}))} placeholder='acme.com' style={inp}/>
               </div>
-              <div><div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Notes</div>
-                <textarea value={coForm.notes} onChange={e=>cok('notes')(e.target.value)} rows={3}
-                  style={{...inputStyle,resize:'vertical'}}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Notes</div>
+                <textarea value={vendorForm.notes||''} onChange={e=>setVendorForm(p=>({...p,notes:e.target.value}))} rows={3} style={{...inp,resize:'vertical'}}/>
               </div>
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:20}}>
-              <button onClick={()=>{setShowCoForm(false);setCoForm(BLANK_CO)}}
+              <button onClick={()=>{setShowVendorForm(false);setVendorForm(BLANK_VENDOR)}}
                 style={{padding:'8px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
-              <button onClick={saveCo}
+              <button onClick={saveVendor}
                 style={{padding:'8px 16px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Contact form modal */}
-      {showCtForm&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:S.surf,borderRadius:10,padding:'24px 28px',width:'100%',maxWidth:520,boxShadow:'0 8px 32px rgba(0,0,0,0.3)',maxHeight:'90vh',overflowY:'auto'}}>
+      {/* Rep form modal */}
+      {repModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+          onClick={()=>{setRepModal(null);setRepForm(BLANK_REP)}}>
+          <div style={{background:S.surf,borderRadius:10,padding:'24px 28px',width:'100%',maxWidth:480,boxShadow:'0 8px 32px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
-              <div style={{fontSize:16,fontWeight:700,color:S.txt}}>{ctForm.id?'Edit Contact':'Add Contact'}</div>
-              <button onClick={()=>{setShowCtForm(false);setCtForm(BLANK_CT)}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:2}}><X size={16}/></button>
+              <div style={{fontSize:16,fontWeight:700,color:S.txt}}>{repForm.id?'Edit Rep':'Add Sales Rep'}</div>
+              <button onClick={()=>{setRepModal(null);setRepForm(BLANK_REP)}} style={{background:'none',border:'none',cursor:'pointer',color:S.muted,padding:2}}><X size={16}/></button>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               {[
-                {k:'name',l:'Full Name *',span:2},
-                {k:'title',l:'Job Title'},
-                {k:'email',l:'Email'},
-                {k:'phone',l:'Phone'},
-                {k:'region',l:'Region'},
-                {k:'territory',l:'Territory'},
-                {k:'notes',l:'Notes',span:2,multi:true},
-                {k:'sourceDocument',l:'Source Document',span:2}
-              ].map(({k,l,span,multi})=>(
-                <div key={k} style={{gridColumn:span?`span ${span}`:undefined}}>
+                {k:'name',  l:'Full Name *', span:2},
+                {k:'title', l:'Title'},
+                {k:'email', l:'Email'},
+                {k:'phone', l:'Phone', span:1},
+              ].map(({k,l,span})=>(
+                <div key={k} style={{gridColumn:span===2?'span 2':undefined}}>
                   <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>{l}</div>
-                  {multi
-                    ?<textarea value={ctForm[k]||''} onChange={e=>cfk(k)(e.target.value)} rows={2} style={{...inputStyle,resize:'vertical'}}/>
-                    :<input value={ctForm[k]||''} onChange={e=>cfk(k)(e.target.value)} style={inputStyle}/>
-                  }
+                  <input value={repForm[k]||''} onChange={e=>setRepForm(p=>({...p,[k]:e.target.value}))}
+                    autoFocus={k==='name'} style={inp}/>
                 </div>
               ))}
+              <div style={{gridColumn:'span 2'}}>
+                <div style={{fontSize:12,fontWeight:600,color:S.muted,marginBottom:4}}>Notes</div>
+                <textarea value={repForm.notes||''} onChange={e=>setRepForm(p=>({...p,notes:e.target.value}))} rows={2} style={{...inp,resize:'vertical'}}/>
+              </div>
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:20}}>
-              <button onClick={()=>{setShowCtForm(false);setCtForm(BLANK_CT)}}
+              <button onClick={()=>{setRepModal(null);setRepForm(BLANK_REP)}}
                 style={{padding:'8px 16px',background:'transparent',border:`1px solid ${S.bdr}`,borderRadius:6,color:S.muted,fontSize:13,cursor:'pointer'}}>Cancel</button>
-              <button onClick={saveCt}
+              <button onClick={saveRep}
                 style={{padding:'8px 16px',background:'#007AFF',border:'none',borderRadius:6,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}}>Save</button>
             </div>
           </div>
