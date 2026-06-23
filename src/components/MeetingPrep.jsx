@@ -35,6 +35,9 @@ function PrepView({ prep, generating, onBack, onDelete, onRegenerate }) {
       b.matchedAccount ? `Account: ${b.matchedAccount}` : '',
       fmtDate(prep.createdAt),
       '',
+      'OPENING TALK TRACK',
+      b.openingTalkTrack || '',
+      '',
       'WHY THIS MEETING MATTERS',
       b.whyThisMeeting || '',
       '',
@@ -98,6 +101,17 @@ function PrepView({ prep, generating, onBack, onDelete, onRegenerate }) {
 
         {/* Document */}
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '24px 28px' }}>
+
+          {/* 0. Opening Talk Track */}
+          {b.openingTalkTrack && (
+            <>
+              <SectionLabel>Opening Talk Track</SectionLabel>
+              <div style={{ background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '14px 16px' }}>
+                <div style={{ fontSize: 13, color: '#1e3a5f', lineHeight: 1.8, whiteSpace: 'pre-line' }}>{b.openingTalkTrack}</div>
+              </div>
+              <Divider />
+            </>
+          )}
 
           {/* 1. Why This Meeting Matters */}
           {b.whyThisMeeting && (
@@ -343,11 +357,12 @@ ${techStack || 'None recorded'}`
 
 Think like a cybersecurity advisor, reseller, and account executive — not a note taker or report writer.
 
-Generate a focused 60-second pre-call briefing. Total output must stay under 500 words across all text fields. Be specific, direct, and actionable.
+Generate a focused 60-second pre-call briefing. Total output must stay under 600 words across all text fields. Be specific, direct, and actionable.
 
 Return only valid JSON. No markdown. No code fences. No commentary.
 {
   "matchedAccount": "account name or null",
+  "openingTalkTrack": "1-2 short conversational paragraphs (3-5 sentences total) — a natural opening Mike can use in the first 30-60 seconds of the call. Reference specific recent activity, prior meetings, open actions, or account history to re-establish context. Then transition naturally into today's agenda. Write in first person, conversational tone, NOT scripted or formal. Help Mike start confidently and sound like he was paying attention.",
   "whyThisMeeting": "2-3 sentences: why the meeting exists, what changed recently, and what success looks like for this specific call",
   "recentActivity": ["max 5 bullets — specific recent events: intel log entries, open actions, project changes, tech stack events"],
   "mustCover": [{"topic": "short topic name", "why": "one sentence on why this must be discussed on this call"}],
@@ -360,6 +375,7 @@ Return only valid JSON. No markdown. No code fences. No commentary.
 }
 
 CONSTRAINTS:
+- openingTalkTrack: 3-5 sentences max — conversational first-person, specific to this account and meeting, NOT a summary of notes
 - mustCover: max 5 — absolute highest priority topics only, not a laundry list
 - opportunities: max 4 — only include if genuinely relevant and timely, do not pad
 - questionsNeeded: max 5 — focused on discovery and qualification, not recap
@@ -393,7 +409,7 @@ Generate the 60-second pre-call briefing.`
         // LAYER 2 — automatic repair retry
         if (rawText) {
           try {
-            const repairSchema = '{"matchedAccount":"string|null","whyThisMeeting":"string","recentActivity":["string"],"mustCover":[{"topic":"string","why":"string"}],"questionsNeeded":["string"],"opportunities":[{"opportunity":"string","whyNow":"string"}],"suggestedClose":"string","stakeholders":[{"name":"string","title":"string","relationship":"string","note":"string"}],"accountHistory":"string","supportingNotes":["string"]}'
+            const repairSchema = '{"matchedAccount":"string|null","openingTalkTrack":"string","whyThisMeeting":"string","recentActivity":["string"],"mustCover":[{"topic":"string","why":"string"}],"questionsNeeded":["string"],"opportunities":[{"opportunity":"string","whyNow":"string"}],"suggestedClose":"string","stakeholders":[{"name":"string","title":"string","relationship":"string","note":"string"}],"accountHistory":"string","supportingNotes":["string"]}'
             const { data: repairData } = await callClaudeWithRetry({
               model: 'claude-sonnet-4-6',
               max_tokens: 2000,
@@ -410,6 +426,7 @@ Generate the 60-second pre-call briefing.`
         if (!briefData) {
           briefData = {
             matchedAccount: matched?.name || null,
+            openingTalkTrack: '',
             whyThisMeeting: '',
             recentActivity: [],
             mustCover: [],
