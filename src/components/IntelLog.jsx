@@ -6,45 +6,17 @@ import { Btn, Field, Modal } from './UI.jsx'
 import { resolveVendorMapping } from '../securityFramework.js'
 import { STAGES } from '../constants.js'
 import { supabase } from '../supabase.js'
-import { callClaudeWithRetry } from '../utils/aiHelper.js'
+import { callClaudeWithRetry, extractStructuredAIResponse, repairAIResponse } from '../utils/aiHelper.js'
 
-function extractJsonFromAIResponse(response) {
-  // Accept raw string, response.content[0].text, or response.data.content[0].text
-  let text =
-    typeof response === 'string'
-      ? response
-      : response?.content?.[0]?.text ||
-        response?.data?.content?.[0]?.text ||
-        ''
-  text = String(text || '').trim()
-  // Strip markdown code fences wherever they appear
-  text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-  // Locate the first JSON object or array
-  const firstObj = text.indexOf('{')
-  const firstArr = text.indexOf('[')
-  let start = -1
-  if (firstObj === -1) start = firstArr
-  else if (firstArr === -1) start = firstObj
-  else start = Math.min(firstObj, firstArr)
-  if (start === -1) return null
-  // Balanced bracket walk — correctly handles nested objects/arrays and strings
-  const openChar = text[start]
-  const closeChar = openChar === '{' ? '}' : ']'
-  let depth = 0
-  let inString = false
-  let escape = false
-  let end = -1
-  for (let i = start; i < text.length; i++) {
-    const c = text[i]
-    if (escape) { escape = false; continue }
-    if (c === '\\' && inString) { escape = true; continue }
-    if (c === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (c === openChar) depth++
-    else if (c === closeChar) { depth--; if (depth === 0) { end = i; break } }
+const makeRepairPrompt = (date) =>
+  `Convert this content into the exact Intel Log JSON schema. Return only valid JSON. No markdown. No code fences. No commentary.\n\nUse date: ${date}\n\n{"intelEntry":{"date":"${date}","type":"Call|Meeting|Email|Note","participants":"","summary":"","insights":[],"risks":[],"opportunities":[]},"newFollowUps":[],"contactUpdates":[],"techStackSuggestions":[],"techStackUpdates":[],"projectUpdates":[]}`
+
+const createFallbackEntry = (inputText, date) => {
+  const snippet = String(inputText || '').trim().replace(/\s+/g, ' ').slice(0, 500)
+  return {
+    intelEntry: { date, type: 'Note', participants: '', summary: snippet || 'Call transcript notes', insights: [], risks: [], opportunities: [] },
+    newFollowUps: [], contactUpdates: [], techStackSuggestions: [], techStackUpdates: [], projectUpdates: []
   }
-  if (end === -1) return null
-  try { return JSON.parse(text.slice(start, end + 1)) } catch { return null }
 }
 
 // ── Date helpers (only used in IntelLog) ──
@@ -110,6 +82,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const [projUpdateChecked, setProjUpdateChecked] = useState({})
   const [newProjForms, setNewProjForms] = useState({})
   const [pendingIdentityConfirm, setPendingIdentityConfirm] = useState([])
+  const [softWarn, setSoftWarn] = useState('')
 
   const maybeShowTechSuggestions = (parsed) => {
     const raw = (parsed.techStackSuggestions || []).filter(s =>
@@ -221,7 +194,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const resetFileState = () => {
     setUploadedFile(null); setPendingFile(null); setFileIsDirectType(false)
     setText(''); setFileError2(''); setFileStatus(''); setFileCharCount(0); setLargeDocWarning(false)
-    setPdfAnalysisMethod(''); setPendingDate('')
+    setPdfAnalysisMethod(''); setPendingDate(''); setSoftWarn('')
   }
 
   const handleFile = async (file) => {
@@ -328,7 +301,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       }, null, null)
       setRetryStatus('')
       if (rd.error) return parsed
-      const resolutions = extractJsonFromAIResponse(rd)
+      const resolutions = extractStructuredAIResponse(rd)
       if (!Array.isArray(resolutions)) return parsed
       const updatedContactUpdates = []
       const newPendingConfirm = []
@@ -390,7 +363,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       const current=t.aiNotes?`[${t.aiNotesUpdatedAt||'current'}] ${t.aiNotes}`:'';
       return `${t.vendor}:\n${[hist,current].filter(Boolean).join('\n')}`
     }).join('\n\n')
-    setLoading(true); setError(''); setResult(null); setProcessingLong(false)
+    setLoading(true); setError(''); setResult(null); setSoftWarn(''); setProcessingLong(false)
     setPendingDate(date); setPdfAnalysisMethod('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
 
@@ -415,17 +388,20 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
 
     const callTextApi = async (inputText, method) => {
       const {data:d2} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6', max_tokens:2500,
+        model:'claude-sonnet-4-6', max_tokens:3000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary.',
         messages:[{role:'user',content:`${FILE_INTEL_PROMPT(date,vendorCtx)}\n\nDOCUMENT TEXT:\n${inputText}`}]
       }, null, onStatus)
       console.log(`[${method}] Claude API response:`, JSON.stringify(d2, null, 2))
       if (d2.error) throw new Error(`${d2.error.type}: ${d2.error.message}`)
-      const parsed2 = extractJsonFromAIResponse(d2)
+      let parsed2 = extractStructuredAIResponse(d2)
       if (!parsed2) {
-        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: d2 })
-        throw new Error('AI returned an unexpected format. Please try again.')
+        if (import.meta.env.DEV) {
+          console.error('IntelLog file parse failed', { responseShape: typeof d2, preview: String(d2?.content?.[0]?.text || '').slice(0, 500) })
+        }
+        parsed2 = await repairAIResponse(d2?.content?.[0]?.text || '', makeRepairPrompt(date))
       }
+      if (!parsed2) throw new Error('Could not parse document analysis. Try pasting the content instead.')
       return parsed2
     }
 
@@ -472,11 +448,14 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
         console.log('[Image] Claude API response:', JSON.stringify(data, null, 2))
         console.log('[Image] Error details:', data.error)
         if (data.error) throw new Error(`${data.error.type}: ${data.error.message}`)
-        const parsedImg = extractJsonFromAIResponse(data)
+        let parsedImg = extractStructuredAIResponse(data)
         if (!parsedImg) {
-          if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
-          throw new Error('AI returned an unexpected format. Please try again.')
+          if (import.meta.env.DEV) {
+            console.error('IntelLog image parse failed', { responseShape: typeof data, preview: String(data?.content?.[0]?.text || '').slice(0, 500) })
+          }
+          parsedImg = await repairAIResponse(data?.content?.[0]?.text || '', makeRepairPrompt(date))
         }
+        if (!parsedImg) throw new Error('Could not parse image analysis. Please try again.')
         await finalizeResult(parsedImg, 'Direct image')
       } else if (ext === 'pdf') {
         if (forceFallback) {
@@ -491,7 +470,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             const cleanBase64 = b64raw.includes(',') ? b64raw.split(',')[1] : b64raw
             if (cleanBase64.length > 6700000) throw new Error('PDF_TOO_LARGE_FOR_API')
             const {data} = await callClaudeWithRetry({
-              model:'claude-sonnet-4-6', max_tokens:2500,
+              model:'claude-sonnet-4-6', max_tokens:3000,
               messages:[{role:'user',content:[
                 {type:'document',source:{type:'base64',media_type:'application/pdf',data:cleanBase64}},
                 {type:'text',text:FILE_INTEL_PROMPT(date,vendorCtx)}
@@ -501,7 +480,10 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
             console.log('[Direct PDF] Error details:', data.error)
             if (data.error) { directFailed = true; console.log('[Direct PDF] Falling back — error:', data.error.type, data.error.message) }
             else {
-              const parsedPdf = extractJsonFromAIResponse(data)
+              let parsedPdf = extractStructuredAIResponse(data)
+              if (!parsedPdf) {
+                parsedPdf = await repairAIResponse(data?.content?.[0]?.text || '', makeRepairPrompt(date))
+              }
               if (!parsedPdf) { directFailed = true; console.log('[Direct PDF] Could not parse response') }
               else await finalizeResult(parsedPdf, 'Direct PDF')
             }
@@ -587,11 +569,11 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
       const current=t.aiNotes?`[${t.aiNotesUpdatedAt||'current'}] ${t.aiNotes}`:'';
       return `${t.vendor}:\n${[hist,current].filter(Boolean).join('\n')}`
     }).join('\n\n')
-    setLoading(true);setError('');setResult(null);setProcessingLong(false);setRetryStatus('')
+    setLoading(true);setError('');setResult(null);setSoftWarn('');setProcessingLong(false);setRetryStatus('')
     const longTimer = setTimeout(()=>setProcessingLong(true), 30000)
     try {
       const {data} = await callClaudeWithRetry({
-        model:'claude-sonnet-4-6',max_tokens:2500,
+        model:'claude-sonnet-4-6',max_tokens:3000,
         system:'You are an account intelligence analyst for a cybersecurity sales rep at GuidePoint Security. Extract structured intel from input. Return only valid JSON. No markdown. No code fences. No commentary. Max 5 items per insights/risks/opportunities arrays.',
         messages:[{role:'user',content:`Extract intelligence and return JSON:
 
@@ -616,10 +598,17 @@ INPUT:
 ${promptInput}`}]
       }, null, msg=>{if(msg)setRetryStatus(msg);else setRetryStatus('')})
       if (data.error) throw new Error(data.error.message==='OVERLOADED'?'OVERLOADED':data.error.message)
-      const parsed = extractJsonFromAIResponse(data)
+      let parsed = extractStructuredAIResponse(data)
       if (!parsed) {
-        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
-        throw new Error('AI returned an unexpected format. Please try again.')
+        if (import.meta.env.DEV) {
+          const preview = String(data?.content?.[0]?.text || '').slice(0, 500)
+          console.error('IntelLog parse failed', { responseShape: typeof data, preview })
+        }
+        parsed = await repairAIResponse(data?.content?.[0]?.text || '', makeRepairPrompt(date))
+      }
+      if (!parsed) {
+        parsed = createFallbackEntry(promptInput, date)
+        setSoftWarn('AI returned an imperfect format, so Ledgr saved the transcript as a basic intel entry.')
       }
       const rp = await runIdentityResolver(parsed, date)
       if (rp.newFollowUps?.length) {
@@ -706,12 +695,17 @@ Rules:
         null, null
       )
       if (data.error) throw new Error(data.error.message || 'API error')
-      const parsed = extractJsonFromAIResponse(data)
-      if (parsed) {
-        setPendingActionFromIntel({...parsed, _sourceEntryId: entry.id, _today: today})
+      let parsedAction = extractStructuredAIResponse(data)
+      if (!parsedAction) {
+        if (import.meta.env.DEV) {
+          console.error('IntelLog action parse failed', { responseShape: typeof data, preview: String(data?.content?.[0]?.text || '').slice(0, 500) })
+        }
+        parsedAction = await repairAIResponse(data?.content?.[0]?.text || '', 'Convert this content into valid JSON with fields: task, priority, dueDate, contact, quickContext, recommendedNextAction, suggestedRecipients, draftEmail. Return only valid JSON. No markdown. No code fences. No commentary.')
+      }
+      if (parsedAction) {
+        setPendingActionFromIntel({...parsedAction, _sourceEntryId: entry.id, _today: today})
       } else {
-        if (import.meta.env.DEV) console.error('IntelLog parse failed', { responseShape: data })
-        setError('AI returned an unexpected format. Please try again.')
+        setError('Could not generate action. Please try again.')
       }
     } catch(err) {
       setError(err.message==='OVERLOADED'?'API busy — try again in a moment.':'Action generation failed. Please try again.')
@@ -924,6 +918,12 @@ Rules:
                 <button onClick={()=>{resetFileState();setError('')}} style={{fontSize:12,color:'#64748b',background:'transparent',border:'1px solid #e2e8f0',borderRadius:6,padding:'4px 10px',cursor:'pointer',marginTop:6,display:'inline-block'}}>Switch to text input</button>
               )}
             </div>
+          </div>
+        )}
+        {softWarn&&(
+          <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'10px 12px',display:'flex',alignItems:'flex-start',gap:8,marginBottom:12}}>
+            <span style={{color:'#d97706',fontSize:14,flexShrink:0,fontWeight:700,marginTop:1}}>⚠</span>
+            <div style={{fontSize:12,color:'#92400e',lineHeight:1.5}}>{softWarn}</div>
           </div>
         )}
         {result&&(

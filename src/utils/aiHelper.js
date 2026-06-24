@@ -329,3 +329,18 @@ export const callClaudeWithRetry = async (body, apiKey, onStatus, maxRetries = 3
   }
   throw new Error('OVERLOADED')
 }
+
+// ── One-shot repair: reformat a malformed AI response ─────────────────────────
+// Sends rawOutput back to Claude asking it to produce valid JSON.
+// Returns parsed object or null. Call only once — do not loop.
+export async function repairAIResponse(rawOutput, repairPrompt) {
+  try {
+    const { data } = await callClaudeWithRetry({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2500,
+      messages: [{ role: 'user', content: `${repairPrompt}\n\nContent to reformat:\n${rawOutput}` }]
+    }, null, null)
+    if (!data || data.error) return null
+    return extractStructuredAIResponse(data)
+  } catch { return null }
+}
