@@ -88,6 +88,9 @@ export default function MarketIntelligence({ data, setData, onBack }) {
   const [emailModal, setEmailModal]           = useState(null)   // { matchId, subject, body, generatedAt }
   const [draftingEmailId, setDraftingEmailId] = useState(null)
   const [emailCopied, setEmailCopied]         = useState(null)
+  const [matchingRss, setMatchingRss]         = useState(false)
+  const [matchRssError, setMatchRssError]     = useState(null)
+  const [matchSourceFilter, setMatchSourceFilter] = useState('all')  // 'all' | 'gps' | 'rss' | 'high'
 
   const pendingMatchCount = gpsMatches.filter(m => m.status === 'pending').length
 
@@ -378,15 +381,19 @@ RULES:
     }
   }
 
-  // ── GPS Match actions ──────────────────────────────────────────────────────
+  // ── Match actions (shared for GPS Brief + RSS) ─────────────────────────────
   const saveMatchToIntel = match => {
+    const isRss = match.sourceType === 'rss'
     const entry = {
       id: uid(),
       date: new Date().toISOString().split('T')[0],
-      source: 'GPS Brief',
-      summary: `GPS Market Brief: ${match.itemTitle}`,
+      source: isRss ? `RSS: ${match.articleSource || 'Feed'}` : 'GPS Brief',
+      summary: isRss
+        ? `RSS Article: ${match.articleTitle || match.itemTitle}`
+        : `GPS Market Brief: ${match.itemTitle}`,
       text: match.reason,
       insights: [match.suggestedNextAction],
+      ...(isRss && match.articleUrl ? { link: match.articleUrl } : {}),
       type: 'market-intel',
       createdAt: new Date().toISOString(),
     }
@@ -404,10 +411,13 @@ RULES:
   }
 
   const createActionFromMatch = match => {
+    const isRss = match.sourceType === 'rss'
     const action = {
       id: uid(),
       task: match.suggestedNextAction,
-      context: `GPS Brief [${match.itemTitle}]: ${match.reason}`,
+      context: isRss
+        ? `RSS Article [${match.articleTitle || match.itemTitle}] (${match.articleSource || ''}): ${match.reason}`
+        : `GPS Brief [${match.itemTitle}]: ${match.reason}`,
       priority: match.confidence === 'High' ? 'High' : 'Medium',
       status: 'Open',
       dueDate: '',
@@ -460,8 +470,9 @@ RULES:
     const recentIntel = (account?.intelLog || []).slice(0, 2)
       .map(e => (e.summary || e.text || '').slice(0, 150)).filter(Boolean).join('; ')
 
-    const brief = (data.gpsBriefs || []).find(b => b.id === match.briefId)
-    const item  = brief?.items?.find(i => i.id === match.itemId) || null
+    const isRss = match.sourceType === 'rss'
+    const brief = isRss ? null : (data.gpsBriefs || []).find(b => b.id === match.briefId)
+    const item  = isRss ? null : (brief?.items?.find(i => i.id === match.itemId) || null)
 
     const systemPrompt = `You are drafting a brief, friendly outreach email for Mike Chiricosta, Enterprise Client Manager at GuidePoint Security.
 
@@ -479,7 +490,19 @@ Rules:
 Return only valid JSON. No markdown. No code fences. No commentary.
 {"subject":"","body":""}`
 
-    const userPrompt = `Draft an outreach email:
+    const userPrompt = isRss
+      ? `Draft an outreach email:
+Account: ${match.accountName}
+Contact: ${match.contactName || 'not specified (use a general friendly greeting)'}
+Article title: ${match.articleTitle || match.itemTitle}
+Article source: ${match.articleSource || 'industry publication'}
+Article summary: ${match.articleSummary || '(no summary available)'}
+Why this is relevant to them: ${match.reason}
+Suggested next action: ${match.suggestedNextAction}
+Recent account intel context: ${recentIntel || 'none'}
+
+Keep it short. Tone: "Saw this and thought of you." Do not oversell.`
+      : `Draft an outreach email:
 Account: ${match.accountName}
 Contact: ${match.contactName || 'not specified (use a general friendly greeting)'}
 Topic/intel: ${match.itemTitle}
@@ -551,6 +574,147 @@ Keep it short. Keep it natural. Do not oversell.`
     navigator.clipboard?.writeText(text)
     setEmailCopied(key)
     setTimeout(() => setEmailCopied(null), 2000)
+  }
+
+  // ── Match RSS articles to accounts ─────────────────────────────────────────
+  const matchRssArticles = async () => {
+    if (matchingRss) return
+    const accounts = data.accounts || []
+    if (!articles.length || !accounts.length) return
+
+    setMatchingRss(true)
+    setMatchRssError(null)
+
+    // Non-deleted articles, pinned first, max 25
+    const eligible = [
+      ...articles.filter(a => pinnedSet.has(a.id) && !deletedSet.has(a.id)),
+      ...articles.filter(a => !pinnedSet.has(a.id) && !deletedSet.has(a.id)),
+    ].slice(0, 25)
+
+    if (!eligible.length) {
+      setMatchRssError('No visible articles to match. Refresh the feed first.')
+      setMatchingRss(false)
+      return
+    }
+
+    // Build set of existing article+account pairs to prevent duplicates
+    const existingPairs = new Set(
+      gpsMatches
+        .filter(m => m.sourceType === 'rss')
+        .map(m => `${m.articleId}::${(m.accountName || '').toLowerCase()}`)
+    )
+
+    const acctSummaries = accounts.slice(0, 40).map(a => {
+      const tech     = (a.techStack || []).map(t => t.vendor).filter(Boolean).join(', ')
+      const projects = (a.projects  || [])
+        .filter(p => ['In Flight', 'In Discussion', 'Not Started'].includes(p.status))
+        .map(p => `${p.name}/${p.vendor || ''}`)
+        .join(', ')
+      const intel    = (a.intelLog  || []).slice(0, 2).map(e => (e.summary || e.text || '').slice(0, 100)).join('; ')
+      const contacts = (a.contacts  || []).slice(0, 3).map(c => `${c.name || ''}(${c.title || ''})`).join(', ')
+      return `[${a.name}] Ind:${a.industry || 'N/A'} | Tech:${tech || 'none'} | Projects:${projects || 'none'} | Contacts:${contacts || 'none'} | Intel:${intel || 'none'}`
+    }).join('\n')
+
+    const articleSummaries = eligible.map((a, i) =>
+      `[${i}] "${a.title}" (${a.sourceName}): ${(a.description || '').slice(0, 200)}`
+    ).join('\n')
+
+    const matchSystem = `You are an account intelligence engine for Mike Chiricosta, Enterprise Client Manager at GuidePoint Security.
+
+Given RSS articles and account data, identify which accounts Mike should engage for each article.
+Only suggest matches where the article is genuinely relevant to that account — tech stack overlap, active projects, industry alignment, or security concerns in their intel.
+
+Return valid JSON. No markdown. No code fences.
+{
+  "matches": [
+    {
+      "articleIndex": 0,
+      "accountName": "exact account name from the list",
+      "contactName": "most relevant contact name or null",
+      "reason": "1-2 sentences: specific reason based on their tech stack, projects, or intel",
+      "suggestedNextAction": "concrete next step with one sentence of context",
+      "confidence": "High | Medium | Low"
+    }
+  ]
+}
+
+RULES:
+- Max 2 account matches per article
+- Prefer High and Medium confidence — include Low only if highly strategic
+- If an article isn't relevant to any account, return no matches for it
+- Always reference actual data from the account (specific vendors, project names, intel keywords)`
+
+    try {
+      const { data: res } = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system: matchSystem,
+        messages: [{ role: 'user', content: `RSS Articles:\n${articleSummaries}\n\nAccounts:\n${acctSummaries}` }],
+      }, null, null)
+
+      let matchResult = extractStructuredAIResponse(res)
+      const rawText = res?.content?.[0]?.text || ''
+
+      // Layer 2 repair
+      if (!matchResult?.matches) {
+        try {
+          const { data: res2 } = await callClaudeWithRetry({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: `Convert to JSON. Return only valid JSON.\n{"matches":[{"articleIndex":0,"accountName":"string","contactName":"string|null","reason":"string","suggestedNextAction":"string","confidence":"High|Medium|Low"}]}\nContent:\n${rawText}` }],
+          }, null, null)
+          matchResult = extractStructuredAIResponse(res2)
+        } catch {}
+      }
+
+      const rawMatches = Array.isArray(matchResult?.matches) ? matchResult.matches : []
+      const newMatches = rawMatches
+        .filter(m => m.accountName && typeof m.articleIndex === 'number' && eligible[m.articleIndex])
+        .map(m => {
+          const article = eligible[m.articleIndex]
+          const pairKey = `${article.id}::${(m.accountName || '').toLowerCase()}`
+          if (existingPairs.has(pairKey)) return null
+          const acc = accounts.find(a => a.name?.toLowerCase() === m.accountName?.toLowerCase())
+          return {
+            id: uid(),
+            sourceType: 'rss',
+            articleId: article.id,
+            articleTitle: article.title,
+            articleUrl: article.link,
+            articleSource: article.sourceName,
+            articleSummary: article.description || '',
+            articlePublishedAt: article.publishedAt || null,
+            itemTitle: article.title,
+            briefDate: null,
+            accountId: acc?.id || null,
+            accountName: m.accountName || '',
+            contactName: m.contactName || null,
+            reason: m.reason || '',
+            suggestedNextAction: m.suggestedNextAction || '',
+            confidence: m.confidence || 'Medium',
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+            resolvedAt: null,
+          }
+        })
+        .filter(Boolean)
+
+      if (newMatches.length > 0) {
+        setData(prev => ({
+          ...prev,
+          gpsMatches: [...newMatches, ...(prev.gpsMatches || [])].slice(0, 500),
+        }))
+        setMatchSourceFilter('rss')
+        setMatchFilter('pending')
+        setActiveTab('matches')
+      } else {
+        setMatchRssError('No new account matches found for the visible articles.')
+      }
+    } catch {
+      setMatchRssError('Could not match RSS articles right now. Please try again.')
+    } finally {
+      setMatchingRss(false)
+    }
   }
 
   // ── Filtered articles ──────────────────────────────────────────────────────
@@ -795,17 +959,43 @@ Keep it short. Keep it natural. Do not oversell.`
 
   // ── Account Matches Panel ───────────────────────────────────────────────────
   const AccountMatchesPanel = () => {
-    const filtered = gpsMatches.filter(m =>
-      matchFilter === 'pending' ? m.status === 'pending' : m.status !== 'pending'
-    )
+    const rssCount  = gpsMatches.filter(m => m.status === 'pending' && m.sourceType === 'rss').length
+    const gpsCount  = gpsMatches.filter(m => m.status === 'pending' && m.sourceType !== 'rss').length
+    const highCount = gpsMatches.filter(m => m.status === 'pending' && m.confidence === 'High').length
+
+    const filtered = gpsMatches.filter(m => {
+      if (matchFilter === 'pending'  && m.status !== 'pending')  return false
+      if (matchFilter === 'resolved' && m.status === 'pending')  return false
+      if (matchSourceFilter === 'rss'  && m.sourceType !== 'rss')  return false
+      if (matchSourceFilter === 'gps'  && m.sourceType === 'rss')  return false
+      if (matchSourceFilter === 'high' && m.confidence !== 'High') return false
+      return true
+    })
+
     const resolvedCounts = { saved: 0, actioned: 0, dismissed: 0 }
-    gpsMatches.filter(m=>m.status!=='pending').forEach(m => { if (resolvedCounts[m.status]!==undefined) resolvedCounts[m.status]++ })
+    gpsMatches.filter(m => m.status !== 'pending').forEach(m => { if (resolvedCounts[m.status] !== undefined) resolvedCounts[m.status]++ })
+
+    const SOURCE_FILTERS = [
+      { id: 'all',  label: 'All' },
+      { id: 'gps',  label: `GPS Briefs${gpsCount > 0 && matchFilter === 'pending' ? ` (${gpsCount})` : ''}` },
+      { id: 'rss',  label: `RSS Articles${rssCount > 0 && matchFilter === 'pending' ? ` (${rssCount})` : ''}` },
+      { id: 'high', label: `High Confidence${highCount > 0 && matchFilter === 'pending' ? ` (${highCount})` : ''}` },
+    ]
+
+    const emptyMsg = (() => {
+      if (matchFilter !== 'pending') return 'No resolved matches yet.'
+      if (matchSourceFilter === 'rss') return 'No pending RSS article matches. Click "Match Articles to Accounts" on the RSS Feed tab.'
+      if (matchSourceFilter === 'gps') return 'No pending GPS brief matches. Analyze a brief on the GPS Briefs tab.'
+      if (matchSourceFilter === 'high') return 'No High confidence matches pending.'
+      return 'No pending matches. Analyze a GPS Brief or match RSS articles to get started.'
+    })()
 
     return (
       <div style={{flex:1,overflowY:'auto',padding:'16px 16px 40px'}}>
         <div style={{maxWidth:820,margin:'0 auto'}}>
-          {/* Filter pills */}
-          <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+
+          {/* Status filters */}
+          <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
             <button onClick={()=>setMatchFilter('pending')}
               style={{padding:'4px 14px',borderRadius:16,border:'1px solid',fontSize:12,fontWeight:600,cursor:'pointer',background:matchFilter==='pending'?'#2563EB':'#fff',color:matchFilter==='pending'?'#fff':'#374151',borderColor:matchFilter==='pending'?'#2563EB':'#E5E7EB'}}>
               Pending{pendingMatchCount > 0 ? ` (${pendingMatchCount})` : ''}
@@ -817,27 +1007,34 @@ Keep it short. Keep it natural. Do not oversell.`
             {matchFilter === 'resolved' && (resolvedCounts.saved > 0 || resolvedCounts.actioned > 0 || resolvedCounts.dismissed > 0) && (
               <span style={{fontSize:11,color:'#9CA3AF'}}>
                 {resolvedCounts.saved > 0 && `${resolvedCounts.saved} saved to intel`}
-                {resolvedCounts.actioned > 0 && `${resolvedCounts.saved > 0 ? ' · ' : ''}${resolvedCounts.actioned} actions created`}
+                {resolvedCounts.actioned > 0 && `${resolvedCounts.saved > 0 ? ' · ' : ''}${resolvedCounts.actioned} actions`}
                 {resolvedCounts.dismissed > 0 && `${(resolvedCounts.saved > 0 || resolvedCounts.actioned > 0) ? ' · ' : ''}${resolvedCounts.dismissed} dismissed`}
               </span>
             )}
           </div>
 
+          {/* Source filters */}
+          <div style={{display:'flex',gap:5,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+            {SOURCE_FILTERS.map(f => (
+              <button key={f.id} onClick={()=>setMatchSourceFilter(f.id)}
+                style={{padding:'3px 10px',borderRadius:12,border:'1px solid',fontSize:11,fontWeight:matchSourceFilter===f.id?700:500,cursor:'pointer',background:matchSourceFilter===f.id?'#111827':'#fff',color:matchSourceFilter===f.id?'#fff':'#6B7280',borderColor:matchSourceFilter===f.id?'#111827':'#E5E7EB',whiteSpace:'nowrap'}}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {filtered.length === 0 ? (
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'60px 20px',textAlign:'center',gap:8}}>
               <Users size={32} color='#E5E7EB'/>
-              <div style={{fontSize:13,color:'#9CA3AF'}}>
-                {matchFilter === 'pending'
-                  ? 'No pending matches. Analyze a GPS Brief on the GPS Briefs tab to generate account suggestions.'
-                  : 'No resolved matches yet.'}
-              </div>
+              <div style={{fontSize:13,color:'#9CA3AF'}}>{emptyMsg}</div>
             </div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               {filtered.map(match => {
-                const conf      = CONF_STYLE[match.confidence] || CONF_STYLE.Medium
+                const conf       = CONF_STYLE[match.confidence] || CONF_STYLE.Medium
                 const isResolved = match.status !== 'pending'
                 const statusLabel = { saved: 'Saved to Intel', actioned: 'Action Created', dismissed: 'Dismissed' }[match.status] || ''
+                const isRss      = match.sourceType === 'rss'
 
                 return (
                   <div key={match.id}
@@ -846,8 +1043,21 @@ Keep it short. Keep it natural. Do not oversell.`
                     {/* Header */}
                     <div style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:8,flexWrap:'wrap'}}>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:3}}>
-                          {match.itemTitle}
+                        {/* Source badge + topic */}
+                        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3,flexWrap:'wrap'}}>
+                          {isRss
+                            ? <span style={{fontSize:10,fontWeight:700,background:'#E0F2FE',color:'#0284C7',borderRadius:4,padding:'2px 6px',flexShrink:0}}>RSS · {match.articleSource || 'Feed'}</span>
+                            : <span style={{fontSize:10,fontWeight:700,background:'#F3F4F6',color:'#6B7280',borderRadius:4,padding:'2px 6px',flexShrink:0}}>GPS Brief</span>
+                          }
+                          <span style={{fontSize:10,fontWeight:600,color:'#9CA3AF',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{match.itemTitle}</span>
+                          {isRss && match.articleUrl && (
+                            <a href={match.articleUrl} target='_blank' rel='noopener noreferrer'
+                              style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'#9CA3AF',flexShrink:0,textDecoration:'none'}}
+                              onMouseEnter={e=>e.currentTarget.style.color='#007AFF'}
+                              onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
+                              <ExternalLink size={10}/>Article
+                            </a>
+                          )}
                         </div>
                         <div style={{fontSize:15,fontWeight:700,color:'#111827',lineHeight:1.3}}>
                           {match.accountName}
@@ -855,8 +1065,11 @@ Keep it short. Keep it natural. Do not oversell.`
                             <span style={{fontSize:12,color:'#6B7280',fontWeight:400,marginLeft:8}}>· {match.contactName}</span>
                           )}
                         </div>
-                        {match.briefDate && (
+                        {!isRss && match.briefDate && (
                           <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Brief: {fmtDate(match.briefDate)}</div>
+                        )}
+                        {isRss && match.articlePublishedAt && (
+                          <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{fmtPub(match.articlePublishedAt)}</div>
                         )}
                       </div>
                       <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,flexWrap:'wrap'}}>
@@ -1073,13 +1286,21 @@ Keep it short. Keep it natural. Do not oversell.`
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
           {activeTab === 'rss' && (
             <>
-              {fetching && (
+              {(fetching || matchingRss) && (
                 <span style={{fontSize:12,color:'#9CA3AF',display:'flex',alignItems:'center',gap:5}}>
-                  <span style={{display:'inline-block',width:12,height:12,border:'2px solid #E5E7EB',borderTopColor:'#007AFF',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>Fetching…
+                  <span style={{display:'inline-block',width:12,height:12,border:'2px solid #E5E7EB',borderTopColor:'#007AFF',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
+                  {matchingRss ? 'Matching…' : 'Fetching…'}
                 </span>
               )}
-              <button onClick={()=>fetchArticles(sources)} disabled={fetching}
-                style={{display:'flex',alignItems:'center',gap:6,background:fetching?'#F9FAFB':'#111827',color:fetching?'#9CA3AF':'#fff',border:'none',borderRadius:7,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:fetching?'not-allowed':'pointer'}}>
+              <button
+                onClick={matchRssArticles}
+                disabled={matchingRss || fetching || articles.length === 0}
+                title={articles.length === 0 ? 'Refresh feed first' : 'Match visible articles to your accounts'}
+                style={{display:'flex',alignItems:'center',gap:6,background:matchingRss||fetching||articles.length===0?'#F9FAFB':'#2563EB',color:matchingRss||fetching||articles.length===0?'#9CA3AF':'#fff',border:'none',borderRadius:7,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:matchingRss||fetching||articles.length===0?'not-allowed':'pointer'}}>
+                <Users size={12}/>Match to Accounts
+              </button>
+              <button onClick={()=>fetchArticles(sources)} disabled={fetching||matchingRss}
+                style={{display:'flex',alignItems:'center',gap:6,background:fetching||matchingRss?'#F9FAFB':'#111827',color:fetching||matchingRss?'#9CA3AF':'#fff',border:'none',borderRadius:7,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:fetching||matchingRss?'not-allowed':'pointer'}}>
                 <RefreshCw size={12} style={{animation:fetching?'spin 0.7s linear infinite':'none'}}/>Refresh
               </button>
             </>
@@ -1200,6 +1421,15 @@ Keep it short. Keep it natural. Do not oversell.`
       {/* CONTENT AREA */}
       {activeTab === 'rss' && (
         <div style={{flex:1,overflowY:'auto',padding:'14px 16px 24px'}}>
+          {matchRssError && (
+            <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:8,padding:'9px 13px',marginBottom:12,color:'#DC2626',fontSize:12,display:'flex',alignItems:'center',gap:8}}>
+              <AlertTriangle size={13} style={{flexShrink:0}}/>
+              {matchRssError}
+              <button onClick={()=>setMatchRssError(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#DC2626',marginLeft:'auto',padding:0,display:'flex'}}>
+                <X size={12}/>
+              </button>
+            </div>
+          )}
           {/* NAV FILTERS + SEARCH */}
           <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:14}}>
             {[
