@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Globe, RefreshCw, Plus, Trash2, Star, ExternalLink, AlertTriangle, CheckCircle, X, Search, BookOpen, Pencil, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, FileText, Loader, Users, Check, Zap } from 'lucide-react'
+import { ArrowLeft, Globe, RefreshCw, Plus, Trash2, Star, ExternalLink, AlertTriangle, CheckCircle, X, Search, BookOpen, Pencil, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, FileText, Loader, Users, Check, Zap, Mail, Copy } from 'lucide-react'
 import { uid } from '../utils.js'
 import { callClaudeWithRetry, extractStructuredAIResponse } from '../utils/aiHelper.js'
 
@@ -85,6 +85,9 @@ export default function MarketIntelligence({ data, setData, onBack }) {
   const [gpsStatus, setGpsStatus]             = useState('')
   const [matchFilter, setMatchFilter]         = useState('pending')
   const [expandedBriefId, setExpandedBriefId] = useState(null)
+  const [emailModal, setEmailModal]           = useState(null)   // { matchId, subject, body, generatedAt }
+  const [draftingEmailId, setDraftingEmailId] = useState(null)
+  const [emailCopied, setEmailCopied]         = useState(null)
 
   const pendingMatchCount = gpsMatches.filter(m => m.status === 'pending').length
 
@@ -442,6 +445,114 @@ RULES:
     if (expandedBriefId === briefId) setExpandedBriefId(null)
   }
 
+  // ── Draft email for a match ────────────────────────────────────────────────
+  const draftEmail = async (match, forceRegen = false) => {
+    if (match.emailDraft && !forceRegen) {
+      setEmailModal({ matchId: match.id, ...match.emailDraft })
+      return
+    }
+
+    setDraftingEmailId(match.id)
+
+    const account = (data.accounts || []).find(a =>
+      match.accountId ? a.id === match.accountId : a.name === match.accountName
+    )
+    const recentIntel = (account?.intelLog || []).slice(0, 2)
+      .map(e => (e.summary || e.text || '').slice(0, 150)).filter(Boolean).join('; ')
+
+    const brief = (data.gpsBriefs || []).find(b => b.id === match.briefId)
+    const item  = brief?.items?.find(i => i.id === match.itemId) || null
+
+    const systemPrompt = `You are drafting a brief, friendly outreach email for Mike Chiricosta, Enterprise Client Manager at GuidePoint Security.
+
+The email should read like a natural touchpoint from someone who saw something relevant and thought of their client — not a sales pitch.
+
+Rules:
+- 3-6 sentences max in the body
+- Never start with "I hope this email finds you well" or any similar opener
+- No buzzwords, no heavy pitch language
+- Friendly, direct, and low-pressure
+- Framed as "Saw this and thought of you" or "Sending this along because it felt relevant to what we've been discussing"
+- End with a soft, optional call to action (happy to chat, worth a quick call if useful, etc.)
+- Written from Mike's perspective in first person
+
+Return only valid JSON. No markdown. No code fences. No commentary.
+{"subject":"","body":""}`
+
+    const userPrompt = `Draft an outreach email:
+Account: ${match.accountName}
+Contact: ${match.contactName || 'not specified (use a general friendly greeting)'}
+Topic/intel: ${match.itemTitle}
+What happened: ${item?.whatHappened || match.reason}
+Why this account cares: ${item?.whyCustomersCare || ''}
+Why Ledgr matched it to this account: ${match.reason}
+Suggested next action: ${match.suggestedNextAction}
+GuidePoint offerings: ${(item?.guidePointOfferings || []).join(', ') || 'not specified'}
+Recent account intel context: ${recentIntel || 'none'}
+
+Keep it short. Keep it natural. Do not oversell.`
+
+    try {
+      const { data: res } = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 600,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }, null, null)
+
+      let draft = extractStructuredAIResponse(res)
+      const rawText = res?.content?.[0]?.text || ''
+
+      // Layer 2 repair
+      if (!draft?.subject || !draft?.body) {
+        try {
+          const { data: res2 } = await callClaudeWithRetry({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 400,
+            messages: [{ role: 'user', content: `Convert to JSON. Return only valid JSON. No markdown.\n{"subject":"string","body":"string"}\nContent:\n${rawText}` }],
+          }, null, null)
+          draft = extractStructuredAIResponse(res2)
+        } catch {}
+      }
+
+      // Layer 3 fallback
+      if (!draft?.subject || !draft?.body) {
+        const firstName = match.contactName?.split(' ')[0] || ''
+        draft = {
+          subject: `Thought this might be relevant — ${match.itemTitle}`,
+          body: `Hi${firstName ? ' ' + firstName : ''},\n\nSaw something come through and thought of ${match.accountName}. ${match.reason} Figured it was worth passing along in case it's useful.\n\nHappy to jump on a quick call if you want to dig into it — no pressure either way.\n\nBest,\nMike`,
+        }
+      }
+
+      const emailDraft = { ...draft, generatedAt: new Date().toISOString() }
+
+      setData(prev => ({
+        ...prev,
+        gpsMatches: (prev.gpsMatches || []).map(m =>
+          m.id === match.id ? { ...m, emailDraft } : m
+        ),
+      }))
+
+      setEmailModal({ matchId: match.id, ...emailDraft })
+    } catch {
+      const firstName = match.contactName?.split(' ')[0] || ''
+      const fallback = {
+        subject: `Thought this might be relevant — ${match.itemTitle}`,
+        body: `Hi${firstName ? ' ' + firstName : ''},\n\nSaw something come through and thought of ${match.accountName}. ${match.reason} Figured it was worth passing along.\n\nHappy to jump on a quick call if useful.\n\nBest,\nMike`,
+        generatedAt: new Date().toISOString(),
+      }
+      setEmailModal({ matchId: match.id, ...fallback })
+    } finally {
+      setDraftingEmailId(null)
+    }
+  }
+
+  const copyEmail = (text, key) => {
+    navigator.clipboard?.writeText(text)
+    setEmailCopied(key)
+    setTimeout(() => setEmailCopied(null), 2000)
+  }
+
   // ── Filtered articles ──────────────────────────────────────────────────────
   const filteredArticles = articles.filter(a => {
     if (selectedNav === 'pinned') return pinnedSet.has(a.id) && !deletedSet.has(a.id)
@@ -787,6 +898,18 @@ RULES:
                           <Zap size={12}/>Create Action
                         </button>
                         <button
+                          onClick={()=>draftEmail(match)}
+                          disabled={draftingEmailId === match.id}
+                          style={{display:'flex',alignItems:'center',gap:5,background:draftingEmailId===match.id?'#F3F4F6':'#FFF7ED',color:draftingEmailId===match.id?'#9CA3AF':'#C2410C',border:'none',borderRadius:7,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:draftingEmailId===match.id?'not-allowed':'pointer'}}
+                          onMouseEnter={e=>{ if(draftingEmailId!==match.id) e.currentTarget.style.background='#FFEDD5' }}
+                          onMouseLeave={e=>{ if(draftingEmailId!==match.id) e.currentTarget.style.background='#FFF7ED' }}>
+                          {draftingEmailId === match.id
+                            ? <><Loader size={12} style={{animation:'spin 0.8s linear infinite'}}/>Drafting…</>
+                            : match.emailDraft
+                              ? <><Mail size={12}/>View Draft</>
+                              : <><Mail size={12}/>Draft Email</>}
+                        </button>
+                        <button
                           onClick={()=>dismissMatch(match.id)}
                           style={{display:'flex',alignItems:'center',gap:5,background:'#F3F4F6',color:'#6B7280',border:'none',borderRadius:7,padding:'6px 12px',fontSize:12,fontWeight:600,cursor:'pointer'}}
                           onMouseEnter={e=>e.currentTarget.style.background='#E5E7EB'}
@@ -796,14 +919,125 @@ RULES:
                       </div>
                     )}
 
-                    {isResolved && match.resolvedAt && (
-                      <div style={{fontSize:11,color:'#9CA3AF',marginTop:8}}>{fmtDate(match.resolvedAt)}</div>
+                    {isResolved && (
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8}}>
+                        {match.resolvedAt && <div style={{fontSize:11,color:'#9CA3AF'}}>{fmtDate(match.resolvedAt)}</div>}
+                        {match.emailDraft && (
+                          <button
+                            onClick={()=>draftEmail(match)}
+                            style={{display:'flex',alignItems:'center',gap:4,background:'transparent',border:'none',cursor:'pointer',fontSize:11,color:'#9CA3AF',padding:0,fontWeight:500}}
+                            onMouseEnter={e=>e.currentTarget.style.color='#374151'}
+                            onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
+                            <Mail size={11}/>View draft
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 )
               })}
             </div>
           )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Email Draft Modal ──────────────────────────────────────────────────────
+  const EmailModal = () => {
+    if (!emailModal) return null
+    const match = gpsMatches.find(m => m.id === emailModal.matchId)
+    const fullEmail = `Subject: ${emailModal.subject}\n\n${emailModal.body}`
+    const btnBase = { display:'flex', alignItems:'center', gap:5, border:'none', borderRadius:7, padding:'6px 11px', fontSize:12, fontWeight:600, cursor:'pointer' }
+
+    return (
+      <div
+        onClick={e => { if (e.target === e.currentTarget) setEmailModal(null) }}
+        style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.45)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+        <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:600,maxHeight:'90vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 64px rgba(0,0,0,0.22)'}}>
+
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'16px 20px',borderBottom:'1px solid #E5E7EB',flexShrink:0}}>
+            <Mail size={16} color='#C2410C'/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,color:'#111827'}}>Email Draft</div>
+              {match && (
+                <div style={{fontSize:11,color:'#9CA3AF',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {match.accountName}{match.contactName ? ` · ${match.contactName}` : ''} — {match.itemTitle}
+                </div>
+              )}
+            </div>
+            <button onClick={()=>setEmailModal(null)}
+              style={{background:'#F3F4F6',border:'none',borderRadius:7,padding:'5px 8px',cursor:'pointer',color:'#6B7280',display:'flex',alignItems:'center'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#E5E7EB'}
+              onMouseLeave={e=>e.currentTarget.style.background='#F3F4F6'}>
+              <X size={14}/>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{flex:1,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:14}}>
+            {/* Subject */}
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5}}>Subject</div>
+              <textarea
+                value={emailModal.subject}
+                onChange={e=>setEmailModal(prev=>({...prev,subject:e.target.value}))}
+                rows={2}
+                style={{width:'100%',boxSizing:'border-box',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 12px',fontSize:13,color:'#111827',fontWeight:500,fontFamily:'inherit',lineHeight:1.5,resize:'vertical',outline:'none'}}
+              />
+            </div>
+
+            {/* Body */}
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:5}}>Body</div>
+              <textarea
+                value={emailModal.body}
+                onChange={e=>setEmailModal(prev=>({...prev,body:e.target.value}))}
+                rows={10}
+                style={{width:'100%',boxSizing:'border-box',background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:8,padding:'12px 14px',fontSize:13,color:'#374151',fontFamily:'inherit',lineHeight:1.75,resize:'vertical',outline:'none'}}
+              />
+            </div>
+
+            {emailModal.generatedAt && (
+              <div style={{fontSize:11,color:'#9CA3AF'}}>Generated {fmtDate(emailModal.generatedAt)}</div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{padding:'12px 20px',borderTop:'1px solid #F3F4F6',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',flexShrink:0}}>
+            <button
+              onClick={()=>copyEmail(emailModal.subject,'subject')}
+              style={{...btnBase,background:'#F3F4F6',color:'#374151'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#E5E7EB'}
+              onMouseLeave={e=>e.currentTarget.style.background='#F3F4F6'}>
+              {emailCopied==='subject' ? <><Check size={12}/>Copied!</> : <><Copy size={12}/>Subject</>}
+            </button>
+            <button
+              onClick={()=>copyEmail(emailModal.body,'body')}
+              style={{...btnBase,background:'#F3F4F6',color:'#374151'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#E5E7EB'}
+              onMouseLeave={e=>e.currentTarget.style.background='#F3F4F6'}>
+              {emailCopied==='body' ? <><Check size={12}/>Copied!</> : <><Copy size={12}/>Body</>}
+            </button>
+            <button
+              onClick={()=>copyEmail(fullEmail,'full')}
+              style={{...btnBase,background:'#111827',color:'#fff'}}
+              onMouseEnter={e=>e.currentTarget.style.background='#1f2937'}
+              onMouseLeave={e=>e.currentTarget.style.background='#111827'}>
+              {emailCopied==='full' ? <><Check size={12}/>Copied!</> : <><Copy size={12}/>Copy Full Email</>}
+            </button>
+            <div style={{flex:1}}/>
+            <button
+              onClick={()=>{ const m=gpsMatches.find(x=>x.id===emailModal.matchId); if(m) draftEmail(m,true) }}
+              style={{...btnBase,background:'transparent',border:'1px solid #E5E7EB',color:'#6B7280'}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor='#9CA3AF'}
+              onMouseLeave={e=>e.currentTarget.style.borderColor='#E5E7EB'}>
+              {draftingEmailId===emailModal.matchId
+                ? <><Loader size={12} style={{animation:'spin 0.8s linear infinite'}}/>Regenerating…</>
+                : <><RefreshCw size={12}/>Regenerate</>}
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -1081,6 +1315,8 @@ RULES:
       {activeTab === 'gps'     && <GPSBriefsPanel/>}
       {activeTab === 'matches' && <AccountMatchesPanel/>}
       {activeTab === 'kb'      && <KBPanel/>}
+
+      <EmailModal/>
     </div>
   )
 }
