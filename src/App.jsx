@@ -24,7 +24,7 @@ import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
 import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
-import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
+import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry, extractStructuredAIResponse, repairAIResponse } from './utils/aiHelper.js'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -1762,51 +1762,38 @@ SECTION LIMITS (strict):
 - marketPulse: EXACTLY 3 bullets. Source priority: (1) provided GuidePoint Security blog posts matching Mike's accounts/industries/vendors; (2) CIO.com or DarkReading on ransomware, IAM, cloud security, threat intel, compliance, board/CFO cyber risk; (3) current threat landscape. Only cybersecurity with direct client relevance. Each bullet must state what happened AND why a CISO/CIO/CFO at Mike's clients should care.
 - tomorrowLater: MAX 3 bullets. Use deferred items, unfinished actions, and future commitments.
 
-Keep every text field to 1-2 sentences max. Every actToday/moveForward action must have a client-first angle — never just "follow up." Return ONLY valid JSON.`
+Keep every text field to 1-2 sentences max. Every actToday/moveForward action must have a client-first angle — never just "follow up." Return ONLY valid JSON. No markdown. No code fences. No commentary.`
+
+      const BRIEF_REPAIR_PROMPT = `Convert this content into the exact Daily Brief JSON schema. Return only valid JSON. No markdown. No code fences. No commentary.\n\n{"briefSummary":"","observationWindow":"","observedReality":[{"category":"","bullets":[]}],"keyDevelopments":[{"label":"","detail":"","account":""}],"actToday":[{"account":"","contact":"","action":"","clientFirstAngle":"","urgencyReason":"","estimatedMinutes":15,"completedToday":false}],"moveForward":[{"account":"","contact":"","action":"","clientFirstAngle":"","urgencyReason":""}],"longGame":[{"account":"","action":"","why":""}],"decisionsToMake":[{"decision":"","context":"","account":""}],"followUpsLooseThreads":[{"item":"","account":"","risk":""}],"risksWatchouts":[{"label":"","detail":"","account":""}],"efficiencyLeverage":[{"suggestion":""}],"renewalRadar":[{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true}],"marketPulse":[{"headline":"","relevance":""}],"tomorrowLater":[{"item":"","account":""}]}`
 
       const _briefInputChars = systemPrompt.length + userPrompt.length
       const _briefStart = Date.now()
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1500,
-          system: systemPrompt,
-          messages: [{role: 'user', content: userPrompt}]
-        })
-      })
+      const { data: responseData } = await callClaudeWithRetry({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      }, null, null)
 
-      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 1500, durationMs: Date.now() - _briefStart, success: response.ok })
-      const responseData = await response.json()
+      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 3000, durationMs: Date.now() - _briefStart, success: !responseData?.error })
 
-      if (!response.ok) {
-        throw new Error(`API error ${response.status}: ${JSON.stringify(responseData)}`)
+      if (responseData?.error) {
+        throw new Error(responseData.error.message || responseData.error.type || 'API error')
       }
 
-      const rawText = responseData.content?.[0]?.text || ''
-
-      const extractBriefJSON = (text) => {
-        if (!text) return null
-        let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
-        try { return JSON.parse(cleaned) } catch {}
-        let depth = 0, start = -1, end = -1
-        for (let i = 0; i < cleaned.length; i++) {
-          if (cleaned[i] === '{') { if (depth === 0) start = i; depth++ }
-          else if (cleaned[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+      let briefData = extractStructuredAIResponse(responseData)
+      if (!briefData) {
+        if (import.meta.env.DEV) {
+          console.error('[DailyBrief] Parse failed', { responseShape: typeof responseData, preview: String(responseData?.content?.[0]?.text || '').slice(0, 500) })
         }
-        if (start !== -1 && end !== -1) {
-          try { return JSON.parse(cleaned.slice(start, end + 1)) } catch {}
-        }
-        return null
+        briefData = await repairAIResponse(responseData?.content?.[0]?.text || '', BRIEF_REPAIR_PROMPT)
       }
-
-      const briefData = extractBriefJSON(rawText)
-      if (!briefData) throw new Error('Could not parse brief response — raw: ' + rawText.slice(0, 200))
+      const _isFallback = !briefData
+      if (_isFallback) briefData = {}
       const newBrief = {
         date:today,
         generatedAt:new Date().toISOString(),
-        briefSummary:briefData.briefSummary||'',
+        briefSummary:briefData.briefSummary||(_isFallback?'Brief generation had a formatting issue — try regenerating for a complete brief.':''),
         observationWindow:briefData.observationWindow||'',
         sections:{
           observedReality:briefData.observedReality||[],
@@ -1827,9 +1814,12 @@ Keep every text field to 1-2 sentences max. Every actToday/moveForward action mu
         const existingBriefs=(prev.dailyBriefs||[]).filter(b=>b.date!==today)
         return {...prev,dailyBriefs:[newBrief,...existingBriefs].slice(0,30)}
       })
+      if (_isFallback) {
+        setBriefError('AI returned an imperfect format, so Ledgr displayed a fallback brief.')
+      }
     } catch(err) {
-      console.error('Brief generation error:', err.message)
-      setBriefError(`Generation failed: ${err.message}`)
+      if (import.meta.env.DEV) console.error('[DailyBrief] Generation error:', err.message)
+      setBriefError(friendlyApiError(err))
     } finally {
       setBriefGenerating(false)
     }
