@@ -422,15 +422,23 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
       let k = 0
       const rendered = brief.markdownContent.split('\n').map(line => {
         const t = line.trim()
-        if (!t) return <div key={k++} style={{height:6}}/>
+        if (!t) return <div key={k++} style={{height:5}}/>
+        if (/^-{3,}$/.test(t)) return <div key={k++} style={{borderTop:'1px solid #f1f5f9',margin:'14px 0 10px'}}/>
+        if (t.startsWith('# '))
+          return <div key={k++} style={{fontSize:15,fontWeight:700,color:'#0f172a',letterSpacing:'-0.01em',
+            paddingBottom:8,marginBottom:4,marginTop:22,borderBottom:'2px solid #e2e8f0'}}>{t.slice(2)}</div>
         if (t.startsWith('## '))
-          return <div key={k++} style={{fontSize:11,fontWeight:700,color:'#1e293b',letterSpacing:'0.07em',
-            textTransform:'uppercase',paddingBottom:8,marginBottom:6,marginTop:16,
-            borderBottom:'1px solid #f1f5f9'}}>{t.slice(3)}</div>
+          return <div key={k++} style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'0.07em',
+            textTransform:'uppercase',marginTop:12,marginBottom:4}}>{t.slice(3)}</div>
         if (/^[-•*] /.test(t))
           return <div key={k++} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'4px 6px'}}>
             <span style={{width:5,height:5,borderRadius:'50%',background:'#cbd5e1',flexShrink:0,marginTop:6}}/>
             <div style={{fontSize:13,color:'#1e293b',lineHeight:1.55}}>{inlineBold(t.replace(/^[-•*] /,''))}</div>
+          </div>
+        if (/^\d+\. /.test(t))
+          return <div key={k++} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'5px 6px'}}>
+            <span style={{minWidth:20,height:20,borderRadius:'50%',background:'#1e3a5f',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,flexShrink:0,marginTop:1}}>{t.match(/^(\d+)/)[1]}</span>
+            <div style={{fontSize:13,color:'#1e293b',lineHeight:1.55,fontWeight:500}}>{inlineBold(t.replace(/^\d+\. /,''))}</div>
           </div>
         return <div key={k++} style={{fontSize:13,color:'#374151',lineHeight:1.7,padding:'3px 6px'}}>{inlineBold(t)}</div>
       })

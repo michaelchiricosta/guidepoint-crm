@@ -1635,113 +1635,188 @@ export default function App() {
     try {
       const todayDate = new Date()
       const today = todayDate.toISOString().split('T')[0]
-      const accountContext = (data.accounts || []).map(acct => {
-        const daysSinceContact = acct.lastContact ? Math.floor((Date.now()-new Date(acct.lastContact))/86400000) : 999
-        const openFollowUps = (acct.followUps||[]).filter(f=>f.status==='Open')
-        const criticalFollowUps = openFollowUps.filter(f=>f.priority==='Critical'||f.priority==='High')
-        const overdueFollowUps = openFollowUps.filter(f=>f.dueDate&&new Date(f.dueDate+'T12:00:00')<todayDate)
-        const activeProjects = (acct.projects||[]).filter(p=>['In Flight','In Discussion','Not Started','Stalled'].includes(p.status))
-        const upcomingRenewals = (acct.techStack||[]).filter(t=>{if(!t.renewalDate)return false;const days=Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000);return days>=0&&days<=90})
-        const recentIntel = (acct.intelLog||[]).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3).map(e=>e.text?.slice(0,400)||'').join(' | ')
-        const promisedDeliverables = openFollowUps.filter(f=>f.task?.toLowerCase().includes('send')||f.task?.toLowerCase().includes('share')||f.task?.toLowerCase().includes('provide')||f.task?.toLowerCase().includes('forward')||(f.waitingOn||'').toLowerCase().includes('mike'))
-        return {
-          name:acct.name,industry:acct.industry||'',employees:acct.employees||'',revenue:acct.revenue||'',hq:acct.hq||'',
-          daysSinceContact,health:acct.health||50,
-          openFollowUpsCount:openFollowUps.length,
-          criticalFollowUps:criticalFollowUps.map(f=>({task:f.task,dueDate:f.dueDate,waitingOn:f.waitingOn})),
-          overdueFollowUps:overdueFollowUps.map(f=>({task:f.task,dueDate:f.dueDate})),
-          promisedDeliverables:promisedDeliverables.map(f=>f.task),
-          activeProjects:activeProjects.map(p=>({name:p.name,vendor:p.vendor,status:p.status,stage:(p.timeline||[]).find(s=>s.status==='current')?.stage||'',waitingOn:p.waitingOn||'',nextSteps:p.nextSteps||'',estimatedCloseDate:p.estimatedCloseDate||'',estimatedRevenue:p.estimatedRevenue||''})),
-          stalledProjects:activeProjects.filter(p=>p.status==='Stalled').map(p=>p.name),
-          upcomingRenewals:upcomingRenewals.map(t=>({vendor:t.vendor,renewalDate:t.renewalDate,daysUntil:Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000),annualCost:t.annualCost||''})),
-          recentIntel,
-          techStackVendors:(acct.techStack||[]).map(t=>t.vendor).filter(Boolean).join(', '),
-          contacts:(acct.contacts||[]).map(c=>({name:c.name,title:c.title,relationship:c.relationship}))
-        }
-      })
-      const whitespaceContext = (data.whitespaceAccounts||[]).filter(a=>a.status==='Active Conversation'||a.status==='Reached Out').map(a=>({name:a.name,status:a.status,industry:a.industry}))
-      const systemPrompt = `You are Ledgr. — the AI chief of staff for Mike Chiricosta, Enterprise Client Manager at GuidePoint Security covering New England. GuidePoint is a cybersecurity VAR and services firm. You think like the most strategic, highest-paid enterprise sales executive in cybersecurity.
-
-Your job is to generate Mike's Daily Brief — a prioritized, actionable morning memo that tells him exactly what to do today to be the most valuable, indispensable resource his clients have ever worked with.
-
-CORE PHILOSOPHY — never forget this:
-- The best reps don't manage accounts. They manage momentum. Every account either has momentum or it doesn't.
-- Every action must have a CLIENT-FIRST angle — not "follow up on X" but "here is what is happening in their world and here is what you bring them"
-- Clients want someone who thinks for them, covers their blind spots, and shows up with perspective not just updates
-- "Just following up" is never acceptable — every touchpoint must deliver value
-- Help Mike arm his CISOs to sell security upstairs to CFOs and CIOs when relevant
-- Quick wins AND long-term seeds — never lose sight of either
-- Business conversation drives results — translate security gaps into business risk, peer benchmarks, and financial exposure
-- Help clients cover their blind spots — bring them something they did not ask for
-- The goal is for Mike's clients to feel cared for, covered, and confident — like they have a second set of eyes on their security program
-
-PRIORITIZATION LOGIC — do NOT use due dates as the primary driver. Weight by:
-1. Promised deliverables Mike committed to on a call — highest urgency
-2. Deals with imminent close dates or budget deadlines
-3. Accounts with competitive threats or vendor evaluations in progress
-4. Accounts where momentum is stalling — no contact AND active project is dangerous
-5. Upcoming renewals within 60 days where Mike is not clearly in the conversation
-6. High-value accounts with no recent contact
-7. New trigger events — new CISO, recent breach in their industry, regulatory change affecting them
-
-OUTPUT — write the brief as plain text using markdown. Use ## for section headers, - for bullet points. Name accounts and contacts explicitly. Be specific, not generic.`
-      // Inject recent GuidePoint blog posts as market pulse context
+      // ── Date thresholds ────────────────────────────────────────────────────────
+      const fiveDaysAgo = new Date(todayDate); fiveDaysAgo.setDate(fiveDaysAgo.getDate()-5)
+      const fiveDaysAgoStr = fiveDaysAgo.toISOString().split('T')[0]
       const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7)
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
-      const recentPulses = (data.marketPulses||[]).filter(p=>p.publishedDate&&p.publishedDate>=sevenDaysAgoStr).slice(0,6)
-      const kbItems = (data.knowledgeBase||[]).filter(p=>p.createdAt&&p.createdAt>=sevenDaysAgo.toISOString()).slice(0,3)
-      const allIntelItems = [...recentPulses, ...kbItems]
-      const marketIntelContext = allIntelItems.length>0
-        ? `\n\nRecent GuidePoint Security blog posts and market intelligence (incorporate the most relevant into marketPulse — these are from Mike's own firm so use them when applicable):\n${allIntelItems.map(p=>`- [${p.publishedDate||'recent'}] ${p.title}${p.aiSummary?' — '+p.aiSummary.slice(0,120):p.excerpt?' — '+p.excerpt.slice(0,120):''}`).join('\n')}`
+
+      // ── Annotate each account with intelligence-first signals ───────────────
+      const annotatedAccounts = (data.accounts || []).map(acct => {
+        const intelSorted = (acct.intelLog || []).sort((a,b) => new Date(b.date)-new Date(a.date))
+        const recentIntel = intelSorted.filter(e => (e.date||'') >= fiveDaysAgoStr)
+        const daysSinceContact = acct.lastContact ? Math.floor((Date.now()-new Date(acct.lastContact))/86400000) : 999
+        const activeProjects = (acct.projects||[]).filter(p => ['In Flight','In Discussion','Not Started','Stalled'].includes(p.status))
+        const openFollowUps = (acct.followUps||[]).filter(f => f.status==='Open')
+        const renewals = (acct.techStack||[]).filter(t => {
+          if (!t.renewalDate) return false
+          const d = Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000)
+          return d >= 0 && d <= 90
+        }).map(t => ({ vendor:t.vendor, daysUntil:Math.floor((new Date(t.renewalDate+'T12:00:00')-todayDate)/86400000), renewalDate:t.renewalDate, annualCost:t.annualCost||'' }))
+        const evaluating = (acct.techStack||[]).filter(t => t.status==='Evaluating').map(t => t.vendor)
+        const contacts = (acct.contacts||[]).slice(0,5).map(c => `${c.name}${c.title?` (${c.title})`:''}${c.relationship?` [${c.relationship}]`:''}`)
+        return { acct, recentIntel, daysSinceContact, activeProjects, openFollowUps, renewals, evaluating, contacts }
+      })
+
+      // ── Build intelligence-first context as readable text (not JSON) ────────
+      const ctxParts = []
+
+      // PRIMARY: accounts with recent intel (last 5 days)
+      const withIntel = annotatedAccounts.filter(a => a.recentIntel.length > 0)
+      if (withIntel.length) {
+        ctxParts.push('=== RECENT INTEL LOGS (Last 5 Days) — Primary Signal ===')
+        for (const { acct, recentIntel, activeProjects, openFollowUps, renewals, evaluating, contacts } of withIntel) {
+          ctxParts.push(`\n[${acct.name}]${acct.industry?' — '+acct.industry:''}`)
+          if (contacts.length) ctxParts.push(`  Contacts: ${contacts.join(', ')}`)
+          if (evaluating.length) ctxParts.push(`  Evaluating: ${evaluating.join(', ')}`)
+          for (const e of recentIntel.slice(0,3)) {
+            ctxParts.push(`  ${e.date} | ${e.type||'Note'} | ${e.participants||''}`)
+            if (e.summary) ctxParts.push(`    Summary: ${String(e.summary).slice(0,350)}`)
+            if (e.insights?.length) ctxParts.push(`    Insights: ${e.insights.slice(0,3).join(' | ')}`)
+            if (e.opportunities?.length) ctxParts.push(`    Opportunities: ${e.opportunities.slice(0,2).join(' | ')}`)
+            if (e.risks?.length) ctxParts.push(`    Risks: ${e.risks.slice(0,2).join(' | ')}`)
+          }
+          if (activeProjects.length) ctxParts.push(`  Active Projects: ${activeProjects.slice(0,3).map(p=>`${p.name} [${p.status}${p.vendor?'/'+p.vendor:''}]${p.waitingOn?', waiting: '+p.waitingOn:''}${p.estimatedCloseDate?', close: '+p.estimatedCloseDate:''}`).join('; ')}`)
+          if (renewals.length) ctxParts.push(`  Renewals: ${renewals.map(r=>`${r.vendor} in ${r.daysUntil}d`).join(', ')}`)
+          const highPri = openFollowUps.filter(f=>f.priority==='Critical'||f.priority==='High').slice(0,3)
+          if (highPri.length) ctxParts.push(`  High-Priority Actions: ${highPri.map(f=>f.task).join(' | ')}`)
+        }
+      }
+
+      // SUPPORTING: active projects but no recent intel
+      const withProjectsOnly = annotatedAccounts.filter(a => a.recentIntel.length===0 && a.activeProjects.length>0)
+      if (withProjectsOnly.length) {
+        ctxParts.push('\n=== ACTIVE PROJECTS — No Recent Intel (Supporting Context) ===')
+        for (const { acct, activeProjects, daysSinceContact, renewals } of withProjectsOnly) {
+          const proj = activeProjects.slice(0,2).map(p=>`${p.name} [${p.status}${p.vendor?'/'+p.vendor:''}]`).join(', ')
+          ctxParts.push(`${acct.name}: ${proj} | ${daysSinceContact<999?daysSinceContact+'d since contact':'contact date unknown'}${renewals.length?` | Renewal: ${renewals[0].vendor} in ${renewals[0].daysUntil}d`:''}`)
+        }
+      }
+
+      // Renewals with no other recent activity
+      const renewalOnly = annotatedAccounts.filter(a => a.recentIntel.length===0 && a.activeProjects.length===0 && a.renewals.length>0)
+      if (renewalOnly.length) {
+        ctxParts.push('\n=== RENEWALS — No Recent Activity ===')
+        renewalOnly.flatMap(a=>a.renewals.map(r=>`${a.acct.name}: ${r.vendor} in ${r.daysUntil}d (${r.renewalDate})${r.annualCost?' | '+r.annualCost:''}`)).forEach(l=>ctxParts.push(l))
+      }
+
+      // Accounts with no recent contact worth flagging
+      const inactive = annotatedAccounts
+        .filter(a => a.recentIntel.length===0 && a.daysSinceContact>14 && a.daysSinceContact<999)
+        .sort((a,b)=>a.daysSinceContact-b.daysSinceContact)
+      if (inactive.length) {
+        ctxParts.push('\n=== NO RECENT CONTACT (14+ Days) — Surface in "Things You May Be Missing" ===')
+        ctxParts.push(inactive.slice(0,8).map(a=>`${a.acct.name}: ${a.daysSinceContact}d${a.activeProjects.length?` [${a.activeProjects.length} active project(s)]`:''}`).join(' | '))
+      }
+
+      // Prospects in active conversation
+      const prospects = (data.whitespaceAccounts||[]).filter(a=>a.status==='Active Conversation'||a.status==='Reached Out').slice(0,5)
+      if (prospects.length) {
+        ctxParts.push(`\n=== PROSPECTS IN ACTIVE CONVERSATION ===`)
+        ctxParts.push(prospects.map(a=>`${a.name} (${a.status}${a.industry?', '+a.industry:''})`).join(', '))
+      }
+
+      // Market intelligence and GPS briefs (last 7 days)
+      const recentPulses = (data.marketPulses||[]).filter(p=>p.publishedDate&&p.publishedDate>=sevenDaysAgoStr).slice(0,8)
+      const kbItems = (data.knowledgeBase||[]).filter(p=>p.createdAt&&p.createdAt>=sevenDaysAgo.toISOString()).slice(0,4)
+      if (recentPulses.length||kbItems.length) {
+        ctxParts.push('\n=== MARKET INTELLIGENCE / GPS BRIEFS (Last 7 Days) ===')
+        ;[...recentPulses,...kbItems].forEach(p=>{
+          const s=p.aiSummary||p.excerpt||''
+          ctxParts.push(`- [${p.publishedDate||p.createdAt?.split('T')[0]||'recent'}] ${p.title}${s?': '+s.slice(0,150):''}`)
+        })
+      }
+
+      const accountContextText = ctxParts.join('\n')
+
+      // Yesterday's journal for continuity
+      const yesterday = new Date(todayDate); yesterday.setDate(yesterday.getDate()-1)
+      const yesterdayStr = yesterday.toISOString().split('T')[0]
+      const yesterdayJournal = (data.dailyJournals||[]).find(j=>j.date===yesterdayStr)
+      const journalContext = yesterdayJournal
+        ? `\n=== YESTERDAY'S JOURNAL (${yesterdayStr}) ===\nSummary: ${yesterdayJournal.aiSummary||'none'}\nDebrief: ${(yesterdayJournal.debriefText||'none').slice(0,400)}\n`
         : ''
-      const yesterday=new Date(todayDate); yesterday.setDate(yesterday.getDate()-1)
-      const yesterdayStr=yesterday.toISOString().split('T')[0]
-      const yesterdayJournal=(data.dailyJournals||[]).find(j=>j.date===yesterdayStr)
-      const journalContext=yesterdayJournal?`
-Yesterday's Journal (${yesterdayStr}):
-AI Summary: ${yesterdayJournal.aiSummary||'none'}
-Debrief: ${(yesterdayJournal.debriefText||'none').slice(0,500)}
-Tomorrow Preview: ${JSON.stringify(yesterdayJournal.tomorrowPreview||{})}
-`:'';
+
+      const systemPrompt = `You are Ledgr — a trusted Chief of Staff and strategic advisor to Mike Chiricosta, Enterprise Client Manager at GuidePoint Security covering New England enterprise accounts. GuidePoint is a leading cybersecurity VAR and managed services firm.
+
+Your role is not to produce an action list. Your role is to brief Mike every morning so that within 90 seconds he knows:
+- What changed in the last 5 days
+- Where momentum is building and where it is slipping
+- What deserves his strategic attention today
+- What he may be overlooking
+- How to approach the day
+
+You think like an experienced cybersecurity enterprise sales leader who has managed a large territory for over a decade. You synthesize, prioritize, and coach. You never dump data.
+
+ACCOUNT PRIORITIZATION:
+- Accounts appear in the brief because they have fresh intelligence — not because they have overdue tasks
+- Evaluate momentum for each active account: Building / Stable / Losing — derived from intel logs, meetings, project movement, customer engagement
+- If an account has had no meaningful contact in 14+ days, surface it briefly in "Things You May Be Missing"
+- Never list every account. Synthesize. Prioritize. Explain why.
+
+DATA PRIORITY:
+1. Intel logs from last 5 days — this is the primary signal. If an account has no recent intel, it has low priority.
+2. Active projects, meetings, buying signals, stakeholder changes, vendor evaluations
+3. Open actions and follow-ups are supporting context only — do not lead with them
+4. Historical context only where it explains why something matters today
+
+VOICE:
+- Address Mike directly: "You have built strong momentum with...", "You may be overlooking...", "You promised James..."
+- Sound like a trusted advisor who knows this territory intimately, not like software generating a report
+- Never produce fluff. Every sentence earns its place.
+- Tone: confident, direct, substantive, coaching
+
+OUTPUT: Write in clean markdown. Use # for section headers. Target 400–600 words. Reading time: 90 seconds.`
 
       const userPrompt = `Today is ${todayDate.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'})}.
 
-Here is Mike's complete book of business:
-${JSON.stringify(accountContext,null,2)}
+${accountContextText}
+${journalContext}
+Write Mike's Daily Brief using exactly this structure. Do not add extra sections or omit any.
 
-Active whitespace accounts being pursued:
-${JSON.stringify(whitespaceContext,null,2)}
-${journalContext?`\nContext from yesterday's Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
-Generate Mike's Daily Brief as plain text using these sections in this order:
+# Executive Brief
+3–5 sentences. The state of Mike's territory today. What matters most and why right now.
 
-## Brief Summary
-2-4 sentences. Overall state of Mike's book and the single highest-leverage focus today.
+---
 
-## Must Do Today
-MAX 3 bullets. Absolute highest-leverage actions for today only. Each must name the account and contact, and have a client-first angle — never "just follow up."
+# What Changed
+Only meaningful developments from the last 5 days, organized by account. For each: what happened, why it matters, and what it implies for Mike. Only include accounts where something genuinely changed.
 
-## Account Priorities
-3-6 bullets. Key account movements, buying signals, stalled deals, competitive risks. Bold account names with **AccountName**.
+---
 
-## Overdue / At Risk
-3-5 bullets. Overdue follow-ups, stalled deals, aging opportunities, commitments not yet delivered.
+# Momentum Report
+Only accounts with meaningful momentum worth commenting on. For each: state momentum as Building / Stable / Losing, explain what is driving that, and tell Mike what to do about it.
 
-## Follow Ups
-3-6 bullets. Specific unresolved actions and open client asks. Name the account and exact action needed.
+---
 
-## What To Watch
-2-4 bullets. Upcoming renewals within 90 days, market signals relevant to Mike's accounts, risks, and items deferred to tomorrow.`
+# Things You May Be Missing
+Think critically. Surface overlooked accounts, fading conversations, cross-account patterns, or strategic risks Mike may not be seeing day-to-day. Call out accounts that have gone quiet for 14+ days. Do NOT invent facts.
+
+---
+
+# Market Intelligence
+Only include if GPS briefs or market intel from the context directly connects to a recent customer conversation or active deal. If the connection is weak, omit this section entirely.
+
+---
+
+# Coaching Notes
+Advice from an experienced enterprise sales leader. Where to lean in. Where to slow down. Where to challenge assumptions. Where relationships need attention. Where new opportunity may exist.
+
+---
+
+# Today's Five Biggest Moves
+The five highest-impact things Mike should accomplish today, numbered 1–5, in priority order. Grounded in today's intelligence — not simply the most overdue tasks.`
 
       const _briefInputChars = systemPrompt.length + userPrompt.length
       const _briefStart = Date.now()
       const { data: responseData } = await callClaudeWithRetry({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
+        max_tokens: 3000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }]
       }, null, null)
 
-      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 2000, durationMs: Date.now() - _briefStart, success: !responseData?.error })
+      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 3000, durationMs: Date.now() - _briefStart, success: !responseData?.error })
 
       if (responseData?.error) {
         throw new Error(responseData.error.message || responseData.error.type || 'API error')
