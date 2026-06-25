@@ -1377,17 +1377,55 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     setWsFileError(''); setWsFileStatus('')
 
     if (ext === 'pdf') {
-      if (file.size > 32 * 1024 * 1024) { setWsFileError(`PDF too large (${(file.size/1024/1024).toFixed(1)}MB). Maximum size is 32MB.`); return }
-      if (file.size > 20 * 1024 * 1024) setWsFileStatus(`Large PDF detected (${(file.size/1024/1024).toFixed(1)}MB). Analysis may take longer.`)
+      if (file.size > 10 * 1024 * 1024) {
+        setWsFileError(`PDF too large (${(file.size/1024/1024).toFixed(1)}MB). Maximum is 10MB.`)
+        return
+      }
+      setWsFileLoading(true); setWsFileIsDirectType(false)
       setWsUploadedFile({name:file.name, size:file.size})
-      setWsFileIsDirectType(true)
-      setWsPendingFile(file)
       try {
-        const headerText = await new Promise(resolve => { const r=new FileReader(); r.onload=e=>resolve(e.target.result||''); r.onerror=()=>resolve(''); r.readAsText(file.slice(0,1000)) })
-        setWsCustomDate(detectDate(headerText)||'')
-      } catch { setWsCustomDate('') }
-      setWsDateModalIsFile(true)
-      setWsShowDate(true)
+        setWsFileStatus('Extracting text from PDF…')
+        // Read file as base64 data URL, strip the prefix to get raw base64
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = e => resolve(e.target.result.split(',')[1])
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+        const resp = await fetch('/api/extract-file', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({base64, ext: 'pdf', filename: file.name})
+        })
+        const result = await resp.json()
+        setWsFileStatus('')
+        if (!resp.ok || result.error) {
+          setWsFileError(result.error || 'Could not extract text from this PDF. Try copying/pasting the text directly.')
+          setWsUploadedFile(null)
+          return
+        }
+        let extracted = result.text || ''
+        if (!extracted.trim()) {
+          setWsFileError('Could not extract text from this PDF. Try copying/pasting the text directly.')
+          setWsUploadedFile(null)
+          return
+        }
+        setWsFileCharCount(extracted.length)
+        if (extracted.length > WS_FILE_CHAR_LIMIT) {
+          extracted = '[Note: This document was truncated to 100,000 characters for processing.]\n\n' + extracted.slice(0, WS_FILE_CHAR_LIMIT)
+          setWsLargeDocWarning(true)
+        }
+        setIntelText(extracted)
+        setWsCustomDate(detectDate(extracted) || '')
+        setWsDateModalIsFile(false)
+        setWsShowDate(true)
+      } catch(e) {
+        setWsFileError('Could not extract text from this PDF. Try copying/pasting the text directly.')
+        setWsUploadedFile(null)
+        setWsFileStatus('')
+      } finally {
+        setWsFileLoading(false)
+      }
     } else if (WS_IMAGE_EXTS.includes(ext)) {
       if (file.size > 32 * 1024 * 1024) { setWsFileError('File too large. Maximum size is 32MB.'); return }
       if (!effectiveKey) { setWsFileError('Add your Anthropic API key in Settings to process images.'); return }
