@@ -382,7 +382,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
   }
 
   const {thisWeek, lastWeek, earlier} = groupBriefsByWeek(pastBriefs)
-  const incompleteCount = todayBrief?(todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length:0
+  const incompleteCount = (todayBrief&&!todayBrief.markdownContent)?(todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length:0
 
   const briefNavRow = b => {
     const isSel = selectedDate===b.date
@@ -409,6 +409,69 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
         }
       </div>
     )
+
+    // ── Plain-text brief (markdownContent format) ──────────────────────────────
+    if (brief.markdownContent !== undefined) {
+      const isPast = brief.date !== today
+      const copyText = () => navigator.clipboard.writeText(brief.markdownContent)
+        .then(()=>{setBriefCopied(true);setTimeout(()=>setBriefCopied(false),2000)}).catch(()=>{})
+      const inlineBold = t => {
+        if (!t.includes('**')) return t
+        return t.split('**').map((p,i)=>i%2===1?<strong key={i} style={{fontWeight:700}}>{p}</strong>:p)
+      }
+      let k = 0
+      const rendered = brief.markdownContent.split('\n').map(line => {
+        const t = line.trim()
+        if (!t) return <div key={k++} style={{height:6}}/>
+        if (t.startsWith('## '))
+          return <div key={k++} style={{fontSize:11,fontWeight:700,color:'#1e293b',letterSpacing:'0.07em',
+            textTransform:'uppercase',paddingBottom:8,marginBottom:6,marginTop:16,
+            borderBottom:'1px solid #f1f5f9'}}>{t.slice(3)}</div>
+        if (/^[-•*] /.test(t))
+          return <div key={k++} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'4px 6px'}}>
+            <span style={{width:5,height:5,borderRadius:'50%',background:'#cbd5e1',flexShrink:0,marginTop:6}}/>
+            <div style={{fontSize:13,color:'#1e293b',lineHeight:1.55}}>{inlineBold(t.replace(/^[-•*] /,''))}</div>
+          </div>
+        return <div key={k++} style={{fontSize:13,color:'#374151',lineHeight:1.7,padding:'3px 6px'}}>{inlineBold(t)}</div>
+      })
+      return (
+        <div style={{maxWidth:720}}>
+          {isPast&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,padding:'8px 14px',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+            <Sparkles size={13} color='#2563eb'/><span style={{fontSize:12,color:'#1d4ed8',fontWeight:500}}>Archived — {fmtFull(brief.date)}</span>
+          </div>}
+          <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
+            <div style={{padding:'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:5}}>Daily Executive Briefing</div>
+                <div style={{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.02em',lineHeight:1.2}}>
+                  {isPast?fmtFull(brief.date):`Today — ${fmtFull(today)}`}
+                </div>
+                {brief.generatedAt&&<div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>Generated {fmtTime(brief.generatedAt)}</div>}
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+                <button onClick={copyText} style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:600,
+                  color:briefCopied?'#15803d':'#64748b',background:briefCopied?'#f0fdf4':'#f8fafc',
+                  border:'1px solid',borderColor:briefCopied?'#86efac':'#e5e7eb',
+                  borderRadius:7,padding:'5px 10px',cursor:'pointer',whiteSpace:'nowrap'}}>
+                  <Copy size={12}/>{briefCopied?'Copied':'Copy'}
+                </button>
+                {!isPast&&<button onClick={onGenerateNow} disabled={briefGenerating}
+                  style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:500,
+                    color:briefGenerating?'#94a3b8':'#64748b',background:'#f8fafc',
+                    border:'1px solid #e5e7eb',borderRadius:7,padding:'5px 10px',
+                    cursor:briefGenerating?'not-allowed':'pointer',opacity:briefGenerating?0.5:1}}>
+                  <RefreshCw size={12} style={{animation:briefGenerating?'spin 0.8s linear infinite':'none'}}/>
+                  {briefGenerating?'Generating…':'Regenerate'}
+                </button>}
+              </div>
+            </div>
+            <div style={{padding:'24px 32px 32px'}}>{rendered}</div>
+          </div>
+          <div style={{height:64}}/>
+        </div>
+      )
+    }
+    // ── End plain-text brief ────────────────────────────────────────────────────
 
     const {
       observedReality=[], keyDevelopments=[],

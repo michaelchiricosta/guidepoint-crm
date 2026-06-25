@@ -24,7 +24,7 @@ import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
 import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
-import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry, extractStructuredAIResponse, repairAIResponse } from './utils/aiHelper.js'
+import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -1684,41 +1684,7 @@ PRIORITIZATION LOGIC — do NOT use due dates as the primary driver. Weight by:
 6. High-value accounts with no recent contact
 7. New trigger events — new CISO, recent breach in their industry, regulatory change affecting them
 
-IMPORTANT: Keep each text field concise — maximum 2 sentences per field. This keeps the response compact and prevents truncation. Do not pad responses with unnecessary detail.
-
-OUTPUT — return ONLY valid JSON, no markdown, no preamble, no explanation:
-{
-  "briefSummary": "2-4 sentence executive summary — overall state of Mike's book and the single highest-leverage focus today",
-  "observationWindow": "One-line coverage statement, e.g. 'Based on 30 days of account activity through [date]'",
-  "observedReality": [
-    {"category": "Client / Account Activity", "bullets": ["concise factual bullet — what happened or was observed"]},
-    {"category": "Pipeline / Renewal Activity", "bullets": ["concise bullet"]},
-    {"category": "Internal / Strategy Activity", "bullets": ["concise bullet"]}
-  ],
-  "keyDevelopments": [
-    {"label": "Bold Signal Label", "detail": "One sentence — what it means for Mike and his accounts.", "account": ""}
-  ],
-  "actToday": [{"account":"","contact":"","action":"","clientFirstAngle":"","suggestedOpener":"","whileYouHaveThem":[],"upsairsKit":"","urgencyReason":"","estimatedMinutes":15,"completedToday":false}],
-  "moveForward": [{"account":"","contact":"","action":"","clientFirstAngle":"","timeframe":"","urgencyReason":""}],
-  "longGame": [{"account":"","action":"","why":"","plantThisSeed":""}],
-  "decisionsToMake": [
-    {"decision": "Practical question Mike needs to decide today — framed as a decision", "context": "One sentence of relevant context.", "account": ""}
-  ],
-  "followUpsLooseThreads": [
-    {"item": "Specific action needed — not vague, name the exact thing", "account": "Account name or empty", "risk": "What happens if Mike drops this"}
-  ],
-  "risksWatchouts": [
-    {"label": "Risk Type", "detail": "Specific risk description — one sentence.", "account": ""}
-  ],
-  "efficiencyLeverage": [
-    {"suggestion": "Specific time-saving or leverage idea — one sentence"}
-  ],
-  "renewalRadar": [{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true,"alert":""}],
-  "marketPulse": [{"headline":"","relevance":"","talkingPoint":""}],
-  "tomorrowLater": [
-    {"item": "Deferred or future action — brief description", "account": ""}
-  ]
-}`
+OUTPUT — write the brief as plain text using markdown. Use ## for section headers, - for bullet points. Name accounts and contacts explicitly. Be specific, not generic.`
       // Inject recent GuidePoint blog posts as market pulse context
       const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7)
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
@@ -1746,77 +1712,55 @@ ${JSON.stringify(accountContext,null,2)}
 Active whitespace accounts being pursued:
 ${JSON.stringify(whitespaceContext,null,2)}
 ${journalContext?`\nContext from yesterday's Journal:\n${journalContext}\nUse this to honor carryover commitments and maintain momentum continuity.\n`:''}${marketIntelContext}
-Generate Mike's full Daily Executive Brief in the Littlebird style — a concise operating memo readable in 3-5 minutes.
+Generate Mike's Daily Brief as plain text using these sections in this order:
 
-SECTION LIMITS (strict):
-- observedReality: 5-8 bullets total across all categories. Draw from recent intel logs, active projects, follow-up activity, and yesterday's journal. Keep bullets factual, past-tense, specific.
-- keyDevelopments: 3-6 bullets. Bold label then one sentence. Cover account movement, buying signals, stalled deals, competitive risks, vendor shifts, exec alignment signals.
-- actToday: MAX 3 — the absolute highest-leverage actions for today only.
-- moveForward: MAX 5.
-- longGame: MAX 3.
-- decisionsToMake: 2-5 bullets. Frame as practical sales decisions — which account to prioritize, whether to escalate, whether to push a vendor/client, whether to loop in GuidePoint services or leadership.
-- followUpsLooseThreads: 3-6 bullets. Surface unresolved promises, open client asks, missing responses, aging opportunities, follow-ups at risk. Include specific action needed and what drops if ignored.
-- risksWatchouts: 3-5 bullets. Client risk, deal risk, relationship risk, timing risk, competitive risk, internal execution risk.
-- efficiencyLeverage: 2-4 bullets. Batch outreach, reuse templates, avoid unnecessary calls, combine topics, delegate.
-- renewalRadar: ALL renewals within 90 days.
-- marketPulse: EXACTLY 3 bullets. Source priority: (1) provided GuidePoint Security blog posts matching Mike's accounts/industries/vendors; (2) CIO.com or DarkReading on ransomware, IAM, cloud security, threat intel, compliance, board/CFO cyber risk; (3) current threat landscape. Only cybersecurity with direct client relevance. Each bullet must state what happened AND why a CISO/CIO/CFO at Mike's clients should care.
-- tomorrowLater: MAX 3 bullets. Use deferred items, unfinished actions, and future commitments.
+## Brief Summary
+2-4 sentences. Overall state of Mike's book and the single highest-leverage focus today.
 
-Keep every text field to 1-2 sentences max. Every actToday/moveForward action must have a client-first angle — never just "follow up." Return ONLY valid JSON. No markdown. No code fences. No commentary.`
+## Must Do Today
+MAX 3 bullets. Absolute highest-leverage actions for today only. Each must name the account and contact, and have a client-first angle — never "just follow up."
 
-      const BRIEF_REPAIR_PROMPT = `Convert this content into the exact Daily Brief JSON schema. Return only valid JSON. No markdown. No code fences. No commentary.\n\n{"briefSummary":"","observationWindow":"","observedReality":[{"category":"","bullets":[]}],"keyDevelopments":[{"label":"","detail":"","account":""}],"actToday":[{"account":"","contact":"","action":"","clientFirstAngle":"","urgencyReason":"","estimatedMinutes":15,"completedToday":false}],"moveForward":[{"account":"","contact":"","action":"","clientFirstAngle":"","urgencyReason":""}],"longGame":[{"account":"","action":"","why":""}],"decisionsToMake":[{"decision":"","context":"","account":""}],"followUpsLooseThreads":[{"item":"","account":"","risk":""}],"risksWatchouts":[{"label":"","detail":"","account":""}],"efficiencyLeverage":[{"suggestion":""}],"renewalRadar":[{"account":"","vendor":"","daysUntil":0,"annualCost":"","inConversation":true}],"marketPulse":[{"headline":"","relevance":""}],"tomorrowLater":[{"item":"","account":""}]}`
+## Account Priorities
+3-6 bullets. Key account movements, buying signals, stalled deals, competitive risks. Bold account names with **AccountName**.
+
+## Overdue / At Risk
+3-5 bullets. Overdue follow-ups, stalled deals, aging opportunities, commitments not yet delivered.
+
+## Follow Ups
+3-6 bullets. Specific unresolved actions and open client asks. Name the account and exact action needed.
+
+## What To Watch
+2-4 bullets. Upcoming renewals within 90 days, market signals relevant to Mike's accounts, risks, and items deferred to tomorrow.`
 
       const _briefInputChars = systemPrompt.length + userPrompt.length
       const _briefStart = Date.now()
       const { data: responseData } = await callClaudeWithRetry({
         model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
+        max_tokens: 2000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }]
       }, null, null)
 
-      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 3000, durationMs: Date.now() - _briefStart, success: !responseData?.error })
+      trackAI({ feature: FEATURES.DAILY_BRIEF, operation: 'generate-brief', model: 'claude-sonnet-4-6', inputChars: _briefInputChars, maxTokensOut: 2000, durationMs: Date.now() - _briefStart, success: !responseData?.error })
 
       if (responseData?.error) {
         throw new Error(responseData.error.message || responseData.error.type || 'API error')
       }
 
-      let briefData = extractStructuredAIResponse(responseData)
-      if (!briefData) {
-        if (import.meta.env.DEV) {
-          console.error('[DailyBrief] Parse failed', { responseShape: typeof responseData, preview: String(responseData?.content?.[0]?.text || '').slice(0, 500) })
-        }
-        briefData = await repairAIResponse(responseData?.content?.[0]?.text || '', BRIEF_REPAIR_PROMPT)
-      }
-      const _isFallback = !briefData
-      if (_isFallback) briefData = {}
+      const rawText = responseData?.content?.[0]?.text || ''
+      if (!rawText) throw new Error('No content returned from AI')
+
+      const briefSummary = rawText.split('\n').find(l => l.trim() && !l.startsWith('#') && !l.startsWith('-'))?.trim().slice(0, 200) || ''
       const newBrief = {
-        date:today,
-        generatedAt:new Date().toISOString(),
-        briefSummary:briefData.briefSummary||(_isFallback?'Brief generation had a formatting issue — try regenerating for a complete brief.':''),
-        observationWindow:briefData.observationWindow||'',
-        sections:{
-          observedReality:briefData.observedReality||[],
-          keyDevelopments:briefData.keyDevelopments||[],
-          actToday:(briefData.actToday||[]).map(a=>({...a,completedToday:false})),
-          moveForward:briefData.moveForward||[],
-          longGame:briefData.longGame||[],
-          decisionsToMake:briefData.decisionsToMake||[],
-          followUpsLooseThreads:briefData.followUpsLooseThreads||[],
-          risksWatchouts:briefData.risksWatchouts||[],
-          efficiencyLeverage:briefData.efficiencyLeverage||[],
-          renewalRadar:briefData.renewalRadar||[],
-          marketPulse:briefData.marketPulse||[],
-          tomorrowLater:briefData.tomorrowLater||[],
-        }
+        date: today,
+        generatedAt: new Date().toISOString(),
+        markdownContent: rawText,
+        briefSummary,
       }
-      setData(prev=>{
-        const existingBriefs=(prev.dailyBriefs||[]).filter(b=>b.date!==today)
-        return {...prev,dailyBriefs:[newBrief,...existingBriefs].slice(0,30)}
+      setData(prev => {
+        const existingBriefs = (prev.dailyBriefs || []).filter(b => b.date !== today)
+        return { ...prev, dailyBriefs: [newBrief, ...existingBriefs].slice(0, 30) }
       })
-      if (_isFallback) {
-        setBriefError('AI returned an imperfect format, so Ledgr displayed a fallback brief.')
-      }
     } catch(err) {
       if (import.meta.env.DEV) console.error('[DailyBrief] Generation error:', err.message)
       setBriefError(friendlyApiError(err))
