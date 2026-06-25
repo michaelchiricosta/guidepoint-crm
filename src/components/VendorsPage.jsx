@@ -212,7 +212,9 @@ export default function VendorsPage({ data, setData, onBack }) {
   }
 
   const deleteVendor = id => {
-    if (!window.confirm('Delete this vendor and all reps?')) return
+    const vendor = directory.find(v => v.id === id)
+    const name = vendor?.name || vendor?.companyName || 'this vendor'
+    if (!window.confirm(`Delete ${name} and all reps/accounts under it?`)) return
     persist(directory.filter(v => v.id !== id))
     if (selId === id) setSelId(directory.find(v => v.id !== id)?.id || null)
   }
@@ -231,9 +233,11 @@ export default function VendorsPage({ data, setData, onBack }) {
   }
 
   const deleteRep = (vendorId, repId) => {
-    if (!window.confirm('Delete this rep and their accounts?')) return
     const vendor = directory.find(v => v.id === vendorId)
     if (!vendor) return
+    const rep = (vendor.reps || []).find(r => r.id === repId)
+    const repName = rep?.name || 'this rep'
+    if (!window.confirm(`Delete ${repName} and all accounts under this rep?`)) return
     updateVendor(vendorId, { reps: (vendor.reps || []).filter(r => r.id !== repId) })
     setExpandedReps(prev => { const s = new Set(prev); s.delete(repId); return s })
   }
@@ -424,8 +428,8 @@ ${text}`
       // Deterministic column mapping
       let mapping = detectColumnMapping(headers)
 
-      // AI mapping if key columns are unclear
-      const hasCritical = mapping.accountNameColumn || mapping.repNameColumn || mapping.vendorColumn
+      // AI mapping if key columns are unclear (vendor column not needed — import is scoped to selected vendor)
+      const hasCritical = mapping.accountNameColumn || mapping.repNameColumn
       if (!hasCritical) {
         setSsStatus('Using AI to identify columns…')
         const sampleRows = dataRows.slice(0, 5).map(r => {
@@ -441,7 +445,6 @@ Sample rows (up to 5): ${JSON.stringify(sampleRows, null, 2)}
 
 Return ONLY valid JSON — use exact header names from the list above, or "" if not present:
 {
-  "vendorColumn": "",
   "repNameColumn": "",
   "repEmailColumn": "",
   "repPhoneColumn": "",
@@ -465,83 +468,74 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
   }
 
   const confirmSpreadsheetImport = () => {
-    if (!ssReview) return
+    if (!ssReview || !sel) return
     const { rows, headers, fileName } = ssReview
     const now = new Date().toISOString()
+    const vendorName = sel.name || sel.companyName || 'vendor'
 
-    // Parse rows
+    // Parse rows — vendor column intentionally ignored; import is scoped to sel
     const parsedRows = rows.map(row => ({
-      vendorName:   getCell(row, headers, ssMapping.vendorColumn),
-      repName:      getCell(row, headers, ssMapping.repNameColumn),
-      repEmail:     getCell(row, headers, ssMapping.repEmailColumn),
-      repPhone:     getCell(row, headers, ssMapping.repPhoneColumn),
-      accountName:  getCell(row, headers, ssMapping.accountNameColumn),
-      status:       normalizeStatus(getCell(row, headers, ssMapping.statusColumn)),
-      notes:        getCell(row, headers, ssMapping.notesColumn),
+      repName:     getCell(row, headers, ssMapping.repNameColumn),
+      repEmail:    getCell(row, headers, ssMapping.repEmailColumn),
+      repPhone:    getCell(row, headers, ssMapping.repPhoneColumn),
+      accountName: getCell(row, headers, ssMapping.accountNameColumn),
+      status:      normalizeStatus(getCell(row, headers, ssMapping.statusColumn)),
+      notes:       getCell(row, headers, ssMapping.notesColumn),
     })).filter(r => r.accountName)
 
-    // Group by vendor → rep → accounts
-    const byVendor = {}
+    // Group by rep
+    const byRep = {}
     parsedRows.forEach(row => {
-      const vName = row.vendorName || fileName.replace(/\.(xlsx?|csv)$/i, '')
-      const vKey  = vName.toLowerCase()
-      if (!byVendor[vKey]) byVendor[vKey] = { vendorName: vName, byRep: {} }
       const rKey = (row.repEmail || row.repName || '__norep__').toLowerCase()
-      if (!byVendor[vKey].byRep[rKey]) byVendor[vKey].byRep[rKey] = { repName: row.repName, repEmail: row.repEmail, repPhone: row.repPhone, accounts: [] }
-      byVendor[vKey].byRep[rKey].accounts.push({ accountName: row.accountName, status: row.status, notes: row.notes, sourceFileName: fileName, importedAt: now })
+      if (!byRep[rKey]) byRep[rKey] = { repName: row.repName, repEmail: row.repEmail, repPhone: row.repPhone, accounts: [] }
+      byRep[rKey].accounts.push({ accountName: row.accountName, status: row.status, notes: row.notes, sourceFileName: fileName, importedAt: now })
     })
 
-    // Merge into directory
-    const newDir = directory.map(v => ({ ...v, reps: (v.reps || []).map(r => ({ ...r, accounts: [...(r.accounts || [])] })) }))
-    let addedVendors = 0, addedReps = 0, addedAccounts = 0
+    // Work on a copy of the selected vendor's reps
+    const vendor = { ...sel, reps: (sel.reps || []).map(r => ({ ...r, accounts: [...(r.accounts || [])] })) }
+    let addedReps = 0, addedAccounts = 0
 
-    Object.values(byVendor).forEach(({ vendorName, byRep }) => {
-      let vIdx = newDir.findIndex(v => fuzzyMatchVendor(v.name || v.companyName, vendorName))
-      if (vIdx < 0) {
-        newDir.push({ id: uid(), name: vendorName, companyName: vendorName, website: '', category: '', notes: '', reps: [] })
-        vIdx = newDir.length - 1
-        addedVendors++
+    Object.values(byRep).forEach(({ repName, repEmail, repPhone, accounts }) => {
+      // Match rep: email first, then exact normalized name
+      let rIdx = -1
+      if (repEmail) rIdx = vendor.reps.findIndex(r => (r.email || '').toLowerCase() === repEmail.toLowerCase())
+      if (rIdx < 0 && repName) {
+        const normName = repName.toLowerCase().trim()
+        rIdx = vendor.reps.findIndex(r => (r.name || '').toLowerCase().trim() === normName)
       }
-      const vendor = { ...newDir[vIdx], reps: [...(newDir[vIdx].reps || [])] }
 
-      Object.values(byRep).forEach(({ repName, repEmail, repPhone, accounts }) => {
-        let rIdx = -1
-        if (repEmail) rIdx = vendor.reps.findIndex(r => (r.email || '').toLowerCase() === repEmail.toLowerCase())
-        if (rIdx < 0 && repName) rIdx = vendor.reps.findIndex(r => (r.name || '').toLowerCase() === repName.toLowerCase())
-
-        if (rIdx >= 0) {
-          const rep = { ...vendor.reps[rIdx], accounts: [...(vendor.reps[rIdx].accounts || [])] }
-          const existingNames = new Set(rep.accounts.map(a => (a.accountName || '').toLowerCase()))
-          const newAccts = accounts.filter(a => !existingNames.has(a.accountName.toLowerCase()))
-          // Fill missing fields in existing accounts
-          rep.accounts = rep.accounts.map(a => {
-            const imp = accounts.find(ia => ia.accountName.toLowerCase() === a.accountName.toLowerCase())
-            if (!imp) return a
-            return { ...a, status: a.status || imp.status, notes: a.notes || imp.notes, sourceFileName: a.sourceFileName || imp.sourceFileName }
-          })
-          rep.accounts.push(...newAccts.map(a => ({ ...a, id: uid() })))
-          vendor.reps[rIdx] = rep
-          addedAccounts += newAccts.length
-        } else {
-          vendor.reps.push({ id: uid(), name: repName || '', email: repEmail || '', phone: repPhone || '', title: '', notes: '', accounts: accounts.map(a => ({ ...a, id: uid() })) })
-          addedReps++
-          addedAccounts += accounts.length
-        }
-      })
-
-      newDir[vIdx] = vendor
+      if (rIdx >= 0) {
+        const rep = { ...vendor.reps[rIdx], accounts: [...(vendor.reps[rIdx].accounts || [])] }
+        const existingNames = new Set(rep.accounts.map(a => (a.accountName || '').toLowerCase().trim()))
+        const newAccts = accounts.filter(a => !existingNames.has(a.accountName.toLowerCase().trim()))
+        // Fill missing fields in existing accounts; preserve existing non-empty values
+        rep.accounts = rep.accounts.map(a => {
+          const imp = accounts.find(ia => ia.accountName.toLowerCase().trim() === a.accountName.toLowerCase().trim())
+          if (!imp) return a
+          return { ...a, status: a.status || imp.status, notes: a.notes || imp.notes, sourceFileName: a.sourceFileName || imp.sourceFileName }
+        })
+        rep.accounts.push(...newAccts.map(a => ({ ...a, id: uid() })))
+        vendor.reps[rIdx] = rep
+        addedAccounts += newAccts.length
+      } else {
+        vendor.reps.push({ id: uid(), name: repName || '', email: repEmail || '', phone: repPhone || '', title: '', notes: '', accounts: accounts.map(a => ({ ...a, id: uid() })) })
+        addedReps++
+        addedAccounts += accounts.length
+      }
     })
 
-    persist(newDir)
-    if (addedVendors > 0 && !selId) setSelId(newDir.find(v => v.id)?.id || null)
+    persist(directory.map(v => v.id === sel.id ? vendor : v))
     setSsReview(null); setSsMapping({})
 
-    const parts = [
-      addedVendors  ? `${addedVendors} vendor${addedVendors !== 1 ? 's' : ''}`   : null,
-      addedReps     ? `${addedReps} rep${addedReps !== 1 ? 's' : ''}`             : null,
-      addedAccounts ? `${addedAccounts} account${addedAccounts !== 1 ? 's' : ''}` : null,
-    ].filter(Boolean)
-    toast(parts.length ? `Imported: ${parts.join(', ')}.` : 'No new data to import — all accounts already exist.')
+    if (addedAccounts === 0 && addedReps === 0) {
+      toast(`No new data to import — all accounts already exist under ${vendorName}.`)
+    } else {
+      const parts = [
+        addedReps     ? `${addedReps} rep${addedReps !== 1 ? 's' : ''}` : null,
+        addedAccounts ? `${addedAccounts} account${addedAccounts !== 1 ? 's' : ''}` : null,
+      ].filter(Boolean)
+      toast(`Imported ${parts.join(' and ')} into ${vendorName}.`)
+    }
   }
 
   // ── Toast helper ──────────────────────────────────────────────────────────
@@ -580,16 +574,10 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
             style={{ width: '100%', padding: '7px', background: '#EBF4FF', border: '1px solid #BFDBFE', borderRadius: 6, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
             <Plus size={12} /> Add Vendor
           </button>
-          <div style={{ display: 'flex', gap: 5 }}>
-            <button onClick={() => fileRef.current?.click()} title='Import PDF / DOCX'
-              style={{ flex: 1, padding: '6px', background: '#F9FAFB', border: '1px solid #EEEFF2', borderRadius: 6, color: '#6B7280', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <Upload size={11} /> PDF / DOCX
-            </button>
-            <button onClick={() => ssFileRef.current?.click()} title='Import Excel / CSV coverage list'
-              style={{ flex: 1, padding: '6px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, color: '#15803D', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <FileSpreadsheet size={11} /> Spreadsheet
-            </button>
-          </div>
+          <button onClick={() => fileRef.current?.click()} title='Import vendor contacts from PDF / DOCX'
+            style={{ width: '100%', padding: '6px', background: '#F9FAFB', border: '1px solid #EEEFF2', borderRadius: 6, color: '#6B7280', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <Upload size={11} /> Import Vendor PDF / DOCX
+          </button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
@@ -797,15 +785,21 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
             {/* ── Spreadsheet Review ── */}
             {ssReview && (
               <div style={{ background: S.surf, border: '1px solid #86EFAC', borderRadius: 10, padding: '20px 24px', marginBottom: 20 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: S.txt, marginBottom: 2 }}>Map Spreadsheet Columns</div>
+                {!sel && (
+                  <div style={{ background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#92400e' }}>
+                    No vendor selected — select a vendor first, then import. <button onClick={() => { setSsReview(null); setSsMapping({}) }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 600, padding: 0, marginLeft: 8 }}>Cancel</button>
+                  </div>
+                )}
+                <div style={{ fontSize: 15, fontWeight: 700, color: S.txt, marginBottom: 2 }}>
+                  Import Coverage → <span style={{ color: '#007AFF' }}>{sel?.name || sel?.companyName || '(no vendor selected)'}</span>
+                </div>
                 <div style={{ fontSize: 12, color: S.muted, marginBottom: 16 }}>
-                  {ssReview.fileName} · {ssReview.rows.length} data row{ssReview.rows.length !== 1 ? 's' : ''} · Adjust column mapping if needed before importing
+                  {ssReview.fileName} · {ssReview.rows.length} data row{ssReview.rows.length !== 1 ? 's' : ''} · All rows will be imported as reps/accounts under {sel ? (sel.name || sel.companyName) : 'the selected vendor'}
                 </div>
 
                 {/* Column mapping */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 18 }}>
                   {[
-                    { key: 'vendorColumn',      label: 'Vendor / Partner Name' },
                     { key: 'repNameColumn',     label: 'Rep / Owner Name' },
                     { key: 'repEmailColumn',    label: 'Rep Email' },
                     { key: 'repPhoneColumn',    label: 'Rep Phone' },
@@ -856,9 +850,9 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                     style={{ padding: '7px 14px', background: 'transparent', border: `1px solid ${S.bdr}`, borderRadius: 6, color: S.muted, fontSize: 13, cursor: 'pointer' }}>
                     Cancel
                   </button>
-                  <button onClick={confirmSpreadsheetImport} disabled={!ssMapping.accountNameColumn}
-                    style={{ padding: '7px 16px', background: ssMapping.accountNameColumn ? '#15803D' : '#9CA3AF', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: ssMapping.accountNameColumn ? 'pointer' : 'not-allowed' }}>
-                    Import {ssReview.rows.length} Row{ssReview.rows.length !== 1 ? 's' : ''}
+                  <button onClick={confirmSpreadsheetImport} disabled={!ssMapping.accountNameColumn || !sel}
+                    style={{ padding: '7px 16px', background: ssMapping.accountNameColumn && sel ? '#15803D' : '#9CA3AF', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: ssMapping.accountNameColumn && sel ? 'pointer' : 'not-allowed' }}>
+                    Import {ssReview.rows.length} Row{ssReview.rows.length !== 1 ? 's' : ''} into {sel ? (sel.name || sel.companyName) : '(select vendor first)'}
                   </button>
                 </div>
               </div>
@@ -869,8 +863,15 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '35vh', gap: 10, color: S.muted }}>
                 <div style={{ fontSize: 36, opacity: 0.3 }}>🏢</div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: S.txt }}>No vendor selected</div>
-                <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 340, lineHeight: 1.5 }}>
-                  Select a vendor from the sidebar, or use the import buttons to load a PDF/DOCX vendor directory or an Excel/CSV coverage list.
+                <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 360, lineHeight: 1.6 }}>
+                  Select a vendor from the sidebar to view reps and accounts.
+                  <br/>
+                  Use <strong>Import Vendor PDF / DOCX</strong> in the sidebar to add vendors from a contact sheet.
+                  <br/>
+                  Use <strong>Import Coverage</strong> inside a selected vendor to load rep/account data from a spreadsheet.
+                </div>
+                <div style={{ marginTop: 4, padding: '8px 14px', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e', maxWidth: 340, textAlign: 'center' }}>
+                  Select a vendor before importing a coverage spreadsheet.
                 </div>
               </div>
             )}
@@ -902,12 +903,18 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                 </div>
 
                 {/* Reps header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: S.txt }}>Sales Reps ({(sel.reps || []).length})</div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                  <button onClick={() => ssFileRef.current?.click()} title='Import rep/account coverage from spreadsheet'
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, color: '#15803D', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    <FileSpreadsheet size={11} /> Import Coverage
+                  </button>
                   <button onClick={() => { setRepModal({ vendorId: sel.id }); setRepForm(BLANK_REP) }}
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#007AFF', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     <Plus size={12} /> Add Rep
                   </button>
+                  </div>
                 </div>
 
                 {(sel.reps || []).length === 0 && (
