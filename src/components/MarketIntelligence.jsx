@@ -1273,7 +1273,7 @@ RULES:
       `}</style>
 
       {/* TOP BAR */}
-      <div style={{background:'#FFFFFF',borderBottom:'1px solid #EEEFF2',padding:'0 16px',height:48,display:'flex',alignItems:'center',gap:10,flexShrink:0,boxShadow:'0 1px 2px rgba(0,0,0,0.04)'}}>
+      <div style={{background:'#FFFFFF',borderBottom:'1px solid #EEEFF2',padding:'0 16px',minHeight:48,display:'flex',alignItems:'center',gap:10,flexShrink:0,boxShadow:'0 1px 2px rgba(0,0,0,0.04)',flexWrap:'wrap'}}>
         <button onClick={onBack}
           style={{background:'transparent',border:'none',color:'#6B7280',cursor:'pointer',display:'flex',alignItems:'center',gap:5,padding:0,fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}
           onMouseEnter={e=>e.currentTarget.style.color='#111827'}

@@ -222,7 +222,8 @@ export default function AIUsageDashboard({ onBack, apiKey, data, setData }) {
       {tab === 'features' && (
         <div>
           {Object.keys(stats.byFeature).length === 0 ? <EmptyState /> : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 500 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                   {['Feature', 'Calls', 'Cache Hits', 'Failures', 'Input Tokens', 'Est. Cost'].map(h => (
@@ -243,6 +244,7 @@ export default function AIUsageDashboard({ onBack, apiKey, data, setData }) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
@@ -355,7 +357,8 @@ function TopOps({ topOps }) {
   return (
     <div style={card}>
       <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', marginBottom: 10 }}>Top Operations by Cost</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 380 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
             {['Feature', 'Operation', 'Calls', 'Est. Cost'].map(h => (
@@ -374,6 +377,7 @@ function TopOps({ topOps }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

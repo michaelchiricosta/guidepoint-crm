@@ -605,6 +605,7 @@ ${JSON.stringify(acctCtx,null,2)}`
 
   const journal = todayJournal
   const isComplete = journal?.status==='complete'
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
   const hasPreview = journal?.tomorrowPreview?.actToday?.length>0
   const actToday = todayBrief?.sections?.actToday||[]
   const moveForward = todayBrief?.sections?.moveForward||[]
@@ -654,7 +655,8 @@ ${JSON.stringify(acctCtx,null,2)}`
       {/* BODY */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* LEFT NAV */}
+        {/* LEFT NAV — hidden on mobile */}
+        {!mob&&(
         <div style={{width:216,flexShrink:0,background:'#fff',display:'flex',flexDirection:'column',borderRight:'1px solid #e5e7eb',boxShadow:'2px 0 6px rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
             <div style={NL}>Today</div>
@@ -676,16 +678,17 @@ ${JSON.stringify(acctCtx,null,2)}`
             )}
           </div>
         </div>
+        )}
 
         {/* MAIN CONTENT */}
-        <div style={{flex:1,overflowY:'auto',padding:'28px 36px',WebkitOverflowScrolling:'touch'}}>
+        <div style={{flex:1,overflowY:'auto',padding:mob?'16px 16px 60px':'28px 36px',WebkitOverflowScrolling:'touch'}}>
           <div style={{maxWidth:700}}>
 
             {/* Document card */}
             <div style={{background:'#fff',borderRadius:12,border:'1px solid #e5e7eb',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden',marginBottom:24}}>
 
               {/* Card header */}
-              <div style={{padding:'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div style={{padding:mob?'16px 16px 12px':'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:600,color:'#9ca3af',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:5}}>Journal</div>
                   <div style={{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.02em',lineHeight:1.2}}>{fmtFull(today)}</div>
@@ -699,7 +702,7 @@ ${JSON.stringify(acctCtx,null,2)}`
               </div>
 
               {/* Card body */}
-              <div style={{padding:'24px 32px 28px'}}>
+              <div style={{padding:mob?'16px 16px 20px':'24px 32px 28px'}}>
 
                 {/* 1. Today's Brief Review */}
                 <div style={{marginBottom:28}}>

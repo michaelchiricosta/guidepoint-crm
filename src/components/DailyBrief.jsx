@@ -369,6 +369,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
 
   const selectedBrief = briefs.find(b=>b.date===selectedDate)||null
   const isToday = selectedDate===today
+  const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   const toggleActToday = (briefDate, idx) => {
     setData(prev=>{
@@ -448,7 +449,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
             <Sparkles size={13} color='#2563eb'/><span style={{fontSize:12,color:'#1d4ed8',fontWeight:500}}>Archived — {fmtFull(brief.date)}</span>
           </div>}
           <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
-            <div style={{padding:'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+            <div style={{padding:mob?'16px 16px 12px':'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
               <div style={{minWidth:0}}>
                 <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:5}}>Daily Executive Briefing</div>
                 <div style={{fontSize:22,fontWeight:800,color:'#0f172a',letterSpacing:'-0.02em',lineHeight:1.2}}>
@@ -473,7 +474,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
                 </button>}
               </div>
             </div>
-            <div style={{padding:'24px 32px 32px'}}>{rendered}</div>
+            <div style={{padding:mob?'16px 16px 24px':'24px 32px 32px'}}>{rendered}</div>
           </div>
           <div style={{height:64}}/>
         </div>
@@ -532,7 +533,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
         <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflow:'hidden'}}>
 
           {/* ── Card header ── */}
-          <div style={{padding:'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+          <div style={{padding:mob?'16px 16px 12px':'24px 32px 18px',borderBottom:'1px solid #f1f5f9',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
             <div style={{minWidth:0}}>
               <div style={{fontSize:10,fontWeight:700,color:'#9ca3af',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:5}}>
                 Daily Executive Briefing
@@ -569,7 +570,7 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
           </div>
 
           {/* ── Document body ── */}
-          <div style={{padding:'24px 32px 32px'}}>
+          <div style={{padding:mob?'16px 16px 24px':'24px 32px 32px'}}>
 
             {/* 2. Executive Summary */}
             {shortSummary&&(
@@ -831,7 +832,8 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
       {/* BODY */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
-        {/* LEFT NAV */}
+        {/* LEFT NAV — hidden on mobile */}
+        {!mob&&(
         <div style={{width:216,flexShrink:0,background:'#fff',display:'flex',flexDirection:'column',borderRight:'1px solid #e5e7eb',boxShadow:'2px 0 6px rgba(0,0,0,0.04)',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'4px 0'}}>
             <div style={NL}>Today</div>
@@ -863,9 +865,10 @@ export default function DailyBrief({data, setData, apiKey, briefGenerating, brie
             </button>
           </div>
         </div>
+        )}
 
         {/* MAIN CONTENT */}
-        <div style={{flex:1,overflowY:'auto',padding:'28px 36px',WebkitOverflowScrolling:'touch'}}>
+        <div style={{flex:1,overflowY:'auto',padding:mob?'16px 16px 60px':'28px 36px',WebkitOverflowScrolling:'touch'}}>
           {briefError&&(
             <div style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:8,padding:'10px 14px',marginBottom:20,color:'#dc2626',fontSize:13,display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:720}}>
               <span>{briefError}</span>
