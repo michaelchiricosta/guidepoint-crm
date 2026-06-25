@@ -1012,7 +1012,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                         <Sparkles size={16} color='#2563eb'/>
                         <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Today's Brief</span>
                       </div>
-                      <button onClick={()=>onGoDailyBrief&&onGoDailyBrief()} style={{background:'transparent',border:'none',color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',padding:0}}>View Full Brief →</button>
+                      <button onClick={()=>{clearBriefPages();setShowDailyBriefPage(true)}} style={{background:'transparent',border:'none',color:'#2563eb',fontSize:12,fontWeight:600,cursor:'pointer',padding:0}}>View Full Brief →</button>
                     </div>
                     {briefGenerating&&!todayBrief&&(
                       <div style={{display:'flex',alignItems:'center',gap:8,color:'#64748b',fontSize:13}}>
