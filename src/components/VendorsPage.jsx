@@ -211,7 +211,7 @@ export default function VendorsPage({ data, setData, onBack }) {
       `${cm.name} ${cm.email} ${cm.region} ${cm.notes} ${cm.title}`.toLowerCase().includes(q)
     )) return true
     return false
-  })
+  }).sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
 
   // Coverage search results — accounts and channel managers across all vendors
   const coverageResults = (() => {

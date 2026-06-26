@@ -154,8 +154,10 @@ const BarChartCard = memo(function BarChartCard({data}) {
     const inFlight = (acct.projects||[]).filter(p=>p.status==='In Flight').length
     const inDiscussion = (acct.projects||[]).filter(p=>p.status==='In Discussion').length
     const gp = getAccountGP(acct)
+    const rawName = acct.short||acct.name
     return {
-      name: acct.short||acct.name,
+      name: rawName.length > 13 ? rawName.slice(0, 12) + '…' : rawName,
+      fullName: rawName,
       'In Flight': inFlight,
       'In Discussion': inDiscussion,
       gp,
@@ -168,9 +170,10 @@ const BarChartCard = memo(function BarChartCard({data}) {
 
   const CustomTooltip = ({active, payload, label}) => {
     if (!active||!payload||!payload.length) return null
+    const fullLabel = payload[0]?.payload?.fullName || label
     return (
       <div style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.10)',padding:'10px 14px',minWidth:140}}>
-        <div style={{fontSize:12,fontWeight:700,color:'#111827',marginBottom:5}}>{label}</div>
+        <div style={{fontSize:12,fontWeight:700,color:'#111827',marginBottom:5}}>{fullLabel}</div>
         {payload.map((p,i)=>(
           <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
             <div style={{width:8,height:8,borderRadius:'50%',background:p.fill,flexShrink:0}}/>
@@ -188,9 +191,9 @@ const BarChartCard = memo(function BarChartCard({data}) {
     <div style={mobChart?{overflowX:'auto',WebkitOverflowScrolling:'touch'}:{}}>
     <div style={mobChart?{minWidth:Math.max(500,chartData.length*70)}:{}}>
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={chartData} margin={{top:8,right:8,bottom:8,left:-20}} barGap={3} barCategoryGap="35%">
+      <BarChart data={chartData} margin={{top:8,right:8,bottom:20,left:-20}} barGap={3} barCategoryGap="35%">
         <CartesianGrid vertical={false} stroke="#F3F4F6" strokeDasharray="3 3"/>
-        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#9CA3AF'}} interval={0}/>
+        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#9CA3AF'}} interval={0} angle={-35} textAnchor="end" height={60}/>
         <YAxis axisLine={false} tickLine={false} tick={{fontSize:11,fill:'#9CA3AF'}} width={36} allowDecimals={false}/>
         <RechartsTooltip content={<CustomTooltip/>} cursor={{fill:'rgba(0,0,0,0.03)'}}/>
         {view==='projects' ? (
@@ -654,7 +657,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
       {showMarketIntelPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <MarketIntelligence data={data} setData={setData} onBack={()=>setShowMarketIntelPage(false)}/>
       </div>}
-      {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+      {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto'}}>
         <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)} apiKey={data?.apiKey} data={data} setData={setData}/>
       </div>}
       <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage?'none':'block'}}>
