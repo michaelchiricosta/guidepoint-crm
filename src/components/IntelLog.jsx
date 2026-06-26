@@ -168,7 +168,7 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   }
 
   const FILE_CHAR_LIMIT = 100000
-  const MANUAL_CHAR_LIMIT = 40000
+  const MANUAL_CHAR_LIMIT = 60000
 
   const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp']
   const TEXT_EXTS = ['txt','pdf','doc','docx','md']
@@ -560,6 +560,10 @@ export default function IntelLog({acct,setAcct,apiKey,appData,setAppData}) {
   const process = async (date, textOverride) => {
     if (loading) return
     const inputText = textOverride !== undefined ? textOverride : text
+    if (!uploadedFile && !fileIsDirectType && inputText.length > MANUAL_CHAR_LIMIT) {
+      setError('This transcript exceeds the current 60,000 character limit.')
+      return
+    }
     const SAFE_CHAR_LIMIT = 18000
     const promptInput = inputText.length > SAFE_CHAR_LIMIT
       ? inputText.slice(0, 12000) + '\n\n[...transcript truncated — including end of transcript...]\n\n' + inputText.slice(-6000)
@@ -833,14 +837,18 @@ Rules:
             <textarea
               value={text}
               onChange={e=>{setText(e.target.value);setLargeDocWarning(false);setFileCharCount(0)}}
-              maxLength={uploadedFile?undefined:MANUAL_CHAR_LIMIT}
               rows={7}
               placeholder={'Paste transcript, meeting notes, email, or a quick note here…\n\n"Talked to the security architect today. Wiz demo confirmed for Wednesday. The CISO reached back about Palo Alto pricing — wants a decision by June…"'}
-              style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,color:'#111827',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
-              onFocus={e=>{e.target.style.borderColor='#007AFF';e.target.style.boxShadow='0 0 0 3px rgba(37,99,235,0.1)'}}
-              onBlur={e=>{e.target.style.borderColor='#EEEFF2';e.target.style.boxShadow='none'}}
+              style={{width:'100%',boxSizing:'border-box',background:'#ffffff',border:`1px solid ${!uploadedFile&&text.length>MANUAL_CHAR_LIMIT?'#fca5a5':'#e2e8f0'}`,borderRadius:8,fontSize:13,color:'#111827',padding:12,resize:'vertical',minHeight:160,fontFamily:'inherit',lineHeight:1.6,outline:'none',display:'block'}}
+              onFocus={e=>{e.target.style.borderColor=!uploadedFile&&text.length>MANUAL_CHAR_LIMIT?'#ef4444':'#007AFF';e.target.style.boxShadow=`0 0 0 3px ${!uploadedFile&&text.length>MANUAL_CHAR_LIMIT?'rgba(239,68,68,0.1)':'rgba(37,99,235,0.1)'}`}}
+              onBlur={e=>{e.target.style.borderColor=!uploadedFile&&text.length>MANUAL_CHAR_LIMIT?'#fca5a5':'#EEEFF2';e.target.style.boxShadow='none'}}
             />
-            <div style={{textAlign:'right',fontSize:11,color:text.length>MANUAL_CHAR_LIMIT*0.95?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.8?'#ea580c':'#94a3b8',marginTop:4,marginBottom:12}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():MANUAL_CHAR_LIMIT.toLocaleString()}</div>
+            <div style={{textAlign:'right',fontSize:11,color:text.length>MANUAL_CHAR_LIMIT?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.95?'#dc2626':text.length>MANUAL_CHAR_LIMIT*0.8?'#ea580c':'#94a3b8',marginTop:4,marginBottom:!uploadedFile&&text.length>MANUAL_CHAR_LIMIT?4:12}}>{text.length.toLocaleString()} / {uploadedFile?FILE_CHAR_LIMIT.toLocaleString():'60,000 characters max'}</div>
+            {!uploadedFile&&text.length>MANUAL_CHAR_LIMIT&&(
+              <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626',marginBottom:12}}>
+                This transcript exceeds the current 60,000 character limit.
+              </div>
+            )}
           </>
         )}
         {/* PDF / image file preview card */}
