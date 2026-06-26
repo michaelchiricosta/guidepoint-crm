@@ -83,13 +83,36 @@ const STATUS_STYLE = {
 const BLANK_VENDOR = { id: '', name: '', companyName: '', website: '', category: '', notes: '', reps: [] }
 const BLANK_REP    = { id: '', name: '', email: '', phone: '', title: '', notes: '', accounts: [] }
 const BLANK_ACCT   = { id: '', accountName: '', status: 'Target', notes: '' }
+const BLANK_CM     = { id: '', name: '', email: '', phone: '', title: '', region: '', notes: '' }
+
+// ── Global Import (Channel Manager) column aliases ────────────────────────────
+const CM_HEADER_ALIASES = {
+  vendorColumn:  ['vendor', 'vendor name', 'company', 'company name', 'partner', 'partner name', 'manufacturer', 'oem'],
+  cmNameColumn:  ['channel manager', 'channel manager name', 'partner manager', 'partner manager name', 'channel rep', 'cam', 'channel account manager'],
+  emailColumn:   ['email', 'channel manager email', 'partner manager email', 'contact email'],
+  phoneColumn:   ['phone', 'mobile', 'cell', 'contact phone'],
+  titleColumn:   ['title', 'role', 'job title'],
+  notesColumn:   ['notes', 'comments', 'details'],
+  regionColumn:  ['region', 'territory', 'area'],
+}
+
+const detectGIMapping = headers => {
+  const norm = headers.map(normalizeHdr)
+  const result = {}
+  for (const [field, aliases] of Object.entries(CM_HEADER_ALIASES)) {
+    const idx = norm.findIndex(h => aliases.some(a => h === a || h.startsWith(a) || a.startsWith(h)))
+    result[field] = idx >= 0 ? headers[idx] : ''
+  }
+  return result
+}
 
 // ── Migration: legacy vendors with contacts[] but no reps[] ───────────────────
 const normalizeVendor = v => {
-  if (v.reps !== undefined) return { ...v, name: v.name || v.companyName || '' }
+  if (v.reps !== undefined) return { ...v, name: v.name || v.companyName || '', channelManagers: v.channelManagers || [] }
   return {
     ...v,
     name: v.name || v.companyName || '',
+    channelManagers: v.channelManagers || [],
     reps: (v.contacts || []).map(ct => ({
       id: ct.id || uid(),
       name: ct.name || '',
@@ -141,7 +164,7 @@ export default function VendorsPage({ data, setData, onBack }) {
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef(null)
 
-  // Spreadsheet import (new)
+  // Spreadsheet import — coverage (vendor-scoped)
   const [ssStatus, setSsStatus] = useState('')
   const [ssError, setSsError] = useState('')
   const [ssReview, setSsReview] = useState(null)
@@ -149,7 +172,18 @@ export default function VendorsPage({ data, setData, onBack }) {
   const [ssDragOver, setSsDragOver] = useState(false)
   const ssFileRef = useRef(null)
 
-  // Coverage search (new)
+  // Global Import — channel managers (multi-vendor)
+  const [giStatus, setGiStatus] = useState('')
+  const [giError, setGiError] = useState('')
+  const [giReview, setGiReview] = useState(null)
+  const [giMapping, setGiMapping] = useState({})
+  const giFileRef = useRef(null)
+
+  // Channel Manager modal
+  const [cmModal, setCmModal] = useState(null)   // {vendorId, cmId?}
+  const [cmForm, setCmForm] = useState(BLANK_CM)
+
+  // Coverage search
   const [coverageSearch, setCoverageSearch] = useState('')
 
   // Toast
@@ -168,13 +202,18 @@ export default function VendorsPage({ data, setData, onBack }) {
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const sel = directory.find(v => v.id === selId) || null
-  const filtered = directory.filter(v =>
-    !search.trim() ||
-    (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.category || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = directory.filter(v => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    if ((v.name || '').toLowerCase().includes(q)) return true
+    if ((v.category || '').toLowerCase().includes(q)) return true
+    if ((v.channelManagers || []).some(cm =>
+      `${cm.name} ${cm.email} ${cm.region} ${cm.notes} ${cm.title}`.toLowerCase().includes(q)
+    )) return true
+    return false
+  })
 
-  // Coverage search results — all accounts across all vendors matching query
+  // Coverage search results — accounts and channel managers across all vendors
   const coverageResults = (() => {
     if (!coverageSearch.trim()) return []
     const q = coverageSearch.toLowerCase()
@@ -183,8 +222,13 @@ export default function VendorsPage({ data, setData, onBack }) {
       for (const rep of (vendor.reps || [])) {
         for (const acct of (rep.accounts || [])) {
           if (`${acct.accountName} ${rep.name} ${vendor.name} ${acct.notes} ${rep.email}`.toLowerCase().includes(q)) {
-            results.push({ vendor, rep, acct })
+            results.push({ vendor, rep, acct, type: 'account' })
           }
+        }
+      }
+      for (const cm of (vendor.channelManagers || [])) {
+        if (`${cm.name} ${cm.email} ${cm.region} ${cm.notes} ${cm.title} ${vendor.name}`.toLowerCase().includes(q)) {
+          results.push({ vendor, cm, type: 'channelManager' })
         }
       }
     }
@@ -278,6 +322,28 @@ export default function VendorsPage({ data, setData, onBack }) {
   const toggleRep = repId => setExpandedReps(prev => {
     const s = new Set(prev); s.has(repId) ? s.delete(repId) : s.add(repId); return s
   })
+
+  // ── Channel Manager CRUD ───────────────────────────────────────────────────
+  const saveCm = () => {
+    if (!cmForm.name.trim() || !cmModal) return
+    const vendor = directory.find(v => v.id === cmModal.vendorId)
+    if (!vendor) return
+    const cms = cmForm.id
+      ? (vendor.channelManagers || []).map(c => c.id === cmForm.id ? { ...c, ...cmForm } : c)
+      : [...(vendor.channelManagers || []), { id: uid(), ...cmForm }]
+    updateVendor(cmModal.vendorId, { channelManagers: cms })
+    setCmModal(null); setCmForm(BLANK_CM)
+  }
+
+  const deleteCm = (vendorId, cmId) => {
+    const vendor = directory.find(v => v.id === vendorId)
+    if (!vendor) return
+    const cm = (vendor.channelManagers || []).find(c => c.id === cmId)
+    const vendorName = vendor.name || vendor.companyName || 'this vendor'
+    const cmName = cm?.name || 'this channel manager'
+    if (!window.confirm(`Delete ${cmName} from ${vendorName}?`)) return
+    updateVendor(vendorId, { channelManagers: (vendor.channelManagers || []).filter(c => c.id !== cmId) })
+  }
 
   // ── PDF/DOCX Import ────────────────────────────────────────────────────────
   const handleDocFile = async file => {
@@ -538,6 +604,138 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
     }
   }
 
+  // ── Global Import — multi-vendor channel managers ─────────────────────────
+  const handleGlobalImport = async file => {
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['xlsx', 'xls', 'csv'].includes(ext)) { setGiError('Unsupported type. Use .xlsx, .xls, or .csv.'); return }
+    if (file.size > 10 * 1024 * 1024) { setGiError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 10 MB.`); return }
+    setGiError(''); setGiStatus('Reading spreadsheet…')
+    try {
+      const ab = await file.arrayBuffer()
+      const wb = XLSX.read(ab, { type: 'array' })
+      const sheetName = wb.SheetNames[0]
+      if (!sheetName) throw new Error('No worksheets found')
+      const sheet = wb.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+      if (rows.length < 2) throw new Error('No data rows found')
+      const headers = rows[0].map(h => String(h).trim()).filter(Boolean)
+      const dataRows = rows.slice(1)
+        .filter(r => r.some(c => String(c).trim() !== ''))
+        .slice(0, 5000)
+        .map(r => headers.map((_, i) => r[i] !== undefined ? r[i] : ''))
+      if (dataRows.length === 0) throw new Error('No data rows found')
+
+      let mapping = detectGIMapping(headers)
+
+      // AI fallback if vendor or CM name column unclear
+      if (!mapping.vendorColumn || !mapping.cmNameColumn) {
+        setGiStatus('Using AI to identify columns…')
+        const sampleRows = dataRows.slice(0, 5).map(r => {
+          const obj = {}
+          headers.forEach((h, i) => { if (String(r[i] ?? '').trim()) obj[h] = String(r[i]).trim() })
+          return obj
+        })
+        try {
+          const aiPrompt = `You are mapping columns from a vendor channel manager spreadsheet for a cybersecurity company.
+
+Headers: ${JSON.stringify(headers)}
+Sample rows: ${JSON.stringify(sampleRows, null, 2)}
+
+Return ONLY valid JSON using exact header names from the list above, or "" if not present:
+{
+  "vendorColumn": "",
+  "cmNameColumn": "",
+  "emailColumn": "",
+  "phoneColumn": "",
+  "titleColumn": "",
+  "notesColumn": "",
+  "regionColumn": ""
+}`
+          const aiResp = await callAI({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, messages: [{ role: 'user', content: aiPrompt }] }, setGiStatus)
+          const aiParsed = extractJSON(aiResp.content?.[0]?.text || '')
+          if (aiParsed) mapping = { ...mapping, ...aiParsed }
+        } catch { /* use deterministic mapping */ }
+      }
+
+      setGiReview({ rows: dataRows, headers, fileName: file.name })
+      setGiMapping(mapping)
+      setGiStatus('')
+    } catch (err) {
+      setGiError(`Import failed: ${err.message}`)
+      setGiStatus('')
+    }
+  }
+
+  const confirmGlobalImport = () => {
+    if (!giReview) return
+    const { rows, headers, fileName } = giReview
+    const now = new Date().toISOString()
+
+    const parsedRows = rows.map(row => ({
+      vendorName: getCell(row, headers, giMapping.vendorColumn),
+      cmName:     getCell(row, headers, giMapping.cmNameColumn),
+      email:      getCell(row, headers, giMapping.emailColumn),
+      phone:      getCell(row, headers, giMapping.phoneColumn),
+      title:      getCell(row, headers, giMapping.titleColumn),
+      notes:      getCell(row, headers, giMapping.notesColumn),
+      region:     getCell(row, headers, giMapping.regionColumn),
+    }))
+
+    const validRows = parsedRows.filter(r => r.vendorName && (r.cmName || r.email))
+    const skipped = rows.length - validRows.length
+
+    // Group by vendor
+    const byVendor = {}
+    validRows.forEach(row => {
+      const vKey = (row.vendorName || '').toLowerCase().trim()
+      if (!byVendor[vKey]) byVendor[vKey] = { vendorName: row.vendorName, cms: [] }
+      byVendor[vKey].cms.push({ name: row.cmName, email: row.email, phone: row.phone, title: row.title, notes: row.notes, region: row.region })
+    })
+
+    const newDir = directory.map(v => ({ ...v, channelManagers: [...(v.channelManagers || [])] }))
+    let addedVendors = 0, addedCMs = 0, updatedCMs = 0
+
+    Object.values(byVendor).forEach(({ vendorName, cms }) => {
+      let vIdx = newDir.findIndex(v => fuzzyMatchVendor(v.name || v.companyName, vendorName))
+      if (vIdx < 0) {
+        newDir.push({ id: uid(), name: vendorName, companyName: vendorName, website: '', category: '', notes: '', reps: [], channelManagers: [] })
+        vIdx = newDir.length - 1
+        addedVendors++
+      }
+      const vendor = { ...newDir[vIdx], channelManagers: [...(newDir[vIdx].channelManagers || [])] }
+
+      cms.forEach(cm => {
+        let cmIdx = -1
+        if (cm.email) cmIdx = vendor.channelManagers.findIndex(c => (c.email || '').toLowerCase() === cm.email.toLowerCase())
+        if (cmIdx < 0 && cm.name) cmIdx = vendor.channelManagers.findIndex(c => (c.name || '').toLowerCase().trim() === cm.name.toLowerCase().trim())
+
+        if (cmIdx >= 0) {
+          const ex = vendor.channelManagers[cmIdx]
+          vendor.channelManagers[cmIdx] = {
+            ...ex,
+            email: ex.email || cm.email, phone: ex.phone || cm.phone,
+            title: ex.title || cm.title, notes: ex.notes || cm.notes, region: ex.region || cm.region,
+          }
+          updatedCMs++
+        } else {
+          vendor.channelManagers.push({ id: uid(), name: cm.name || '', email: cm.email || '', phone: cm.phone || '', title: cm.title || '', region: cm.region || '', notes: cm.notes || '', sourceFileName: fileName, importedAt: now })
+          addedCMs++
+        }
+      })
+      newDir[vIdx] = vendor
+    })
+
+    persist(newDir)
+    setGiReview(null); setGiMapping({})
+
+    const vendorCount = Object.keys(byVendor).length
+    const totalCMs = addedCMs + updatedCMs
+    toast(totalCMs > 0
+      ? `Imported ${totalCMs} channel manager${totalCMs !== 1 ? 's' : ''} across ${vendorCount} vendor${vendorCount !== 1 ? 's' : ''}.${skipped > 0 ? ` (${skipped} row${skipped !== 1 ? 's' : ''} skipped — missing vendor or name)` : ''}`
+      : `No new channel managers imported.${skipped > 0 ? ` ${skipped} row${skipped !== 1 ? 's' : ''} skipped.` : ''}`
+    )
+  }
+
   // ── Toast helper ──────────────────────────────────────────────────────────
   const toast = msg => { setImportToast(msg); setTimeout(() => setImportToast(null), 6000) }
 
@@ -574,6 +772,10 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
             style={{ width: '100%', padding: '7px', background: '#EBF4FF', border: '1px solid #BFDBFE', borderRadius: 6, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
             <Plus size={12} /> Add Vendor
           </button>
+          <button onClick={() => giFileRef.current?.click()} title='Import channel managers across multiple vendors from spreadsheet'
+            style={{ width: '100%', padding: '6px', background: '#F5F3FF', border: '1px solid #C4B5FD', borderRadius: 6, color: '#7C3AED', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            🌐 Global Import (Channel Mgrs)
+          </button>
           <button onClick={() => fileRef.current?.click()} title='Import vendor contacts from PDF / DOCX'
             style={{ width: '100%', padding: '6px', background: '#F9FAFB', border: '1px solid #EEEFF2', borderRadius: 6, color: '#6B7280', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
             <Upload size={11} /> Import Vendor PDF / DOCX
@@ -598,7 +800,7 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                 onMouseLeave={e => { if (!isAct) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#374151' } }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name || v.companyName}</div>
                 <div style={{ fontSize: 10, color: '#9CA3AF' }}>
-                  {v.category || 'Uncategorized'} · {repCount} rep{repCount !== 1 ? 's' : ''}{acctCount > 0 ? ` · ${acctCount} acct${acctCount !== 1 ? 's' : ''}` : ''}
+                  {v.category || 'Uncategorized'}{(v.channelManagers || []).length > 0 ? ` · ${(v.channelManagers || []).length} CM${(v.channelManagers || []).length !== 1 ? 's' : ''}` : ''} · {repCount} rep{repCount !== 1 ? 's' : ''}{acctCount > 0 ? ` · ${acctCount} acct${acctCount !== 1 ? 's' : ''}` : ''}
                 </div>
               </div>
             )
@@ -614,6 +816,8 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
           onChange={e => { const f = e.target.files?.[0]; if (f) handleDocFile(f); e.target.value = '' }} />
         <input ref={ssFileRef} type='file' accept='.xlsx,.xls,.csv' style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleSpreadsheet(f); e.target.value = '' }} />
+        <input ref={giFileRef} type='file' accept='.xlsx,.xls,.csv' style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleGlobalImport(f); e.target.value = '' }} />
 
         {/* ── Coverage Search Bar ── */}
         <div style={{ marginBottom: 20, position: 'relative' }}>
@@ -638,49 +842,82 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: S.txt, marginBottom: 12 }}>
               {coverageResults.length === 0
-                ? `No coverage found for "${coverageSearch}"`
+                ? `No results for "${coverageSearch}"`
                 : `${coverageResults.length} result${coverageResults.length !== 1 ? 's' : ''} for "${coverageSearch}"`}
             </div>
             {(() => {
-              // Group results by account name
+              const acctResults = coverageResults.filter(r => r.type === 'account')
+              const cmResults   = coverageResults.filter(r => r.type === 'channelManager')
+              // Group account results by account name
               const byAcct = {}
-              coverageResults.forEach(({ vendor, rep, acct }) => {
+              acctResults.forEach(({ vendor, rep, acct }) => {
                 const key = acct.accountName.toLowerCase()
                 if (!byAcct[key]) byAcct[key] = { accountName: acct.accountName, coverages: [] }
                 byAcct[key].coverages.push({ vendor, rep, acct })
               })
-              return Object.values(byAcct).map(({ accountName, coverages }) => (
-                <div key={accountName} style={{ background: '#fff', border: '1px solid #EEEFF2', borderRadius: 8, marginBottom: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', background: '#F9FAFB', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>{accountName}</div>
-                    <span style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }}>{coverages.length} vendor coverage{coverages.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  {coverages.map(({ vendor, rep, acct }, i) => {
-                    const ss = STATUS_STYLE[acct.status] || STATUS_STYLE.Target
-                    return (
-                      <div key={i}
-                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 14px', borderBottom: i < coverages.length - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
-                        onClick={() => { setSelId(vendor.id); setCoverageSearch(''); setExpandedReps(prev => { const s = new Set(prev); s.add(rep.id); return s }) }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{vendor.name || vendor.companyName}</span>
-                            <span style={{ fontSize: 11, color: '#9CA3AF' }}>·</span>
-                            <span style={{ fontSize: 12, color: '#374151' }}>{rep.name || 'Unknown Rep'}</span>
-                            {rep.email && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{rep.email}</span>}
-                          </div>
-                          {acct.notes && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, lineHeight: 1.4 }}>{acct.notes}</div>}
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: ss.color, background: ss.bg, border: `1px solid ${ss.border}`, padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>
-                          {acct.status}
-                        </span>
-                        <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0, marginTop: 2 }}>→</span>
+              return (
+                <>
+                  {Object.values(byAcct).map(({ accountName, coverages }) => (
+                    <div key={accountName} style={{ background: '#fff', border: '1px solid #EEEFF2', borderRadius: 8, marginBottom: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', background: '#F9FAFB', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>{accountName}</div>
+                        <span style={{ fontSize: 11, color: '#6B7280', flexShrink: 0 }}>{coverages.length} vendor coverage{coverages.length !== 1 ? 's' : ''}</span>
                       </div>
-                    )
-                  })}
-                </div>
-              ))
+                      {coverages.map(({ vendor, rep, acct }, i) => {
+                        const ss = STATUS_STYLE[acct.status] || STATUS_STYLE.Target
+                        return (
+                          <div key={i}
+                            style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 14px', borderBottom: i < coverages.length - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
+                            onClick={() => { setSelId(vendor.id); setCoverageSearch(''); setExpandedReps(prev => { const s = new Set(prev); s.add(rep.id); return s }) }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{vendor.name || vendor.companyName}</span>
+                                <span style={{ fontSize: 11, color: '#9CA3AF' }}>·</span>
+                                <span style={{ fontSize: 12, color: '#374151' }}>{rep.name || 'Unknown Rep'}</span>
+                                {rep.email && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{rep.email}</span>}
+                              </div>
+                              {acct.notes && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2, lineHeight: 1.4 }}>{acct.notes}</div>}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: ss.color, background: ss.bg, border: `1px solid ${ss.border}`, padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>{acct.status}</span>
+                            <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0, marginTop: 2 }}>→</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                  {cmResults.length > 0 && (
+                    <div style={{ background: '#fff', border: '1px solid #EDE9FE', borderRadius: 8, marginBottom: 10, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <div style={{ padding: '10px 14px', borderBottom: '1px solid #F5F3FF', background: '#F5F3FF', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#5B21B6', flex: 1 }}>🌐 Channel Managers</div>
+                        <span style={{ fontSize: 11, color: '#7C3AED', flexShrink: 0 }}>{cmResults.length} match{cmResults.length !== 1 ? 'es' : ''}</span>
+                      </div>
+                      {cmResults.map(({ vendor, cm }, i) => (
+                        <div key={i}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: i < cmResults.length - 1 ? '1px solid #F5F3FF' : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
+                          onClick={() => { setSelId(vendor.id); setCoverageSearch('') }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#F5F3FF'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{cm.name}</span>
+                              {cm.title && <span style={{ fontSize: 11, color: '#7C3AED', background: '#EDE9FE', padding: '1px 7px', borderRadius: 4 }}>{cm.title}</span>}
+                              <span style={{ fontSize: 11, color: '#9CA3AF' }}>at</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{vendor.name || vendor.companyName}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
+                              {cm.email && <span style={{ fontSize: 11, color: '#6B7280' }}>{cm.email}</span>}
+                              {cm.region && <span style={{ fontSize: 11, color: '#6B7280' }}>📍 {cm.region}</span>}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>→</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )
             })()}
           </div>
         )}
@@ -701,6 +938,24 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <span style={{ fontSize: 13, color: '#dc2626' }}>{uploadError}</span>
                     <button onClick={() => setUploadError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Global Import status/error */}
+            {(giStatus || giError) && !giReview && (
+              <div style={{ background: S.surf, border: `1px solid ${S.bdr}`, borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+                {giStatus && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 14, height: 14, border: '2px solid #7C3AED', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: S.txt }}>{giStatus}</span>
+                  </div>
+                )}
+                {giError && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: 13, color: '#dc2626' }}>{giError}</span>
+                    <button onClick={() => setGiError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
                   </div>
                 )}
               </div>
@@ -782,6 +1037,53 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
               </div>
             )}
 
+            {/* ── Global Import Review (channel managers, multi-vendor) ── */}
+            {giReview && (
+              <div style={{ background: S.surf, border: '1px solid #C4B5FD', borderRadius: 10, padding: '20px 24px', marginBottom: 20 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: S.txt, marginBottom: 2 }}>🌐 Global Import — Channel Managers</div>
+                <div style={{ fontSize: 12, color: S.muted, marginBottom: 16 }}>
+                  {giReview.fileName} · {giReview.rows.length} data row{giReview.rows.length !== 1 ? 's' : ''} · Creates or updates vendors and adds channel managers
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 18 }}>
+                  {[
+                    { key: 'vendorColumn',  label: 'Vendor / Company Name ✱' },
+                    { key: 'cmNameColumn',  label: 'Channel Manager Name ✱' },
+                    { key: 'emailColumn',   label: 'Email' },
+                    { key: 'phoneColumn',   label: 'Phone' },
+                    { key: 'titleColumn',   label: 'Title / Role' },
+                    { key: 'regionColumn',  label: 'Region / Territory' },
+                    { key: 'notesColumn',   label: 'Notes' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: S.muted, marginBottom: 3 }}>{label}</div>
+                      <select value={giMapping[key] || ''} onChange={e => setGiMapping(p => ({ ...p, [key]: e.target.value }))}
+                        style={{ width: '100%', padding: '5px 7px', border: `1px solid ${(key === 'vendorColumn' || key === 'cmNameColumn') && giMapping[key] ? '#C4B5FD' : S.bdr}`, borderRadius: 5, fontSize: 12, color: S.txt, background: S.surf, boxSizing: 'border-box', outline: 'none' }}>
+                        <option value=''>(not mapped)</option>
+                        {giReview.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: S.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Preview (first 5 rows)</div>
+                  <div style={{ overflowX: 'auto', border: `1px solid ${S.bdr}`, borderRadius: 6 }}>
+                    <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: '100%' }}>
+                      <thead><tr>{giReview.headers.slice(0, 8).map(h => <th key={h} style={{ textAlign: 'left', padding: '5px 10px', background: '#F9FAFB', color: '#6B7280', fontWeight: 600, borderBottom: `1px solid ${S.bdr}`, whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
+                      <tbody>{giReview.rows.slice(0, 5).map((row, i) => <tr key={i} style={{ borderBottom: i < 4 ? `1px solid ${S.bdr}` : 'none' }}>{giReview.headers.slice(0, 8).map((_, j) => <td key={j} style={{ padding: '5px 10px', color: S.txt, whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(row[j] ?? '').slice(0, 80)}</td>)}</tr>)}</tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={() => { setGiReview(null); setGiMapping({}) }}
+                    style={{ padding: '7px 14px', background: 'transparent', border: `1px solid ${S.bdr}`, borderRadius: 6, color: S.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={confirmGlobalImport} disabled={!giMapping.vendorColumn || !giMapping.cmNameColumn}
+                    style={{ padding: '7px 16px', background: giMapping.vendorColumn && giMapping.cmNameColumn ? '#7C3AED' : '#9CA3AF', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: giMapping.vendorColumn && giMapping.cmNameColumn ? 'pointer' : 'not-allowed' }}>
+                    Import {giReview.rows.length} Row{giReview.rows.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ── Spreadsheet Review ── */}
             {ssReview && (
               <div style={{ background: S.surf, border: '1px solid #86EFAC', borderRadius: 10, padding: '20px 24px', marginBottom: 20 }}>
@@ -859,19 +1161,16 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
             )}
 
             {/* ── Empty State ── */}
-            {!sel && !review && !ssReview && (
+            {!sel && !review && !ssReview && !giReview && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '35vh', gap: 10, color: S.muted }}>
                 <div style={{ fontSize: 36, opacity: 0.3 }}>🏢</div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: S.txt }}>No vendor selected</div>
-                <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 360, lineHeight: 1.6 }}>
-                  Select a vendor from the sidebar to view reps and accounts.
+                <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
+                  Select a vendor from the sidebar to view channel managers, reps, and accounts.
                   <br/>
-                  Use <strong>Import Vendor PDF / DOCX</strong> in the sidebar to add vendors from a contact sheet.
+                  Use <strong>🌐 Global Import</strong> in the sidebar to bulk-import channel managers across multiple vendors from a spreadsheet.
                   <br/>
-                  Use <strong>Import Coverage</strong> inside a selected vendor to load rep/account data from a spreadsheet.
-                </div>
-                <div style={{ marginTop: 4, padding: '8px 14px', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e', maxWidth: 340, textAlign: 'center' }}>
-                  Select a vendor before importing a coverage spreadsheet.
+                  Use <strong>Import Coverage</strong> inside a selected vendor to load rep/account data.
                 </div>
               </div>
             )}
@@ -900,6 +1199,59 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                       <Trash2 size={12} /> Delete
                     </button>
                   </div>
+                </div>
+
+                {/* ── Channel Managers ── */}
+                <div style={{ marginBottom: 28 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: S.txt }}>
+                        Channel Managers <span style={{ fontSize: 12, fontWeight: 400, color: S.muted }}>({(sel.channelManagers || []).length})</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: S.muted, marginTop: 1 }}>GuidePoint's liaisons into this vendor</div>
+                    </div>
+                    <button onClick={() => { setCmModal({ vendorId: sel.id }); setCmForm(BLANK_CM) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#7C3AED', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                      <Plus size={12} /> Add
+                    </button>
+                  </div>
+                  {(sel.channelManagers || []).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '12px 20px', color: S.muted, fontSize: 12, background: S.surf, borderRadius: 8, border: `1px dashed ${S.bdr}` }}>
+                      No channel managers yet — use <strong>🌐 Global Import</strong> or click Add.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(sel.channelManagers || []).map(cm => (
+                        <div key={cm.id} style={{ background: S.surf, border: '1px solid #EDE9FE', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>👤</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: S.txt }}>{cm.name}</span>
+                              {cm.title && <span style={{ fontSize: 10, color: '#7C3AED', background: '#EDE9FE', padding: '1px 7px', borderRadius: 4 }}>{cm.title}</span>}
+                              {cm.region && <span style={{ fontSize: 10, color: S.muted, background: S.surf2, padding: '1px 7px', borderRadius: 4 }}>📍 {cm.region}</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
+                              {cm.email && <a href={`mailto:${cm.email}`} style={{ fontSize: 11, color: S.blue, textDecoration: 'none' }}>{cm.email}</a>}
+                              {cm.phone && <span style={{ fontSize: 11, color: S.muted }}>{cm.phone}</span>}
+                            </div>
+                            {cm.notes && <div style={{ fontSize: 11, color: S.muted, marginTop: 2, fontStyle: 'italic' }}>{cm.notes}</div>}
+                          </div>
+                          <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                            <button onClick={() => { setCmModal({ vendorId: sel.id, cmId: cm.id }); setCmForm({ ...cm }) }}
+                              style={{ padding: 5, background: 'transparent', border: 'none', cursor: 'pointer', color: S.muted, borderRadius: 4, display: 'flex' }}
+                              onMouseEnter={e => e.currentTarget.style.color = '#7C3AED'} onMouseLeave={e => e.currentTarget.style.color = S.muted}>
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => deleteCm(sel.id, cm.id)}
+                              style={{ padding: 5, background: 'transparent', border: 'none', cursor: 'pointer', color: S.muted, borderRadius: 4, display: 'flex' }}
+                              onMouseEnter={e => e.currentTarget.style.color = '#dc2626'} onMouseLeave={e => e.currentTarget.style.color = S.muted}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Reps header */}
@@ -1102,6 +1454,44 @@ Return ONLY valid JSON — use exact header names from the list above, or "" if 
                 style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${S.bdr}`, borderRadius: 6, color: S.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               <button onClick={saveVendor}
                 style={{ padding: '8px 16px', background: '#007AFF', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Channel Manager Form Modal ── */}
+      {cmModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => { setCmModal(null); setCmForm(BLANK_CM) }}>
+          <div style={{ background: S.surf, borderRadius: 10, padding: '24px 28px', width: '100%', maxWidth: 500, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: S.txt }}>{cmForm.id ? 'Edit Channel Manager' : 'Add Channel Manager'}</div>
+              <button onClick={() => { setCmModal(null); setCmForm(BLANK_CM) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: S.muted, padding: 2 }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {[
+                { k: 'name',   l: 'Full Name *', span: 2 },
+                { k: 'title',  l: 'Title / Role' },
+                { k: 'email',  l: 'Email' },
+                { k: 'phone',  l: 'Phone' },
+                { k: 'region', l: 'Region / Territory' },
+              ].map(({ k, l, span }) => (
+                <div key={k} style={{ gridColumn: span === 2 ? 'span 2' : undefined }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: S.muted, marginBottom: 4 }}>{l}</div>
+                  <input value={cmForm[k] || ''} onChange={e => setCmForm(p => ({ ...p, [k]: e.target.value }))}
+                    autoFocus={k === 'name'} style={inp} />
+                </div>
+              ))}
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: S.muted, marginBottom: 4 }}>Notes</div>
+                <textarea value={cmForm.notes || ''} onChange={e => setCmForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button onClick={() => { setCmModal(null); setCmForm(BLANK_CM) }}
+                style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${S.bdr}`, borderRadius: 6, color: S.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveCm}
+                style={{ padding: '8px 16px', background: '#7C3AED', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
             </div>
           </div>
         </div>
