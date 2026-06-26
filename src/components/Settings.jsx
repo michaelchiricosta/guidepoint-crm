@@ -11,6 +11,7 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
   const [key,setKey] = useState(()=>localStorage.getItem(LS_API_KEY)||data.apiKey||'')
   const [saved,setSaved] = useState(false)
   const [logoStatus,setLogoStatus] = useState(null)
+  const [pdfLoading,setPdfLoading] = useState(false)
   const logoInputRef = useRef(null)
   const saveKey=()=>{
     localStorage.setItem(LS_API_KEY, key)
@@ -79,6 +80,351 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
     } catch(err) { console.error('Logo remove failed:', err) }
     finally { setTimeout(()=>{ saveInProgress.current = false }, 3000) }
   }
+  const generateMasterAccountPlan = async () => {
+    setPdfLoading(true)
+    try {
+      const jsPDFLib = (await import('jspdf')).default
+      const doc = new jsPDFLib({ orientation: 'portrait', unit: 'mm', format: 'letter' })
+      const PW = doc.internal.pageSize.getWidth()
+      const PH = doc.internal.pageSize.getHeight()
+      const ML = 20, MR = 20, CW = PW - ML - MR
+      const SAFE = PH - 18
+      let y = 20
+
+      const NAVY=[13,31,61], BLUE=[0,91,187], LTBLUE=[219,234,254]
+      const GRAY=[107,114,128], LGRAY=[243,244,246]
+      const BLACK=[17,24,39], WHITE=[255,255,255]
+      const RED=[220,38,38], GREEN=[22,163,74], ORANGE=[234,88,12]
+
+      const tc = (...rgb) => doc.setTextColor(...rgb)
+      const fc = (...rgb) => doc.setFillColor(...rgb)
+      const fn = (size, style='normal') => { doc.setFontSize(size); doc.setFont('helvetica',style) }
+      const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
+      const trunc = (s,n=300) => { if(!s)return''; s=String(s); return s.length>n?s.slice(0,n)+'… (See Ledgr for full detail)':s }
+
+      // Add page break if not enough space, with thin nav header on continuation pages
+      const guard = (space=14) => {
+        if (y+space>SAFE) {
+          doc.addPage()
+          fc(...NAVY); doc.rect(0,0,PW,8,'F')
+          fn(7); tc(...WHITE)
+          doc.text(`Master Account Plan — ${acct.name}`,ML,5.5)
+          doc.text(new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),PW-MR,5.5,{align:'right'})
+          y=16
+        }
+      }
+
+      const sect = title => {
+        guard(18); y+=5
+        fc(...NAVY); doc.rect(ML,y,CW,7.5,'F')
+        fn(8.5,'bold'); tc(...WHITE); doc.text(title.toUpperCase(),ML+4,y+5.2)
+        y+=13; tc(...BLACK)
+      }
+
+      const hRule = () => {
+        guard(4)
+        doc.setDrawColor(226,232,240); doc.setLineWidth(0.25)
+        doc.line(ML,y,ML+CW,y); y+=3.5
+      }
+
+      // Render wrapped text advancing y; handles page breaks mid-block
+      const wrapText = (text,x,maxW,size,style='normal',color=BLACK) => {
+        if(!text)return
+        fn(size,style); tc(...color)
+        const lh = size*0.43
+        const lines = doc.splitTextToSize(String(text),maxW)
+        let i=0
+        while(i<lines.length){
+          const fits = Math.max(1,Math.floor((SAFE-y)/lh))
+          const batch = lines.slice(i,i+fits)
+          guard(batch.length*lh)
+          doc.text(batch,x,y); y+=batch.length*lh; i+=batch.length
+        }
+      }
+
+      // Draw a small colored pill badge, return width consumed
+      const chipBadge = (text,color,cx,cy) => {
+        fn(6.5,'bold')
+        const w = Math.max(doc.getTextWidth(text)+5,14)
+        fc(...color); doc.roundedRect(cx,cy-3.5,w,5.2,1.2,1.2,'F')
+        tc(...WHITE); doc.text(text,cx+w/2,cy+0.5,{align:'center'})
+        return w+3
+      }
+
+      // ── COVER ──────────────────────────────────────────────────
+      fc(...NAVY); doc.rect(0,0,PW,58,'F')
+
+      fc(...BLUE); doc.circle(ML+13,21,13,'F')
+      fn(17,'bold'); tc(...WHITE)
+      doc.text((acct.name||'A')[0].toUpperCase(),ML+13,25.5,{align:'center'})
+
+      fn(19,'bold'); tc(...WHITE)
+      doc.text((acct.name||'Account').slice(0,42),ML+32,18)
+      fn(10); tc(...LTBLUE)
+      doc.text('MASTER ACCOUNT PLAN',ML+32,26)
+      fn(8); tc(160,185,220)
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,ML+32,34)
+      fn(8,'bold'); tc(180,200,235)
+      doc.text('GuidePoint Security',PW-MR,34,{align:'right'})
+
+      const hdrChips=[acct.status,acct.industry].filter(Boolean)
+      let chipX=ML+32
+      fn(7.5,'bold')
+      hdrChips.forEach(c=>{
+        fc(30,50,90); const w=doc.getTextWidth(c)+8
+        doc.roundedRect(chipX,39.5,w,5.5,1.5,1.5,'F')
+        tc(160,200,255); doc.text(c,chipX+w/2,43.5,{align:'center'})
+        chipX+=w+4
+      })
+
+      // Stats strip
+      y=66
+      const qStats=[
+        {label:'Active Projects',val:String((acct.projects||[]).filter(p=>['In Flight','In Discussion'].includes(p.status)).length)},
+        {label:'Open Actions',   val:String((acct.followUps||[]).filter(f=>f.status==='Open').length)},
+        {label:'Contacts',       val:String((acct.contacts||[]).length)},
+        {label:'Intel Entries',  val:String((acct.intelLog||[]).length)},
+      ]
+      const sW=CW/4
+      qStats.forEach(({label,val},i)=>{
+        const sx=ML+i*sW
+        fc(...LGRAY); doc.rect(sx,y,sW-2,16,'F')
+        fn(16,'bold'); tc(...NAVY); doc.text(val,sx+sW/2-1,y+10,{align:'center'})
+        fn(7); tc(...GRAY); doc.text(label,sx+sW/2-1,y+14.5,{align:'center'})
+      })
+      y+=24
+
+      // ── SECTION 1: Account Overview ────────────────────────────
+      sect('Account Overview')
+      const ovPairs=[
+        ['Industry',acct.industry],['HQ / Location',acct.hq],
+        ['Cloud Environment',acct.cloud],['User Count',acct.users],
+        ['Endpoints',acct.endpoints],['Account Status',acct.status],
+        ['Relationship',acct.relationship],['Last Contact',fmtD(acct.lastContact)],
+      ].filter(([,v])=>v)
+
+      for(let i=0;i<ovPairs.length;i+=2){
+        guard(16); const rowY=y
+        const [l1,v1]=ovPairs[i], [l2,v2]=ovPairs[i+1]||[]
+        fn(7.5,'bold'); tc(...GRAY); doc.text(l1.toUpperCase(),ML,rowY)
+        fn(9); tc(...BLACK)
+        const ln1=doc.splitTextToSize(String(v1),CW/2-8); doc.text(ln1,ML,rowY+4.5)
+        const h1=ln1.length*4.5+7
+        let h2=0
+        if(l2&&v2){
+          fn(7.5,'bold'); tc(...GRAY); doc.text(l2.toUpperCase(),ML+CW/2,rowY)
+          fn(9); tc(...BLACK)
+          const ln2=doc.splitTextToSize(String(v2),CW/2-8); doc.text(ln2,ML+CW/2,rowY+4.5)
+          h2=ln2.length*4.5+7
+        }
+        y=rowY+Math.max(h1,h2)
+      }
+      if(acct.notes){
+        guard(14); y+=2
+        fn(7.5,'bold'); tc(...GRAY); doc.text('ACCOUNT NOTES',ML,y); y+=5
+        wrapText(trunc(acct.notes,500),ML,CW,8.5); y+=3
+      }
+
+      // ── SECTION 2: Key Contacts ────────────────────────────────
+      if((acct.contacts||[]).length>0){
+        sect('Key Contacts')
+        acct.contacts.forEach((c,idx)=>{
+          guard(26); if(idx>0)hRule()
+          fn(10.5,'bold'); tc(...NAVY)
+          const cName=(c.name||'Unknown').slice(0,40); doc.text(cName,ML,y)
+          let bx=ML+doc.getTextWidth(cName)+5
+          if(c.relStatus){const bc=c.relStatus==='Strong'?GREEN:c.relStatus==='Building'?BLUE:c.relStatus==='Needs Attention'?RED:ORANGE; bx+=chipBadge(c.relStatus,bc,bx,y)}
+          if(c.influence)chipBadge(c.influence,NAVY,bx,y)
+          y+=5
+          if(c.title){fn(8.5,'italic');tc(...GRAY);doc.text(c.title.slice(0,60),ML,y);y+=5}
+          const dPairs=[
+            [c.email?`Email: ${c.email}`:null, c.phone?`Phone: ${c.phone}`:null],
+            [c.lastInteracted?`Last Contact: ${fmtD(c.lastInteracted)}`:null, c.contactType?`Type: ${c.contactType}`:null],
+          ]
+          dPairs.forEach(([left,right])=>{
+            if(!left&&!right)return; guard(5); fn(8); tc(...GRAY)
+            if(left)doc.text(left.slice(0,55),ML,y)
+            if(right)doc.text(right.slice(0,55),ML+CW/2,y)
+            y+=4.5
+          })
+          if(c.notes){
+            guard(8); fn(8,'italic'); tc(...GRAY)
+            const nl=doc.splitTextToSize(trunc(c.notes,200),CW); doc.text(nl,ML,y); y+=nl.length*3.8
+          }
+          y+=3
+        })
+      }
+
+      // ── SECTION 3: Technology Stack ────────────────────────────
+      if((acct.techStack||[]).length>0){
+        sect('Technology Stack')
+        const TCW=[42,48,26,32,27]
+        const TCOL=['VENDOR','CATEGORY','STATUS','RENEWAL DATE','ANNUAL COST']
+        guard(10); fc(...LGRAY); doc.rect(ML,y,CW,7,'F')
+        let xc=ML
+        TCOL.forEach((h,i)=>{fn(7,'bold');tc(...GRAY);doc.text(h,xc+2,y+5);xc+=TCW[i]})
+        y+=9
+        acct.techStack.forEach((t,i)=>{
+          guard(12)
+          if(i%2===0){doc.setFillColor(250,252,255);doc.rect(ML,y-1,CW,7.5,'F')}
+          xc=ML
+          fn(8.5,'bold'); tc(...BLACK); doc.text((t.vendor||'').slice(0,24),xc+2,y+4); xc+=TCW[0]
+          fn(8.5); tc(...GRAY); doc.text((t.category||'').slice(0,30),xc+2,y+4); xc+=TCW[1]
+          const sc=t.status==='Active'?GREEN:t.status==='Evaluating'?BLUE:t.status==='Replacing'?RED:GRAY
+          tc(...sc); fn(8.5,'bold'); doc.text(t.status||'—',xc+2,y+4); xc+=TCW[2]
+          tc(...GRAY); fn(8.5); doc.text(fmtD(t.renewalDate)||'—',xc+2,y+4); xc+=TCW[3]
+          doc.text(t.cost?String(t.cost).slice(0,12):'—',xc+2,y+4); y+=8
+          if(t.notes){
+            guard(7); fn(7.5,'italic'); tc(155,165,180)
+            const nl=doc.splitTextToSize(`  ↳ ${t.notes.slice(0,200)}`,CW-4); doc.text(nl,ML+2,y); y+=nl.length*3.5+1
+          }
+        })
+      }
+
+      // ── SECTION 4: Projects & Pipeline ────────────────────────
+      if((acct.projects||[]).length>0){
+        sect('Projects & Pipeline')
+        const SORD=['In Flight','In Discussion','Not Started','Stalled','Won','Lost']
+        const sortedP=[...acct.projects].sort((a,b)=>SORD.indexOf(a.status)-SORD.indexOf(b.status))
+        sortedP.forEach((p,idx)=>{
+          guard(30); if(idx>0)hRule()
+          fn(10.5,'bold'); tc(...NAVY)
+          const pn=(p.name||'Unnamed Project').slice(0,50); doc.text(pn,ML,y)
+          const psc=p.status==='In Flight'?BLUE:p.status==='In Discussion'?[147,197,253]:p.status==='Won'?GREEN:p.status==='Lost'?RED:p.status==='Stalled'?ORANGE:GRAY
+          chipBadge(p.status||'—',psc,ML+doc.getTextWidth(pn)+5,y); y+=5.5
+          const currSt=p.timeline?.find(s=>s.status==='current')?.stage||p.timeline?.filter(s=>s.status==='completed').slice(-1)[0]?.stage||''
+          const meta=[p.vendor,currSt].filter(Boolean).join(' · ')
+          if(meta){fn(8.5,'italic');tc(...GRAY);doc.text(meta,ML,y);y+=4.5}
+          if(p.estimatedRevenue||p.closeDate){
+            guard(7)
+            if(p.estimatedRevenue){fn(7.5,'bold');tc(...GRAY);doc.text('EST. REVENUE:',ML,y);fn(8.5);tc(...BLACK);doc.text(String(p.estimatedRevenue),ML+30,y)}
+            if(p.closeDate){fn(7.5,'bold');tc(...GRAY);doc.text('TARGET CLOSE:',ML+CW/2,y);fn(8.5);tc(...BLACK);doc.text(fmtD(p.closeDate),ML+CW/2+30,y)}
+            y+=5
+          }
+          if(p.primaryContact||p.waitingOn){
+            guard(7)
+            if(p.primaryContact){fn(7.5,'bold');tc(...GRAY);doc.text('CONTACT:',ML,y);fn(8.5);tc(...BLACK);doc.text(String(p.primaryContact).slice(0,45),ML+22,y)}
+            if(p.waitingOn){fn(7.5,'bold');tc(...GRAY);doc.text('WAITING ON:',ML+CW/2,y);fn(8.5);tc(...BLACK);doc.text(String(p.waitingOn).slice(0,50),ML+CW/2+26,y)}
+            y+=5
+          }
+          const ns=p.nextAction||p.nextSteps||''
+          if(ns){
+            guard(8); fn(7.5,'bold'); tc(...GRAY); doc.text('NEXT STEPS:',ML,y); fn(8.5); tc(...BLACK)
+            const nsL=doc.splitTextToSize(ns.slice(0,140),CW-28); doc.text(nsL,ML+28,y); y+=nsL.length*4.5
+          }
+          if(p.notes){
+            guard(10); fn(8.5,'italic'); tc(...GRAY)
+            const nl=doc.splitTextToSize(trunc(p.notes,250),CW); doc.text(nl,ML,y); y+=nl.length*4
+          }
+          y+=3
+        })
+      }
+
+      // ── SECTION 5: Open Actions ────────────────────────────────
+      const openFUs=(acct.followUps||[]).filter(f=>f.status==='Open')
+      if(openFUs.length>0){
+        sect('Open Actions & Follow-Ups')
+        const PORD=['Critical','High','Medium','Low']
+        const sortedFUs=[...openFUs].sort((a,b)=>PORD.indexOf(a.priority)-PORD.indexOf(b.priority))
+        sortedFUs.forEach((f,idx)=>{
+          guard(20); if(idx>0)hRule()
+          const pc=f.priority==='Critical'?RED:f.priority==='High'?ORANGE:f.priority==='Medium'?BLUE:GRAY
+          chipBadge(f.priority||'Low',pc,ML,y)
+          fn(9.5,'bold'); tc(...BLACK)
+          const tl=doc.splitTextToSize(f.task||'',CW-24); doc.text(tl,ML+22,y); y+=tl.length*5
+          const meta=[f.contact?`Contact: ${f.contact}`:null,f.dueDate?`Due: ${fmtD(f.dueDate)}`:null].filter(Boolean).join('   ')
+          if(meta){fn(8);tc(...GRAY);doc.text(meta,ML,y);y+=4.5}
+          if(f.context){
+            guard(8); fn(8.5,'italic'); tc(...GRAY)
+            const cl=doc.splitTextToSize(trunc(f.context,200),CW); doc.text(cl,ML,y); y+=cl.length*4
+          }
+          y+=3
+        })
+      }
+
+      // ── SECTION 6: Recent Intel Log ────────────────────────────
+      const intelSorted=[...(acct.intelLog||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,10)
+      if(intelSorted.length>0){
+        sect('Recent Intelligence Log')
+        intelSorted.forEach((entry,idx)=>{
+          guard(24); if(idx>0)hRule()
+          fn(9,'bold'); tc(...NAVY); doc.text(fmtD(entry.date)||'—',ML,y)
+          if(entry.type)chipBadge(entry.type,BLUE,ML+34,y); y+=5
+          if(entry.participants){fn(7.5,'italic');tc(...GRAY);doc.text(`Participants: ${entry.participants.slice(0,110)}`,ML,y);y+=4.5}
+          if(entry.summary){
+            fn(8.5); tc(...BLACK)
+            const sl=doc.splitTextToSize(trunc(entry.summary,350),CW)
+            guard(sl.length*4); doc.text(sl,ML,y); y+=sl.length*4+2
+          }
+          const buls=[
+            ...(entry.insights||[]).slice(0,2).map(i=>`• ${i}`),
+            ...(entry.risks||[]).slice(0,1).map(r=>`⚠ ${r}`),
+            ...(entry.opportunities||[]).slice(0,1).map(o=>`→ ${o}`),
+          ]
+          if(buls.length){
+            fn(7.5); tc(...GRAY)
+            buls.forEach(b=>{const bl=doc.splitTextToSize(b.slice(0,200),CW);guard(bl.length*3.8);doc.text(bl,ML+2,y);y+=bl.length*3.8})
+          }
+          y+=3
+        })
+      }
+
+      // ── SECTION 7: AI Account Intelligence Summary ─────────────
+      if(acct.aiSummary?.content){
+        sect('AI Account Intelligence Summary')
+        if(acct.aiSummary.generatedAt){fn(8,'italic');tc(...GRAY);doc.text(`Generated: ${fmtD(acct.aiSummary.generatedAt.split('T')[0])}`,ML,y);y+=5}
+        const cleaned=acct.aiSummary.content
+          .replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1')
+          .replace(/^#+ /gm,'').replace(/^---\s*$/gm,'').trim()
+        wrapText(trunc(cleaned,2500),ML,CW,8.5); y+=3
+      }
+
+      // ── SECTION 8: Upcoming Dates ──────────────────────────────
+      const upcoming=(acct.upcomingDates||[]).filter(d=>new Date(d.date+'T12:00:00')>=new Date()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,10)
+      if(upcoming.length>0){
+        sect('Upcoming Dates')
+        upcoming.forEach(d=>{
+          guard(7); fn(8.5,'bold'); tc(...NAVY); doc.text(fmtD(d.date),ML,y)
+          fn(8.5); tc(...BLACK); doc.text((d.title||'').slice(0,80),ML+30,y)
+          if(d.type){fn(7.5);tc(...GRAY);doc.text(`[${d.type}]`,PW-MR,y,{align:'right'})}
+          y+=5
+        })
+      }
+
+      // ── SECTION 9: Files ───────────────────────────────────────
+      const acctFiles=acct.files||[]
+      if(acctFiles.length>0){
+        sect('Files')
+        guard(8); fn(8.5); tc(...BLACK)
+        doc.text(`${acctFiles.length} file${acctFiles.length!==1?'s':''} on file. Open Ledgr to view and download.`,ML,y); y+=6
+        acctFiles.slice(0,12).forEach(f=>{
+          guard(6); fn(8); tc(...GRAY)
+          doc.text(`• ${(f.name||f.fileName||'File').slice(0,72)}`,ML+2,y); y+=4.5
+        })
+      }
+
+      // ── FOOTER on all pages ────────────────────────────────────
+      const pgCount=doc.getNumberOfPages()
+      for(let pg=1;pg<=pgCount;pg++){
+        doc.setPage(pg)
+        fc(...NAVY); doc.rect(0,PH-10,PW,10,'F')
+        fn(7); tc(180,200,230)
+        doc.text('CONFIDENTIAL — GuidePoint Security Internal Use Only',ML,PH-3.5)
+        doc.text(`Page ${pg} of ${pgCount}`,PW-MR,PH-3.5,{align:'right'})
+      }
+
+      // ── SAVE ───────────────────────────────────────────────────
+      const safeName=(acct.name||'Account').replace(/[^a-zA-Z0-9 \-_]/g,'').trim()
+      const ds=new Date().toISOString().split('T')[0]
+      doc.save(`Master Account Plan - ${safeName} - ${ds}.pdf`)
+    } catch(err) {
+      console.error('[MasterAccountPlan] PDF export failed:',err)
+      alert('PDF export failed. Please try again.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   return (
     <div style={{maxWidth:520}}>
       <SH>Account Logo</SH>
@@ -134,6 +480,22 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
           <Field label='Number of Endpoints' value={acct.endpoints||''} onChange={v=>setAcct(p=>({...p,endpoints:v}))}/>
         </div>
         <Field label='Account Notes' value={acct.notes} onChange={v=>setAcct(p=>({...p,notes:v}))} multiline/>
+      </Card>
+      <SH>Account Export</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:180}}>
+            <div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:2}}>Master Account Plan</div>
+            <div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>Download a professional PDF covering contacts, tech stack, pipeline, open actions, and recent intel.</div>
+          </div>
+          <button
+            onClick={generateMasterAccountPlan}
+            disabled={pdfLoading}
+            style={{flexShrink:0,padding:'8px 18px',background:pdfLoading?'#93c5fd':'#007AFF',border:'none',borderRadius:7,color:'#fff',fontSize:13,fontWeight:700,cursor:pdfLoading?'default':'pointer',whiteSpace:'nowrap',transition:'background 0.15s',opacity:pdfLoading?0.75:1}}
+          >
+            {pdfLoading?'Generating…':'Export Master Account Plan'}
+          </button>
+        </div>
       </Card>
       <SH>AI Budget &amp; Controls</SH>
       <Card style={{padding:16,marginBottom:20}}>
