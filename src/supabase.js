@@ -223,6 +223,48 @@ export const deleteFile = async (path) => {
   if (error) throw new Error('Delete failed. Please try again.')
 }
 
+// ─── Global files ─────────────────────────────────────────────────────────────
+// Same bucket as account files, distinct path prefix: global-files/
+
+export const uploadGlobalFile = async (file, category, notes) => {
+  if (file.size > FILE_MAX_BYTES) {
+    throw new Error(`File is too large (${(file.size/1024/1024).toFixed(1)} MB). Maximum is 25 MB.`)
+  }
+  if (!ALLOWED_FILE_MIME.has(file.type)) {
+    throw new Error(`File type "${file.type || 'unknown'}" is not allowed. Use PDF, Word, Excel, PowerPoint, CSV, TXT, or image files.`)
+  }
+  const safeName = sanitizeFileName(file.name)
+  const storagePath = `global-files/${Date.now()}_${safeName}`
+  const { error } = await supabase.storage
+    .from('account-files')
+    .upload(storagePath, file)
+  if (error) throw new Error('Upload failed. Please try again.')
+  return {
+    id: `gf_${Date.now()}`,
+    name: file.name.slice(0, 200),
+    type: file.type,
+    size: file.size,
+    uploadedAt: new Date().toISOString(),
+    category: category || 'Other',
+    notes: notes || '',
+    storagePath,
+  }
+}
+
+export const getGlobalFileUrl = async (storagePath) => {
+  const { data } = await supabase.storage
+    .from('account-files')
+    .createSignedUrl(storagePath, 3600)
+  return data?.signedUrl
+}
+
+export const deleteGlobalFile = async (storagePath) => {
+  const { error } = await supabase.storage
+    .from('account-files')
+    .remove([storagePath])
+  if (error) throw new Error('Delete failed. Please try again.')
+}
+
 // ─── Contact photos ───────────────────────────────────────────────────────────
 
 export const uploadContactPhoto = async (accountId, contactId, file) => {

@@ -13,6 +13,7 @@ import AIHistory from './components/AIHistory.jsx'
 import AIChatModal from './components/AIChatModal.jsx'
 import Admin from './components/Admin.jsx'
 import Files from './components/Files.jsx'
+import GlobalFilesPage from './components/GlobalFilesPage.jsx'
 import AccountDashboard from './components/AccountDashboard.jsx'
 import Actions from './components/Actions.jsx'
 import Projects from './components/Projects.jsx'
@@ -1431,6 +1432,7 @@ export default function App() {
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
+  const [showFiles,setShowFiles] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
@@ -1474,7 +1476,7 @@ export default function App() {
     const localAI = getRecords()
     const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
     try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed'})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -1496,6 +1498,8 @@ export default function App() {
         setShowAllProjects(true); setIsLandingPage(false)
       } else if (saved.page === 'vendors') {
         setShowVendors(true); setIsLandingPage(false)
+      } else if (saved.page === 'files') {
+        setShowFiles(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
         const exists = data.accounts.find(a => a.id === saved.activeId)
         if (exists) {
@@ -1513,13 +1517,14 @@ export default function App() {
   // Skip before initial load so we don't overwrite a saved state with default values.
   useEffect(()=>{
     if (!initialLoadDone) return
-    const page = showWhitespace ? 'whitespace'
+    const page = showFiles ? 'files'
+      : showWhitespace ? 'whitespace'
       : showAllProjects ? 'allprojects'
       : showVendors ? 'vendors'
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showWhitespace, showAllProjects, showVendors, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWhitespace, showAllProjects, showVendors, isLandingPage, activeId, tab, initialLoadDone])
 
   const safeLoadData = async () => {
     // Skip focus reload if a save is queued but not yet committed — reloading now would discard
@@ -1890,6 +1895,14 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     />
   )
 
+  if (showFiles) return (
+    <GlobalFilesPage
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowFiles(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (isLandingPage) return (
     <LandingPage
       data={data}
@@ -1900,6 +1913,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
+      onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
       onGenerateBrief={generateDailyBrief}
