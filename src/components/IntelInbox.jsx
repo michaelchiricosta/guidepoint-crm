@@ -1083,6 +1083,81 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
         {/* ── Body ── */}
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
 
+          {/* ── Wave AI Transcripts — always visible, always first ── */}
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }}>
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', lineHeight: 1 }}>W</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Wave AI Transcripts</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                  {data.waveSettings?.lastSyncedAt ? `Last synced ${fmtSyncTime(data.waveSettings.lastSyncedAt)}` : 'Never synced'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: '#64748b' }}>Auto</span>
+                <button onClick={toggleWaveAutoSync}
+                  style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', background: waveAutoSync ? '#7c3aed' : '#D1D5DB', transition: 'background 0.15s', position: 'relative', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', top: 2, left: waveAutoSync ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
+                </button>
+                <button onClick={syncWave} disabled={waveSyncing}
+                  style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: waveSyncing ? 'default' : 'pointer', opacity: waveSyncing ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                  {waveSyncing ? 'Syncing…' : 'Sync Now'}
+                </button>
+              </div>
+            </div>
+
+            {/* Syncing spinner */}
+            {waveSyncing && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #c4b5fd', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'iiSpin 0.75s linear infinite', flexShrink: 0 }} />
+                {waveSyncMsg || 'Pulling transcripts from Wave...'}
+              </div>
+            )}
+
+            {/* Error */}
+            {waveError && !waveSyncing && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 8 }}>
+                {waveError}
+              </div>
+            )}
+
+            {/* First-sync init message */}
+            {waveFirstSync && !waveSyncing && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#15803d', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>
+                <span>Wave sync initialized. New calls going forward will appear here.</span>
+              </div>
+            )}
+
+            {/* Transcript cards */}
+            {waveTranscripts.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                {waveTranscripts.map(t => (
+                  <WaveTranscriptCard
+                    key={t.session_id}
+                    transcript={t}
+                    accounts={data.accounts || []}
+                    expandedSet={waveExpanded[t.session_id] || new Set()}
+                    onToggleExpand={name => waveToggleExpand(t.session_id, name)}
+                    appliedSet={new Set(Object.keys(waveApplied).filter(k => k.startsWith(t.session_id + '-')))}
+                    manualSels={waveManualSels}
+                    onManualSel={waveSetManualSel}
+                    onApply={applyWaveToAccount}
+                    onSkip={skipWaveMatch}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Post-sync empty state */}
+            {!waveSyncing && !waveFirstSync && !waveError && waveTranscripts.length === 0 && data.waveSettings?.lastSyncedAt && (
+              <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '8px 0 2px' }}>No new transcripts since last sync.</div>
+            )}
+          </div>
+
           {/* INPUT */}
           {step === 'input' && (
             <div style={{ padding: '20px 24px' }}>
@@ -1166,83 +1241,6 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
                 <button onClick={onClose} style={{ padding: '11px 16px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               </div>
 
-              {/* ── Wave AI Transcripts section ── */}
-              <div style={{ marginTop: 20, borderTop: '1px solid #f1f5f9', paddingTop: 18 }}>
-                {/* Section header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', lineHeight: 1 }}>W</span>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Wave AI Transcripts</div>
-                    {data.waveSettings?.lastSyncedAt && (
-                      <div style={{ fontSize: 12, color: '#9CA3AF' }}>Last synced {fmtSyncTime(data.waveSettings.lastSyncedAt)}</div>
-                    )}
-                    {!data.waveSettings?.lastSyncedAt && (
-                      <div style={{ fontSize: 12, color: '#9CA3AF' }}>Never synced</div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>Auto</span>
-                    <button onClick={toggleWaveAutoSync}
-                      style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', background: waveAutoSync ? '#7c3aed' : '#D1D5DB', transition: 'background 0.15s', position: 'relative', flexShrink: 0 }}>
-                      <span style={{ position: 'absolute', top: 2, left: waveAutoSync ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
-                    </button>
-                    <button onClick={syncWave} disabled={waveSyncing}
-                      style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: waveSyncing ? 'default' : 'pointer', opacity: waveSyncing ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                      {waveSyncing ? 'Syncing…' : 'Sync Now'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Loading state */}
-                {waveSyncing && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-                    <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #c4b5fd', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'iiSpin 0.75s linear infinite', flexShrink: 0 }} />
-                    {waveSyncMsg || 'Pulling transcripts from Wave...'}
-                  </div>
-                )}
-
-                {/* Error */}
-                {waveError && !waveSyncing && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 10 }}>
-                    {waveError}
-                  </div>
-                )}
-
-                {/* First sync initialization message */}
-                {waveFirstSync && !waveSyncing && (
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#15803d', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>
-                    <span>Wave sync initialized. New calls going forward will appear here.</span>
-                  </div>
-                )}
-
-                {/* Transcript cards */}
-                {waveTranscripts.length > 0 && (
-                  <div>
-                    {waveTranscripts.map((t, ti) => (
-                      <WaveTranscriptCard
-                        key={t.session_id}
-                        transcript={t}
-                        accounts={data.accounts || []}
-                        expandedSet={waveExpanded[t.session_id] || new Set()}
-                        onToggleExpand={name => waveToggleExpand(t.session_id, name)}
-                        appliedSet={new Set(Object.keys(waveApplied).filter(k => k.startsWith(t.session_id + '-')))}
-                        manualSels={waveManualSels}
-                        onManualSel={waveSetManualSel}
-                        onApply={applyWaveToAccount}
-                        onSkip={skipWaveMatch}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Empty state after sync */}
-                {!waveSyncing && !waveFirstSync && !waveError && waveTranscripts.length === 0 && data.waveSettings?.lastSyncedAt && (
-                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '14px 0' }}>No new transcripts since last sync.</div>
-                )}
-              </div>
             </div>
           )}
 
