@@ -86,14 +86,17 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── List today's sessions (metadata only — transcripts fetched per user selection) ──
+  // ── List sessions from last 48 hours (metadata only — transcripts fetched per user selection) ──
   if (action === 'list') {
-    // Always use today midnight — UI shows all of today's sessions for manual selection
-    const TODAY_FLOOR = new Date()
-    TODAY_FLOOR.setHours(0, 0, 0, 0)
+    const now = new Date()
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000)
+    const requestedAfter = body.lastSyncedAt ? new Date(body.lastSyncedAt) : null
+    const after = requestedAfter && requestedAfter > fortyEightHoursAgo
+      ? requestedAfter
+      : fortyEightHoursAgo
 
     try {
-      const params = new URLSearchParams({ limit: '50', after: TODAY_FLOOR.toISOString() })
+      const params = new URLSearchParams({ limit: '50', after: after.toISOString() })
       const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
       if (!waveRes.ok) {
         const errText = await waveRes.text().catch(() => '')
@@ -117,13 +120,13 @@ export default async function handler(req, res) {
       console.log('[wave/list] sessions array found:', sessions.length, 'items')
       if (sessions.length > 0) console.log('[wave/list] first session sample:', JSON.stringify(sessions[0]))
 
-      // Nuclear filter: never return sessions older than today midnight — TEMPORARILY DISABLED for debugging
-      // sessions = sessions.filter(s => {
-      //   const raw = s.date || s.created_at || s.started_at || s.completed_at
-      //   if (!raw) return false
-      //   const sessionDate = new Date(raw)
-      //   return !isNaN(sessionDate) && sessionDate >= TODAY_FLOOR
-      // })
+      // Never return sessions older than 48 hours regardless of lastSyncedAt
+      sessions = sessions.filter(s => {
+        const raw = s.date || s.created_at || s.started_at || s.completed_at
+        if (!raw) return false
+        const sessionDate = new Date(raw)
+        return !isNaN(sessionDate) && sessionDate >= fortyEightHoursAgo
+      })
 
       // Return metadata only — transcripts are fetched separately per user selection
       const metadata = sessions.map(s => ({
@@ -133,7 +136,7 @@ export default async function handler(req, res) {
         duration: s.duration ?? s.duration_seconds ?? null,
       })).filter(s => s.id)
 
-      console.log(`[wave/list] today floor=${TODAY_FLOOR.toISOString()} returning ${metadata.length} sessions`)
+      console.log(`[wave/list] after=${after.toISOString()} returning ${metadata.length} sessions`)
       return res.status(200).json({ ok: true, sessions: metadata })
     } catch (err) {
       console.error('[wave/list] fetch error:', err.message)

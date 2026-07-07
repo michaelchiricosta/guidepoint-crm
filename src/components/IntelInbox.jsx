@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { uid, extractJSON } from '../utils.js'
+import { saveData } from '../supabase.js'
 
 // ── CDN loaders (lazy, cached on window) ──────────────────────────────────────
 
@@ -350,6 +351,35 @@ function ActionsSection({ actions, onUpdate }) {
   )
 }
 
+function ProjectUpdatesSection({ projectUpdates, accounts, accountId, onUpdate }) {
+  if (!projectUpdates?.length) return null
+  const acct = accounts.find(a => a.id === accountId)
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Project Stage Updates</div>
+      {projectUpdates.map((pu, i) => {
+        const proj = (acct?.projects || []).find(p => p.name?.toLowerCase() === pu.project_name?.toLowerCase())
+        const currentStage = proj?.stage || '—'
+        return (
+          <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', background: pu.approved ? '#f0f9ff' : '#f8fafc', borderRadius: 7, marginBottom: 4, border: `1px solid ${pu.approved ? '#bfdbfe' : '#e2e8f0'}`, cursor: 'pointer', transition: 'all 0.12s' }}>
+            <input type='checkbox' checked={!!pu.approved} onChange={() => onUpdate(i, { approved: !pu.approved })}
+              style={{ width: 15, height: 15, marginTop: 2, accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0, opacity: pu.approved ? 1 : 0.5 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', lineHeight: 1.4, marginBottom: 2 }}>
+                {pu.project_name}:{' '}
+                <span style={{ color: '#64748b' }}>{currentStage}</span>
+                {' → '}
+                <span style={{ color: '#2563eb', fontWeight: 700 }}>{pu.suggested_stage}</span>
+              </div>
+              <div style={{ fontSize: 11, color: '#6B7280', lineHeight: 1.4 }}>{pu.reason}</div>
+            </div>
+          </label>
+        )
+      })}
+    </div>
+  )
+}
+
 function WhitespaceCard({ item, onUpdate }) {
   return (
     <div style={{ background: item.approved ? '#f0fdf9' : '#f8fafc', border: `1px solid ${item.approved ? '#6ee7b7' : '#e2e8f0'}`, borderRadius: 12, padding: 14, marginBottom: 10, transition: 'background 0.12s, border-color 0.12s' }}>
@@ -509,7 +539,14 @@ Return ONLY a JSON array with no preamble or markdown:
     ],
     "vendors_mentioned": ["string"],
     "urgency_signals": ["string"],
-    "sentiment": "positive|neutral|needs_attention"
+    "sentiment": "positive|neutral|needs_attention",
+    "project_updates": [
+      {
+        "project_name": "string (match to an existing project name if possible)",
+        "suggested_stage": "string (one of: Awareness|NDA|Intro Call|Demo|POC|Scoping|Pricing|Legal|Procurement|PO Received|Deployed)",
+        "reason": "string (why this stage update is suggested based on the transcript)"
+      }
+    ]
   }
 ]
 
@@ -588,12 +625,11 @@ ${truncated}`
 
     try {
       const appliedSessions = data.waveSettings?.appliedSessions || []
-      const newTranscripts = []
+      const allReviewItems = []
 
       for (let i = 0; i < toAnalyze.length; i++) {
         const session = toAnalyze[i]
         const sid = session.id
-
         setWaveSyncMsg(`Analyzing ${i + 1} of ${toAnalyze.length}: ${session.title || sid}...`)
 
         const tResp = await fetch('/api/wave', {
@@ -612,28 +648,61 @@ ${truncated}`
         const appliedForSession = new Set(
           appliedSessions.filter(a => a.session_id === sid).map(a => a.account_name)
         )
-        const filteredMatches = matches.filter(m => !appliedForSession.has(m.account_name))
-        if (filteredMatches.length === 0) continue
+        const sessionDate = session.date ? session.date.split('T')[0] : today
 
-        newTranscripts.push({
-          session_id: sid,
-          title: session.title || 'Call Recording',
-          date: session.date || new Date().toISOString().split('T')[0],
-          duration: session.duration ?? '',
-          matches: filteredMatches,
-        })
-      }
+        for (const m of matches) {
+          if (appliedForSession.has(m.account_name)) continue
+          const acct = data.accounts.find(a =>
+            a.name?.toLowerCase() === (m.account_name || '').toLowerCase()
+          )
+          // skip UNKNOWN with no account match
+          if (!acct && m.account_name === 'UNKNOWN') continue
 
-      if (newTranscripts.length > 0) {
-        setWaveTranscripts(prev => {
-          const newIds = new Set(newTranscripts.map(t => t.session_id))
-          return [...newTranscripts, ...prev.filter(t => !newIds.has(t.session_id))]
-        })
-        setWaveExpanded({})
+          // Map Wave format → initReviewEntry format
+          const reviewInput = {
+            accountId:   acct?.id || '',
+            accountName: (m.account_name === 'UNKNOWN' ? acct?.name : m.account_name) || m.account_name,
+            confidence:  m.confidence === 'high' ? 90 : m.confidence === 'medium' ? 65 : 40,
+            matchReason: `Wave call: ${session.title || sid}`,
+            suggestedIntelEntry: {
+              date:         sessionDate,
+              type:         'Call',
+              participants: (m.contacts_mentioned || []).map(c => c.name).join(', '),
+              summary:      m.intel_summary || '',
+              insights:     m.vendors_mentioned || [],
+              risks:        m.urgency_signals || [],
+              opportunities: [],
+            },
+            suggestedActions: (m.action_items || []).map(ai => ({
+              task:     ai.task || '',
+              priority: 'High',
+              dueDate:  ai.suggested_due_date || '',
+              contact:  ai.contact || '',
+              context:  '',
+            })),
+          }
+
+          allReviewItems.push({
+            ...initReviewEntry(reviewInput, acct),
+            waveSessionId:  sid,
+            projectUpdates: (m.project_updates || []).map(pu => ({ ...pu, approved: true })),
+          })
+        }
       }
 
       setWaveSessions([])
       setWaveSelected({})
+
+      if (allReviewItems.length > 0) {
+        setReviewItems(allReviewItems)
+        setLowConfGroups([])
+        setLowConfSels({})
+        setLowConfReview({})
+        setWhitespaceItems([])
+        setStep('review')
+      } else {
+        setWaveError('No new intelligence found in selected sessions.')
+      }
     } catch (e) {
       setWaveError(e.message || 'Analysis failed')
     } finally {
@@ -680,9 +749,12 @@ ${truncated}`
       .filter(c => c.name && !existingNames.has(c.name.toLowerCase()))
       .map(c => ({ id: uid(), name: c.name, title: c.title || '', source: 'Wave AI', sessionId: transcript.session_id }))
 
-    setData(prev => {
-      const next = { ...prev }
-      next.accounts = prev.accounts.map(a => {
+    // Build updated state synchronously so we can persist immediately
+    const appliedEntry = { session_id: transcript.session_id, account_name: targetAcct.name, applied_at: new Date().toISOString() }
+    const prevApplied = (data.waveSettings?.appliedSessions || []).slice(-499)
+    const next = {
+      ...data,
+      accounts: data.accounts.map(a => {
         if (a.id !== targetAcct.id) return a
         return {
           ...a,
@@ -691,13 +763,11 @@ ${truncated}`
           lastContact: sessionDateStr,
           contactSuggestions: [...(a.contactSuggestions || []), ...newContactSuggestions],
         }
-      })
-      // Record as applied (keep last 500)
-      const appliedEntry = { session_id: transcript.session_id, account_name: targetAcct.name, applied_at: new Date().toISOString() }
-      const prevApplied = (prev.waveSettings?.appliedSessions || []).slice(-499)
-      next.waveSettings = { ...(prev.waveSettings || {}), appliedSessions: [...prevApplied, appliedEntry] }
-      return next
-    })
+      }),
+      waveSettings: { ...(data.waveSettings || {}), appliedSessions: [...prevApplied, appliedEntry] },
+    }
+    setData(next)
+    saveData(next, null).catch(e => console.error('[wave/apply] save failed:', e.message))
 
     // Mark applied in local state
     const appliedKey = `${transcript.session_id}-${match.account_name}`
@@ -924,9 +994,13 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
   const updateIntel = (idx, f, v) => setReviewItems(p => p.map((it, i) => i === idx ? { ...it, intelEntry: { ...it.intelEntry, [f]: v } } : it))
   const updateAct   = (idx, aid, u) => setReviewItems(p => p.map((it, i) => i === idx ? { ...it, actions: it.actions.map(a => a._id === aid ? { ...a, ...u } : a) } : it))
 
-  const updateLCIntel = (gi, f, v) => setLowConfReview(p => ({ ...p, [gi]: { ...p[gi], intelEntry: { ...p[gi].intelEntry, [f]: v } } }))
-  const updateLCAct   = (gi, aid, u) => setLowConfReview(p => ({ ...p, [gi]: { ...p[gi], actions: p[gi].actions.map(a => a._id === aid ? { ...a, ...u } : a) } }))
-  const updateWS      = (idx, u) => setWhitespaceItems(p => p.map((it, i) => i === idx ? { ...it, ...u } : it))
+  const updateLCIntel    = (gi, f, v) => setLowConfReview(p => ({ ...p, [gi]: { ...p[gi], intelEntry: { ...p[gi].intelEntry, [f]: v } } }))
+  const updateLCAct      = (gi, aid, u) => setLowConfReview(p => ({ ...p, [gi]: { ...p[gi], actions: p[gi].actions.map(a => a._id === aid ? { ...a, ...u } : a) } }))
+  const updateWS         = (idx, u) => setWhitespaceItems(p => p.map((it, i) => i === idx ? { ...it, ...u } : it))
+  const updateProjUpdate = (idx, puIdx, u) => setReviewItems(p => p.map((it, i) => i !== idx ? it : {
+    ...it,
+    projectUpdates: (it.projectUpdates || []).map((pu, j) => j === puIdx ? { ...pu, ...u } : pu),
+  }))
 
   const lines = s => (s || '').split('\n').map(x => x.trim()).filter(Boolean)
 
@@ -981,9 +1055,29 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
             const fus = approved.map(({ _id, approved: _a, ...rest }) => ({ ...rest, id: uid(), status: 'Open' }))
             updated.followUps = [...(updated.followUps || []), ...fus]
           }
+          // Apply approved project stage updates
+          const approvedProjUpdates = (item.projectUpdates || []).filter(p => p.approved)
+          if (approvedProjUpdates.length) {
+            updated.projects = (updated.projects || []).map(proj => {
+              const pu = approvedProjUpdates.find(u => proj.name?.toLowerCase() === u.project_name?.toLowerCase())
+              return pu ? { ...proj, stage: pu.suggested_stage } : proj
+            })
+          }
         }
         return updated
       })
+
+      // Record Wave sessions as applied for items that went through Wave flow
+      const waveItems = toSave.filter(it => it.waveSessionId && it.intelApproved && it.intelEntry?.summary?.trim())
+      if (waveItems.length > 0) {
+        const newApplied = waveItems.map(it => ({
+          session_id:   it.waveSessionId,
+          account_name: it.accountName,
+          applied_at:   now,
+        }))
+        const prevApplied = (prev.waveSettings?.appliedSessions || []).slice(-(500 - newApplied.length))
+        next.waveSettings = { ...(prev.waveSettings || {}), appliedSessions: [...prevApplied, ...newApplied] }
+      }
 
       // Whitespace Opportunities → whitespaceAccounts
       if (wsToSave.length > 0) {
@@ -1146,6 +1240,24 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
 
               return (
                 <div style={{ marginTop: 4 }}>
+                  {/* Select All / Deselect All */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                    <button
+                      onClick={() => {
+                        const sel = {}
+                        waveSessions.forEach(s => { sel[s.id] = !appliedIds.has(s.id) })
+                        setWaveSelected(sel)
+                      }}
+                      style={{ fontSize: 12, color: '#007AFF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', fontWeight: 500 }}>
+                      Select All
+                    </button>
+                    <span style={{ fontSize: 12, color: '#d1d5db' }}>·</span>
+                    <button
+                      onClick={() => setWaveSelected({})}
+                      style={{ fontSize: 12, color: '#007AFF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', fontWeight: 500 }}>
+                      Deselect All
+                    </button>
+                  </div>
                   {waveSessions.map(s => {
                     const isApplied = appliedIds.has(s.id)
                     const isChecked = !!waveSelected[s.id]
@@ -1351,6 +1463,12 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
                   <ActionsSection
                     actions={item.actions}
                     onUpdate={(aid, u) => updateAct(idx, aid, u)}
+                  />
+                  <ProjectUpdatesSection
+                    projectUpdates={item.projectUpdates}
+                    accounts={data.accounts || []}
+                    accountId={item.accountId}
+                    onUpdate={(puIdx, u) => updateProjUpdate(idx, puIdx, u)}
                   />
                 </div>
               ))}
