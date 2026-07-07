@@ -618,8 +618,13 @@ ${truncated}`
   const analyzeSelected = async () => {
     if (waveAnalyzing) return
     const toAnalyze = waveSessions.filter(s => waveSelected[s.id])
+    console.log(`[wave/analyze] called — ${toAnalyze.length} session(s) selected:`, toAnalyze.map(s => s.title || s.id))
     if (toAnalyze.length === 0) return
 
+    // Clear session list immediately — before any async work — so it can never
+    // reappear if an exception fires later in the loop.
+    setWaveSessions([])
+    setWaveSelected({})
     setWaveAnalyzing(true)
     setWaveError('')
 
@@ -638,12 +643,17 @@ ${truncated}`
           body: JSON.stringify({ action: 'transcript', session_id: sid }),
         })
         const tResult = await tResp.json()
+        console.log(`[wave/analyze] transcript for ${sid}:`, tResult.transcript_text ? `${tResult.transcript_text.length} chars` : 'EMPTY', tResult.error || '')
         if (!tResult.transcript_text) continue
 
         let matches
         try {
           matches = await parseWaveTranscript(tResult.transcript_text)
-        } catch { continue }
+          console.log(`[wave/analyze] Claude returned ${matches.length} match(es) for session ${sid}`)
+        } catch (e) {
+          console.error(`[wave/analyze] parseWaveTranscript failed for ${sid}:`, e.message)
+          continue
+        }
 
         const appliedForSession = new Set(
           appliedSessions.filter(a => a.session_id === sid).map(a => a.account_name)
@@ -655,10 +665,8 @@ ${truncated}`
           const acct = data.accounts.find(a =>
             a.name?.toLowerCase() === (m.account_name || '').toLowerCase()
           )
-          // skip UNKNOWN with no account match
           if (!acct && m.account_name === 'UNKNOWN') continue
 
-          // Map Wave format → initReviewEntry format
           const reviewInput = {
             accountId:   acct?.id || '',
             accountName: (m.account_name === 'UNKNOWN' ? acct?.name : m.account_name) || m.account_name,
@@ -690,8 +698,7 @@ ${truncated}`
         }
       }
 
-      setWaveSessions([])
-      setWaveSelected({})
+      console.log(`[wave/analyze] finished — ${allReviewItems.length} review item(s) built`)
 
       if (allReviewItems.length > 0) {
         setReviewItems(allReviewItems)
@@ -704,6 +711,7 @@ ${truncated}`
         setWaveError('No new intelligence found in selected sessions.')
       }
     } catch (e) {
+      console.error('[wave/analyze] outer error:', e.message)
       setWaveError(e.message || 'Analysis failed')
     } finally {
       setWaveAnalyzing(false)
