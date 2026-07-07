@@ -111,13 +111,19 @@ export default async function handler(req, res) {
         : Array.isArray(data.data) ? data.data
         : []
 
-      // Nuclear filter: never return sessions older than today midnight
-      sessions = sessions.filter(s => {
-        const raw = s.date || s.created_at || s.started_at || s.completed_at
-        if (!raw) return false
-        const sessionDate = new Date(raw)
-        return !isNaN(sessionDate) && sessionDate >= TODAY_FLOOR
-      })
+      // DEBUG: log raw Wave response before any filtering
+      console.log('[wave/list] raw response status:', waveRes.status)
+      console.log('[wave/list] raw response body:', JSON.stringify(data).slice(0, 2000))
+      console.log('[wave/list] sessions array found:', sessions.length, 'items')
+      if (sessions.length > 0) console.log('[wave/list] first session sample:', JSON.stringify(sessions[0]))
+
+      // Nuclear filter: never return sessions older than today midnight — TEMPORARILY DISABLED for debugging
+      // sessions = sessions.filter(s => {
+      //   const raw = s.date || s.created_at || s.started_at || s.completed_at
+      //   if (!raw) return false
+      //   const sessionDate = new Date(raw)
+      //   return !isNaN(sessionDate) && sessionDate >= TODAY_FLOOR
+      // })
 
       // Return metadata only — transcripts are fetched separately per user selection
       const metadata = sessions.map(s => ({

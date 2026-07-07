@@ -538,6 +538,13 @@ ${truncated}`
     setWaveSessions([])
     setWaveSelected({})
 
+    // DEBUG: call test action first to inspect raw Wave API response
+    try {
+      const testResp = await fetch('/api/wave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test' }) })
+      const testResult = await testResp.json()
+      console.log('[wave/debug] test action status:', testResp.status, testResult)
+    } catch (e) { console.error('[wave/debug] test action failed:', e) }
+
     try {
       const listResp = await fetch('/api/wave', {
         method: 'POST',
