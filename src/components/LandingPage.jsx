@@ -258,7 +258,7 @@ const BarChartCard = memo(function BarChartCard({data}) {
           </div>
         </div>
       )}
-      <div className="lp-chart-bar" style={{background:'#FFFFFF',borderRadius:12,padding:20,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #EEEFF2',flex:'0 0 63%',minWidth:0,boxSizing:'border-box'}}>
+      <div className="lp-chart-bar" style={{background:'#FFFFFF',borderRadius:12,padding:20,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',border:'1px solid #EEEFF2',flex:'0 0 63%',minWidth:0,boxSizing:'border-box',height:'100%'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:4}}>
           <div>
             <div style={{fontSize:15,fontWeight:700,color:'#111827'}}>Projects & Pipeline</div>
@@ -323,7 +323,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   }
 
   return (
-    <div className="lp-chart-perf" style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box'}}>
+    <div className="lp-chart-perf" style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box',height:'100%'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
         <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
         <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
@@ -958,7 +958,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
           ) : (
             <div>
               {/* CHART ROW */}
-              <div style={{display:'flex',gap:16,marginBottom:20,alignItems:'flex-start',flexWrap:'wrap'}}>
+              <div style={{display:'flex',gap:16,marginBottom:20,alignItems:'stretch',flexWrap:'wrap'}}>
                 <BarChartCard data={data}/>
                 <PerformanceGaugeCard data={data} setData={setData} onGoAllProjects={onGoAllProjects}/>
               </div>
