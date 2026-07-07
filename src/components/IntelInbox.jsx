@@ -418,12 +418,14 @@ export default function IntelInbox({ data, setData, apiKey, onClose }) {
 
   // ── Wave AI state ─────────────────────────────────────────────────────────────
   const [waveTranscripts, setWaveTranscripts] = useState([])
+  const [waveSessions, setWaveSessions]       = useState([])   // today's sessions from list call
+  const [waveSelected, setWaveSelected]       = useState({})   // session_id → boolean
   const [waveSyncing, setWaveSyncing]         = useState(false)
+  const [waveAnalyzing, setWaveAnalyzing]     = useState(false)
   const [waveSyncMsg, setWaveSyncMsg]         = useState('')
-  const [waveFirstSync, setWaveFirstSync]     = useState(false)
-  const [waveExpanded, setWaveExpanded]       = useState({}) // session_id → Set<account_name>
-  const [waveManualSels, setWaveManualSels]   = useState({}) // 'session_id-account_name' → accountId
-  const [waveApplied, setWaveApplied]         = useState({}) // 'session_id-account_name' → true
+  const [waveExpanded, setWaveExpanded]       = useState({})   // session_id → Set<account_name>
+  const [waveManualSels, setWaveManualSels]   = useState({})   // 'session_id-account_name' → accountId
+  const [waveApplied, setWaveApplied]         = useState({})   // 'session_id-account_name' → true
   const [waveToast, setWaveToast]             = useState('')
   const [waveError, setWaveError]             = useState('')
 
@@ -527,33 +529,20 @@ ${truncated}`
     return Array.isArray(parsed) ? parsed : []
   }
 
-  const syncWave = async () => {
+  const fetchWaveSessions = async () => {
     if (waveSyncing || waveSyncInProgress) return
     waveSyncInProgress = true
     setWaveSyncing(true)
-    setWaveFirstSync(false)
     setWaveError('')
-    setWaveSyncMsg('Pulling transcripts from Wave...')
+    setWaveSyncMsg("Loading today's sessions...")
+    setWaveSessions([])
+    setWaveSelected({})
 
     try {
-      const lastSyncedAt = data.waveSettings?.lastSyncedAt || null
-      console.log('[wave/sync] lastSyncedAt read from data:', lastSyncedAt)
-
-      // First ever sync -- initialize floor and return
-      if (!lastSyncedAt) {
-        const floorISO = new Date().toISOString()
-        console.log('[wave/sync] first sync — initializing floor to', floorISO)
-        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: floorISO } }))
-        setWaveFirstSync(true)
-        return
-      }
-
-      // Already initialized -- proceed to fetch sessions after lastSyncedAt
-      console.log('[wave/sync] fetching sessions after', lastSyncedAt)
       const listResp = await fetch('/api/wave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', lastSyncedAt }),
+        body: JSON.stringify({ action: 'list' }),
       })
       const listResult = await listResp.json()
       if (!listResp.ok || listResult.error) {
@@ -561,24 +550,45 @@ ${truncated}`
       }
 
       const sessions = listResult.sessions || []
+      const appliedSessions = data.waveSettings?.appliedSessions || []
+      const appliedIds = new Set(appliedSessions.map(a => a.session_id))
+
+      setWaveSessions(sessions)
+
+      // Default selection: unapplied sessions checked, applied sessions unchecked
+      const selected = {}
+      sessions.forEach(s => { selected[s.id] = !appliedIds.has(s.id) })
+      setWaveSelected(selected)
+
       const now = new Date().toISOString()
+      setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
+    } catch (e) {
+      setWaveError(e.message || 'Wave sync failed')
+    } finally {
+      waveSyncInProgress = false
+      setWaveSyncing(false)
+      setWaveSyncMsg('')
+    }
+  }
 
-      if (sessions.length === 0) {
-        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
-        setWaveSyncing(false)
-        setWaveSyncMsg('')
-        return
-      }
+  const analyzeSelected = async () => {
+    if (waveAnalyzing) return
+    const toAnalyze = waveSessions.filter(s => waveSelected[s.id])
+    if (toAnalyze.length === 0) return
 
-      // For each session: fetch transcript, parse with Claude
+    setWaveAnalyzing(true)
+    setWaveError('')
+
+    try {
       const appliedSessions = data.waveSettings?.appliedSessions || []
       const newTranscripts = []
 
-      for (const session of sessions) {
-        const sid = session.id || session.recording_id || session.session_id || ''
-        if (!sid) continue
+      for (let i = 0; i < toAnalyze.length; i++) {
+        const session = toAnalyze[i]
+        const sid = session.id
 
-        setWaveSyncMsg(`Fetching: ${session.title || sid}...`)
+        setWaveSyncMsg(`Analyzing ${i + 1} of ${toAnalyze.length}: ${session.title || sid}...`)
+
         const tResp = await fetch('/api/wave', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -587,44 +597,40 @@ ${truncated}`
         const tResult = await tResp.json()
         if (!tResult.transcript_text) continue
 
-        setWaveSyncMsg(`Analyzing: ${session.title || sid}...`)
         let matches
         try {
           matches = await parseWaveTranscript(tResult.transcript_text)
         } catch { continue }
 
-        // Filter already-applied account matches for this session
         const appliedForSession = new Set(
           appliedSessions.filter(a => a.session_id === sid).map(a => a.account_name)
         )
         const filteredMatches = matches.filter(m => !appliedForSession.has(m.account_name))
         if (filteredMatches.length === 0) continue
 
-        const sessionDate = session.date || session.created_at || session.started_at || new Date().toISOString().split('T')[0]
         newTranscripts.push({
           session_id: sid,
-          title: session.title || session.name || 'Call Recording',
-          date: sessionDate,
-          duration: session.duration ?? session.duration_seconds ?? '',
+          title: session.title || 'Call Recording',
+          date: session.date || new Date().toISOString().split('T')[0],
+          duration: session.duration ?? '',
           matches: filteredMatches,
         })
       }
 
-      console.log('[wave/sync] writing lastSyncedAt', now)
-      setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
-
       if (newTranscripts.length > 0) {
         setWaveTranscripts(prev => {
-          const existingIds = new Set(newTranscripts.map(t => t.session_id))
-          return [...newTranscripts, ...prev.filter(t => !existingIds.has(t.session_id))]
+          const newIds = new Set(newTranscripts.map(t => t.session_id))
+          return [...newTranscripts, ...prev.filter(t => !newIds.has(t.session_id))]
         })
         setWaveExpanded({})
       }
+
+      setWaveSessions([])
+      setWaveSelected({})
     } catch (e) {
-      setWaveError(e.message || 'Wave sync failed')
+      setWaveError(e.message || 'Analysis failed')
     } finally {
-      waveSyncInProgress = false
-      setWaveSyncing(false)
+      setWaveAnalyzing(false)
       setWaveSyncMsg('')
     }
   }
@@ -1084,39 +1090,102 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <button onClick={syncWave} disabled={waveSyncing}
-                  style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: waveSyncing ? 'default' : 'pointer', opacity: waveSyncing ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-                  {waveSyncing ? 'Syncing…' : 'Sync Now'}
+                <button onClick={fetchWaveSessions} disabled={waveSyncing || waveAnalyzing}
+                  style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: (waveSyncing || waveAnalyzing) ? 'default' : 'pointer', opacity: (waveSyncing || waveAnalyzing) ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                  {waveSyncing ? 'Loading…' : 'Sync Now'}
                 </button>
               </div>
             </div>
 
-            {/* Syncing spinner */}
+            {/* Loading spinner */}
             {waveSyncing && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                 <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #c4b5fd', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'iiSpin 0.75s linear infinite', flexShrink: 0 }} />
-                {waveSyncMsg || 'Pulling transcripts from Wave...'}
+                {waveSyncMsg || "Loading today's sessions..."}
+              </div>
+            )}
+
+            {/* Analyzing spinner */}
+            {waveAnalyzing && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #c4b5fd', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'iiSpin 0.75s linear infinite', flexShrink: 0 }} />
+                {waveSyncMsg || 'Analyzing sessions...'}
               </div>
             )}
 
             {/* Error */}
-            {waveError && !waveSyncing && (
+            {waveError && !waveSyncing && !waveAnalyzing && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 8 }}>
                 {waveError}
               </div>
             )}
 
-            {/* First-sync init message */}
-            {waveFirstSync && !waveSyncing && (
-              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#15803d', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>
-                <span>Wave sync initialized. New calls going forward will appear here.</span>
-              </div>
-            )}
+            {/* Session list for manual selection */}
+            {waveSessions.length > 0 && !waveSyncing && !waveAnalyzing && (() => {
+              const appliedIds = new Set((data.waveSettings?.appliedSessions || []).map(a => a.session_id))
+              const unappliedCount = waveSessions.filter(s => !appliedIds.has(s.id)).length
+              const checkedCount = waveSessions.filter(s => waveSelected[s.id]).length
+
+              const fmtD = d => {
+                if (!d) return ''
+                try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) } catch { return d }
+              }
+              const fmtDur = sec => {
+                if (sec == null || sec === '') return ''
+                if (typeof sec === 'string') return sec
+                const m = Math.floor(sec / 60), s = sec % 60
+                return `${m}:${String(s).padStart(2, '0')}`
+              }
+
+              return (
+                <div style={{ marginTop: 4 }}>
+                  {waveSessions.map(s => {
+                    const isApplied = appliedIds.has(s.id)
+                    const isChecked = !!waveSelected[s.id]
+                    const durStr = fmtDur(s.duration)
+                    return (
+                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #f1f5f9', cursor: isApplied ? 'default' : 'pointer', opacity: isApplied ? 0.55 : 1 }}>
+                        <input
+                          type='checkbox'
+                          checked={isChecked}
+                          disabled={isApplied}
+                          onChange={() => !isApplied && setWaveSelected(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
+                          style={{ width: 15, height: 15, accentColor: '#007AFF', cursor: isApplied ? 'default' : 'pointer', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: isApplied ? '#9CA3AF' : '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.title || 'Call Recording'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                            {fmtD(s.date)}{durStr ? ` · ${durStr}` : ''}
+                          </div>
+                        </div>
+                        {isApplied && (
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: '#D1FAE5', color: '#059669', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                            Already logged
+                          </span>
+                        )}
+                      </label>
+                    )
+                  })}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <span style={{ fontSize: 12, color: '#6B7280' }}>
+                      {checkedCount} of {unappliedCount} selected
+                    </span>
+                    <button
+                      onClick={analyzeSelected}
+                      disabled={checkedCount === 0}
+                      style={{ padding: '6px 16px', background: checkedCount === 0 ? '#94a3b8' : '#007AFF', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: checkedCount === 0 ? 'not-allowed' : 'pointer' }}>
+                      Analyze Selected
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Transcript cards */}
-            {waveTranscripts.length > 0 && (
-              <div style={{ marginTop: 4 }}>
+            {waveTranscripts.length > 0 && !waveAnalyzing && (
+              <div style={{ marginTop: waveSessions.length > 0 ? 16 : 4 }}>
                 {waveTranscripts.map(t => (
                   <WaveTranscriptCard
                     key={t.session_id}
@@ -1134,9 +1203,9 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
               </div>
             )}
 
-            {/* Post-sync empty state */}
-            {!waveSyncing && !waveFirstSync && !waveError && waveTranscripts.length === 0 && data.waveSettings?.lastSyncedAt && (
-              <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '8px 0 2px' }}>No new transcripts since last sync.</div>
+            {/* Empty state — shown after a sync that returned no sessions */}
+            {waveSessions.length === 0 && !waveSyncing && !waveAnalyzing && !waveError && waveTranscripts.length === 0 && data.waveSettings?.lastSyncedAt && (
+              <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '8px 0 2px' }}>No Wave sessions found for today.</div>
             )}
           </div>
 

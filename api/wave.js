@@ -86,18 +86,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── List sessions after a given timestamp ────────────────────────────────────
+  // ── List today's sessions (metadata only — transcripts fetched per user selection) ──
   if (action === 'list') {
+    // Always use today midnight — UI shows all of today's sessions for manual selection
     const TODAY_FLOOR = new Date()
     TODAY_FLOOR.setHours(0, 0, 0, 0)
 
-    const requestedAfter = body.lastSyncedAt ? new Date(body.lastSyncedAt) : null
-    const after = requestedAfter && requestedAfter >= TODAY_FLOOR
-      ? requestedAfter
-      : TODAY_FLOOR
-
     try {
-      const params = new URLSearchParams({ limit: '50', after: after.toISOString() })
+      const params = new URLSearchParams({ limit: '50', after: TODAY_FLOOR.toISOString() })
       const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
       if (!waveRes.ok) {
         const errText = await waveRes.text().catch(() => '')
@@ -115,20 +111,24 @@ export default async function handler(req, res) {
         : Array.isArray(data.data) ? data.data
         : []
 
-      // Nuclear filter: regardless of whether Wave honored the `after` param,
-      // never return sessions older than today midnight to the browser.
-      const todayMidnight = new Date()
-      todayMidnight.setHours(0, 0, 0, 0)
-      const beforeFilter = sessions.length
+      // Nuclear filter: never return sessions older than today midnight
       sessions = sessions.filter(s => {
         const raw = s.date || s.created_at || s.started_at || s.completed_at
         if (!raw) return false
         const sessionDate = new Date(raw)
-        return !isNaN(sessionDate) && sessionDate >= todayMidnight
+        return !isNaN(sessionDate) && sessionDate >= TODAY_FLOOR
       })
-      console.log(`[wave/list] after=${after.toISOString()} Wave returned ${beforeFilter} sessions; ${sessions.length} pass today-floor filter`)
 
-      return res.status(200).json({ ok: true, sessions })
+      // Return metadata only — transcripts are fetched separately per user selection
+      const metadata = sessions.map(s => ({
+        id: s.id || s.recording_id || s.session_id || '',
+        title: s.title || s.name || 'Call Recording',
+        date: s.date || s.created_at || s.started_at || s.completed_at || '',
+        duration: s.duration ?? s.duration_seconds ?? null,
+      })).filter(s => s.id)
+
+      console.log(`[wave/list] today floor=${TODAY_FLOOR.toISOString()} returning ${metadata.length} sessions`)
+      return res.status(200).json({ ok: true, sessions: metadata })
     } catch (err) {
       console.error('[wave/list] fetch error:', err.message)
       return res.status(502).json({ error: err.message || 'Could not reach Wave API' })
