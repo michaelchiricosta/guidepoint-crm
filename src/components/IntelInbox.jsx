@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { uid, extractJSON } from '../utils.js'
 
 // ── CDN loaders (lazy, cached on window) ──────────────────────────────────────
@@ -98,6 +98,7 @@ const fmtFileSize = b =>
   b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b >= 1024 ? `${(b / 1024).toFixed(0)} KB` : `${b} B`
 
 // ── Wave helpers ─────────────────────────────────────────────────────────────
+let waveSyncInProgress = false
 
 const fmtSyncTime = iso => {
   if (!iso) return ''
@@ -420,13 +421,11 @@ export default function IntelInbox({ data, setData, apiKey, onClose }) {
   const [waveSyncing, setWaveSyncing]         = useState(false)
   const [waveSyncMsg, setWaveSyncMsg]         = useState('')
   const [waveFirstSync, setWaveFirstSync]     = useState(false)
-  const [waveAutoSync, setWaveAutoSync]       = useState(() => !!(data.waveSettings?.autoSync))
   const [waveExpanded, setWaveExpanded]       = useState({}) // session_id → Set<account_name>
   const [waveManualSels, setWaveManualSels]   = useState({}) // 'session_id-account_name' → accountId
   const [waveApplied, setWaveApplied]         = useState({}) // 'session_id-account_name' → true
   const [waveToast, setWaveToast]             = useState('')
   const [waveError, setWaveError]             = useState('')
-  const syncWaveRef = useRef(null)
 
   const findAcct = (id, name) =>
     data.accounts.find(a => a.id === id) ||
@@ -529,7 +528,8 @@ ${truncated}`
   }
 
   const syncWave = async () => {
-    if (waveSyncing) return
+    if (waveSyncing || waveSyncInProgress) return
+    waveSyncInProgress = true
     setWaveSyncing(true)
     setWaveFirstSync(false)
     setWaveError('')
@@ -538,21 +538,21 @@ ${truncated}`
     try {
       const lastSyncedAt = data.waveSettings?.lastSyncedAt || null
 
-      // First sync — initialize timestamp, import nothing historical
-      if (!lastSyncedAt) {
-        const now = new Date().toISOString()
-        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
+      // If never synced or lastSyncedAt is before today midnight — set floor and return empty
+      const todayMidnight = new Date()
+      todayMidnight.setHours(0, 0, 0, 0)
+      const syncedDate = lastSyncedAt ? new Date(lastSyncedAt) : null
+      if (!syncedDate || syncedDate < todayMidnight) {
+        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: todayMidnight.toISOString() } }))
         setWaveFirstSync(true)
-        setWaveSyncing(false)
-        setWaveSyncMsg('')
         return
       }
 
-      // Fetch sessions completed after last sync
+      // Fetch sessions completed after last sync (server enforces today floor)
       const listResp = await fetch('/api/wave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', after: lastSyncedAt }),
+        body: JSON.stringify({ action: 'list', lastSyncedAt }),
       })
       const listResult = await listResp.json()
       if (!listResp.ok || listResult.error) {
@@ -621,25 +621,10 @@ ${truncated}`
     } catch (e) {
       setWaveError(e.message || 'Wave sync failed')
     } finally {
+      waveSyncInProgress = false
       setWaveSyncing(false)
       setWaveSyncMsg('')
     }
-  }
-
-  // Keep ref pointing to latest syncWave for the interval
-  syncWaveRef.current = syncWave
-
-  useEffect(() => {
-    if (!waveAutoSync) return
-    const interval = setInterval(() => syncWaveRef.current?.(), 30 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [waveAutoSync])
-
-  const toggleWaveAutoSync = () => {
-    const next = !waveAutoSync
-    setWaveAutoSync(next)
-    setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), autoSync: next } }))
-    if (next) syncWave()
   }
 
   const applyWaveToAccount = (transcript, match, overrideAccountId) => {
@@ -1097,11 +1082,6 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, color: '#64748b' }}>Auto</span>
-                <button onClick={toggleWaveAutoSync}
-                  style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', background: waveAutoSync ? '#7c3aed' : '#D1D5DB', transition: 'background 0.15s', position: 'relative', flexShrink: 0 }}>
-                  <span style={{ position: 'absolute', top: 2, left: waveAutoSync ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
-                </button>
                 <button onClick={syncWave} disabled={waveSyncing}
                   style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: waveSyncing ? 'default' : 'pointer', opacity: waveSyncing ? 0.6 : 1, whiteSpace: 'nowrap' }}>
                   {waveSyncing ? 'Syncing…' : 'Sync Now'}

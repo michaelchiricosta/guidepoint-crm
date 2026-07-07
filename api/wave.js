@@ -88,10 +88,16 @@ export default async function handler(req, res) {
 
   // ── List sessions after a given timestamp ────────────────────────────────────
   if (action === 'list') {
-    const after = body.after || null
+    const TODAY_FLOOR = new Date()
+    TODAY_FLOOR.setHours(0, 0, 0, 0)
+
+    const requestedAfter = body.lastSyncedAt ? new Date(body.lastSyncedAt) : null
+    const after = requestedAfter && requestedAfter > TODAY_FLOOR
+      ? requestedAfter
+      : TODAY_FLOOR
+
     try {
-      const params = new URLSearchParams({ limit: '50' })
-      if (after) params.set('after', after)
+      const params = new URLSearchParams({ limit: '50', after: after.toISOString() })
       const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
       if (!waveRes.ok) {
         const errText = await waveRes.text().catch(() => '')
