@@ -5,11 +5,9 @@
 //
 // Wave API base: https://api.wave.co/v1
 // Endpoints used:
-//   GET  /recordings?status=completed&after=<ISO>&limit=50  → list sessions
-//   GET  /recordings/{id}/transcript                         → session transcript
-//   GET  /sessions/{id}/transcript                           → fallback endpoint
+//   GET  /sessions?after=<ISO>&limit=50  → list sessions
+//   GET  /sessions/{id}/transcript       → session transcript
 //
-// If Wave changes its API structure, update WAVE_BASE and the route constants below.
 // The browser only sends { action, after?, session_id? } — never credentials.
 
 const WAVE_BASE = 'https://api.wave.co/v1'
@@ -69,29 +67,50 @@ export default async function handler(req, res) {
 
   const { action } = body
 
-  // ── List completed sessions after a given timestamp ──────────────────────────
+  // ── Test mode: confirm auth + endpoint are reachable ────────────────────────
+  if (action === 'test') {
+    try {
+      const waveRes = await fetchWave('/sessions?limit=1', apiKey)
+      const rawText = await waveRes.text()
+      let rawJson = null
+      try { rawJson = JSON.parse(rawText) } catch {}
+      console.log(`[wave/test] status=${waveRes.status} body=${rawText.slice(0, 500)}`)
+      return res.status(200).json({
+        ok: waveRes.ok,
+        status: waveRes.status,
+        raw: rawJson ?? rawText.slice(0, 500),
+      })
+    } catch (err) {
+      console.error('[wave/test] fetch error:', err.message)
+      return res.status(502).json({ error: err.message || 'Could not reach Wave API' })
+    }
+  }
+
+  // ── List sessions after a given timestamp ────────────────────────────────────
   if (action === 'list') {
     const after = body.after || null
     try {
-      const params = new URLSearchParams({ status: 'completed', limit: '50' })
+      const params = new URLSearchParams({ limit: '50' })
       if (after) params.set('after', after)
-      const waveRes = await fetchWave(`/recordings?${params}`, apiKey)
+      const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
       if (!waveRes.ok) {
         const errText = await waveRes.text().catch(() => '')
+        console.error(`[wave/list] status=${waveRes.status} body=${errText}`)
         return res.status(waveRes.status).json({
           error: `Wave API returned ${waveRes.status}`,
-          detail: errText.slice(0, 300),
+          detail: errText.slice(0, 500),
         })
       }
       const data = await waveRes.json()
-      // Normalize: Wave may return recordings/sessions/data array at different paths
+      // Normalize: Wave may return sessions/recordings/data array at different paths
       const sessions = Array.isArray(data) ? data
-        : Array.isArray(data.recordings) ? data.recordings
         : Array.isArray(data.sessions) ? data.sessions
+        : Array.isArray(data.recordings) ? data.recordings
         : Array.isArray(data.data) ? data.data
         : []
       return res.status(200).json({ ok: true, sessions })
     } catch (err) {
+      console.error('[wave/list] fetch error:', err.message)
       return res.status(502).json({ error: err.message || 'Could not reach Wave API' })
     }
   }
@@ -104,16 +123,13 @@ export default async function handler(req, res) {
     }
     try {
       const sid = encodeURIComponent(session_id)
-      // Try /recordings/{id}/transcript first, then /sessions/{id}/transcript as fallback
-      let waveRes = await fetchWave(`/recordings/${sid}/transcript`, apiKey)
-      if (waveRes.status === 404) {
-        waveRes = await fetchWave(`/sessions/${sid}/transcript`, apiKey)
-      }
+      const waveRes = await fetchWave(`/sessions/${sid}/transcript`, apiKey)
       if (!waveRes.ok) {
         const errText = await waveRes.text().catch(() => '')
+        console.error(`[wave/transcript] status=${waveRes.status} body=${errText}`)
         return res.status(waveRes.status).json({
           error: `Wave API returned ${waveRes.status}`,
-          detail: errText.slice(0, 300),
+          detail: errText.slice(0, 500),
         })
       }
       const data = await waveRes.json()
@@ -126,9 +142,10 @@ export default async function handler(req, res) {
         ''
       return res.status(200).json({ ok: true, transcript_text })
     } catch (err) {
+      console.error('[wave/transcript] fetch error:', err.message)
       return res.status(502).json({ error: err.message || 'Could not reach Wave API' })
     }
   }
 
-  return res.status(400).json({ error: `Unknown action: "${action}". Expected: list | transcript` })
+  return res.status(400).json({ error: `Unknown action: "${action}". Expected: list | transcript | test` })
 }
