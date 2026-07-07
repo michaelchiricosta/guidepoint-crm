@@ -92,7 +92,7 @@ export default async function handler(req, res) {
     TODAY_FLOOR.setHours(0, 0, 0, 0)
 
     const requestedAfter = body.lastSyncedAt ? new Date(body.lastSyncedAt) : null
-    const after = requestedAfter && requestedAfter > TODAY_FLOOR
+    const after = requestedAfter && requestedAfter >= TODAY_FLOOR
       ? requestedAfter
       : TODAY_FLOOR
 
