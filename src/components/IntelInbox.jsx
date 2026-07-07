@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { uid, extractJSON } from '../utils.js'
 
 // ── CDN loaders (lazy, cached on window) ──────────────────────────────────────
@@ -96,6 +96,184 @@ const PRI_BG    = { Critical: '#fef2f2', High: '#fff7ed', Medium: '#eff6ff', Low
 
 const fmtFileSize = b =>
   b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b >= 1024 ? `${(b / 1024).toFixed(0)} KB` : `${b} B`
+
+// ── Wave helpers ─────────────────────────────────────────────────────────────
+
+const fmtSyncTime = iso => {
+  if (!iso) return ''
+  try {
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diffMs / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  } catch { return '' }
+}
+
+function WaveTranscriptCard({ transcript, accounts, expandedSet, onToggleExpand, appliedSet, manualSels, onManualSel, onApply, onSkip }) {
+  const fmtDur = s => {
+    if (s == null) return ''
+    if (typeof s === 'string') return s
+    const m = Math.floor(s / 60), sec = s % 60
+    return `${m}:${String(sec).padStart(2, '0')}`
+  }
+  const sessionDate = (transcript.date || '').includes('T') ? transcript.date.split('T')[0] : (transcript.date || '')
+  const fmtD = d => {
+    if (!d) return ''
+    try { return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return d }
+  }
+  const confDotColor = c => c === 'high' ? '#16a34a' : c === 'medium' ? '#d97706' : '#9ca3af'
+  const sentColor = s => s === 'positive' ? '#15803d' : s === 'needs_attention' ? '#dc2626' : '#64748b'
+  const sentBg    = s => s === 'positive' ? '#f0fdf4' : s === 'needs_attention' ? '#fef2f2' : '#f8fafc'
+  const sentLabel = s => s === 'positive' ? 'Positive' : s === 'needs_attention' ? 'Needs Attention' : 'Neutral'
+
+  const unapplied = (transcript.matches || []).filter(m => !appliedSet.has(`${transcript.session_id}-${m.account_name}`))
+  if (!unapplied.length) return null
+
+  const highCount = unapplied.filter(m => m.confidence === 'high').length
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #EEEFF2', borderRadius: 12, padding: 20, marginBottom: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#111827', marginBottom: 2 }}>{transcript.title || 'Call Recording'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>{fmtD(sessionDate)}</span>
+            {transcript.duration != null && transcript.duration !== '' && (
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>· {fmtDur(transcript.duration)}</span>
+            )}
+          </div>
+        </div>
+        {highCount > 0 && (
+          <button
+            onClick={() => unapplied.filter(m => m.confidence === 'high').forEach(m => onApply(transcript, m, manualSels[`${transcript.session_id}-${m.account_name}`]))}
+            style={{ flexShrink: 0, padding: '6px 14px', background: 'linear-gradient(135deg,#0055CC 0%,#2563eb 100%)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Apply All ({highCount})
+          </button>
+        )}
+      </div>
+
+      {/* Account pills */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {unapplied.map((m, mi) => {
+          const isExp = expandedSet.has(m.account_name)
+          const needsManual = m.confidence === 'low' || m.account_name === 'UNKNOWN'
+          return (
+            <button key={mi} onClick={() => onToggleExpand(m.account_name)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: isExp ? '#f0f9ff' : '#f8fafc', border: `1px solid ${isExp ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: 999, fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', transition: 'all 0.12s' }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: confDotColor(m.confidence), flexShrink: 0 }} />
+              {m.account_name === 'UNKNOWN' ? '? Unknown' : m.account_name}
+              {needsManual && <span style={{ fontSize: 10, color: '#d97706', marginLeft: 1 }}>▾</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Expanded per-account sections */}
+      {unapplied.map((m, mi) => {
+        if (!expandedSet.has(m.account_name)) return null
+        const needsManual = m.confidence === 'low' || m.account_name === 'UNKNOWN'
+        const key = `${transcript.session_id}-${m.account_name}`
+        const selectedId = manualSels[key] || ''
+        const resolvedName = selectedId ? (accounts.find(a => a.id === selectedId)?.name || 'Account') : m.account_name
+        const canApply = !needsManual || !!selectedId
+        return (
+          <div key={mi} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 14, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{m.account_name === 'UNKNOWN' ? 'Unknown Account' : m.account_name}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999,
+                color: m.confidence === 'high' ? '#15803d' : m.confidence === 'medium' ? '#92400e' : '#64748b',
+                background: m.confidence === 'high' ? '#f0fdf4' : m.confidence === 'medium' ? '#fffbeb' : '#f1f5f9' }}>
+                {m.confidence} confidence
+              </span>
+              {m.sentiment && (
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: sentColor(m.sentiment), background: sentBg(m.sentiment) }}>
+                  {sentLabel(m.sentiment)}
+                </span>
+              )}
+            </div>
+
+            {needsManual && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Select Account</div>
+                <select value={selectedId} onChange={e => onManualSel(key, e.target.value)}
+                  style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid #fde68a', borderRadius: 6, color: '#374151', background: '#fff' }}>
+                  <option value=''>— Select account —</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {m.intel_summary && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Intel Summary</div>
+                <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6 }}>{m.intel_summary}</div>
+              </div>
+            )}
+            {m.action_items?.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#0066CC', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Action Items</div>
+                {m.action_items.map((ai, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#374151', display: 'flex', gap: 5, marginBottom: 2, alignItems: 'flex-start' }}>
+                    <span style={{ color: '#007AFF', flexShrink: 0 }}>→</span>
+                    <span>{ai.task}{ai.suggested_due_date ? ` (by ${ai.suggested_due_date})` : ''}{ai.contact ? ` · ${ai.contact}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {m.contacts_mentioned?.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Contacts Mentioned</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {m.contacts_mentioned.map((c, i) => (
+                    <span key={i} style={{ fontSize: 11, fontWeight: 500, color: '#374151', background: '#f1f5f9', borderRadius: 5, padding: '2px 7px' }}>
+                      {c.name}{c.title ? ` · ${c.title}` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {m.vendors_mentioned?.length > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Vendors Mentioned</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {m.vendors_mentioned.map((v, i) => (
+                    <span key={i} style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', borderRadius: 4, padding: '2px 7px' }}>{v}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {m.urgency_signals?.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Urgency Signals</div>
+                {m.urgency_signals.map((s, i) => (
+                  <div key={i} style={{ fontSize: 12, color: '#374151', display: 'flex', gap: 5, marginBottom: 2, alignItems: 'flex-start' }}>
+                    <span style={{ color: '#dc2626', fontWeight: 700, flexShrink: 0 }}>!</span>{s}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              <button onClick={() => onApply(transcript, m, selectedId || undefined)}
+                disabled={!canApply}
+                style={{ flex: 1, padding: '7px 14px', background: canApply ? '#007AFF' : '#94a3b8', border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 700, cursor: canApply ? 'pointer' : 'not-allowed' }}>
+                Apply to {needsManual && selectedId ? resolvedName : (m.account_name === 'UNKNOWN' ? 'Account' : m.account_name)}
+              </button>
+              <button onClick={() => onSkip(transcript.session_id, m.account_name)}
+                style={{ padding: '7px 14px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 7, color: '#64748b', fontSize: 12, cursor: 'pointer' }}>
+                Skip
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ── Stable section components (module-level prevents scroll jumps on re-render) ─
 
@@ -237,6 +415,19 @@ export default function IntelInbox({ data, setData, apiKey, onClose }) {
   const [lowConfReview, setLowConfReview]     = useState({})
   const [whitespaceItems, setWhitespaceItems] = useState([])
 
+  // ── Wave AI state ─────────────────────────────────────────────────────────────
+  const [waveTranscripts, setWaveTranscripts] = useState([])
+  const [waveSyncing, setWaveSyncing]         = useState(false)
+  const [waveSyncMsg, setWaveSyncMsg]         = useState('')
+  const [waveFirstSync, setWaveFirstSync]     = useState(false)
+  const [waveAutoSync, setWaveAutoSync]       = useState(() => !!(data.waveSettings?.autoSync))
+  const [waveExpanded, setWaveExpanded]       = useState({}) // session_id → Set<account_name>
+  const [waveManualSels, setWaveManualSels]   = useState({}) // 'session_id-account_name' → accountId
+  const [waveApplied, setWaveApplied]         = useState({}) // 'session_id-account_name' → true
+  const [waveToast, setWaveToast]             = useState('')
+  const [waveError, setWaveError]             = useState('')
+  const syncWaveRef = useRef(null)
+
   const findAcct = (id, name) =>
     data.accounts.find(a => a.id === id) ||
     data.accounts.find(a => a.short?.toLowerCase() === (id || '').toLowerCase()) ||
@@ -276,6 +467,274 @@ RECENT INTEL: ${intel || 'none'}`
       dueDate: a.dueDate || '', contact: a.contact || '', context: a.context || ''
     }))
   })
+
+  // ── Wave AI functions ─────────────────────────────────────────────────────────
+
+  const parseWaveTranscript = async (transcriptText) => {
+    const accountNames = (data.accounts || []).map(a => a.name).join(', ')
+    const truncated = transcriptText.slice(0, 40000)
+    const prompt = `You are an intelligent CRM assistant for a cybersecurity sales professional at GuidePoint Security.
+
+You will be given a call transcript and a list of account names. Your job is to:
+
+1. Identify ALL accounts discussed in this transcript. A single call may reference multiple accounts — identify every one mentioned.
+2. For each account identified, extract:
+   - A 3-5 sentence intel summary specific to that account
+   - Any action items or follow-ups mentioned, each with a suggested due date
+   - Any contacts mentioned by name and/or title
+   - Any vendors, products, or technologies discussed in context of that account
+   - Any urgency signals (renewals, deadlines, competitive situations, budget conversations, escalations)
+   - The sentiment: positive, neutral, or needs attention
+
+Return ONLY a JSON array with no preamble or markdown:
+
+[
+  {
+    "account_name": "string (must match one of the provided account names exactly, or UNKNOWN if no match)",
+    "confidence": "high|medium|low",
+    "intel_summary": "string (3-5 sentences, specific and factual, no fluff)",
+    "action_items": [
+      {
+        "task": "string",
+        "suggested_due_date": "YYYY-MM-DD or null",
+        "contact": "string or null"
+      }
+    ],
+    "contacts_mentioned": [
+      {
+        "name": "string",
+        "title": "string or null"
+      }
+    ],
+    "vendors_mentioned": ["string"],
+    "urgency_signals": ["string"],
+    "sentiment": "positive|neutral|needs_attention"
+  }
+]
+
+Account list: ${accountNames}
+
+Transcript:
+${truncated}`
+
+    const { data: resp } = await callClaudeWithRetry({
+      model: 'claude-sonnet-4-6', max_tokens: 4000,
+      system: 'You are an intelligent CRM assistant for a cybersecurity sales professional. Return ONLY a valid JSON array.',
+      messages: [{ role: 'user', content: prompt }]
+    }, effectiveKey, msg => { if (msg) setWaveSyncMsg(msg) })
+
+    if (resp.error) throw new Error(resp.error.message || 'AI parsing failed')
+    const parsed = extractJSON(resp.content?.[0]?.text || '')
+    return Array.isArray(parsed) ? parsed : []
+  }
+
+  const syncWave = async () => {
+    if (waveSyncing) return
+    setWaveSyncing(true)
+    setWaveFirstSync(false)
+    setWaveError('')
+    setWaveSyncMsg('Pulling transcripts from Wave...')
+
+    try {
+      const lastSyncedAt = data.waveSettings?.lastSyncedAt || null
+
+      // First sync — initialize timestamp, import nothing historical
+      if (!lastSyncedAt) {
+        const now = new Date().toISOString()
+        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
+        setWaveFirstSync(true)
+        setWaveSyncing(false)
+        setWaveSyncMsg('')
+        return
+      }
+
+      // Fetch sessions completed after last sync
+      const listResp = await fetch('/api/wave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list', after: lastSyncedAt }),
+      })
+      const listResult = await listResp.json()
+      if (!listResp.ok || listResult.error) {
+        throw new Error(listResult.error || `Wave API error ${listResp.status}`)
+      }
+
+      const sessions = listResult.sessions || []
+      const now = new Date().toISOString()
+
+      if (sessions.length === 0) {
+        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
+        setWaveSyncing(false)
+        setWaveSyncMsg('')
+        return
+      }
+
+      // For each session: fetch transcript, parse with Claude
+      const appliedSessions = data.waveSettings?.appliedSessions || []
+      const newTranscripts = []
+
+      for (const session of sessions) {
+        const sid = session.id || session.recording_id || session.session_id || ''
+        if (!sid) continue
+
+        setWaveSyncMsg(`Fetching: ${session.title || sid}...`)
+        const tResp = await fetch('/api/wave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'transcript', session_id: sid }),
+        })
+        const tResult = await tResp.json()
+        if (!tResult.transcript_text) continue
+
+        setWaveSyncMsg(`Analyzing: ${session.title || sid}...`)
+        let matches
+        try {
+          matches = await parseWaveTranscript(tResult.transcript_text)
+        } catch { continue }
+
+        // Filter already-applied account matches for this session
+        const appliedForSession = new Set(
+          appliedSessions.filter(a => a.session_id === sid).map(a => a.account_name)
+        )
+        const filteredMatches = matches.filter(m => !appliedForSession.has(m.account_name))
+        if (filteredMatches.length === 0) continue
+
+        const sessionDate = session.date || session.created_at || session.started_at || new Date().toISOString().split('T')[0]
+        newTranscripts.push({
+          session_id: sid,
+          title: session.title || session.name || 'Call Recording',
+          date: sessionDate,
+          duration: session.duration ?? session.duration_seconds ?? '',
+          matches: filteredMatches,
+        })
+      }
+
+      setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
+
+      if (newTranscripts.length > 0) {
+        setWaveTranscripts(prev => {
+          const existingIds = new Set(newTranscripts.map(t => t.session_id))
+          return [...newTranscripts, ...prev.filter(t => !existingIds.has(t.session_id))]
+        })
+        setWaveExpanded({})
+      }
+    } catch (e) {
+      setWaveError(e.message || 'Wave sync failed')
+    } finally {
+      setWaveSyncing(false)
+      setWaveSyncMsg('')
+    }
+  }
+
+  // Keep ref pointing to latest syncWave for the interval
+  syncWaveRef.current = syncWave
+
+  useEffect(() => {
+    if (!waveAutoSync) return
+    const interval = setInterval(() => syncWaveRef.current?.(), 30 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [waveAutoSync])
+
+  const toggleWaveAutoSync = () => {
+    const next = !waveAutoSync
+    setWaveAutoSync(next)
+    setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), autoSync: next } }))
+    if (next) syncWave()
+  }
+
+  const applyWaveToAccount = (transcript, match, overrideAccountId) => {
+    const targetAcct = overrideAccountId
+      ? data.accounts.find(a => a.id === overrideAccountId)
+      : data.accounts.find(a => a.name === match.account_name)
+    if (!targetAcct) return
+
+    const sessionDateStr = (transcript.date || '').includes('T') ? transcript.date.split('T')[0] : (transcript.date || today)
+    const intelId = uid()
+
+    const newEntry = {
+      id: intelId,
+      type: 'Call',
+      date: sessionDateStr,
+      summary: match.intel_summary || '',
+      insights: [],
+      risks: match.urgency_signals || [],
+      opportunities: [],
+      participants: (match.contacts_mentioned || []).map(c => c.name).join(', '),
+      source: 'Wave AI',
+      sessionId: transcript.session_id,
+    }
+
+    const newFollowUps = (match.action_items || []).map(ai => ({
+      id: uid(),
+      task: ai.task || '',
+      dueDate: ai.suggested_due_date || '',
+      contact: ai.contact || '',
+      priority: 'High',
+      status: 'Open',
+      context: '',
+    }))
+
+    // Suggest new contacts without auto-adding
+    const existingNames = new Set((targetAcct.contacts || []).map(c => (c.name || '').toLowerCase()))
+    const newContactSuggestions = (match.contacts_mentioned || [])
+      .filter(c => c.name && !existingNames.has(c.name.toLowerCase()))
+      .map(c => ({ id: uid(), name: c.name, title: c.title || '', source: 'Wave AI', sessionId: transcript.session_id }))
+
+    setData(prev => {
+      const next = { ...prev }
+      next.accounts = prev.accounts.map(a => {
+        if (a.id !== targetAcct.id) return a
+        return {
+          ...a,
+          intelLog: [newEntry, ...(a.intelLog || [])],
+          followUps: [...(a.followUps || []), ...newFollowUps],
+          lastContact: sessionDateStr,
+          contactSuggestions: [...(a.contactSuggestions || []), ...newContactSuggestions],
+        }
+      })
+      // Record as applied (keep last 500)
+      const appliedEntry = { session_id: transcript.session_id, account_name: targetAcct.name, applied_at: new Date().toISOString() }
+      const prevApplied = (prev.waveSettings?.appliedSessions || []).slice(-499)
+      next.waveSettings = { ...(prev.waveSettings || {}), appliedSessions: [...prevApplied, appliedEntry] }
+      return next
+    })
+
+    // Mark applied in local state
+    const appliedKey = `${transcript.session_id}-${match.account_name}`
+    setWaveApplied(prev => ({ ...prev, [appliedKey]: true }))
+
+    // Remove this match from the transcript card; hide card if empty
+    setWaveTranscripts(prev =>
+      prev.map(t => t.session_id !== transcript.session_id ? t
+        : { ...t, matches: t.matches.filter(m => m.account_name !== match.account_name) }
+      ).filter(t => t.matches.length > 0)
+    )
+
+    setWaveToast(`Intel added to ${targetAcct.name}`)
+    setTimeout(() => setWaveToast(''), 3000)
+  }
+
+  const skipWaveMatch = (sessionId, accountName) => {
+    const appliedKey = `${sessionId}-${accountName}`
+    setWaveApplied(prev => ({ ...prev, [appliedKey]: true }))
+    setWaveTranscripts(prev =>
+      prev.map(t => t.session_id !== sessionId ? t
+        : { ...t, matches: t.matches.filter(m => m.account_name !== accountName) }
+      ).filter(t => t.matches.length > 0)
+    )
+  }
+
+  const waveToggleExpand = (sessionId, accountName) => {
+    setWaveExpanded(prev => {
+      const set = new Set(prev[sessionId] || [])
+      set.has(accountName) ? set.delete(accountName) : set.add(accountName)
+      return { ...prev, [sessionId]: set }
+    })
+  }
+
+  const waveSetManualSel = (key, accountId) => {
+    setWaveManualSels(prev => ({ ...prev, [key]: accountId }))
+  }
 
   // ── File handling ─────────────────────────────────────────────────────────────
 
@@ -592,7 +1051,7 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
       onClick={step === 'loading' ? undefined : onClose}>
       <style>{`@keyframes iiSpin{to{transform:rotate(360deg)}}`}</style>
       <div
-        style={{ background: '#FFFFFF', borderRadius: mob ? 0 : 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', width: mob ? '100%' : 'min(720px,95vw)', maxHeight: mob ? '100%' : '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: mob ? '100%' : 'auto' }}
+        style={{ position: 'relative', background: '#FFFFFF', borderRadius: mob ? 0 : 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', width: mob ? '100%' : 'min(720px,95vw)', maxHeight: mob ? '100%' : '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: mob ? '100%' : 'auto' }}
         onClick={e => e.stopPropagation()}>
 
         {/* ── Modal header ── */}
@@ -705,6 +1164,84 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
                   Analyze ✨
                 </button>
                 <button onClick={onClose} style={{ padding: '11px 16px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              </div>
+
+              {/* ── Wave AI Transcripts section ── */}
+              <div style={{ marginTop: 20, borderTop: '1px solid #f1f5f9', paddingTop: 18 }}>
+                {/* Section header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', lineHeight: 1 }}>W</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Wave AI Transcripts</div>
+                    {data.waveSettings?.lastSyncedAt && (
+                      <div style={{ fontSize: 12, color: '#9CA3AF' }}>Last synced {fmtSyncTime(data.waveSettings.lastSyncedAt)}</div>
+                    )}
+                    {!data.waveSettings?.lastSyncedAt && (
+                      <div style={{ fontSize: 12, color: '#9CA3AF' }}>Never synced</div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>Auto</span>
+                    <button onClick={toggleWaveAutoSync}
+                      style={{ width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', background: waveAutoSync ? '#7c3aed' : '#D1D5DB', transition: 'background 0.15s', position: 'relative', flexShrink: 0 }}>
+                      <span style={{ position: 'absolute', top: 2, left: waveAutoSync ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s' }} />
+                    </button>
+                    <button onClick={syncWave} disabled={waveSyncing}
+                      style={{ padding: '5px 12px', background: '#fff', border: '1px solid #007AFF', borderRadius: 8, color: '#007AFF', fontSize: 12, fontWeight: 600, cursor: waveSyncing ? 'default' : 'pointer', opacity: waveSyncing ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                      {waveSyncing ? 'Syncing…' : 'Sync Now'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Loading state */}
+                {waveSyncing && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #c4b5fd', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'iiSpin 0.75s linear infinite', flexShrink: 0 }} />
+                    {waveSyncMsg || 'Pulling transcripts from Wave...'}
+                  </div>
+                )}
+
+                {/* Error */}
+                {waveError && !waveSyncing && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#dc2626', marginBottom: 10 }}>
+                    {waveError}
+                  </div>
+                )}
+
+                {/* First sync initialization message */}
+                {waveFirstSync && !waveSyncing && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#15803d', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>
+                    <span>Wave sync initialized. New calls going forward will appear here.</span>
+                  </div>
+                )}
+
+                {/* Transcript cards */}
+                {waveTranscripts.length > 0 && (
+                  <div>
+                    {waveTranscripts.map((t, ti) => (
+                      <WaveTranscriptCard
+                        key={t.session_id}
+                        transcript={t}
+                        accounts={data.accounts || []}
+                        expandedSet={waveExpanded[t.session_id] || new Set()}
+                        onToggleExpand={name => waveToggleExpand(t.session_id, name)}
+                        appliedSet={new Set(Object.keys(waveApplied).filter(k => k.startsWith(t.session_id + '-')))}
+                        manualSels={waveManualSels}
+                        onManualSel={waveSetManualSel}
+                        onApply={applyWaveToAccount}
+                        onSkip={skipWaveMatch}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty state after sync */}
+                {!waveSyncing && !waveFirstSync && !waveError && waveTranscripts.length === 0 && data.waveSettings?.lastSyncedAt && (
+                  <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '14px 0' }}>No new transcripts since last sync.</div>
+                )}
               </div>
             </div>
           )}
@@ -838,6 +1375,13 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
             </div>
           )}
         </div>
+
+        {/* ── Wave toast ── */}
+        {waveToast && (
+          <div style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#1e293b', color: '#f1f5f9', padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.25)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+            {waveToast}
+          </div>
+        )}
 
         {/* ── Footer ── */}
         {hasFooter && (

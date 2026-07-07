@@ -10,8 +10,10 @@ const LS_API_KEY = 'ledgr_anthropic_api_key'
 export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime,onReset}) {
   const [key,setKey] = useState(()=>localStorage.getItem(LS_API_KEY)||data.apiKey||'')
   const [saved,setSaved] = useState(false)
-  const [logoStatus,setLogoStatus] = useState(null)
-  const [pdfLoading,setPdfLoading] = useState(false)
+  const [logoStatus,setLogoStatus]     = useState(null)
+  const [pdfLoading,setPdfLoading]     = useState(false)
+  const [waveStatus, setWaveStatus]   = useState(null) // null | 'syncing' | 'done' | 'error'
+  const [waveMsg, setWaveMsg]         = useState('')
   const logoInputRef = useRef(null)
   const saveKey=()=>{
     localStorage.setItem(LS_API_KEY, key)
@@ -465,6 +467,67 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
         <p style={{fontSize:13,color:S.muted,marginBottom:0,lineHeight:1.6}}>
           AI is now managed server-side. The Anthropic API key is configured in the Vercel project environment variables (<strong style={{color:S.txt}}>ANTHROPIC_API_KEY</strong>) — it never reaches the browser.
         </p>
+      </Card>
+      <SH>Wave AI Integration</SH>
+      <Card style={{padding:16,marginBottom:20}}>
+        {(()=>{
+          const waveSettings = data.waveSettings || {}
+          const autoSync = !!waveSettings.autoSync
+          const lastSynced = waveSettings.lastSyncedAt
+          const fmtSynced = iso => {
+            if (!iso) return 'Never synced'
+            try { return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) } catch { return iso }
+          }
+          const handleSettingsSync = async () => {
+            setWaveStatus('syncing')
+            setWaveMsg('Connecting to Wave...')
+            try {
+              const resp = await fetch('/api/wave', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ action: 'list', after: lastSynced || new Date().toISOString() })
+              })
+              const result = await resp.json()
+              if (!resp.ok || result.error) throw new Error(result.error || `Error ${resp.status}`)
+              const count = (result.sessions || []).length
+              setData(p => ({...p, waveSettings:{...waveSettings, lastSyncedAt: p.waveSettings?.lastSyncedAt || new Date().toISOString()}}))
+              setWaveMsg(`Connected — ${count} new session${count!==1?'s':''} available. Open Intel Inbox to review.`)
+              setWaveStatus('done')
+            } catch (e) {
+              setWaveMsg(e.message || 'Sync failed')
+              setWaveStatus('error')
+            }
+          }
+          return (
+            <>
+              <p style={{fontSize:13,color:S.muted,marginBottom:12,lineHeight:1.6}}>
+                Wave AI sync is enabled. API key is configured in environment variables (<strong style={{color:S.txt}}>WAVE_API_KEY</strong>). Transcripts sync to Intel Inbox — only calls recorded after first sync are imported.
+              </p>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:S.txt}}>Auto-sync every 30 minutes</div>
+                  <div style={{fontSize:11,color:S.muted,marginTop:2}}>When off, sync manually from Intel Inbox</div>
+                </div>
+                <button onClick={()=>setData(p=>({...p,waveSettings:{...(p.waveSettings||{}),autoSync:!autoSync}}))}
+                  style={{flexShrink:0,width:40,height:22,borderRadius:11,border:'none',cursor:'pointer',background:autoSync?'#7c3aed':'#D1D5DB',transition:'background 0.15s',position:'relative'}}>
+                  <span style={{position:'absolute',top:2,left:autoSync?20:2,width:18,height:18,borderRadius:'50%',background:'#fff',boxShadow:'0 1px 3px rgba(0,0,0,0.2)',transition:'left 0.15s'}}/>
+                </button>
+              </div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+                <div style={{fontSize:12,color:S.muted}}>{fmtSynced(lastSynced)}</div>
+                <button onClick={handleSettingsSync} disabled={waveStatus==='syncing'}
+                  style={{padding:'6px 14px',background:'#fff',border:'1px solid #007AFF',borderRadius:7,color:'#007AFF',fontSize:12,fontWeight:600,cursor:waveStatus==='syncing'?'default':'pointer',opacity:waveStatus==='syncing'?0.6:1}}>
+                  {waveStatus==='syncing'?'Connecting…':'Sync Now'}
+                </button>
+              </div>
+              {waveMsg && (
+                <div style={{marginTop:10,padding:'8px 12px',background:waveStatus==='error'?'#fef2f2':waveStatus==='done'?'#f0fdf4':'#f8fafc',border:`1px solid ${waveStatus==='error'?'#fecaca':waveStatus==='done'?'#bbf7d0':'#e2e8f0'}`,borderRadius:7,fontSize:12,color:waveStatus==='error'?'#dc2626':waveStatus==='done'?'#15803d':'#64748b'}}>
+                  {waveMsg}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </Card>
       <SH>Account Settings</SH>
       <Card style={{padding:16,marginBottom:20}}>
