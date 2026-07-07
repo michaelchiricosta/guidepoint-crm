@@ -109,11 +109,25 @@ export default async function handler(req, res) {
       }
       const data = await waveRes.json()
       // Normalize: Wave may return sessions/recordings/data array at different paths
-      const sessions = Array.isArray(data) ? data
+      let sessions = Array.isArray(data) ? data
         : Array.isArray(data.sessions) ? data.sessions
         : Array.isArray(data.recordings) ? data.recordings
         : Array.isArray(data.data) ? data.data
         : []
+
+      // Nuclear filter: regardless of whether Wave honored the `after` param,
+      // never return sessions older than today midnight to the browser.
+      const todayMidnight = new Date()
+      todayMidnight.setHours(0, 0, 0, 0)
+      const beforeFilter = sessions.length
+      sessions = sessions.filter(s => {
+        const raw = s.date || s.created_at || s.started_at || s.completed_at
+        if (!raw) return false
+        const sessionDate = new Date(raw)
+        return !isNaN(sessionDate) && sessionDate >= todayMidnight
+      })
+      console.log(`[wave/list] after=${after.toISOString()} Wave returned ${beforeFilter} sessions; ${sessions.length} pass today-floor filter`)
+
       return res.status(200).json({ ok: true, sessions })
     } catch (err) {
       console.error('[wave/list] fetch error:', err.message)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { uid, extractJSON } from '../utils.js'
 
 // ── CDN loaders (lazy, cached on window) ──────────────────────────────────────
@@ -537,18 +537,22 @@ ${truncated}`
 
     try {
       const lastSyncedAt = data.waveSettings?.lastSyncedAt || null
+      console.log('[wave/sync] lastSyncedAt read from data:', lastSyncedAt)
 
       // If never synced or lastSyncedAt is before today midnight — set floor and return empty
       const todayMidnight = new Date()
       todayMidnight.setHours(0, 0, 0, 0)
       const syncedDate = lastSyncedAt ? new Date(lastSyncedAt) : null
       if (!syncedDate || syncedDate < todayMidnight) {
-        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: todayMidnight.toISOString() } }))
+        const floorISO = todayMidnight.toISOString()
+        console.log('[wave/sync] no valid today timestamp — initializing floor to', floorISO)
+        setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: floorISO } }))
         setWaveFirstSync(true)
         return
       }
 
       // Fetch sessions completed after last sync (server enforces today floor)
+      console.log('[wave/sync] fetching sessions after', lastSyncedAt)
       const listResp = await fetch('/api/wave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -609,6 +613,7 @@ ${truncated}`
         })
       }
 
+      console.log('[wave/sync] writing lastSyncedAt', now)
       setData(prev => ({ ...prev, waveSettings: { ...(prev.waveSettings || {}), lastSyncedAt: now } }))
 
       if (newTranscripts.length > 0) {
