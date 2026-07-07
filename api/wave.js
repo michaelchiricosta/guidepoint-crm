@@ -86,60 +86,76 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── List sessions from last 48 hours (metadata only — transcripts fetched per user selection) ──
+  // ── List sessions from last 48 hours — cursor pagination, timestamp field ──────
   if (action === 'list') {
-    const now = new Date()
-    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000)
-    const requestedAfter = body.lastSyncedAt ? new Date(body.lastSyncedAt) : null
-    const after = requestedAfter && requestedAfter > fortyEightHoursAgo
-      ? requestedAfter
-      : fortyEightHoursAgo
-
     try {
-      const params = new URLSearchParams({ limit: '50', after: after.toISOString() })
-      const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
-      if (!waveRes.ok) {
-        const errText = await waveRes.text().catch(() => '')
-        console.error(`[wave/list] status=${waveRes.status} body=${errText}`)
-        return res.status(waveRes.status).json({
-          error: `Wave API returned ${waveRes.status}`,
-          detail: errText.slice(0, 500),
-        })
+      // Wave uses cursor-based pagination, not date filtering via query params.
+      // Fetch up to 3 pages (150 sessions max), stop early when oldest session
+      // exceeds the 48-hour cutoff, then filter client-side.
+      const cutoff = new Date()
+      cutoff.setHours(0, 0, 0, 0)
+      cutoff.setDate(cutoff.getDate() - 1) // yesterday midnight ≈ 48 hours
+
+      let allSessions = []
+      let cursor = null
+      let pages = 0
+
+      while (pages < 3) {
+        const params = new URLSearchParams({ limit: '50' })
+        if (cursor) params.set('cursor', cursor)
+
+        const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
+        if (!waveRes.ok) {
+          const errText = await waveRes.text().catch(() => '')
+          console.error(`[wave/list] status=${waveRes.status} body=${errText}`)
+          return res.status(waveRes.status).json({
+            error: `Wave API returned ${waveRes.status}`,
+            detail: errText.slice(0, 500),
+          })
+        }
+
+        const data = await waveRes.json()
+        const sessions = Array.isArray(data.sessions) ? data.sessions
+          : Array.isArray(data.recordings) ? data.recordings
+          : Array.isArray(data.data) ? data.data
+          : Array.isArray(data) ? data : []
+
+        console.log(`[wave/list] page ${pages + 1}: got ${sessions.length} sessions`)
+
+        allSessions = allSessions.concat(sessions)
+        pages++
+
+        // Stop if Wave says no more pages, or oldest session is already before cutoff
+        if (!data.has_more || !data.next_cursor) break
+        if (sessions.length > 0) {
+          const oldest = new Date(sessions[sessions.length - 1].timestamp || sessions[sessions.length - 1].created_at || 0)
+          if (oldest < cutoff) break
+        }
+        cursor = data.next_cursor
       }
-      const data = await waveRes.json()
-      // Normalize: Wave may return sessions/recordings/data array at different paths
-      let sessions = Array.isArray(data) ? data
-        : Array.isArray(data.sessions) ? data.sessions
-        : Array.isArray(data.recordings) ? data.recordings
-        : Array.isArray(data.data) ? data.data
-        : []
 
-      // DEBUG: log raw Wave response before any filtering
-      console.log('[wave/list] raw response status:', waveRes.status)
-      console.log('[wave/list] raw response body:', JSON.stringify(data).slice(0, 2000))
-      console.log('[wave/list] sessions array found:', sessions.length, 'items')
-      if (sessions.length > 0) console.log('[wave/list] first session sample:', JSON.stringify(sessions[0]))
-
-      // Never return sessions older than 48 hours regardless of lastSyncedAt
-      sessions = sessions.filter(s => {
-        const raw = s.date || s.created_at || s.started_at || s.completed_at
-        if (!raw) return false
-        const sessionDate = new Date(raw)
-        return !isNaN(sessionDate) && sessionDate >= fortyEightHoursAgo
+      // Filter to 48-hour window using confirmed `timestamp` field
+      const filtered = allSessions.filter(s => {
+        const ts = s.timestamp || s.created_at || s.started_at || s.date
+        if (!ts) return false
+        return new Date(ts) >= cutoff
       })
 
-      // Return metadata only — transcripts are fetched separately per user selection
-      const metadata = sessions.map(s => ({
-        id: s.id || s.recording_id || s.session_id || '',
-        title: s.title || s.name || 'Call Recording',
-        date: s.date || s.created_at || s.started_at || s.completed_at || '',
-        duration: s.duration ?? s.duration_seconds ?? null,
-      })).filter(s => s.id)
+      console.log(`[wave/list] total fetched: ${allSessions.length}, after 48hr filter: ${filtered.length}`)
 
-      console.log(`[wave/list] after=${after.toISOString()} returning ${metadata.length} sessions`)
-      return res.status(200).json({ ok: true, sessions: metadata })
+      // Normalize session shape for the frontend
+      const normalized = filtered.map(s => ({
+        id:       s.id,
+        title:    s.title || s.name || 'Call Recording',
+        date:     s.timestamp || s.created_at || s.started_at || s.date || '',
+        duration: s.duration_seconds ?? s.duration ?? null,
+        platform: s.platform || null,
+        type:     s.type || 'recording',
+      }))
+
+      return res.status(200).json({ ok: true, sessions: normalized })
     } catch (err) {
-      console.error('[wave/list] fetch error:', err.message)
+      console.error('[wave/list] error:', err.message)
       return res.status(502).json({ error: err.message || 'Could not reach Wave API' })
     }
   }
