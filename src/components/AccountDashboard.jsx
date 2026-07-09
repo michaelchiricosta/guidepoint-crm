@@ -27,6 +27,49 @@ function parseResolverResponse(data) {
 
 const normalizeName = name => (name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase()
 
+const buildContactResolver = (contacts) => {
+  const byNormalizedName = {}
+  const byFirstName = {}
+  contacts.forEach(c => {
+    if (!c.name) return
+    const full = c.name.trim()
+    const normalized = normalizeName(full)
+    const firstName = normalized.split(' ')[0]
+    byNormalizedName[normalized] = full
+    if (!byFirstName[firstName]) {
+      byFirstName[firstName] = full
+    } else {
+      byFirstName[firstName] = null // ambiguous — don't use for first-name-only match
+    }
+  })
+  return (rawName) => {
+    if (!rawName) return rawName
+    const normalized = normalizeName(rawName)
+    const firstName = normalized.split(' ')[0]
+    // Exact normalized match (strips parens before comparing)
+    if (byNormalizedName[normalized]) return byNormalizedName[normalized]
+    // Unambiguous first-name match — "Rudy" → "Rudy Montoya" only if Rudy is unique
+    if (byFirstName[firstName]) return byFirstName[firstName]
+    // Partial: contact name starts with raw, or raw starts with contact's first name
+    const partialMatch = Object.keys(byNormalizedName).find(k =>
+      k.startsWith(normalized) || normalized.startsWith(k.split(' ')[0])
+    )
+    if (partialMatch && byNormalizedName[partialMatch]) return byNormalizedName[partialMatch]
+    // Fuzzy: 4-char prefix match handles "Marianne" vs "Mary Ann" type variations
+    const fuzzyMatch = Object.keys(byNormalizedName).find(k => {
+      const contactFirst = k.split(' ')[0]
+      return contactFirst.startsWith(firstName.slice(0, 4)) ||
+             firstName.startsWith(contactFirst.slice(0, 4))
+    })
+    if (fuzzyMatch && byNormalizedName[fuzzyMatch]) return byNormalizedName[fuzzyMatch]
+    // Fall back: strip parens, re-capitalize
+    return normalized.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  }
+}
+
+const SYSTEM_LABEL_RE = /\b(internal|unknown|correction|stakeholder)\b|^note\s*[—-]/i
+const isSystemLabel = name => !name || SYSTEM_LABEL_RE.test(name) || name.trim().toLowerCase() === 'sales rep'
+
 export default function AccountDashboard({acct, setTab}) {
   const [groupBy,setGroupBy] = useState('monthly')
   const [selectedContacts,setSelectedContacts] = useState([])
@@ -51,27 +94,11 @@ export default function AccountDashboard({acct, setTab}) {
     return()=>document.removeEventListener('mousedown',h)
   },[filterOpen])
 
-  const nameGroups = {}
-  Array.from(new Set(acct.interactions.map(i => i.contact).filter(Boolean))).forEach(raw => {
-    const key = normalizeName(raw)
-    if (!nameGroups[key]) nameGroups[key] = []
-    nameGroups[key].push(raw)
-  })
-  const rawToDisplay = {}
-  Object.entries(nameGroups).forEach(([key, variants]) => {
-    const matchedContact = (acct.contacts || []).find(c => normalizeName(c.name) === key)
-    let displayName
-    if (matchedContact) {
-      displayName = matchedContact.name
-    } else {
-      const clean = variants.find(v => !v.includes('('))
-      displayName = clean || variants.reduce((a, b) => a.length <= b.length ? a : b)
-    }
-    variants.forEach(raw => { rawToDisplay[raw] = displayName })
-  })
+  const resolveContact = buildContactResolver(acct.contacts || [])
   const canonicalize = name => {
-    const deduped = rawToDisplay[name] || name || ''
-    return (deduped && nameMap[deduped]) || deduped
+    if (!name) return ''
+    const resolved = resolveContact(name)
+    return (resolved && nameMap[resolved]) || resolved
   }
 
   const resolveChartIdentities = async () => {
@@ -108,7 +135,7 @@ export default function AccountDashboard({acct, setTab}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acct.id, acct.interactions?.length])
 
-  const allContacts = Array.from(new Set(acct.interactions.map(i=>canonicalize(i.contact)).filter(Boolean))).sort()
+  const allContacts = Array.from(new Set(acct.interactions.map(i=>canonicalize(i.contact)).filter(c=>c&&!isSystemLabel(c)))).sort()
   const filtered = selectedContacts.length===0 ? acct.interactions : acct.interactions.filter(i=>selectedContacts.includes(canonicalize(i.contact)))
 
   const now = new Date()
@@ -116,7 +143,7 @@ export default function AccountDashboard({acct, setTab}) {
   const last30Start = new Date(now); last30Start.setDate(now.getDate()-30); last30Start.setHours(0,0,0,0)
   const last30Count = acct.interactions.filter(i=>{if(!i.date)return false;const d=new Date(i.date+'T12:00:00');return d>=last30Start&&d<=now}).length
   const cntMap={}; acct.interactions.forEach(i=>{if(i.contact){const cn=canonicalize(i.contact);cntMap[cn]=(cntMap[cn]||0)+1}})
-  const topContact = Object.entries(cntMap).sort((a,b)=>b[1]-a[1])[0]
+  const topContact = Object.entries(cntMap).filter(([n])=>!isSystemLabel(n)).sort((a,b)=>b[1]-a[1])[0]
   const typeMap={}; acct.interactions.forEach(i=>{if(i.type)typeMap[i.type]=(typeMap[i.type]||0)+1})
   const topType = Object.entries(typeMap).sort((a,b)=>b[1]-a[1])[0]
 
@@ -137,7 +164,7 @@ export default function AccountDashboard({acct, setTab}) {
   }
 
   const LINE_PALETTE = ['#007AFF','#16a34a','#dc2626','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777']
-  const lineContacts = Array.from(new Set(filtered.map(i=>canonicalize(i.contact)).filter(Boolean))).sort()
+  const lineContacts = Array.from(new Set(filtered.map(i=>canonicalize(i.contact)).filter(c=>c&&!isSystemLabel(c)))).sort()
   const lineColorMap = Object.fromEntries(lineContacts.map((c,i)=>[c, LINE_PALETTE[i%LINE_PALETTE.length]]))
   const lineData = buckets.map(b => {
     const row = {date: fmtBucket(b)}
@@ -195,7 +222,7 @@ export default function AccountDashboard({acct, setTab}) {
   const typePriority=['Meeting','Call','Email','Demo','Note']
   const dominantType=ixs=>{for(const t of typePriority)if(ixs.some(x=>x.type===t))return t;return ixs[0]?.type||'Note'}
 
-  const contactFreqData=Object.entries(cntMap).map(([name,count])=>{
+  const contactFreqData=Object.entries(cntMap).filter(([n])=>!isSystemLabel(n)).map(([name,count])=>{
     const c=(acct.contacts||[]).find(ct=>ct.name===name);const inf=c?.influence||'Stakeholder'
     return{name,count,inf,color:IC[inf]?.c||S.muted}
   }).sort((a,b)=>b.count-a.count)
