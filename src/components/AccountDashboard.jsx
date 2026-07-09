@@ -25,6 +25,8 @@ function parseResolverResponse(data) {
   try { return JSON.parse(clean.slice(start, end + 1)) } catch { return null }
 }
 
+const normalizeName = name => (name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase()
+
 export default function AccountDashboard({acct, setTab}) {
   const [groupBy,setGroupBy] = useState('monthly')
   const [selectedContacts,setSelectedContacts] = useState([])
@@ -49,7 +51,28 @@ export default function AccountDashboard({acct, setTab}) {
     return()=>document.removeEventListener('mousedown',h)
   },[filterOpen])
 
-  const canonicalize = name => (name && nameMap[name]) || name || ''
+  const nameGroups = {}
+  Array.from(new Set(acct.interactions.map(i => i.contact).filter(Boolean))).forEach(raw => {
+    const key = normalizeName(raw)
+    if (!nameGroups[key]) nameGroups[key] = []
+    nameGroups[key].push(raw)
+  })
+  const rawToDisplay = {}
+  Object.entries(nameGroups).forEach(([key, variants]) => {
+    const matchedContact = (acct.contacts || []).find(c => normalizeName(c.name) === key)
+    let displayName
+    if (matchedContact) {
+      displayName = matchedContact.name
+    } else {
+      const clean = variants.find(v => !v.includes('('))
+      displayName = clean || variants.reduce((a, b) => a.length <= b.length ? a : b)
+    }
+    variants.forEach(raw => { rawToDisplay[raw] = displayName })
+  })
+  const canonicalize = name => {
+    const deduped = rawToDisplay[name] || name || ''
+    return (deduped && nameMap[deduped]) || deduped
+  }
 
   const resolveChartIdentities = async () => {
     const rawNames = Array.from(new Set(acct.interactions.map(i => i.contact).filter(Boolean)))
@@ -328,7 +351,7 @@ export default function AccountDashboard({acct, setTab}) {
                         onMouseLeave={e=>{if(!isExp)e.currentTarget.style.background='transparent'}}>
                         <span style={{fontSize:10,fontWeight:700,color:tc,background:tbg,padding:'3px 9px',borderRadius:999,flexShrink:0,whiteSpace:'nowrap'}}>{ix.type||'Note'}</span>
                         <div style={{flex:1,minWidth:0}}>
-                          {ix.contact&&<div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.contact}</div>}
+                          {ix.contact&&<div style={{fontSize:13,fontWeight:600,color:S.txt,marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{canonicalize(ix.contact)}</div>}
                           {ix.topics&&<div style={{fontSize:12,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics}</div>}
                         </div>
                         <div style={{fontSize:11,color:S.muted,flexShrink:0}}>{fmtDate(ix.date)}</div>
@@ -384,7 +407,7 @@ export default function AccountDashboard({acct, setTab}) {
                               <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:1}}>
                                 <div style={{width:7,height:7,borderRadius:'50%',background:INTERACTION_COLORS[ix.type]||S.muted,flexShrink:0}}/>
                                 <span style={{fontSize:11,fontWeight:700,color:INTERACTION_COLORS[ix.type]||S.txt}}>{ix.type||'Note'}</span>
-                                {ix.contact&&<span style={{fontSize:11,color:S.secondary}}>· {ix.contact}</span>}
+                                {ix.contact&&<span style={{fontSize:11,color:S.secondary}}>· {canonicalize(ix.contact)}</span>}
                               </div>
                               {ix.topics&&<div style={{fontSize:10,color:S.muted,paddingLeft:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics.slice(0,60)}{ix.topics.length>60?'…':''}</div>}
                             </div>
@@ -408,7 +431,7 @@ export default function AccountDashboard({acct, setTab}) {
                     <div key={i} style={{display:'flex',gap:10,padding:'7px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderLeft:`3px solid ${tc}`,borderRadius:6,alignItems:'center'}}>
                       <span style={{fontSize:10,color:S.muted,flexShrink:0,minWidth:72}}>{fmtDate(ix.date)}</span>
                       <Badge label={ix.type||'Note'} color={tc} bg={tc+'1a'} size={9}/>
-                      {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{ix.contact}</span>}
+                      {ix.contact&&<span style={{fontSize:12,color:S.txt,fontWeight:600,flexShrink:0}}>{canonicalize(ix.contact)}</span>}
                       {ix.topics&&<span style={{fontSize:11,color:S.secondary,flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ix.topics}</span>}
                     </div>
                   )
