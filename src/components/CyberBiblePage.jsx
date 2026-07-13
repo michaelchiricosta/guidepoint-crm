@@ -647,8 +647,9 @@ export default function CyberBiblePage({ data, setData, onBack }) {
 
   if (selectedVendor) {
     return (
-      <div style={{ minHeight: '100vh', background: '#F4F6F9', fontFamily: 'Inter, -apple-system, sans-serif' }}>
+      <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#F4F6F9', fontFamily: 'Inter, -apple-system, sans-serif' }}>
         <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
         <VendorDetail
           vendor={selectedVendor}
           allVendors={vendors.filter(v => !v._stub)}
@@ -658,12 +659,13 @@ export default function CyberBiblePage({ data, setData, onBack }) {
           onEnrich={handleEnrich}
           enriching={enrichingId === selectedVendor.name}
         />
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F4F6F9', fontFamily: 'Inter, -apple-system, sans-serif' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#F4F6F9', fontFamily: 'Inter, -apple-system, sans-serif' }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
 
       {/* Header */}
@@ -716,6 +718,8 @@ export default function CyberBiblePage({ data, setData, onBack }) {
         <span style={{ marginLeft: 'auto', fontSize: 12, color: S.muted }}>{filteredVendors.length} of {vendors.length} vendors</span>
       </div>
 
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
       {loadError && (
         <div style={{ margin: 24, background: '#FEE2E2', color: '#DC2626', borderRadius: 10, padding: 16, fontSize: 14 }}>
           Error loading from Supabase: {loadError}
@@ -747,6 +751,7 @@ export default function CyberBiblePage({ data, setData, onBack }) {
         {!loading && filteredVendors.length === 0 && (
           <div style={{ textAlign: 'center', padding: 80, color: S.muted, fontSize: 15 }}>No vendors match your filters.</div>
         )}
+      </div>
       </div>
     </div>
   )
