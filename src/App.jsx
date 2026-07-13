@@ -19,6 +19,7 @@ import Actions from './components/Actions.jsx'
 import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
+import CyberBiblePage from './components/CyberBiblePage.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
@@ -1432,6 +1433,7 @@ export default function App() {
   const [showWhitespace,setShowWhitespace] = useState(false)
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
+  const [showCyberBible,setShowCyberBible] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
@@ -1498,6 +1500,8 @@ export default function App() {
         setShowAllProjects(true); setIsLandingPage(false)
       } else if (saved.page === 'vendors') {
         setShowVendors(true); setIsLandingPage(false)
+      } else if (saved.page === 'cyberbible') {
+        setShowCyberBible(true); setIsLandingPage(false)
       } else if (saved.page === 'files') {
         setShowFiles(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
@@ -1521,10 +1525,11 @@ export default function App() {
       : showWhitespace ? 'whitespace'
       : showAllProjects ? 'allprojects'
       : showVendors ? 'vendors'
+      : showCyberBible ? 'cyberbible'
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWhitespace, showAllProjects, showVendors, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, isLandingPage, activeId, tab, initialLoadDone])
 
   const safeLoadData = async () => {
     // Skip focus reload if a save is queued but not yet committed — reloading now would discard
@@ -1895,6 +1900,14 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     />
   )
 
+  if (showCyberBible) return (
+    <CyberBiblePage
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowCyberBible(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (showFiles) return (
     <GlobalFilesPage
       data={data}
@@ -1913,6 +1926,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
+      onGoCyberBible={()=>{setShowCyberBible(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
