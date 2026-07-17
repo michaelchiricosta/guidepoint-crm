@@ -414,7 +414,7 @@ function ExpandedWhitespaceRow({acct, updateAccount, isLight, onRescore, scoring
             <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',marginBottom:2}}>Status</div>
             <select value={editForm.status||'Prospect'} onChange={e=>{setEditForm(p=>({...p,status:e.target.value}));updateAccount(acct.id,{status:e.target.value})}}
               style={{width:'100%',fontSize:12,padding:'5px 8px',background:inBg,border:`1px solid ${inBdr}`,borderRadius:5,color:S.txt}}>
-              {['Prospect','Researching','Reached Out','Active Conversation'].map(s=><option key={s}>{s}</option>)}
+              {['Top Target','Active Conversation','Reached Out','Researching','Prospect','Interesting'].map(s=><option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
@@ -752,10 +752,10 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
   // Detect duplicate pairs among existing accounts
   const dupePairs = []
   for (let i=0;i<ws.length;i++) for (let j=i+1;j<ws.length;j++) if (fuzzyMatchAccount(ws[i].name,ws[j].name)) dupePairs.push([ws[i],ws[j]])
-  const STATUS_ORDER = {'Active Conversation':0,'Reached Out':1,'Researching':2,'Prospect':3}
-  const STATUS_COLORS = {Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f'}
+  const STATUS_ORDER = {'Top Target':0,'Active Conversation':1,'Reached Out':2,'Researching':3,'Prospect':4,'Interesting':5}
+  const STATUS_COLORS = {'Top Target':'#EF4444',Prospect:'#64748b',Researching:'#2563eb','Reached Out':'#ea580c','Active Conversation':'#0ebc5f',Interesting:'#8B5CF6'}
   const SORT_OPTS = ['Recently Added','Recently Updated','Name A-Z','Name Z-A','Status','Industry','Employees','Revenue','Intel','Sort by Opportunity','Hot','Sort by Time Sensitive']
-  const STATUS_OPTS = ['All','Prospect','Researching','Reached Out','Active Conversation']
+  const STATUS_OPTS = ['All','Top Target','Active Conversation','Reached Out','Researching','Prospect','Interesting']
 
   const parseNum = s => {if(!s)return 0;const n=String(s).replace(/[$,\s]/g,'').toLowerCase();if(n.endsWith('k'))return parseFloat(n)*1000||0;if(n.endsWith('m'))return parseFloat(n)*1000000||0;if(n.endsWith('b'))return parseFloat(n)*1000000000||0;return parseFloat(n)||0}
 
@@ -800,7 +800,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     switch(sort){
       case 'Name A-Z':return(a.name||'').localeCompare(b.name||'')
       case 'Name Z-A':return(b.name||'').localeCompare(a.name||'')
-      case 'Status':return(STATUS_ORDER[a.status]||3)-(STATUS_ORDER[b.status]||3)
+      case 'Status':return(STATUS_ORDER[a.status]??6)-(STATUS_ORDER[b.status]??6)
       case 'Industry':return(a.industry||'').localeCompare(b.industry||'')
       case 'Employees':return parseNum(b.employees)-parseNum(a.employees)
       case 'Revenue':return parseNum(b.revenue)-parseNum(a.revenue)
@@ -834,6 +834,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     if (a.ai_opportunity_score != null) return a.ai_opportunity_score >= flameThreshold
     const signals = [
       ((a.intelLog||[]).length + (a.notes||[]).length) >= 3,
+      a.status === 'Top Target',
       a.status === 'Active Conversation',
       a.status === 'Reached Out',
       (a.contacts||[]).length >= 1,
@@ -1547,7 +1548,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
     setWsPendingDate(date)
 
     const SYS_WS = 'You are an account intelligence analyst. Extract prospect company names and notes from vendor calls and sales intel documents. Return ONLY valid JSON. Start with { and end with }. No markdown, no code blocks, no text before or after the JSON.'
-    const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+    const buildPromptWS = txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation|Top Target|Interesting"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const onStatus = msg => { if(msg) setWsRetryStatus(msg); else setWsRetryStatus('') }
 
@@ -1727,7 +1728,7 @@ export default function WhitespacePage({data, setData, theme, setTheme, onBack})
 
     const buildPrompt = isSpreadsheet
       ? txt => `These are structured rows from a whitespace account spreadsheet. Map EVERY row into a whitespace account.\n\nReturn ONLY this JSON:\n{"accounts":[{"name":"Account Name","hq":"state or city/state or empty","industry":"industry or empty","employees":"company size or headcount as string or empty","revenue":"revenue or empty","note":"brief note using customerType/accountOwner/other fields","status":"Prospect"}]}\n\nRules:\n- accountName = company name — INCLUDE EVERY ROW that has an accountName, do not skip any\n- location, stateProvince, state, or province = use as hq field\n- companySize, employees, headcount = use as employees field\n- customerType: if "Customer" set status to "Researching", otherwise "Prospect"\n- accountOwner + customerType = include in note field\n- Revenue and industry may be empty — leave as empty string, do not skip the row\n- Return ALL rows as accounts — do not filter or omit any\n- CRITICAL: Return valid JSON only, nothing else\n\nSpreadsheet rows:\n${txt}`
-      : txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
+      : txt => `Extract all prospect/whitespace accounts from this input. Return ONLY this JSON structure with no other text:\n{"accounts":[{"name":"Company Name","hq":"city, state or empty string","industry":"industry or empty string","employees":"headcount as string like '5,000' or '5k' or empty string","revenue":"annual revenue as string like '$500M' or '500 million' or empty string","note":"2-3 sentence intel summary","status":"Prospect|Researching|Reached Out|Active Conversation|Top Target|Interesting"}]}\n\nRules:\n- Include every company mentioned as a prospect or target\n- Keep notes SHORT — 2-3 sentences max per account\n- Extract the following fields if mentioned anywhere in the input — revenue (annual revenue as a string like '$500M' or '500 million'), employees (headcount as a string like '5,000' or '5k'), hq (city and state), industry (the company's industry). These may appear anywhere in the text — in passing mentions, context, or background information. If revenue is mentioned as a range use the midpoint.\n- Do not include GuidePoint, the vendor you are speaking with, or the user themselves as accounts\n- Return empty accounts array [] if no prospects found\n- CRITICAL: Return valid JSON only, nothing else\n\nInput:\n${txt}`
 
     const runChunk = async (txt, idx, total) => {
       if (total > 1) setIntelStatus(`Processing chunk ${idx+1} of ${total}…`)
@@ -2453,7 +2454,7 @@ ${!brief?'<p style="color:#9CA3AF;font-style:italic">No Prospect Brief generated
               <div style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>Status</div>
               <select value={addForm.status} onChange={e=>setAddForm(p=>({...p,status:e.target.value}))}
                 style={{width:'100%',fontSize:13,padding:'8px 10px',background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:7,color:S.txt}}>
-                {['Prospect','Researching','Reached Out','Active Conversation'].map(s=><option key={s}>{s}</option>)}
+                {['Top Target','Active Conversation','Reached Out','Researching','Prospect','Interesting'].map(s=><option key={s}>{s}</option>)}
               </select>
             </div>
             <div style={{marginBottom:20}}>
