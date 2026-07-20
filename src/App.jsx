@@ -20,6 +20,7 @@ import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
 import CyberBiblePage from './components/CyberBiblePage.jsx'
+import Mothership from './components/Mothership.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
@@ -1434,6 +1435,7 @@ export default function App() {
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
   const [showCyberBible,setShowCyberBible] = useState(false)
+  const [showMothership,setShowMothership] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
@@ -1502,6 +1504,8 @@ export default function App() {
         setShowVendors(true); setIsLandingPage(false)
       } else if (saved.page === 'cyberbible') {
         setShowCyberBible(true); setIsLandingPage(false)
+      } else if (saved.page === 'mothership') {
+        setShowMothership(true); setIsLandingPage(false)
       } else if (saved.page === 'files') {
         setShowFiles(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
@@ -1526,10 +1530,11 @@ export default function App() {
       : showAllProjects ? 'allprojects'
       : showVendors ? 'vendors'
       : showCyberBible ? 'cyberbible'
+      : showMothership ? 'mothership'
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, isLandingPage, activeId, tab, initialLoadDone])
 
   const safeLoadData = async () => {
     // Skip focus reload if a save is queued but not yet committed — reloading now would discard
@@ -1908,6 +1913,12 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     />
   )
 
+  if (showMothership) return (
+    <Mothership
+      onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (showFiles) return (
     <GlobalFilesPage
       data={data}
@@ -1927,6 +1938,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
       onGoCyberBible={()=>{setShowCyberBible(true);setIsLandingPage(false)}}
+      onGoMothership={()=>{setShowMothership(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
