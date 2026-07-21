@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { S } from '../theme.js'
 import { Field, Btn, SH, Card } from './UI.jsx'
 import { supabase, getLoadTiming, getSaveTiming } from '../supabase.js'
@@ -7,14 +7,31 @@ import { getRecords, getStats } from '../utils/aiTracker.js'
 
 const LS_API_KEY = 'ledgr_anthropic_api_key'
 
-export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime,onReset}) {
+export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveInProgress,lastSaveTime,onReset,onDeleteAccount}) {
   const [key,setKey] = useState(()=>localStorage.getItem(LS_API_KEY)||data.apiKey||'')
   const [saved,setSaved] = useState(false)
   const [logoStatus,setLogoStatus]     = useState(null)
   const [pdfLoading,setPdfLoading]     = useState(false)
   const [waveStatus, setWaveStatus]   = useState(null) // null | 'syncing' | 'done' | 'error'
   const [waveMsg, setWaveMsg]         = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const deleteTimerRef = useRef(null)
   const logoInputRef = useRef(null)
+
+  useEffect(() => {
+    return () => { if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current) }
+  }, [])
+
+  const handleDeleteClick = () => {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true)
+      deleteTimerRef.current = setTimeout(() => setDeleteConfirm(false), 5000)
+    } else {
+      clearTimeout(deleteTimerRef.current)
+      setDeleteConfirm(false)
+      onDeleteAccount && onDeleteAccount(acct.id)
+    }
+  }
   const saveKey=()=>{
     localStorage.setItem(LS_API_KEY, key)
     // Keep data.apiKey in sync so existing AI callers that read data.apiKey still work,
@@ -702,9 +719,39 @@ export default function Settings({data,setData,acct,setAcct,theme,setTheme,saveI
         })()}
       </Card>
       <SH>Data Management</SH>
-      <div style={{display:'flex',gap:8}}>
+      <div style={{display:'flex',gap:8,marginBottom:32}}>
         <Btn onClick={exportData}>Export JSON Backup</Btn>
         <Btn variant='danger' onClick={()=>{if(window.confirm('Reset everything to sample BHSI data?'))onReset()}}>Reset to Sample Data</Btn>
+      </div>
+      <div style={{fontSize:11,fontWeight:600,color:'#EF4444',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10}}>Danger Zone</div>
+      <div style={{border:'1px solid #FECACA',borderRadius:12,padding:20,background:'#FFF5F5'}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:14,fontWeight:600,color:'#111827',marginBottom:4}}>Delete Account</div>
+            <div style={{fontSize:13,color:'#6B7280',lineHeight:1.55}}>
+              Permanently remove this account and all associated data including contacts, projects, intel log, follow-ups, and files. This cannot be undone.
+            </div>
+          </div>
+          <button
+            onClick={handleDeleteClick}
+            style={{
+              flexShrink:0,
+              padding:'9px 18px',
+              background: deleteConfirm ? '#DC2626' : '#EF4444',
+              border:'none',
+              borderRadius:8,
+              color:'#fff',
+              fontSize:14,
+              fontWeight:500,
+              cursor:'pointer',
+              whiteSpace:'nowrap',
+              transition:'background 0.15s',
+              alignSelf:'center',
+            }}
+          >
+            {deleteConfirm ? 'Are you sure? Click again to confirm' : 'Delete Account'}
+          </button>
+        </div>
       </div>
     </div>
   )

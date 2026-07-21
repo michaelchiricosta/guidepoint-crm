@@ -1440,6 +1440,7 @@ export default function App() {
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
+  const [deleteToast,setDeleteToast] = useState(null)
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [sidebarCollapsed,setSidebarCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
   const [theme,setTheme] = useState(()=>{
@@ -1535,6 +1536,14 @@ export default function App() {
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
   }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, isLandingPage, activeId, tab, initialLoadDone])
+
+  const handleDeleteAccount = (accountId) => {
+    const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
+    setData(updated)
+    setIsLandingPage(true)
+    setDeleteToast('Account deleted')
+    setTimeout(() => setDeleteToast(null), 3000)
+  }
 
   const safeLoadData = async () => {
     // Skip focus reload if a save is queued but not yet committed — reloading now would discard
@@ -2050,10 +2059,11 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
           {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} setData={setData} apiKey={data.apiKey}/>}
           {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
           {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
-          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)}/>}
+          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)} onDeleteAccount={handleDeleteAccount}/>}
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
+      {deleteToast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#111827',color:'#fff',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,0.2)',whiteSpace:'nowrap',pointerEvents:'none'}}>{deleteToast}</div>}
     </div>
   )
 }
