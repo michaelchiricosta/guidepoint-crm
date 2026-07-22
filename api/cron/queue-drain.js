@@ -77,6 +77,7 @@ export default async function handler(req, res) {
     const transcriptText = transcriptRes.transcript;
     const segments = transcriptRes.segments || [];
     const waveSummary = sessionRes.summary || null;
+    const sessionDate = sessionRes.timestamp || null;
 
     if (!transcriptText) {
       throw new Error('Wave returned no transcript text for this session');
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
     const rawExtraction = await runExtraction({
       transcriptText,
       sessionTitle: row.session_title,
-      sessionDate: row.session_date,
+      sessionDate,
       waveSummary
     });
 
@@ -121,6 +122,7 @@ export default async function handler(req, res) {
     // 8. Write call_analysis
     const { error: insertErr } = await supabase.from('call_analysis').insert({
       wave_session_id: row.wave_session_id,
+      session_date: sessionDate,
       account_id: match.accountId,
       contact_ids: match.contactIds,
       matched_confidence: match.confidence,
