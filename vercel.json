@@ -1,6 +1,7 @@
 {
   "version": 2,
   "github": {"enabled": true, "autoAlias": true, "productionBranch": "v2"},
+  "crons": [{"path": "/api/cron/wave-detect", "schedule": "*/15 * * * *"}],
   "headers": [
     {
       "source": "/(.*)",
