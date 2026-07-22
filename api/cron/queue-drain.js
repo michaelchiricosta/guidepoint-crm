@@ -120,14 +120,12 @@ export default async function handler(req, res) {
 
     // 8. Write call_analysis
     const { error: insertErr } = await supabase.from('call_analysis').insert({
-      call_queue_id: row.id,
       wave_session_id: row.wave_session_id,
       account_id: match.accountId,
       contact_ids: match.contactIds,
       matched_confidence: match.confidence,
       raw_extraction: rawExtraction,
-      distilled: distilled,
-      created_at: new Date().toISOString()
+      distilled: distilled
     });
 
     if (insertErr) throw insertErr;
