@@ -1,3 +1,5 @@
+export const maxDuration = 120;
+
 // api/cron/queue-drain.js
 // Vercel Cron: runs every 2-3 minutes.
 // Job: pull ONE pending row off call_queue, fetch its real transcript from Wave,
@@ -15,7 +17,7 @@ const supabase = createClient(
 const WAVE_API_BASE = 'https://api.wave.co/v1'; // confirmed against Wave's real OpenAPI spec
 const WAVE_API_KEY = process.env.WAVE_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANALYSIS_MODEL = 'claude-opus-4-8';
+const ANALYSIS_MODEL = 'claude-sonnet-4-6';
 
 // Your own name as it appears in Wave speaker labels, so it gets excluded
 // from account/contact matching. Set MAGGIE_USER_NAME in Vercel env vars.
