@@ -206,7 +206,7 @@ function normalizeFirstName(fullName) {
 
 async function matchContacts(speakerNames) {
   if (!speakerNames.length) {
-    return { accountId: null, accountName: null, contactIds: [], confidence: 'none' };
+    return { accountId: null, accountName: null, contactIds: [], confidence: 'unmatched' };
   }
 
   const { data: contacts, error } = await supabase
@@ -219,7 +219,7 @@ async function matchContacts(speakerNames) {
   const hits = (contacts || []).filter(c => wanted.includes(normalizeFirstName(c.name)));
 
   if (!hits.length) {
-    return { accountId: null, accountName: null, contactIds: [], confidence: 'none' };
+    return { accountId: null, accountName: null, contactIds: [], confidence: 'unmatched' };
   }
 
   // Confidence: high if every matched contact belongs to the same account,
