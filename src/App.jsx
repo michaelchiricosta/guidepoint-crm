@@ -21,6 +21,7 @@ import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
 import CyberBiblePage from './components/CyberBiblePage.jsx'
 import Mothership from './components/Mothership.jsx'
+import MaggiePage from './components/MaggiePage.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
@@ -1436,6 +1437,7 @@ export default function App() {
   const [showVendors,setShowVendors] = useState(false)
   const [showCyberBible,setShowCyberBible] = useState(false)
   const [showMothership,setShowMothership] = useState(false)
+  const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
@@ -1507,6 +1509,8 @@ export default function App() {
         setShowCyberBible(true); setIsLandingPage(false)
       } else if (saved.page === 'mothership') {
         setShowMothership(true); setIsLandingPage(false)
+      } else if (saved.page === 'maggie') {
+        setShowMaggie(true); setIsLandingPage(false)
       } else if (saved.page === 'files') {
         setShowFiles(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
@@ -1532,10 +1536,11 @@ export default function App() {
       : showVendors ? 'vendors'
       : showCyberBible ? 'cyberbible'
       : showMothership ? 'mothership'
+      : showMaggie ? 'maggie'
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
 
   const handleDeleteAccount = (accountId) => {
     const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
@@ -1928,6 +1933,12 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     />
   )
 
+  if (showMaggie) return (
+    <MaggiePage
+      onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
+    />
+  )
+
   if (showFiles) return (
     <GlobalFilesPage
       data={data}
@@ -1948,6 +1959,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
       onGoCyberBible={()=>{setShowCyberBible(true);setIsLandingPage(false)}}
       onGoMothership={()=>{setShowMothership(true);setIsLandingPage(false)}}
+      onGoMaggie={()=>{setShowMaggie(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
