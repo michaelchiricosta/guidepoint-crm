@@ -29,13 +29,21 @@ export default function MaggiePage({ onBack }) {
   const [showHandled, setShowHandled] = useState(false)
   const [copiedKey, setCopiedKey] = useState(null)
 
+  const [loadError, setLoadError] = useState(null)
+
   const load = useCallback(async () => {
     const { data, error } = await supabase
       .from('call_analysis')
       .select('id, session_date, distilled, reviewed_items, created_at')
       .order('created_at', { ascending: false })
       .limit(30)
-    if (!error) setRows(data || [])
+    if (error) {
+      console.error('[MaggiePage] call_analysis query error:', error)
+      setLoadError(error.message || JSON.stringify(error))
+    } else {
+      setLoadError(null)
+      setRows(data || [])
+    }
     setLoading(false)
   }, [])
 
@@ -147,7 +155,13 @@ export default function MaggiePage({ onBack }) {
             </div>
           </div>
 
-          {isEmpty && (
+          {loadError && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '12px 16px', marginBottom: 32, fontSize: 13, color: '#B91C1C', fontFamily: 'monospace' }}>
+              Failed to load: {loadError}
+            </div>
+          )}
+
+          {isEmpty && !loadError && (
             <div style={{ textAlign: 'center', paddingTop: 48, color: '#CBD5E1', fontSize: 14 }}>
               Check back after your next call.
             </div>
