@@ -1894,65 +1894,63 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
-  const _maggiePanel = <MaggiaChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/>
-
   if (showWhitespace) return (
-    <>{_maggiePanel}<WhitespacePage
+    <><WhitespacePage
       data={data}
       setData={setData}
       theme={theme}
       setTheme={handleSetTheme}
       onBack={()=>{setShowWhitespace(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showAllProjects) return (
-    <>{_maggiePanel}<AllProjectsPage
+    <><AllProjectsPage
       data={data}
       setData={setData}
       onBack={()=>{setShowAllProjects(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showVendors) return (
-    <>{_maggiePanel}<VendorsPage
+    <><VendorsPage
       data={data}
       setData={setData}
       apiKey={data.apiKey}
       onBack={()=>{setShowVendors(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showCyberBible) return (
-    <>{_maggiePanel}<CyberBiblePage
+    <><CyberBiblePage
       data={data}
       setData={setData}
       onBack={()=>{setShowCyberBible(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMothership) return (
-    <>{_maggiePanel}<Mothership
+    <><Mothership
       onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMaggie) return (
-    <>{_maggiePanel}<MaggiePage
+    <><MaggiePage
       onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showFiles) return (
-    <>{_maggiePanel}<GlobalFilesPage
+    <><GlobalFilesPage
       data={data}
       setData={setData}
       onBack={()=>{setShowFiles(false);setIsLandingPage(true)}}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (isLandingPage) return (
-    <>{_maggiePanel}<LandingPage
+    <><LandingPage
       data={data}
       setData={setData}
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
@@ -1974,7 +1972,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       setShowAccounts={setShowAccounts}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
-    /></>
+    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
@@ -2079,7 +2077,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
-      {_maggiePanel}
+      <MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/>
       {deleteToast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#111827',color:'#fff',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,0.2)',whiteSpace:'nowrap',pointerEvents:'none'}}>{deleteToast}</div>}
     </div>
   )

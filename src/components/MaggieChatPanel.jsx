@@ -437,3 +437,4 @@ ${contextRef.current || buildDataContext(data)}`
     </>
   )
 }
+MaggieChatPanel.displayName = 'MaggieChatPanel'
