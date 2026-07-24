@@ -6,17 +6,57 @@ const MAGGIE_SYSTEM_BASE = `You are Maggie, Mike Chiricosta's sharp, trusted EA 
 
 Always use first names. Be concise. Get to the point.`
 
-const BRIEFING_REQUEST = `Mike just popped into your office. Give him a quick, sharp briefing — the kind you'd give someone who has 2 minutes before their next call. Talk to him directly, like you know him well. No preamble, no "here's a summary of", just start talking.
+const BRIEFING_REQUEST = `Mike just walked in. Give him 2-3 sharp sentences covering the most critical 1-2 things that need his attention right now — name the account and the exact action. Then end with exactly: "Your full list is below." Nothing more. No greeting. No preamble. No bullets. Talk like you know him well.`
 
-Cover:
-1. The 2-3 most urgent things he needs to deal with TODAY — be specific, name the account and the exact action
-2. One thing that's quietly slipping that he might not be thinking about
-3. One whitespace account he should make a move on this week and why right now
-4. Any recent call intel worth flagging — something from a transcript he should act on
+function tierOf(dueDate, today, weekOut) {
+  if (!dueDate) return 3
+  if (dueDate < today) return 0
+  if (dueDate === today) return 1
+  if (dueDate <= weekOut) return 2
+  return 3
+}
 
-Keep it under 200 words. Be direct. Use first names. Sound like someone who was in the room for every call.
+const TIER_BORDER = ['#EF4444', '#F59E0B', '#007AFF', '#E5E7EB']
 
-Do NOT use bullet points for everything — mix in natural sentences. Do NOT start with "Hi Mike" or any greeting. Just start with what matters.`
+function dueDateColor(dueDate, today) {
+  if (!dueDate) return '#9CA3AF'
+  if (dueDate < today) return '#EF4444'
+  if (dueDate === today) return '#F59E0B'
+  return '#9CA3AF'
+}
+
+function dueDateLabel(dueDate, today) {
+  if (!dueDate) return null
+  if (dueDate < today) return `Overdue · ${dueDate}`
+  if (dueDate === today) return 'Due today'
+  return dueDate
+}
+
+function buildFollowUpList(data) {
+  if (!data) return []
+  const today = new Date().toISOString().split('T')[0]
+  const weekOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const items = []
+
+  for (const acct of data.accounts || []) {
+    for (const fu of acct.followUps || []) {
+      if (['Completed', 'Done', 'Won'].includes(fu.status)) continue
+      if (fu.snoozedUntil && fu.snoozedUntil >= today) continue
+      items.push({ ...fu, acctId: acct.id, acctName: acct.name })
+    }
+  }
+
+  items.sort((a, b) => {
+    const today = new Date().toISOString().split('T')[0]
+    const weekOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const at = tierOf(a.dueDate, today, weekOut)
+    const bt = tierOf(b.dueDate, today, weekOut)
+    if (at !== bt) return at - bt
+    return (a.dueDate || '9').localeCompare(b.dueDate || '9')
+  })
+
+  return items
+}
 
 function buildDataContext(data) {
   if (!data) return 'No data available.'
@@ -32,30 +72,29 @@ function buildDataContext(data) {
 
     const clients = (acct.contacts || []).filter(c => (c.contactType || 'Client') === 'Client')
     if (clients.length) {
-      lines.push(`  Contacts: ${clients.slice(0, 6).map(c =>
+      lines.push(`  Contacts: ${clients.map(c =>
         `${c.name}${c.title ? ` (${c.title})` : ''}${c.relStatus ? ' [' + c.relStatus + ']' : ''}${c.sentiment === 'negative' ? ' ⚠' : ''}`
       ).join(', ')}`)
     }
 
     const activeProjects = (acct.projects || []).filter(p =>
-      ['In Flight', 'In Discussion', 'Not Started', 'Stalled'].includes(p.status)
+      ['In Flight', 'In Discussion', 'Not Started', 'Stalled', 'Planning'].includes(p.status)
     )
     if (activeProjects.length) {
       lines.push(`  Projects: ${activeProjects.map(p =>
-        `${p.name} [${p.status}${p.vendor ? '/' + p.vendor : ''}]`
+        `${p.name} [${p.status}${p.vendor ? '/' + p.vendor : ''}${p.value ? ', $' + p.value : ''}]`
       ).join('; ')}`)
     }
 
-    const openFUs = (acct.followUps || []).filter(f => f.status === 'Open')
-    const critHigh = openFUs.filter(f => f.priority === 'Critical' || f.priority === 'High')
-    if (critHigh.length) {
-      lines.push(`  Critical/High Actions: ${critHigh.map(f =>
-        `${f.task}${f.dueDate ? ' [due ' + f.dueDate + ']' : ''} (${f.priority})`
-      ).join(' | ')}`)
-    }
-    const medLow = openFUs.filter(f => f.priority !== 'Critical' && f.priority !== 'High').slice(0, 2)
-    if (medLow.length) {
-      lines.push(`  Other Open Actions: ${medLow.map(f => f.task).join(' | ')}`)
+    const openFUs = (acct.followUps || []).filter(f =>
+      !['Completed', 'Done', 'Won'].includes(f.status)
+    )
+    if (openFUs.length) {
+      lines.push(`  Open Actions (${openFUs.length}):`)
+      for (const f of openFUs) {
+        const snoozed = f.snoozedUntil && f.snoozedUntil >= today ? ` [snoozed until ${f.snoozedUntil}]` : ''
+        lines.push(`    - [${f.priority || 'Med'}] ${f.task}${f.contact ? ` (re: ${f.contact})` : ''}${f.dueDate ? ' [due ' + f.dueDate + ']' : ''}${snoozed}`)
+      }
     }
 
     const renewals = (acct.techStack || []).filter(t =>
@@ -71,22 +110,21 @@ function buildDataContext(data) {
     const recentIntel = (acct.intelLog || [])
       .filter(e => e.date >= thirtyDaysAgo)
       .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 3)
     for (const e of recentIntel) {
-      lines.push(`  [${e.date}] Intel: ${(e.summary || '').slice(0, 300)}`)
-      if (e.insights?.length) lines.push(`    Insights: ${e.insights.slice(0, 3).join(' | ')}`)
-      if (e.opportunities?.length) lines.push(`    Opportunities: ${e.opportunities.slice(0, 2).join(' | ')}`)
-      if (e.risks?.length) lines.push(`    Risks: ${e.risks.slice(0, 2).join(' | ')}`)
+      lines.push(`  [${e.date}] Intel: ${(e.summary || '').slice(0, 400)}`)
+      if (e.insights?.length) lines.push(`    Insights: ${e.insights.join(' | ')}`)
+      if (e.opportunities?.length) lines.push(`    Opportunities: ${e.opportunities.join(' | ')}`)
+      if (e.risks?.length) lines.push(`    Risks: ${e.risks.join(' | ')}`)
     }
 
     if (acct.lastContact) lines.push(`  Last contact: ${acct.lastContact}`)
-    if (acct.notes) lines.push(`  Notes: ${acct.notes.slice(0, 200)}`)
+    if (acct.notes) lines.push(`  Notes: ${acct.notes.slice(0, 300)}`)
   }
 
   const wt = (data.whitespaceAccounts || [])
     .filter(a => a.aiScore > 0)
     .sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0))
-    .slice(0, 6)
+    .slice(0, 10)
   if (wt.length) {
     lines.push('\n=== TOP WHITESPACE TARGETS ===')
     for (const a of wt) {
@@ -104,18 +142,22 @@ function buildDataContext(data) {
     lines.push(stalledProjects.join('\n'))
   }
 
-  return lines.join('\n').slice(0, 12000)
+  return lines.join('\n').slice(0, 60000)
 }
 
-export default function MaggieChatPanel({ data, open, onToggle, onClose }) {
+export default function MaggieChatPanel({ data, setData, open, onToggle, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [doneFlashing, setDoneFlashing] = useState(new Set())
   const briefedRef = useRef(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const contextRef = useRef('')
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640
+
+  const today = new Date().toISOString().split('T')[0]
+  const weekOut = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   useEffect(() => {
     contextRef.current = buildDataContext(data)
@@ -141,7 +183,7 @@ ${contextRef.current || buildDataContext(data)}`
 
       const { data: responseData } = await callClaudeWithRetry({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        max_tokens: 600,
         system: systemPrompt,
         messages: apiMessages,
       }, null, null)
@@ -163,7 +205,6 @@ ${contextRef.current || buildDataContext(data)}`
     }
   }, [data])
 
-  // Auto-briefing on first open
   useEffect(() => {
     if (open && !briefedRef.current && data) {
       briefedRef.current = true
@@ -189,6 +230,39 @@ ${contextRef.current || buildDataContext(data)}`
     contextRef.current = buildDataContext(data)
     callMaggie(BRIEFING_REQUEST, [])
   }
+
+  const handleDone = (acctId, fuId) => {
+    setDoneFlashing(prev => new Set([...prev, fuId]))
+    setTimeout(() => {
+      setData(prev => ({
+        ...prev,
+        accounts: prev.accounts.map(a =>
+          a.id === acctId
+            ? { ...a, followUps: (a.followUps || []).map(f =>
+                f.id === fuId ? { ...f, status: 'Completed' } : f
+              )}
+            : a
+        )
+      }))
+      setDoneFlashing(prev => { const s = new Set(prev); s.delete(fuId); return s })
+    }, 900)
+  }
+
+  const handleSnooze = (acctId, fuId) => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    setData(prev => ({
+      ...prev,
+      accounts: prev.accounts.map(a =>
+        a.id === acctId
+          ? { ...a, followUps: (a.followUps || []).map(f =>
+              f.id === fuId ? { ...f, dueDate: tomorrow, snoozedUntil: tomorrow } : f
+            )}
+          : a
+      )
+    }))
+  }
+
+  const followUpItems = buildFollowUpList(data)
 
   return (
     <>
@@ -304,18 +378,19 @@ ${contextRef.current || buildDataContext(data)}`
           </button>
         </div>
 
-        {/* Messages */}
+        {/* Scrollable body: chat + full list */}
         <div style={{
           flex: 1, overflowY: 'auto',
-          padding: '20px 16px',
+          padding: '20px 16px 8px',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
         }}>
+          {/* Chat messages */}
           {messages.length === 0 && !thinking && (
             <div style={{
               textAlign: 'center', color: '#D1D5DB',
-              fontSize: 13, paddingTop: 60, lineHeight: 1.6,
+              fontSize: 13, paddingTop: 40, lineHeight: 1.6,
             }}>
               Opening briefing...
             </div>
@@ -376,6 +451,135 @@ ${contextRef.current || buildDataContext(data)}`
           )}
 
           <div ref={messagesEndRef} />
+
+          {/* Your Full List */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#9CA3AF',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: 8,
+              marginTop: 8,
+            }}>
+              Your Full List {followUpItems.length > 0 && `· ${followUpItems.length}`}
+            </div>
+
+            {followUpItems.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#D1D5DB', textAlign: 'center', padding: '12px 0' }}>
+                All caught up. Nothing open.
+              </div>
+            ) : (
+              followUpItems.map(item => {
+                const tier = tierOf(item.dueDate, today, weekOut)
+                const isFlashing = doneFlashing.has(item.id)
+                const dateLabel = dueDateLabel(item.dueDate, today)
+                const dateColor = dueDateColor(item.dueDate, today)
+
+                return (
+                  <div
+                    key={item.id}
+                    style={{
+                      background: isFlashing ? '#F0FDF4' : 'white',
+                      borderRadius: 8,
+                      border: '1px solid #F3F4F6',
+                      borderLeft: `3px solid ${isFlashing ? '#059669' : TIER_BORDER[tier]}`,
+                      padding: '10px 12px',
+                      marginBottom: 6,
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'flex-start',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: '#9CA3AF',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        marginBottom: 2,
+                      }}>
+                        {item.acctName}
+                      </div>
+                      <div style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: '#111827',
+                        lineHeight: 1.4,
+                        marginBottom: 3,
+                      }}>
+                        {item.task}
+                      </div>
+                      {item.contact && (
+                        <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 2 }}>
+                          {item.contact}
+                        </div>
+                      )}
+                      {dateLabel && (
+                        <div style={{ fontSize: 12, color: dateColor, fontWeight: tier < 2 ? 500 : 400 }}>
+                          {dateLabel}
+                        </div>
+                      )}
+                    </div>
+
+                    {isFlashing ? (
+                      <div style={{
+                        fontSize: 11,
+                        color: '#059669',
+                        fontWeight: 600,
+                        padding: '4px 9px',
+                        background: '#D1FAE5',
+                        borderRadius: 12,
+                        flexShrink: 0,
+                        alignSelf: 'center',
+                      }}>
+                        ✓ Done
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, alignSelf: 'center' }}>
+                        <button
+                          onClick={() => handleDone(item.acctId, item.id)}
+                          style={{
+                            fontSize: 11,
+                            color: '#059669',
+                            background: '#D1FAE5',
+                            border: 'none',
+                            borderRadius: 12,
+                            padding: '4px 9px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'inherit',
+                            fontWeight: 500,
+                          }}
+                        >
+                          ✓ Done
+                        </button>
+                        <button
+                          onClick={() => handleSnooze(item.acctId, item.id)}
+                          style={{
+                            fontSize: 11,
+                            color: '#6B7280',
+                            background: '#F3F4F6',
+                            border: 'none',
+                            borderRadius: 12,
+                            padding: '4px 9px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          💤 Tomorrow
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
 
         {/* Input bar */}

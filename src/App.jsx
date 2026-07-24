@@ -1901,7 +1901,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       theme={theme}
       setTheme={handleSetTheme}
       onBack={()=>{setShowWhitespace(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showAllProjects) return (
@@ -1909,7 +1909,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       data={data}
       setData={setData}
       onBack={()=>{setShowAllProjects(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showVendors) return (
@@ -1918,7 +1918,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       setData={setData}
       apiKey={data.apiKey}
       onBack={()=>{setShowVendors(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showCyberBible) return (
@@ -1926,19 +1926,19 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       data={data}
       setData={setData}
       onBack={()=>{setShowCyberBible(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMothership) return (
     <><Mothership
       onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMaggie) return (
     <><MaggiePage
       onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showFiles) return (
@@ -1946,7 +1946,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       data={data}
       setData={setData}
       onBack={()=>{setShowFiles(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (isLandingPage) return (
@@ -1972,7 +1972,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       setShowAccounts={setShowAccounts}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
-    /><MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
@@ -2077,7 +2077,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
-      <MaggieChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/>
+      <MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/>
       {deleteToast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#111827',color:'#fff',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,0.2)',whiteSpace:'nowrap',pointerEvents:'none'}}>{deleteToast}</div>}
     </div>
   )
