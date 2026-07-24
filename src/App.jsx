@@ -22,6 +22,7 @@ import VendorsPage from './components/VendorsPage.jsx'
 import CyberBiblePage from './components/CyberBiblePage.jsx'
 import Mothership from './components/Mothership.jsx'
 import MaggiePage from './components/MaggiePage.jsx'
+import MaggieChatPanel from './components/MaggieChatPanel.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
@@ -1439,6 +1440,7 @@ export default function App() {
   const [showMothership,setShowMothership] = useState(false)
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
+  const [maggieOpen,setMaggieOpen] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
@@ -1892,63 +1894,65 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
+  const _maggiePanel = <MaggiaChatPanel data={data} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/>
+
   if (showWhitespace) return (
-    <WhitespacePage
+    <>{_maggiePanel}<WhitespacePage
       data={data}
       setData={setData}
       theme={theme}
       setTheme={handleSetTheme}
       onBack={()=>{setShowWhitespace(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showAllProjects) return (
-    <AllProjectsPage
+    <>{_maggiePanel}<AllProjectsPage
       data={data}
       setData={setData}
       onBack={()=>{setShowAllProjects(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showVendors) return (
-    <VendorsPage
+    <>{_maggiePanel}<VendorsPage
       data={data}
       setData={setData}
       apiKey={data.apiKey}
       onBack={()=>{setShowVendors(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showCyberBible) return (
-    <CyberBiblePage
+    <>{_maggiePanel}<CyberBiblePage
       data={data}
       setData={setData}
       onBack={()=>{setShowCyberBible(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showMothership) return (
-    <Mothership
+    <>{_maggiePanel}<Mothership
       onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showMaggie) return (
-    <MaggiePage
+    <>{_maggiePanel}<MaggiePage
       onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (showFiles) return (
-    <GlobalFilesPage
+    <>{_maggiePanel}<GlobalFilesPage
       data={data}
       setData={setData}
       onBack={()=>{setShowFiles(false);setIsLandingPage(true)}}
-    />
+    /></>
   )
 
   if (isLandingPage) return (
-    <LandingPage
+    <>{_maggiePanel}<LandingPage
       data={data}
       setData={setData}
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
@@ -1970,7 +1974,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       setShowAccounts={setShowAccounts}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
-    />
+    /></>
   )
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
@@ -2075,6 +2079,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}
+      {_maggiePanel}
       {deleteToast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:'#111827',color:'#fff',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:600,zIndex:9999,boxShadow:'0 4px 12px rgba(0,0,0,0.2)',whiteSpace:'nowrap',pointerEvents:'none'}}>{deleteToast}</div>}
     </div>
   )
