@@ -5,10 +5,10 @@
 //
 // Wave API base: https://api.wave.co/v1
 // Endpoints used:
-//   GET  /sessions?after=<ISO>&limit=50  → list sessions
+//   GET  /sessions?since=<ISO>&limit=50  → list sessions (Wave uses `since`, not `after`)
 //   GET  /sessions/{id}/transcript       → session transcript
 //
-// The browser only sends { action, after?, session_id? } — never credentials.
+// The browser only sends { action, since?, session_id? } — never credentials.
 
 const WAVE_BASE = 'https://api.wave.co/v1'
 const TIMEOUT_MS = 25000
@@ -86,15 +86,16 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── List sessions from last 48 hours — cursor pagination, timestamp field ──────
+  // ── List sessions — cursor pagination with optional since filter ────────────
   if (action === 'list') {
     try {
-      // Wave uses cursor-based pagination, not date filtering via query params.
       // Fetch up to 3 pages (150 sessions max), stop early when oldest session
-      // exceeds the 48-hour cutoff, then filter client-side.
-      const cutoff = new Date()
-      cutoff.setHours(0, 0, 0, 0)
-      cutoff.setDate(cutoff.getDate() - 1) // yesterday midnight ≈ 48 hours
+      // exceeds the cutoff, then filter client-side.
+      // Wave uses `since` (not `after`) as the timestamp filter param name.
+      const { since: sinceParam } = body
+      const cutoff = sinceParam
+        ? new Date(sinceParam)
+        : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 1); return d })()
 
       let allSessions = []
       let cursor = null
@@ -103,6 +104,7 @@ export default async function handler(req, res) {
       while (pages < 3) {
         const params = new URLSearchParams({ limit: '50' })
         if (cursor) params.set('cursor', cursor)
+        if (sinceParam && !cursor) params.set('since', new Date(sinceParam).toISOString())
 
         const waveRes = await fetchWave(`/sessions?${params}`, apiKey)
         if (!waveRes.ok) {

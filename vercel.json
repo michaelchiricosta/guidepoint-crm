@@ -3,7 +3,8 @@
   "github": {"enabled": true, "autoAlias": true, "productionBranch": "v2"},
   "crons": [
     {"path": "/api/cron/wave-detect", "schedule": "0 6 * * *"},
-    {"path": "/api/cron/queue-drain", "schedule": "*/15 * * * *"}
+    {"path": "/api/cron/queue-drain", "schedule": "*/15 * * * *"},
+    {"path": "/api/wave-cron",        "schedule": "*/30 * * * *"}
   ],
   "headers": [
     {

@@ -1194,8 +1194,10 @@ Rules: matches[] only for confidence ≥60 · max 3 actions per account · intel
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>Wave AI Transcripts</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF' }}>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>
                   {data.waveSettings?.lastSyncedAt ? `Last synced ${fmtSyncTime(data.waveSettings.lastSyncedAt)}` : 'Never synced'}
+                  <span style={{ marginLeft: 8, color: '#D1D5DB' }}>·</span>
+                  <span style={{ marginLeft: 8 }}>Auto-sync: every 30 min</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
