@@ -168,9 +168,21 @@ ${summary.slice(0, 6000)}`
 // ── apply action ──────────────────────────────────────────────────────────────
 
 async function handleApply(body) {
-  const { session_id, account_id, session_title, session_date, intel_summary, action_items } = body
+  let { session_id, account_id, session_title, session_date, intel_summary, action_items } = body
   if (!session_id || !account_id) {
     return { status: 400, body: { error: 'session_id and account_id are required' } }
+  }
+
+  // If no intel provided, fetch Wave summary + run Claude now
+  if (!intel_summary) {
+    const analyzed = await handleAnalyze({
+      session_id,
+      session_title,
+      session_date,
+      account_names: [] // not needed for extraction, just intel
+    })
+    if (analyzed.body?.intel_summary) intel_summary = analyzed.body.intel_summary
+    if (analyzed.body?.action_items?.length) action_items = analyzed.body.action_items
   }
 
   const sb = getSupabase()
@@ -246,6 +258,7 @@ async function handleApply(body) {
       ok: true,
       account_name: acct.name,
       intel_entries: 1,
+      intel_summary: intel_summary || '',
       follow_ups: newFollowUps.length,
       updatedAccount: updatedAcct
     }
