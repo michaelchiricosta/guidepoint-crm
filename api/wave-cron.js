@@ -1,19 +1,15 @@
 // api/wave-cron.js
 // Vercel Cron: runs every 30 minutes (*/30 * * * *).
 // Fetches Wave sessions from the last 2 hours, parses summaries with Claude,
-// and writes intel entries + follow-ups directly to the profiles blob — the same
-// data path as the manual IntelInbox "Apply" flow. Results appear in account
-// pages immediately without any manual action.
+// and writes intel entries + follow-ups directly into the `accounts` blob —
+// the same data path as the manual IntelInbox "Apply" flow.
 //
-// Distinct from the wave-detect + queue-drain pipeline, which writes to
-// call_analysis / open_items normalized tables (shown in MaggiePage).
-//
-// Required env vars (set in Vercel → Project → Settings → Environment Variables):
-//   WAVE_API_KEY            — Wave API key (same one used by api/wave.js)
-//   ANTHROPIC_API_KEY       — Anthropic API key
-//   SUPABASE_URL            — Supabase project URL
-//   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key (not the anon key)
-//   CRON_SECRET             — random string shared with vercel.json cron auth header
+// Required env vars (Vercel → Project → Settings → Environment Variables):
+//   WAVE_API_KEY              — Wave API key
+//   ANTHROPIC_API_KEY         — Anthropic API key
+//   SUPABASE_URL              — Supabase project URL
+//   SUPABASE_SERVICE_ROLE_KEY — service role key (bypasses RLS)
+//   CRON_SECRET               — shared secret with vercel.json cron auth header
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -27,15 +23,113 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+// Manual UUID — avoids crypto.randomUUID() Node version issues
+const uid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+  const r = Math.random() * 16 | 0
+  return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+})
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
 async function waveFetch(path, waveKey) {
   const res = await fetch(`${WAVE_BASE}${path}`, {
     headers: { Authorization: `Bearer ${waveKey}` }
   })
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Wave API ${path} → ${res.status}: ${body.slice(0, 300)}`)
+    throw new Error(`Wave ${path} → ${res.status}: ${body.slice(0, 300)}`)
   }
   return res.json()
+}
+
+// Cursor-based pagination — Wave ignores `since`; filter by date client-side
+async function fetchRecentSessions(waveKey, cutoff) {
+  let all = []
+  let cursor = null
+  let page = 0
+
+  while (page < 5) {
+    const params = new URLSearchParams({ limit: '50' })
+    if (cursor) params.set('cursor', cursor)
+
+    const data = await waveFetch(`/sessions?${params}`, waveKey)
+    const sessions = Array.isArray(data.sessions) ? data.sessions
+      : Array.isArray(data.recordings) ? data.recordings
+      : Array.isArray(data.data) ? data.data : []
+
+    const recent = sessions.filter(s => {
+      const ts = s.timestamp || s.created_at || s.started_at
+      return ts && new Date(ts) >= cutoff
+    })
+    all = all.concat(recent)
+
+    // Stop paging once oldest session on this page is older than the cutoff
+    if (sessions.length > 0) {
+      const oldest = new Date(sessions[sessions.length - 1].timestamp || 0)
+      if (oldest < cutoff) break
+    }
+    if (!data.has_more || !data.next_cursor) break
+    cursor = data.next_cursor
+    page++
+    await sleep(200)
+  }
+
+  return all
+}
+
+// Read the accounts blob fresh from Supabase
+async function loadAccounts() {
+  const { data: row, error } = await supabase
+    .from('accounts')
+    .select('data, version')
+    .eq('id', 'user-data')
+    .single()
+  if (error) throw new Error(`load accounts: ${error.message}`)
+  return row  // { data: { accounts: [...], ... }, version: N }
+}
+
+// Write the updated accounts blob back, incrementing version
+async function saveAccounts(row, updatedAccounts) {
+  const newData = { ...row.data, accounts: updatedAccounts }
+  const currentVersion = row.version ?? null
+
+  if (currentVersion !== null) {
+    const { data: updated, error } = await supabase
+      .from('accounts')
+      .update({ data: newData, version: currentVersion + 1, updated_at: new Date().toISOString() })
+      .eq('id', 'user-data')
+      .eq('version', currentVersion)
+      .select('version')
+    if (error) throw new Error(`save accounts: ${error.message}`)
+    if (!updated?.length) throw new Error('save accounts: version conflict')
+  } else {
+    const { error } = await supabase
+      .from('accounts')
+      .update({ data: newData, updated_at: new Date().toISOString() })
+      .eq('id', 'user-data')
+    if (error) throw new Error(`save accounts: ${error.message}`)
+  }
+}
+
+// Match an account name from Claude's response to actual accounts.
+// Also accepts partial matches against session title/summary for fuzzy coverage.
+function findAccount(accounts, matchName, sessionTitle, summary) {
+  if (!matchName || matchName === 'UNKNOWN') return null
+
+  // Exact case-insensitive match first
+  const lower = matchName.toLowerCase()
+  let acct = accounts.find(a => a.name?.toLowerCase() === lower)
+  if (acct) return acct
+
+  // Account name appears anywhere in the session title or summary
+  acct = accounts.find(a => {
+    const n = (a.name || '').toLowerCase()
+    return n.length > 3 && (
+      (sessionTitle || '').toLowerCase().includes(n) ||
+      (summary || '').toLowerCase().includes(n)
+    )
+  })
+  return acct || null
 }
 
 export default async function handler(req, res) {
@@ -43,72 +137,57 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const waveKey     = process.env.WAVE_API_KEY
+  const waveKey      = process.env.WAVE_API_KEY
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   if (!waveKey || !anthropicKey) {
     return res.status(500).json({ error: 'Missing WAVE_API_KEY or ANTHROPIC_API_KEY' })
   }
 
-  // ── 1. Fetch sessions from last 2 hours ──────────────────────────────────────
-  const since = new Date(Date.now() - WINDOW_MS).toISOString()
-  let sessions = []
+  // ── 1. Fetch recent Wave sessions (cursor pagination, client-side date filter) ─
+  const cutoff = new Date(Date.now() - WINDOW_MS)
+  let recentSessions
   try {
-    const data = await waveFetch(`/sessions?since=${encodeURIComponent(since)}&limit=20`, waveKey)
-    sessions = data.sessions || data.recordings || data.data || []
+    recentSessions = await fetchRecentSessions(waveKey, cutoff)
   } catch (err) {
-    console.error('[wave-cron] sessions list error:', err.message)
+    console.error('[wave-cron] sessions fetch error:', err.message)
     return res.status(502).json({ error: err.message })
   }
 
-  // Client-side filter in case `since` is ignored by Wave
-  const cutoff = new Date(since)
-  const recent = sessions.filter(s => {
-    const ts = s.timestamp || s.created_at || s.started_at
-    return ts && new Date(ts) >= cutoff
-  })
-
-  if (recent.length === 0) {
+  if (recentSessions.length === 0) {
     return res.status(200).json({ ok: true, processed: 0, message: 'No sessions in last 2 hours' })
   }
 
-  // ── 2. Exclude already-processed sessions ────────────────────────────────────
-  const sessionIds = recent.map(s => s.id)
+  // ── 2. Exclude already-processed sessions ─────────────────────────────────────
+  const sessionIds = recentSessions.map(s => s.id)
   const { data: applied } = await supabase
     .from('wave_applied_sessions')
     .select('session_id')
     .in('session_id', sessionIds)
 
   const appliedIds = new Set((applied || []).map(r => r.session_id))
-  const newSessions = recent.filter(s => !appliedIds.has(s.id))
+  const newSessions = recentSessions.filter(s => !appliedIds.has(s.id))
 
   if (newSessions.length === 0) {
     return res.status(200).json({ ok: true, processed: 0, message: 'All sessions already processed' })
   }
 
-  // ── 3. Load profile once ─────────────────────────────────────────────────────
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('id, data')
-    .limit(1)
-    .single()
-
-  if (profileErr || !profile?.data?.accounts) {
-    console.error('[wave-cron] profiles load failed:', profileErr?.message)
-    return res.status(500).json({ error: 'Could not load profiles' })
+  // ── 3. Load accounts once; build account-name index for Claude prompt ──────────
+  let row
+  try {
+    row = await loadAccounts()
+  } catch (err) {
+    console.error('[wave-cron] load error:', err.message)
+    return res.status(500).json({ error: err.message })
   }
 
-  const accountNames = profile.data.accounts.map(a => a.name).filter(Boolean).join(', ')
-
-  // Mutable working copy — all sessions write into this array, then we save once
-  let accounts = profile.data.accounts.slice()
-
+  const accountNames = (row.data.accounts || []).map(a => a.name).filter(Boolean).join(', ')
   let processedCount = 0
-  const sessionRecords = []
 
-  // ── 4. Process each new session ──────────────────────────────────────────────
+  // ── 4. Process each new session individually; write + re-read between them ─────
   for (const session of newSessions) {
-    const sessionId = session.id
-    const sessionDate = (session.timestamp || session.created_at || '').split('T')[0]
+    const sessionId   = session.id
+    const sessionTitle = session.title || 'Untitled'
+    const sessionDate  = (session.timestamp || session.created_at || '').split('T')[0]
       || new Date().toISOString().split('T')[0]
 
     let matchedNames = []
@@ -123,21 +202,24 @@ export default async function handler(req, res) {
       }
 
       const summary = (
-        sessionData.summary ||
-        sessionData.ai_summary ||
-        sessionData.summary_text ||
+        sessionData.summary       ||
+        sessionData.ai_summary    ||
+        sessionData.summary_text  ||
         sessionData.summary_preview ||
-        session.summary_preview ||
+        session.summary_preview   ||
         ''
       ).trim()
 
       if (summary.length < 30) {
-        console.log(`[wave-cron] Session ${sessionId} has no usable summary, skipping`)
-        sessionRecords.push({ session_id: sessionId, account_names: [], source: 'cron-no-summary' })
+        console.log(`[wave-cron] ${sessionId} — no usable summary, skipping`)
+        await supabase.from('wave_applied_sessions').upsert(
+          { session_id: sessionId, account_names: [], source: 'cron-no-summary' },
+          { onConflict: 'session_id', ignoreDuplicates: true }
+        )
         continue
       }
 
-      // ── Claude: match accounts and extract intel ───────────────────────────
+      // Claude: identify accounts and extract intel
       const claudeRes = await fetch(ANTHROPIC_API, {
         method: 'POST',
         headers: {
@@ -152,34 +234,46 @@ export default async function handler(req, res) {
             role: 'user',
             content: `You are a CRM assistant for Mike Chiricosta at GuidePoint Security.
 
-Parse this Wave AI call summary. Return ONLY a valid JSON array, no markdown fences:
+Parse this Wave AI call summary. Identify which Ledgr accounts were discussed.
+
+MATCHING RULES:
+- Match account names even if embedded in a longer phrase ("Rossi - GE Vernova - internal" → GE Vernova)
+- Internal GuidePoint calls may reference client accounts — extract those too
+- Return empty array [] if no client accounts were discussed
+
+Return ONLY a valid JSON array, no markdown:
 [
   {
-    "account_name": "exact match from the account list, or UNKNOWN if none match",
+    "account_name": "must exactly match one name from the account list, or UNKNOWN",
     "confidence": "high|medium|low",
-    "intel_summary": "2-3 sentence summary of what was discussed for this account",
+    "intel_summary": "3-5 specific sentences covering what was discussed, decisions made, and next steps",
     "action_items": [
-      { "task": "specific action item", "due_date": "YYYY-MM-DD or null", "contact": "person name or null" }
+      { "task": "verb-first action item", "due_date": "YYYY-MM-DD or null", "contact": "person name or null" }
     ],
-    "urgency_signals": ["any urgent or time-sensitive items mentioned"]
+    "urgency_signals": ["any urgent items or deadlines mentioned"]
   }
 ]
 
-If multiple accounts were discussed, return one object per account.
-Skip any account with confidence=low.
-
 Account list: ${accountNames}
 
-Call title: ${session.title || 'Untitled'}
+Call title: ${sessionTitle}
 Call date: ${sessionDate}
-Summary: ${summary.slice(0, 4000)}`
+Speakers: ${(sessionData.speakers || session.speakers || []).join(', ')}
+
+Summary:
+${summary.slice(0, 8000)}`
           }]
         })
       })
 
+      if (claudeRes.status === 429 || claudeRes.status === 529) {
+        console.warn(`[wave-cron] Claude rate-limited for ${sessionId}, skipping this run`)
+        await sleep(5000)
+        continue
+      }
+
       if (!claudeRes.ok) {
         console.error(`[wave-cron] Claude error for ${sessionId}: ${claudeRes.status}`)
-        sessionRecords.push({ session_id: sessionId, account_names: [], source: 'cron-claude-error' })
         continue
       }
 
@@ -194,17 +288,33 @@ Summary: ${summary.slice(0, 4000)}`
         console.warn(`[wave-cron] JSON parse failed for ${sessionId}:`, e.message)
       }
 
-      // ── Apply each match to the accounts working copy ─────────────────────
+      // Re-read fresh data before writing for this session (safe version increment)
+      let freshRow
+      try {
+        freshRow = await loadAccounts()
+      } catch (err) {
+        console.error('[wave-cron] re-read failed:', err.message)
+        continue
+      }
+
+      let updatedAccounts = freshRow.data.accounts.slice()
+      let sessionWroteAnything = false
+
       for (const match of (matches || [])) {
-        if (!match.account_name || match.account_name === 'UNKNOWN') continue
         if (match.confidence === 'low') continue
 
-        const acctIdx = accounts.findIndex(
-          a => a.name?.toLowerCase() === match.account_name.toLowerCase()
+        const acct = findAccount(
+          updatedAccounts,
+          match.account_name,
+          sessionTitle,
+          summary
         )
-        if (acctIdx === -1) continue
+        if (!acct) {
+          console.log(`[wave-cron] No account matched "${match.account_name}"`)
+          continue
+        }
 
-        const speakers = (sessionData.speakers || [])
+        const speakers = (sessionData.speakers || session.speakers || [])
           .filter(s => {
             const n = s.toLowerCase()
             return !n.includes('mike') && !n.includes('chiricosta')
@@ -212,7 +322,7 @@ Summary: ${summary.slice(0, 4000)}`
           .join(', ')
 
         const newIntelEntry = {
-          id:           crypto.randomUUID(),
+          id:           uid(),
           type:         'Call',
           date:         sessionDate,
           summary:      match.intel_summary || '',
@@ -222,21 +332,23 @@ Summary: ${summary.slice(0, 4000)}`
           participants:  speakers,
           source:       'Wave AI (auto)',
           sessionId:    sessionId,
-          sessionTitle:  session.title || ''
+          sessionTitle:  sessionTitle
         }
 
-        const newFollowUps = (match.action_items || []).map(ai => ({
-          id:       crypto.randomUUID(),
-          task:     ai.task || '',
-          dueDate:  ai.due_date || '',
-          contact:  ai.contact || '',
-          priority: (match.urgency_signals || []).length > 0 ? 'High' : 'Medium',
-          status:   'Open',
-          source:   'Wave AI (auto)'
-        }))
+        const newFollowUps = (match.action_items || [])
+          .filter(ai => ai.task?.trim())
+          .map(ai => ({
+            id:       uid(),
+            task:     ai.task,
+            dueDate:  ai.due_date || '',
+            contact:  ai.contact || '',
+            priority: (match.urgency_signals || []).length > 0 ? 'High' : 'Medium',
+            status:   'Open',
+            source:   'Wave AI (auto)'
+          }))
 
-        accounts = accounts.map((a, i) =>
-          i !== acctIdx ? a : {
+        updatedAccounts = updatedAccounts.map(a =>
+          a.id !== acct.id ? a : {
             ...a,
             intelLog:    [newIntelEntry, ...(a.intelLog   || [])],
             followUps:   [...(a.followUps || []), ...newFollowUps],
@@ -244,44 +356,40 @@ Summary: ${summary.slice(0, 4000)}`
           }
         )
 
-        matchedNames.push(match.account_name)
+        matchedNames.push(acct.name)
         processedCount++
+        sessionWroteAnything = true
+        console.log(`[wave-cron] ${sessionTitle} → matched ${acct.name} (${newFollowUps.length} follow-up(s))`)
+      }
+
+      // Persist if anything changed
+      if (sessionWroteAnything) {
+        try {
+          await saveAccounts(freshRow, updatedAccounts)
+        } catch (err) {
+          console.error(`[wave-cron] save failed for session ${sessionId}:`, err.message)
+          // Don't record as applied so it retries next run
+          continue
+        }
       }
     } catch (err) {
       console.error(`[wave-cron] Error processing session ${sessionId}:`, err.message)
     }
 
-    sessionRecords.push({
-      session_id:    sessionId,
-      account_names: matchedNames,
-      source:        'cron'
-    })
+    // Record session as processed (even if no match) so it isn't retried
+    await supabase.from('wave_applied_sessions').upsert(
+      { session_id: sessionId, account_names: matchedNames, source: 'cron' },
+      { onConflict: 'session_id', ignoreDuplicates: true }
+    )
+
+    // Pace Claude calls to avoid rate limiting
+    await sleep(2000)
   }
 
-  // ── 5. Save profiles (one write for all sessions) ────────────────────────────
-  if (processedCount > 0) {
-    const { error: updateErr } = await supabase
-      .from('profiles')
-      .update({ data: { ...profile.data, accounts } })
-      .eq('id', profile.id)
-
-    if (updateErr) {
-      console.error('[wave-cron] profiles update failed:', updateErr.message)
-      return res.status(500).json({ ok: false, error: updateErr.message })
-    }
-  }
-
-  // ── 6. Record processed sessions ─────────────────────────────────────────────
-  if (sessionRecords.length > 0) {
-    await supabase
-      .from('wave_applied_sessions')
-      .upsert(sessionRecords, { onConflict: 'session_id', ignoreDuplicates: true })
-  }
-
-  console.log(`[wave-cron] done — checked ${newSessions.length} sessions, wrote intel to ${processedCount} account(s)`)
+  console.log(`[wave-cron] done — ${newSessions.length} session(s) checked, intel written to ${processedCount} account match(es)`)
   return res.status(200).json({
     ok: true,
     processed:        processedCount,
-    sessions_checked:  newSessions.length
+    sessions_checked: newSessions.length
   })
 }
