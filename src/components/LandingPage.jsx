@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
-import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight, Database, Brain, MessageSquare } from 'lucide-react'
+import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight, Database, Brain, MessageSquare, Radio } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, daysSince, parseCost, formatCompactCurrency, calcHealthScore, getHealthColor, sendToAppleReminders } from '../utils.js'
@@ -12,7 +12,7 @@ import EndOfDayJournal from './EndOfDayJournal.jsx'
 import MarketIntelligence from './MarketIntelligence.jsx'
 import AIUsageDashboard from './AIUsageDashboard.jsx'
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoWaveReview, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
@@ -34,6 +34,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'mothership',  label:'Mothership',  icon:<Brain size={18}/>,         action:()=>onGoMothership&&onGoMothership()},
     {id:'maggie',      label:'Maggie',      icon:<MessageSquare size={18}/>, action:()=>onGoMaggie&&onGoMaggie()},
     {id:'files',       label:'Files',       icon:<FolderOpen size={18}/>,    action:()=>onGoFiles&&onGoFiles()},
+    {id:'wavereview',   label:'Wave Review', icon:<Radio size={18}/>,       action:()=>onGoWaveReview&&onGoWaveReview()},
     {id:'dailybrief',  label:'Daily Brief',       icon:<Sparkles size={18}/>, action:()=>onGoDailyBrief&&onGoDailyBrief(),     badge: briefIncompleteCount>0?briefIncompleteCount:null},
     {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
     {id:'endofday',    label:'Journal',           icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
@@ -389,7 +390,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   )
 }
 
-export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoDailyBrief, onGoMeetingPrep, onGoEndOfDay, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
+export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoWaveReview, onGoDailyBrief, onGoMeetingPrep, onGoEndOfDay, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -608,7 +609,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
             : `AI spend at ${_budget.pct.toFixed(0)}% of monthly budget ($${_budget.spend.toFixed(2)} of $${_budget.budget}). Reduce usage or increase budget in Settings → AI Budget.`}
         </span>
       </div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMothership={onGoMothership} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMothership={onGoMothership} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} onGoWaveReview={onGoWaveReview} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -634,6 +635,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                 {label:'Mothership',      action:()=>{onGoMothership&&onGoMothership();setMobNavOpen(false)}},
                 {label:'Maggie',          action:()=>{onGoMaggie&&onGoMaggie();setMobNavOpen(false)}},
                 {label:'Files',           action:()=>{onGoFiles&&onGoFiles();setMobNavOpen(false)}},
+                {label:'Wave Review',       action:()=>{onGoWaveReview&&onGoWaveReview();setMobNavOpen(false)}},
                 {label:'Daily Brief',     action:()=>{clearBriefPages();setShowDailyBriefPage(true);setMobNavOpen(false)}},
                 {label:'Meeting Prep',    action:()=>{clearBriefPages();setShowMeetingPrepPage(true);setMobNavOpen(false)}},
                 {label:'Journal',         action:()=>{clearBriefPages();setShowEndOfDayPage(true);setMobNavOpen(false)}},

@@ -27,6 +27,7 @@ import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
+import WaveReviewPage from './components/WaveReviewPage.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
 import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
 import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
@@ -1440,6 +1441,7 @@ export default function App() {
   const [showMothership,setShowMothership] = useState(false)
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
+  const [showWaveReview,setShowWaveReview] = useState(false)
   const [maggieOpen,setMaggieOpen] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
@@ -1515,6 +1517,8 @@ export default function App() {
         setShowMaggie(true); setIsLandingPage(false)
       } else if (saved.page === 'files') {
         setShowFiles(true); setIsLandingPage(false)
+      } else if (saved.page === 'wavereview') {
+        setShowWaveReview(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
         const exists = data.accounts.find(a => a.id === saved.activeId)
         if (exists) {
@@ -1532,7 +1536,8 @@ export default function App() {
   // Skip before initial load so we don't overwrite a saved state with default values.
   useEffect(()=>{
     if (!initialLoadDone) return
-    const page = showFiles ? 'files'
+    const page = showWaveReview ? 'wavereview'
+      : showFiles ? 'files'
       : showWhitespace ? 'whitespace'
       : showAllProjects ? 'allprojects'
       : showVendors ? 'vendors'
@@ -1542,7 +1547,7 @@ export default function App() {
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWaveReview, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
 
   const handleDeleteAccount = (accountId) => {
     const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
@@ -1949,6 +1954,14 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
+  if (showWaveReview) return (
+    <><WaveReviewPage
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowWaveReview(false);setIsLandingPage(true)}}
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+  )
+
   if (isLandingPage) return (
     <><LandingPage
       data={data}
@@ -1963,6 +1976,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoMothership={()=>{setShowMothership(true);setIsLandingPage(false)}}
       onGoMaggie={()=>{setShowMaggie(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
+      onGoWaveReview={()=>{setShowWaveReview(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
       onGenerateBrief={generateDailyBrief}
