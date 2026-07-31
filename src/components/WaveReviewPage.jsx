@@ -50,12 +50,13 @@ export default function WaveReviewPage({ data, setData, onBack }) {
       setSessions(sorted)
 
       if (sorted.length > 0) {
-        const { data: applied } = await supabase
+        const { data: applied, error: appliedErr } = await supabase
           .from('wave_applied_sessions')
           .select('session_id, account_name, account_id, applied_at, source')
-          .in('session_id', sorted.map(s => s.id))
+          .in('session_id', sorted.map(s => String(s.id)))
+        if (appliedErr) console.warn('wave_applied_sessions fetch error:', appliedErr.message)
         const map = {}
-        for (const row of applied || []) map[row.session_id] = row
+        for (const row of (applied || [])) map[row.session_id] = row
         setAppliedMap(map)
       }
     } catch (err) {
@@ -112,17 +113,17 @@ export default function WaveReviewPage({ data, setData, onBack }) {
   }
 
   async function skipSession(session) {
-    try {
-      await supabase
-        .from('wave_applied_sessions')
-        .upsert(
-          { session_id: session.id, account_name: null, source: 'skipped' },
-          { onConflict: 'session_id', ignoreDuplicates: false }
-        )
-      setAppliedMap(p => ({ ...p, [session.id]: { source: 'skipped', applied_at: new Date().toISOString() } }))
-    } catch {
-      showToast('Skip failed', 'error')
+    const { error } = await supabase
+      .from('wave_applied_sessions')
+      .upsert(
+        { session_id: String(session.id), account_name: null, source: 'skipped' },
+        { onConflict: 'session_id', ignoreDuplicates: false }
+      )
+    if (error) {
+      showToast(`Skip failed: ${error.message}`, 'error')
+      return
     }
+    setAppliedMap(p => ({ ...p, [session.id]: { source: 'skipped', applied_at: new Date().toISOString() } }))
   }
 
   function showToast(msg, type = 'success') {
