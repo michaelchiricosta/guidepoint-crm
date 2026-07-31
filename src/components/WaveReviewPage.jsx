@@ -24,7 +24,7 @@ export default function WaveReviewPage({ data, setData, onBack }) {
   const [results,    setResults]    = useState({})
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(null)
-  const [filter,     setFilter]     = useState('all')
+  const [filter,     setFilter]     = useState('pending')
   const [toast,      setToast]      = useState(null)
 
   const accounts = data?.accounts || []
