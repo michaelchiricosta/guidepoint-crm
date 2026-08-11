@@ -293,6 +293,7 @@ const DEAL_VENDOR_OPTIONS = [
 
 const fmtDealCurrency = n => `$${Math.round(n||0).toLocaleString('en-US')}`
 const fmtGPPct = (gp, revenue) => revenue ? `${((gp/revenue)*100).toFixed(1)}%` : '0.0%'
+const dealMoneyString = n => n ? `$${Math.round(n).toLocaleString('en-US')}` : ''
 
 const dealModalInputStyle = {width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:8,border:'1px solid #EEEFF2',fontSize:13,color:'#0f172a',outline:'none',background:'#fff'}
 const dealModalLabelStyle = {fontSize:12,fontWeight:600,color:'#475569',marginBottom:5,display:'block'}
@@ -305,15 +306,43 @@ function AddClosedDealModal({data, setData, onClose}) {
   const [closeDate, setCloseDate] = useState(new Date().toISOString().split('T')[0])
   const [revenue, setRevenue] = useState('')
   const [gp, setGp] = useState('')
+  const [createProject, setCreateProject] = useState(true)
 
   const accountName = account==='__other__' ? accountOther.trim() : account
   const vendorName = vendor==='__other__' ? vendorOther.trim() : vendor
   const canSave = accountName && vendorName && closeDate && revenue!=='' && gp!==''
+  const matchedAccount = account && account!=='__other__' ? (data.accounts||[]).find(a=>a.name===account) : null
+  const showCreateProjectOption = !!matchedAccount
 
   const handleSave = () => {
     if (!canSave) return
-    const deal = {id:uid(), account:accountName, vendor:vendorName, closeDate, revenue:parseFloat(revenue)||0, gp:parseFloat(gp)||0}
-    setData(prev=>({...prev, closedDeals:[...(prev.closedDeals||[]), deal]}))
+    const revenueNum = parseFloat(revenue)||0
+    const gpNum = parseFloat(gp)||0
+    const shouldCreateProject = createProject && !!matchedAccount
+    const newProjectId = shouldCreateProject ? uid() : null
+
+    const deal = {id:uid(), account:accountName, vendor:vendorName, closeDate, revenue:revenueNum, gp:gpNum}
+    if (shouldCreateProject) {
+      deal.linkedProjectId = newProjectId
+      deal.accountId = matchedAccount.id
+    }
+
+    setData(prev=>{
+      let accounts = prev.accounts
+      if (shouldCreateProject) {
+        const newProject = {
+          id:newProjectId, name:vendorName, category:'', vendor:vendorName, status:'Won',
+          description:'', goals:'', pains:'', primaryContact:'', budget:true, closeDate,
+          notes:'', waitingOn:'', nextAction:'',
+          estimatedRevenue:dealMoneyString(revenueNum), estimatedGrossProfit:dealMoneyString(gpNum),
+          clientTargetDate:'', nextSteps:'', projectNotes:[],
+          timeline:STAGES.map(s=>({stage:s,status:'completed',date:closeDate})),
+          source:'closed-deal-entry',
+        }
+        accounts = accounts.map(a=>a.id===matchedAccount.id?{...a,projects:[...(a.projects||[]),newProject]}:a)
+      }
+      return {...prev, accounts, closedDeals:[...(prev.closedDeals||[]), deal]}
+    })
     onClose()
   }
 
@@ -378,6 +407,14 @@ function AddClosedDealModal({data, setData, onClose}) {
           </div>
         </div>
 
+        {showCreateProjectOption&&(
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,fontSize:12,color:'#475569',marginBottom:18,cursor:'pointer'}}>
+            <input type="checkbox" checked={createProject} onChange={e=>setCreateProject(e.target.checked)}
+              style={{width:14,height:14,marginTop:1,accentColor:'#007AFF',cursor:'pointer',flexShrink:0}}/>
+            Also add as a Won project in this account
+          </label>
+        )}
+
         <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
           <button onClick={onClose} style={{padding:'9px 16px',borderRadius:8,border:'1px solid #EEEFF2',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
           <button onClick={handleSave} disabled={!canSave}
@@ -388,7 +425,7 @@ function AddClosedDealModal({data, setData, onClose}) {
   )
 }
 
-function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
+function ClosedDealsModal({data, setData, onClose, onAddDeal, onNavigateTo}) {
   const deals = data.closedDeals||[]
   const wonProjects = (data.accounts||[]).flatMap(a=>(a.projects||[]).filter(p=>p.status==='Won').map(p=>({
     id:p.id,
@@ -398,6 +435,8 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
     revenue:parseCost(p.estimatedRevenue||''),
     gp:parseCost(p.estimatedGrossProfit||''),
   })))
+  // Deals that already created a Won project are counted in wonProjects above — exclude here to avoid double counting.
+  const uncountedDeals = deals.filter(d=>!d.linkedProjectId)
 
   const sumRevenue = rows => rows.reduce((s,r)=>s+(r.revenue||0),0)
   const sumGP = rows => rows.reduce((s,r)=>s+(r.gp||0),0)
@@ -407,13 +446,13 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
   const wonGP = sumGP(wonProjects)
   const wonAvgGPPct = avgGPPctOf(wonProjects)
 
-  const dealsRevenue = sumRevenue(deals)
-  const dealsGP = sumGP(deals)
-  const dealsAvgGPPct = avgGPPctOf(deals)
+  const dealsRevenue = sumRevenue(uncountedDeals)
+  const dealsGP = sumGP(uncountedDeals)
+  const dealsAvgGPPct = avgGPPctOf(uncountedDeals)
 
   const grandRevenue = wonRevenue + dealsRevenue
   const grandGP = wonGP + dealsGP
-  const grandAvgGPPct = avgGPPctOf([...wonProjects, ...deals])
+  const grandAvgGPPct = avgGPPctOf([...wonProjects, ...uncountedDeals])
 
   const deleteDeal = (id) => setData(prev=>({...prev, closedDeals:(prev.closedDeals||[]).filter(d=>d.id!==id)}))
 
@@ -490,11 +529,22 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
               <tbody>
                 {deals.map((d,i)=>(
                   <tr key={d.id} style={{background:i%2===0?'#F9FAFB':'#fff'}}>
-                    <td style={tdStyle(false,{color:'#0f172a',fontWeight:600})}>{d.account}</td>
+                    <td style={tdStyle(false,{color:'#0f172a',fontWeight:600})}>
+                      {d.account}
+                      {d.linkedProjectId&&d.accountId&&(
+                        <button onClick={()=>{onNavigateTo(d.accountId,'projects');onClose()}}
+                          style={{display:'block',marginTop:2,background:'none',border:'none',padding:0,fontSize:11,color:'#007AFF',cursor:'pointer',fontWeight:600}}>
+                          View Project →
+                        </button>
+                      )}
+                    </td>
                     <td style={tdStyle(false,{color:'#475569'})}>{d.vendor}</td>
                     <td style={tdStyle(false,{color:'#475569'})}>{fmtDate(d.closeDate)}</td>
                     <td style={tdStyle(true,{color:'#0f172a'})}>{fmtDealCurrency(d.revenue)}</td>
-                    <td style={tdStyle(true,{color:'#0ebc5f',fontWeight:600})}>{fmtDealCurrency(d.gp)}</td>
+                    <td style={tdStyle(true,{color:'#0ebc5f',fontWeight:600})}>
+                      {fmtDealCurrency(d.gp)}
+                      {d.linkedProjectId&&<div style={{fontSize:9,color:'#94a3b8',fontWeight:500}}>counted above</div>}
+                    </td>
                     <td style={tdStyle(true,{color:'#475569'})}>{fmtGPPct(d.gp,d.revenue)}</td>
                     <td style={tdStyle(true)}>
                       <button onClick={()=>deleteDeal(d.id)} title="Delete deal"
@@ -538,7 +588,7 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
   )
 }
 
-function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
+function PerformanceGaugeCard({data, setData, onGoAllProjects, onNavigateTo}) {
   const quotaTarget = data.quotaTarget || 0
   const [quotaInput, setQuotaInput] = useState(quotaTarget>0?formatCompactCurrency(quotaTarget):'')
   const [editing, setEditing] = useState(false)
@@ -550,7 +600,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
 
   const wonProjectsGP = (data.accounts||[]).reduce((sum,acct)=>
     sum+(acct.projects||[]).filter(p=>p.status==='Won').reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0),0)
-  const closedDealsGP = (data.closedDeals||[]).reduce((sum,d)=>sum+(d.gp||0),0)
+  const closedDealsGP = (data.closedDeals||[]).filter(d=>!d.linkedProjectId).reduce((sum,d)=>sum+(d.gp||0),0)
   const attainedGP = wonProjectsGP + closedDealsGP
 
   const inProgressGP = (data.accounts||[]).reduce((sum,acct)=>
@@ -654,7 +704,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
       </div>
     </div>
     {showAddDeal&&<AddClosedDealModal data={data} setData={setData} onClose={()=>setShowAddDeal(false)}/>}
-    {showViewAll&&<ClosedDealsModal data={data} setData={setData} onClose={()=>setShowViewAll(false)} onAddDeal={()=>{setShowViewAll(false);setShowAddDeal(true)}}/>}
+    {showViewAll&&<ClosedDealsModal data={data} setData={setData} onClose={()=>setShowViewAll(false)} onAddDeal={()=>{setShowViewAll(false);setShowAddDeal(true)}} onNavigateTo={onNavigateTo}/>}
     </>
   )
 }
@@ -1237,7 +1287,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
               {/* CHART ROW */}
               <div style={{display:'flex',gap:16,marginBottom:20,alignItems:'stretch',flexWrap:'wrap'}}>
                 <BarChartCard data={data}/>
-                <PerformanceGaugeCard data={data} setData={setData} onGoAllProjects={onGoAllProjects}/>
+                <PerformanceGaugeCard data={data} setData={setData} onGoAllProjects={onGoAllProjects} onNavigateTo={onNavigateTo}/>
               </div>
               {/* INSIGHT CARDS */}
               <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(5,1fr)',gap:12}}>
