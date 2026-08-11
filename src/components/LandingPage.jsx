@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
-import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight, Database, Brain, MessageSquare, Radio } from 'lucide-react'
+import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight, Database, Brain, MessageSquare, Radio, Plus, Trash2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, daysSince, parseCost, formatCompactCurrency, calcHealthScore, getHealthColor, sendToAppleReminders } from '../utils.js'
@@ -283,16 +283,205 @@ const BarChartCard = memo(function BarChartCard({data}) {
   )
 })
 
+const DEAL_VENDOR_OPTIONS = [
+  'CrowdStrike', 'SentinelOne', 'Palo Alto Networks', 'Zscaler', 'Okta', 'CyberArk', 'SailPoint',
+  'Wiz', 'Varonis', 'Netskope', 'Proofpoint', 'Splunk', 'Tenable', 'Rapid7',
+  'ReliaQuest', 'F5', 'Abnormal AI', 'Deepwatch', 'Axonius', 'Cloudflare', 'Expel',
+  'Delinea', 'Cribl', 'Google Security Operations', 'Snyk', 'Qualys', 'Ping Identity',
+  'Cisco Security', 'Check Point Software Technologies', 'Corelight',
+]
+
+const fmtDealCurrency = n => `$${Math.round(n||0).toLocaleString('en-US')}`
+const fmtGPPct = (gp, revenue) => revenue ? `${((gp/revenue)*100).toFixed(1)}%` : '0.0%'
+
+const dealModalInputStyle = {width:'100%',boxSizing:'border-box',padding:'8px 10px',borderRadius:8,border:'1px solid #EEEFF2',fontSize:13,color:'#0f172a',outline:'none',background:'#fff'}
+const dealModalLabelStyle = {fontSize:12,fontWeight:600,color:'#475569',marginBottom:5,display:'block'}
+
+function AddClosedDealModal({data, setData, onClose}) {
+  const [account, setAccount] = useState('')
+  const [accountOther, setAccountOther] = useState('')
+  const [vendor, setVendor] = useState('')
+  const [vendorOther, setVendorOther] = useState('')
+  const [closeDate, setCloseDate] = useState(new Date().toISOString().split('T')[0])
+  const [revenue, setRevenue] = useState('')
+  const [gp, setGp] = useState('')
+
+  const accountName = account==='__other__' ? accountOther.trim() : account
+  const vendorName = vendor==='__other__' ? vendorOther.trim() : vendor
+  const canSave = accountName && vendorName && closeDate && revenue!=='' && gp!==''
+
+  const handleSave = () => {
+    if (!canSave) return
+    const deal = {id:uid(), account:accountName, vendor:vendorName, closeDate, revenue:parseFloat(revenue)||0, gp:parseFloat(gp)||0}
+    setData(prev=>({...prev, closedDeals:[...(prev.closedDeals||[]), deal]}))
+    onClose()
+  }
+
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:320,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',border:'1px solid #EEEFF2',borderRadius:16,width:420,maxWidth:'100%',padding:24,boxShadow:'0 20px 60px rgba(0,0,0,0.20)',boxSizing:'border-box'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+          <div style={{fontSize:16,fontWeight:700,color:'#0f172a'}}>Add Closed Deal</div>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',padding:4,display:'flex'}}
+            onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
+            <X size={18}/>
+          </button>
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <label style={dealModalLabelStyle}>Account</label>
+          <select value={account} onChange={e=>setAccount(e.target.value)} style={dealModalInputStyle}>
+            <option value="" disabled>Select account…</option>
+            {(data.accounts||[]).map(a=>(<option key={a.id} value={a.name}>{a.name}</option>))}
+            <option value="__other__">Other (type below)</option>
+          </select>
+          {account==='__other__'&&(
+            <input value={accountOther} onChange={e=>setAccountOther(e.target.value)} placeholder="Enter account name"
+              style={{...dealModalInputStyle,marginTop:8}}/>
+          )}
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <label style={dealModalLabelStyle}>Product/Vendor</label>
+          <select value={vendor} onChange={e=>setVendor(e.target.value)} style={dealModalInputStyle}>
+            <option value="" disabled>Select vendor…</option>
+            {DEAL_VENDOR_OPTIONS.map(v=>(<option key={v} value={v}>{v}</option>))}
+            <option value="__other__">Other (type below)</option>
+          </select>
+          {vendor==='__other__'&&(
+            <input value={vendorOther} onChange={e=>setVendorOther(e.target.value)} placeholder="Enter product/vendor name"
+              style={{...dealModalInputStyle,marginTop:8}}/>
+          )}
+        </div>
+
+        <div style={{marginBottom:14}}>
+          <label style={dealModalLabelStyle}>Close Date</label>
+          <input type="date" value={closeDate} onChange={e=>setCloseDate(e.target.value)} style={dealModalInputStyle}/>
+        </div>
+
+        <div style={{display:'flex',gap:12,marginBottom:20}}>
+          <div style={{flex:1}}>
+            <label style={dealModalLabelStyle}>Total Revenue</label>
+            <div style={{position:'relative'}}>
+              <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#64748b'}}>$</span>
+              <input type="number" value={revenue} onChange={e=>setRevenue(e.target.value)} placeholder="0"
+                style={{...dealModalInputStyle,paddingLeft:22}}/>
+            </div>
+          </div>
+          <div style={{flex:1}}>
+            <label style={dealModalLabelStyle}>Total GP</label>
+            <div style={{position:'relative'}}>
+              <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#64748b'}}>$</span>
+              <input type="number" value={gp} onChange={e=>setGp(e.target.value)} placeholder="0"
+                style={{...dealModalInputStyle,paddingLeft:22}}/>
+            </div>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+          <button onClick={onClose} style={{padding:'9px 16px',borderRadius:8,border:'1px solid #EEEFF2',background:'#fff',color:'#475569',fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+          <button onClick={handleSave} disabled={!canSave}
+            style={{padding:'9px 18px',borderRadius:8,border:'none',background:canSave?'#007AFF':'#BFDBFE',color:'#fff',fontSize:13,fontWeight:700,cursor:canSave?'pointer':'not-allowed'}}>Save Deal</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
+  const deals = data.closedDeals||[]
+  const totalRevenue = deals.reduce((s,d)=>s+(d.revenue||0),0)
+  const totalGP = deals.reduce((s,d)=>s+(d.gp||0),0)
+  const avgGPPct = deals.length ? deals.reduce((s,d)=>s+(d.revenue?(d.gp/d.revenue)*100:0),0)/deals.length : 0
+
+  const deleteDeal = (id) => setData(prev=>({...prev, closedDeals:(prev.closedDeals||[]).filter(d=>d.id!==id)}))
+
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:310,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',border:'1px solid #EEEFF2',borderRadius:16,width:820,maxWidth:'100%',maxHeight:'85vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,0.20)',boxSizing:'border-box'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 24px',flexShrink:0,borderBottom:'1px solid #F3F4F6'}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:700,color:'#0f172a'}}>Closed Deals</div>
+            <div style={{fontSize:12,color:'#64748b',marginTop:2}}>{deals.length} deal{deals.length!==1?'s':''} tracked</div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <button onClick={onAddDeal} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'none',background:'#007AFF',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+              <Plus size={14}/> Add Deal
+            </button>
+            <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#9CA3AF',padding:4,display:'flex'}}
+              onMouseEnter={e=>e.currentTarget.style.color='#111827'} onMouseLeave={e=>e.currentTarget.style.color='#9CA3AF'}>
+              <X size={18}/>
+            </button>
+          </div>
+        </div>
+
+        <div style={{overflowY:'auto',flex:1}}>
+          {deals.length===0 ? (
+            <div style={{padding:'48px 24px',textAlign:'center',color:'#94a3b8',fontSize:13}}>No closed deals yet.</div>
+          ) : (
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead>
+                <tr>
+                  {['Account','Product/Vendor','Close Date','Total Revenue','Total GP','GP %',''].map((h,i)=>(
+                    <th key={i} style={{textAlign:i>=3&&i<=5?'right':'left',padding:'10px 24px',fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em',borderBottom:'1px solid #F3F4F6',whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {deals.map((d,i)=>(
+                  <tr key={d.id} style={{background:i%2===0?'#F9FAFB':'#fff'}}>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0f172a',fontWeight:600}}>{d.account}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569'}}>{d.vendor}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569'}}>{fmtDate(d.closeDate)}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0f172a',textAlign:'right'}}>{fmtDealCurrency(d.revenue)}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0ebc5f',fontWeight:600,textAlign:'right'}}>{fmtDealCurrency(d.gp)}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569',textAlign:'right'}}>{fmtGPPct(d.gp,d.revenue)}</td>
+                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',textAlign:'right'}}>
+                      <button onClick={()=>deleteDeal(d.id)} title="Delete deal"
+                        style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:4,display:'inline-flex'}}
+                        onMouseEnter={e=>e.currentTarget.style.opacity=0.7} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
+                        <Trash2 size={14}/>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {deals.length>0&&(
+          <div style={{display:'flex',justifyContent:'flex-end',gap:32,padding:'14px 24px',borderTop:'1px solid #F3F4F6',flexShrink:0,background:'#F9FAFB',borderRadius:'0 0 16px 16px'}}>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Total Revenue</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{fmtDealCurrency(totalRevenue)}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Total GP</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#0ebc5f'}}>{fmtDealCurrency(totalGP)}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Avg GP %</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#007AFF'}}>{avgGPPct.toFixed(1)}%</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   const quotaTarget = data.quotaTarget || 0
   const [quotaInput, setQuotaInput] = useState(quotaTarget>0?formatCompactCurrency(quotaTarget):'')
   const [editing, setEditing] = useState(false)
   const [gaugeHover, setGaugeHover] = useState(false)
+  const [showAddDeal, setShowAddDeal] = useState(false)
+  const [showViewAll, setShowViewAll] = useState(false)
 
   const STAGE_WEIGHTS = {'Awareness':0.1,'NDA':0.1,'Intro Call':0.15,'Demo':0.2,'POC':0.3,'Scoping':0.4,'Pricing':0.6,'Legal':0.9,'Procurement':0.9,'PO Received':1.0,'Deployed':1.0}
 
-  const attainedGP = (data.accounts||[]).reduce((sum,acct)=>
-    sum+(acct.projects||[]).filter(p=>p.status==='Won').reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0),0)
+  const attainedGP = (data.closedDeals||[]).reduce((sum,d)=>sum+(d.gp||0),0)
 
   const inProgressGP = (data.accounts||[]).reduce((sum,acct)=>
     sum+(acct.projects||[]).filter(p=>p.status==='In Flight'||p.status==='In Discussion').reduce((s,p)=>{
@@ -327,10 +516,17 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
   }
 
   return (
+    <>
     <div className="lp-chart-perf" style={{background:'#fff',borderRadius:14,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',flex:'0 0 35%',minWidth:0,boxSizing:'border-box'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
         <div style={{fontSize:15,fontWeight:700,color:'#0f172a'}}>Your Performance</div>
-        <button onClick={onGoAllProjects} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={()=>setShowAddDeal(true)} title="Add Closed Deal"
+            style={{display:'flex',alignItems:'center',gap:4,background:'#F0F7FF',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,color:'#007AFF',fontWeight:700,padding:'4px 8px'}}>
+            <Plus size={12}/> Add Deal
+          </button>
+          <button onClick={()=>setShowViewAll(true)} style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'#2563eb',fontWeight:600,padding:0}}>View all →</button>
+        </div>
       </div>
       <div style={{position:'relative',display:'block',width:'100%',maxWidth:260,margin:'0 auto'}}>
         <svg viewBox="0 0 200 110" width="100%" style={{display:'block',cursor:'pointer'}}
@@ -387,6 +583,9 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
         ))}
       </div>
     </div>
+    {showAddDeal&&<AddClosedDealModal data={data} setData={setData} onClose={()=>setShowAddDeal(false)}/>}
+    {showViewAll&&<ClosedDealsModal data={data} setData={setData} onClose={()=>setShowViewAll(false)} onAddDeal={()=>{setShowViewAll(false);setShowAddDeal(true)}}/>}
+    </>
   )
 }
 

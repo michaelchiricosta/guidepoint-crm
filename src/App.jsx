@@ -104,6 +104,7 @@ const SAMPLE = {
   }],
   whitespaceAccounts:[],
   quotaTarget: 0,
+  closedDeals: [],
   dailyBriefs: [],
   meetingPreps: [],
   dailyJournals: [],
@@ -1487,7 +1488,7 @@ export default function App() {
     const localAI = getRecords()
     const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
     try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[]})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[], closedDeals:loaded.closedDeals||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
