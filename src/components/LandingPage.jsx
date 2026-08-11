@@ -390,19 +390,43 @@ function AddClosedDealModal({data, setData, onClose}) {
 
 function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
   const deals = data.closedDeals||[]
-  const totalRevenue = deals.reduce((s,d)=>s+(d.revenue||0),0)
-  const totalGP = deals.reduce((s,d)=>s+(d.gp||0),0)
-  const avgGPPct = deals.length ? deals.reduce((s,d)=>s+(d.revenue?(d.gp/d.revenue)*100:0),0)/deals.length : 0
+  const wonProjects = (data.accounts||[]).flatMap(a=>(a.projects||[]).filter(p=>p.status==='Won').map(p=>({
+    id:p.id,
+    acctName:a.short||a.name,
+    name:p.name,
+    closeDate:p.closeDate,
+    revenue:parseCost(p.estimatedRevenue||''),
+    gp:parseCost(p.estimatedGrossProfit||''),
+  })))
+
+  const sumRevenue = rows => rows.reduce((s,r)=>s+(r.revenue||0),0)
+  const sumGP = rows => rows.reduce((s,r)=>s+(r.gp||0),0)
+  const avgGPPctOf = rows => rows.length ? rows.reduce((s,r)=>s+(r.revenue?(r.gp/r.revenue)*100:0),0)/rows.length : 0
+
+  const wonRevenue = sumRevenue(wonProjects)
+  const wonGP = sumGP(wonProjects)
+  const wonAvgGPPct = avgGPPctOf(wonProjects)
+
+  const dealsRevenue = sumRevenue(deals)
+  const dealsGP = sumGP(deals)
+  const dealsAvgGPPct = avgGPPctOf(deals)
+
+  const grandRevenue = wonRevenue + dealsRevenue
+  const grandGP = wonGP + dealsGP
+  const grandAvgGPPct = avgGPPctOf([...wonProjects, ...deals])
 
   const deleteDeal = (id) => setData(prev=>({...prev, closedDeals:(prev.closedDeals||[]).filter(d=>d.id!==id)}))
 
+  const thStyle = (right) => ({textAlign:right?'right':'left',padding:'10px 24px',fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em',borderBottom:'1px solid #F3F4F6',whiteSpace:'nowrap'})
+  const tdStyle = (right,extra) => ({padding:'10px 24px',borderBottom:'1px solid #F3F4F6',textAlign:right?'right':'left',...extra})
+
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:310,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',border:'1px solid #EEEFF2',borderRadius:16,width:820,maxWidth:'100%',maxHeight:'85vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,0.20)',boxSizing:'border-box'}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',border:'1px solid #EEEFF2',borderRadius:16,width:860,maxWidth:'100%',maxHeight:'85vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,0.20)',boxSizing:'border-box'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 24px',flexShrink:0,borderBottom:'1px solid #F3F4F6'}}>
           <div>
             <div style={{fontSize:16,fontWeight:700,color:'#0f172a'}}>Closed Deals</div>
-            <div style={{fontSize:12,color:'#64748b',marginTop:2}}>{deals.length} deal{deals.length!==1?'s':''} tracked</div>
+            <div style={{fontSize:12,color:'#64748b',marginTop:2}}>{wonProjects.length} won project{wonProjects.length!==1?'s':''} · {deals.length} manual deal{deals.length!==1?'s':''}</div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <button onClick={onAddDeal} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'none',background:'#007AFF',color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>
@@ -416,27 +440,63 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
         </div>
 
         <div style={{overflowY:'auto',flex:1}}>
+          <div style={{padding:'16px 24px 4px',fontSize:12,fontWeight:700,color:'#007AFF',textTransform:'uppercase',letterSpacing:'0.05em'}}>Won Projects</div>
+          {wonProjects.length===0 ? (
+            <div style={{padding:'16px 24px 24px',color:'#94a3b8',fontSize:13}}>No won projects yet.</div>
+          ) : (
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead>
+                <tr>
+                  {['Account','Project','Close Date','Est. Revenue','Est. GP','GP %'].map((h,i)=>(
+                    <th key={i} style={thStyle(i>=3)}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {wonProjects.map((p,i)=>(
+                  <tr key={p.id} style={{background:i%2===0?'#F9FAFB':'#fff'}}>
+                    <td style={tdStyle(false,{color:'#0f172a',fontWeight:600})}>{p.acctName}</td>
+                    <td style={tdStyle(false,{color:'#475569'})}>{p.name}</td>
+                    <td style={tdStyle(false,{color:'#475569'})}>{fmtDate(p.closeDate)}</td>
+                    <td style={tdStyle(true,{color:'#0f172a'})}>{fmtDealCurrency(p.revenue)}</td>
+                    <td style={tdStyle(true,{color:'#0ebc5f',fontWeight:600})}>{fmtDealCurrency(p.gp)}</td>
+                    <td style={tdStyle(true,{color:'#475569'})}>{fmtGPPct(p.gp,p.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{background:'#F9FAFB'}}>
+                  <td colSpan={3} style={tdStyle(false,{fontWeight:700,color:'#0f172a',borderBottom:'1px solid #EEEFF2'})}>Subtotal</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#0f172a',borderBottom:'1px solid #EEEFF2'})}>{fmtDealCurrency(wonRevenue)}</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#0ebc5f',borderBottom:'1px solid #EEEFF2'})}>{fmtDealCurrency(wonGP)}</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#475569',borderBottom:'1px solid #EEEFF2'})}>{wonAvgGPPct.toFixed(1)}%</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+
+          <div style={{padding:'16px 24px 4px',fontSize:12,fontWeight:700,color:'#007AFF',textTransform:'uppercase',letterSpacing:'0.05em'}}>Closed Deals (Manual)</div>
           {deals.length===0 ? (
-            <div style={{padding:'48px 24px',textAlign:'center',color:'#94a3b8',fontSize:13}}>No closed deals yet.</div>
+            <div style={{padding:'16px 24px 24px',color:'#94a3b8',fontSize:13}}>No manual closed deals yet.</div>
           ) : (
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
               <thead>
                 <tr>
                   {['Account','Product/Vendor','Close Date','Total Revenue','Total GP','GP %',''].map((h,i)=>(
-                    <th key={i} style={{textAlign:i>=3&&i<=5?'right':'left',padding:'10px 24px',fontSize:11,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em',borderBottom:'1px solid #F3F4F6',whiteSpace:'nowrap'}}>{h}</th>
+                    <th key={i} style={thStyle(i>=3&&i<=5)}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {deals.map((d,i)=>(
                   <tr key={d.id} style={{background:i%2===0?'#F9FAFB':'#fff'}}>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0f172a',fontWeight:600}}>{d.account}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569'}}>{d.vendor}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569'}}>{fmtDate(d.closeDate)}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0f172a',textAlign:'right'}}>{fmtDealCurrency(d.revenue)}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#0ebc5f',fontWeight:600,textAlign:'right'}}>{fmtDealCurrency(d.gp)}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',color:'#475569',textAlign:'right'}}>{fmtGPPct(d.gp,d.revenue)}</td>
-                    <td style={{padding:'10px 24px',borderBottom:'1px solid #F3F4F6',textAlign:'right'}}>
+                    <td style={tdStyle(false,{color:'#0f172a',fontWeight:600})}>{d.account}</td>
+                    <td style={tdStyle(false,{color:'#475569'})}>{d.vendor}</td>
+                    <td style={tdStyle(false,{color:'#475569'})}>{fmtDate(d.closeDate)}</td>
+                    <td style={tdStyle(true,{color:'#0f172a'})}>{fmtDealCurrency(d.revenue)}</td>
+                    <td style={tdStyle(true,{color:'#0ebc5f',fontWeight:600})}>{fmtDealCurrency(d.gp)}</td>
+                    <td style={tdStyle(true,{color:'#475569'})}>{fmtGPPct(d.gp,d.revenue)}</td>
+                    <td style={tdStyle(true)}>
                       <button onClick={()=>deleteDeal(d.id)} title="Delete deal"
                         style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:4,display:'inline-flex'}}
                         onMouseEnter={e=>e.currentTarget.style.opacity=0.7} onMouseLeave={e=>e.currentTarget.style.opacity=1}>
@@ -446,26 +506,33 @@ function ClosedDealsModal({data, setData, onClose, onAddDeal}) {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr style={{background:'#F9FAFB'}}>
+                  <td colSpan={3} style={tdStyle(false,{fontWeight:700,color:'#0f172a',borderBottom:'1px solid #EEEFF2'})}>Subtotal</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#0f172a',borderBottom:'1px solid #EEEFF2'})}>{fmtDealCurrency(dealsRevenue)}</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#0ebc5f',borderBottom:'1px solid #EEEFF2'})}>{fmtDealCurrency(dealsGP)}</td>
+                  <td style={tdStyle(true,{fontWeight:700,color:'#475569',borderBottom:'1px solid #EEEFF2'})}>{dealsAvgGPPct.toFixed(1)}%</td>
+                  <td style={tdStyle(true,{borderBottom:'1px solid #EEEFF2'})}></td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>
 
-        {deals.length>0&&(
-          <div style={{display:'flex',justifyContent:'flex-end',gap:32,padding:'14px 24px',borderTop:'1px solid #F3F4F6',flexShrink:0,background:'#F9FAFB',borderRadius:'0 0 16px 16px'}}>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Total Revenue</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{fmtDealCurrency(totalRevenue)}</div>
-            </div>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Total GP</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#0ebc5f'}}>{fmtDealCurrency(totalGP)}</div>
-            </div>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Avg GP %</div>
-              <div style={{fontSize:14,fontWeight:700,color:'#007AFF'}}>{avgGPPct.toFixed(1)}%</div>
-            </div>
+        <div style={{display:'flex',justifyContent:'flex-end',gap:32,padding:'14px 24px',borderTop:'1px solid #F3F4F6',flexShrink:0,background:'#F9FAFB',borderRadius:'0 0 16px 16px'}}>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Grand Total Revenue</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{fmtDealCurrency(grandRevenue)}</div>
           </div>
-        )}
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Grand Total GP</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0ebc5f'}}>{fmtDealCurrency(grandGP)}</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.04em'}}>Avg GP %</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#007AFF'}}>{grandAvgGPPct.toFixed(1)}%</div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -481,7 +548,10 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects}) {
 
   const STAGE_WEIGHTS = {'Awareness':0.1,'NDA':0.1,'Intro Call':0.15,'Demo':0.2,'POC':0.3,'Scoping':0.4,'Pricing':0.6,'Legal':0.9,'Procurement':0.9,'PO Received':1.0,'Deployed':1.0}
 
-  const attainedGP = (data.closedDeals||[]).reduce((sum,d)=>sum+(d.gp||0),0)
+  const wonProjectsGP = (data.accounts||[]).reduce((sum,acct)=>
+    sum+(acct.projects||[]).filter(p=>p.status==='Won').reduce((s,p)=>s+parseCost(p.estimatedGrossProfit||''),0),0)
+  const closedDealsGP = (data.closedDeals||[]).reduce((sum,d)=>sum+(d.gp||0),0)
+  const attainedGP = wonProjectsGP + closedDealsGP
 
   const inProgressGP = (data.accounts||[]).reduce((sum,acct)=>
     sum+(acct.projects||[]).filter(p=>p.status==='In Flight'||p.status==='In Discussion').reduce((s,p)=>{
