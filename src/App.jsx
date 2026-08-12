@@ -28,6 +28,7 @@ import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WaveReviewPage from './components/WaveReviewPage.jsx'
+import IntelBoardPage from './components/IntelBoardPage.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
 import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
 import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
@@ -1443,6 +1444,7 @@ export default function App() {
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [showWaveReview,setShowWaveReview] = useState(false)
+  const [showIntelBoard,setShowIntelBoard] = useState(false)
   const [maggieOpen,setMaggieOpen] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)

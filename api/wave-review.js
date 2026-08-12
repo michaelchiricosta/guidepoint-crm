@@ -1,14 +1,15 @@
-// api/wave-review.js
+// api/wave-review.js  (v2 — GuidePoint signal extraction)
 //
 // Two actions, both POST:
 //
 //   action: 'analyze'  — fetch a Wave session's AI summary, run Claude to
-//                        identify the best account match + extract intel.
+//                        identify the best account match + extract signals
+//                        through a GuidePoint ECM lens.
 //
-//   action: 'apply'    — write the intel to the selected account in the
+//   action: 'apply'    — write intel + signals to the selected account in the
 //                        Supabase accounts blob and record in wave_applied_sessions.
 //
-// Required Vercel env vars (same as wave-cron.js):
+// Required Vercel env vars:
 //   WAVE_API_KEY, ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from '@supabase/supabase-js'
@@ -58,7 +59,7 @@ async function saveAccounts(sb, row, updatedAccounts) {
   if (!updated?.length) throw new Error('save accounts: version conflict — reload and try again')
 }
 
-// ── analyze action ────────────────────────────────────────────────────────────
+// ── analyze action ─────────────────────────────────────────────────────────────
 
 async function handleAnalyze(body) {
   const { session_id, session_title, session_date, account_names } = body
@@ -91,13 +92,14 @@ async function handleAnalyze(body) {
         recommendation: null,
         confidence: 'unmatched',
         intel_summary: '',
+        signals: [],
         action_items: [],
         note: 'No usable AI summary available for this session yet.'
       }
     }
   }
 
-  // 2. Run Claude to identify account + extract intel
+  // 2. Run Claude with GuidePoint ECM lens
   const claudeRes = await fetch(ANTHROPIC_API, {
     method: 'POST',
     headers: {
@@ -107,23 +109,55 @@ async function handleAnalyze(body) {
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [{
         role: 'user',
-        content: `You are a CRM assistant for Mike Chiricosta at GuidePoint Security.
+        content: `You are an AI assistant for Mike Chiricosta, an Enterprise Client Manager at GuidePoint Security covering New England.
 
-Parse this Wave AI call summary and identify which Ledgr account it belongs to.
+GuidePoint is a cybersecurity VAR and professional services firm. Mike's job is to be a trusted advisor — he thinks in platforms not point solutions, leads with business outcomes, and is always listening for adjacent opportunities that a client hasn't yet framed as a need. He sells and implements solutions across the full security stack: identity (IGA/PAM), cloud security (CSPM/CNAPP), endpoint/EDR, data security, MDR, AppSec, and GRC/compliance.
 
-Return ONLY valid JSON — no markdown:
+GuidePoint capabilities to keep in mind when identifying opportunities:
+- Professional services: AppSec health checks, secure development advisory, identity assessments, cloud security reviews, DFIR, red team/pen testing, IR tabletop
+- Managed services: MDR, managed identity, managed cloud security
+- GRC/compliance: CMMC, PCI, NIST 800-53, SOC 2, security awareness training
+- Vendor ecosystem: CrowdStrike, SentinelOne, Palo Alto, Zscaler, SailPoint, Saviynt, Varonis, Wiz, Horizon3, Aikido, and hundreds more
+
+Parse this Wave call summary and extract intelligence through the lens of an experienced GuidePoint ECM.
+
+Key mindset: Listen for what isn't said. A customer evaluating tools is really asking "should we have this capability?" A budget conversation is really "how do we prioritize spend?" A vendor complaint is really "what's actually solving our problem?" Surface the real opportunity behind the surface-level comment.
+
+Return ONLY valid JSON — no markdown fences:
 {
   "account_name": "exact name from account list, or null if no match",
   "confidence": "high|medium|low|unmatched",
-  "intel_summary": "3-5 specific sentences: what was discussed, decisions, next steps",
+  "intel_summary": "2-3 factual sentences on what actually happened in the call — decisions made, current status, concrete next steps",
+  "signals": [
+    {
+      "type": "vendor|budget|pain|org|expansion|competitive",
+      "what": "one sentence: what was actually said or revealed on the call",
+      "gp_angle": "one sentence: the specific GuidePoint play this creates — name the service, motion, or conversation to have, and with whom"
+    }
+  ],
   "action_items": [
-    { "task": "verb-first action item", "due_date": "YYYY-MM-DD or null", "contact": "person name or null" }
+    {
+      "task": "verb-first action item for Mike",
+      "due_date": "YYYY-MM-DD or null",
+      "contact": "person name or null",
+      "priority": "high|medium|low"
+    }
   ],
   "reasoning": "one sentence on why you matched this account (or why no match)"
 }
+
+Signal type guide — extract only what is genuinely present in the summary:
+- vendor: A tool or product was mentioned (being evaluated, replaced, dissatisfied with, newly deployed, or compared to another). What does this tell us about where they're headed and what GuidePoint can do?
+- budget: Budget was discussed — amounts, timelines, constraints, planning cycles, or approval processes. When is money available, for what, and how can GuidePoint shape how it gets spent?
+- pain: The customer described a challenge, frustration, or operational problem they haven't yet framed as a formal need or RFP. What's the real problem, and what GuidePoint service addresses it before they go to market?
+- org: A personnel change, new hire, departure, restructure, or capacity constraint was mentioned. What relationship or services opportunity does this create?
+- expansion: There is an adjacent scope opportunity from the current engagement — something the customer needs that is close to what's already being worked. What is the logical next step?
+- competitive: Another vendor, partner, system integrator, or competitor was mentioned. What's the displacement angle, co-sell angle, or risk of losing the relationship?
+
+Quality over quantity. Two or three sharp signals beat six weak ones. Do not hallucinate — only extract what is actually in the summary.
 
 Account list: ${(account_names || []).join(', ')}
 
@@ -137,7 +171,6 @@ ${summary.slice(0, 6000)}`
   })
 
   if (!claudeRes.ok) {
-    const err = await claudeRes.text()
     return { status: 502, body: { error: `Claude error: ${claudeRes.status}` } }
   }
 
@@ -159,35 +192,31 @@ ${summary.slice(0, 6000)}`
       recommendation: parsed.account_name || null,
       confidence: parsed.confidence || 'unmatched',
       intel_summary: parsed.intel_summary || '',
+      signals: parsed.signals || [],
       action_items: parsed.action_items || [],
       reasoning: parsed.reasoning || ''
     }
   }
 }
 
-// ── apply action ──────────────────────────────────────────────────────────────
+// ── apply action ───────────────────────────────────────────────────────────────
 
 async function handleApply(body) {
-  let { session_id, account_id, session_title, session_date, intel_summary, action_items } = body
+  let { session_id, account_id, session_title, session_date, intel_summary, signals, action_items } = body
   if (!session_id || !account_id) {
     return { status: 400, body: { error: 'session_id and account_id are required' } }
   }
 
-  // If no intel provided, fetch Wave summary + run Claude now
+  // Auto-analyze if intel not provided
   if (!intel_summary) {
-    const analyzed = await handleAnalyze({
-      session_id,
-      session_title,
-      session_date,
-      account_names: [] // not needed for extraction, just intel
-    })
+    const analyzed = await handleAnalyze({ session_id, session_title, session_date, account_names: [] })
     if (analyzed.body?.intel_summary) intel_summary = analyzed.body.intel_summary
     if (analyzed.body?.action_items?.length) action_items = analyzed.body.action_items
+    if (analyzed.body?.signals?.length) signals = analyzed.body.signals
   }
 
   const sb = getSupabase()
 
-  // Load accounts blob
   let row
   try {
     row = await loadAccounts(sb)
@@ -208,13 +237,14 @@ async function handleApply(body) {
     type:         'Call',
     date,
     summary:      intel_summary || '',
+    signals:      signals || [],
     insights:     [],
     risks:        [],
     opportunities: [],
     participants:  '',
     source:       'Wave AI (manual review)',
-    sessionId:    session_id,
-    sessionTitle:  session_title || 'Call Recording'
+    sessionId:    String(session_id),
+    sessionTitle: session_title || 'Call Recording'
   }
 
   const newFollowUps = (action_items || [])
@@ -224,7 +254,7 @@ async function handleApply(body) {
       task:     ai.task,
       dueDate:  ai.due_date || '',
       contact:  ai.contact || '',
-      priority: 'Medium',
+      priority: ai.priority || 'Medium',
       status:   'Open',
       source:   'Wave AI (manual review)'
     }))
@@ -244,11 +274,10 @@ async function handleApply(body) {
     return { status: 409, body: { error: err.message } }
   }
 
-  // Record as applied
   await sb
     .from('wave_applied_sessions')
     .upsert(
-      { session_id, account_name: acct.name, account_id, source: 'manual' },
+      { session_id: String(session_id), account_name: acct.name, account_id, source: 'manual' },
       { onConflict: 'session_id', ignoreDuplicates: false }
     )
 
@@ -257,15 +286,16 @@ async function handleApply(body) {
     body: {
       ok: true,
       account_name: acct.name,
+      intel_summary,
+      signals: signals || [],
       intel_entries: 1,
-      intel_summary: intel_summary || '',
       follow_ups: newFollowUps.length,
       updatedAccount: updatedAcct
     }
   }
 }
 
-// ── handler ───────────────────────────────────────────────────────────────────
+// ── handler ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || ''
