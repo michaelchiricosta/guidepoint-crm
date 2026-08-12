@@ -34,6 +34,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'mothership',  label:'Mothership',  icon:<Brain size={18}/>,         action:()=>onGoMothership&&onGoMothership()},
     {id:'maggie',      label:'Maggie',      icon:<MessageSquare size={18}/>, action:()=>onGoMaggie&&onGoMaggie()},
     {id:'files',       label:'Files',       icon:<FolderOpen size={18}/>,    action:()=>onGoFiles&&onGoFiles()},
+    {id:'intelboard',   label:'Intel Board', icon:<LayoutDashboard size={18}/>, action:()=>onGoIntelBoard&&onGoIntelBoard()},
     {id:'wavereview',   label:'Wave Review', icon:<Radio size={18}/>,       action:()=>onGoWaveReview&&onGoWaveReview()},
     {id:'dailybrief',  label:'Daily Brief',       icon:<Sparkles size={18}/>, action:()=>onGoDailyBrief&&onGoDailyBrief(),     badge: briefIncompleteCount>0?briefIncompleteCount:null},
     {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},

@@ -1980,6 +1980,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoMaggie={()=>{setShowMaggie(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       onGoWaveReview={()=>{setShowWaveReview(true);setIsLandingPage(false)}}
+      onGoIntelBoard={()=>{setShowIntelBoard(true);setIsLandingPage(false)}}
       briefGenerating={briefGenerating}
       briefError={briefError}
       onGenerateBrief={generateDailyBrief}
