@@ -38,6 +38,12 @@ function firstName(s) {
   return (s || '').split(/[\s(]/)[0]
 }
 
+function draftHeadline(recipient) {
+  const m = (recipient || '').match(/^(.+?)\s*\(CC (.+?)\)/i)
+  if (m) return `Send email to ${firstName(m[1])} & ${firstName(m[2])}`
+  return `Send email to ${firstName(recipient)}`
+}
+
 function snoozeUntil(days) {
   const d = new Date()
   d.setDate(d.getDate() + days)
@@ -102,7 +108,7 @@ export default function ChiefOfStaff({ onBack }) {
     for (const d of drafts || []) {
       built.push({
         id: 'd-' + d.id, rank: 1, mark: '✉️',
-        headline: `Send email to ${firstName(d.recipient)}`,
+        headline: draftHeadline(d.recipient),
         when: ago(d.created_at),
         context: `"${d.subject || 'untitled'}" — go tweak and send.`,
         draftBody: d.body,
@@ -116,7 +122,7 @@ export default function ChiefOfStaff({ onBack }) {
     for (const s of signals || []) {
       const acct = s.account_name || names[s.account_id] || ''
       built.push({
-        id: 's-' + s.id, rank: 2, mark: '💡',
+        id: 's-' + s.id, rank: 5, mark: '💡',
         headline: `${acct}: ${s.headline || s.what.slice(0, 50)}`,
         when: s.session_date ? s.session_date.split('T')[0].slice(5) : '',
         context: `${s.what} ${s.gp_angle}`,
@@ -134,7 +140,7 @@ export default function ChiefOfStaff({ onBack }) {
     for (const a of visibleActions) {
       const short = a.description.length > 50 ? a.description.slice(0, 50).trim() + '…' : a.description
       built.push({
-        id: 'a-' + a.id, rank: 4, mark: '☐',
+        id: 'a-' + a.id, rank: (a.priority || '').toLowerCase() === 'high' ? 2 : 4, mark: '☐',
         headline: short,
         when: names[a.account_id] || '',
         context: a.description,
