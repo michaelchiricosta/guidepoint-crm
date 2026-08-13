@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ArrowLeft, Flame, Plus, X, User, Copy, Check, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 import { uid, fmtDate, extractJSON } from '../utils.js'
 import { trackAI, FEATURES } from '../utils/aiTracker.js'
@@ -223,12 +223,12 @@ function DraftOutreachModal({ lead, onClose, onCache }) {
   )
 }
 
-function LeadCard({ lead, dismissed, onCycleStage, onDismiss, onRestore, onDraftOutreach }) {
+function LeadCard({ lead, dismissed, hideAccountName, onCycleStage, onDismiss, onRestore, onDraftOutreach }) {
   const meta = STAGE_META[lead.stage] || STAGE_META['Intel Received']
   return (
     <div style={{ background: '#fff', border: '1px solid #EEEFF2', borderLeft: `3px solid ${meta.color}`, borderRadius: 12, padding: 20, marginBottom: 12, opacity: dismissed ? 0.5 : 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{lead.accountName}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: hideAccountName ? 'flex-end' : 'space-between', marginBottom: 6, gap: 12 }}>
+        {!hideAccountName && <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{lead.accountName}</div>}
         {!dismissed ? (
           <button onClick={() => onCycleStage(lead)} title="Click to advance stage"
             style={{ background: meta.bg, color: meta.color, border: 'none', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -264,10 +264,33 @@ export default function HotLeadsPage({ data, setData, onBack }) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [draftLead, setDraftLead] = useState(null)
   const [showDismissed, setShowDismissed] = useState(false)
+  const [collapsedAccounts, setCollapsedAccounts] = useState(new Set())
 
   const leads = data.hotLeads || []
   const activeLeads = leads.filter(l => !l.dismissed)
   const dismissedLeads = leads.filter(l => l.dismissed)
+
+  // Group active leads by account, newest lead first within each group, and
+  // account groups ordered by their most recent lead (hottest activity first).
+  const groupedLeads = useMemo(() => {
+    const groups = {}
+    activeLeads.forEach(lead => {
+      const key = lead.accountName || 'Unknown Account'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(lead)
+    })
+    Object.values(groups).forEach(g => g.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')))
+    return Object.entries(groups).sort((a, b) => (b[1][0]?.createdAt || '').localeCompare(a[1][0]?.createdAt || ''))
+  }, [activeLeads])
+
+  const toggleAccountCollapse = (accountName) => {
+    setCollapsedAccounts(prev => {
+      const next = new Set(prev)
+      if (next.has(accountName)) next.delete(accountName)
+      else next.add(accountName)
+      return next
+    })
+  }
 
   const cycleStage = (lead) => {
     const idx = LEAD_STAGES.indexOf(lead.stage)
@@ -280,7 +303,8 @@ export default function HotLeadsPage({ data, setData, onBack }) {
   const cacheEmail = (leadId, draft) => setData(prev => ({ ...prev, hotLeads: (prev.hotLeads || []).map(l => l.id === leadId ? { ...l, generatedEmail: draft } : l) }))
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F4F6F9' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#F4F6F9' }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px 80px' }}>
         <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 14, fontWeight: 500, padding: 0, marginBottom: 20 }}>
           <ArrowLeft size={16} /> Back
@@ -304,9 +328,26 @@ export default function HotLeadsPage({ data, setData, onBack }) {
             <button onClick={() => setShowAddModal(true)} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#007AFF', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Add Lead manually</button>
           </div>
         ) : (
-          activeLeads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onCycleStage={cycleStage} onDismiss={dismissLead} onDraftOutreach={setDraftLead} />
-          ))
+          groupedLeads.map(([accountName, accountLeads]) => {
+            const isCollapsed = collapsedAccounts.has(accountName)
+            return (
+              <div key={accountName}>
+                <div onClick={() => toggleAccountCollapse(accountName)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderBottom: '1px solid #EEEFF2', paddingBottom: 12, marginTop: 20 }}>
+                  {isCollapsed ? <ChevronRight size={16} color="#9CA3AF" /> : <ChevronDown size={16} color="#9CA3AF" />}
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{accountName}</div>
+                  <span style={{ background: '#F3F4F6', color: '#6B7280', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{accountLeads.length}</span>
+                </div>
+                {!isCollapsed && (
+                  <div style={{ marginTop: 12 }}>
+                    {accountLeads.map(lead => (
+                      <LeadCard key={lead.id} lead={lead} hideAccountName onCycleStage={cycleStage} onDismiss={dismissLead} onDraftOutreach={setDraftLead} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
 
         {dismissedLeads.length > 0 && (
@@ -324,6 +365,7 @@ export default function HotLeadsPage({ data, setData, onBack }) {
             )}
           </div>
         )}
+      </div>
       </div>
 
       {showAddModal && <AddLeadModal onClose={() => setShowAddModal(false)} onSave={addLead} />}
