@@ -19,7 +19,6 @@ const DEFAULT_MODEL = 'claude-sonnet-4-6'
 export const FEATURES = {
   DAILY_BRIEF:       'Daily Brief',
   MEETING_PREP:      'Meeting Prep',
-  JOURNAL:           'Journal',
   MARKET_INTEL:      'Market Intel',
   WHITESPACE_UPLOAD: 'Whitespace Upload',
   AI_CHAT:           'AI Chat',
@@ -138,7 +137,6 @@ export function addSampleRecords() {
     { feature: FEATURES.MEETING_PREP, operation: 'generate-prep', model: 'claude-sonnet-4-6', inputChars: 5000, maxTokensOut: 1500, durationMs: 4100, success: true, source: 'sample', ts: new Date(now - 86400000 * 2).toISOString() },
     { feature: FEATURES.WHITESPACE_UPLOAD, operation: 'extract-accounts', model: 'claude-haiku-4-5-20251001', inputChars: 20000, maxTokensOut: 3000, durationMs: 5500, success: true, source: 'sample', ts: new Date(now - 86400000 * 3).toISOString() },
     { feature: FEATURES.AI_CHAT, operation: 'chat-message', model: 'claude-sonnet-4-6', inputChars: 2000, maxTokensOut: 500, durationMs: 1200, success: true, source: 'sample', ts: new Date(now - 86400000 * 5).toISOString() },
-    { feature: FEATURES.JOURNAL, operation: 'analyze-journal', model: 'claude-sonnet-4-6', inputChars: 3000, maxTokensOut: 1000, durationMs: 2800, success: true, source: 'sample', ts: new Date(now - 86400000 * 7).toISOString() },
     { feature: FEATURES.MARKET_INTEL, operation: 'summarize-articles', model: 'claude-haiku-4-5-20251001', inputChars: 6000, maxTokensOut: 800, durationMs: 1600, success: true, source: 'sample', ts: new Date(now - 86400000 * 10).toISOString() },
     { feature: FEATURES.TECH_STACK, operation: 'ai-ciso-recs', model: 'claude-sonnet-4-6', inputChars: 7000, maxTokensOut: 3000, durationMs: 6200, success: true, source: 'sample', ts: new Date(now - 86400000 * 14).toISOString() },
     { feature: FEATURES.WHITESPACE_TOOLS, operation: 'score-accounts', model: 'claude-sonnet-4-6', inputChars: 4000, maxTokensOut: 300, durationMs: 900, success: true, source: 'sample', ts: new Date(now - 86400000 * 20).toISOString() },

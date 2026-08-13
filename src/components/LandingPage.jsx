@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react'
-import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, BookOpen, Globe, BarChart2, ChevronRight, Database, Brain, MessageSquare, Radio, Plus, Trash2, LayoutDashboard, Compass, Flame } from 'lucide-react'
+import { Home, Calendar, AlertTriangle, RefreshCw, Map, Sun, Moon, X, Pencil, Clock, Share2, Building2, Folder, FolderOpen, Maximize2, LayoutGrid, List, Settings2, Package, Sparkles, FileText, Globe, ChevronRight, Database, MessageSquare, Radio, Plus, Trash2, LayoutDashboard, Compass, Flame } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, daysSince, parseCost, formatCompactCurrency, calcHealthScore, getHealthColor, sendToAppleReminders } from '../utils.js'
@@ -8,22 +8,15 @@ import { checkBudget } from '../utils/aiHelper.js'
 import IntelInbox from './IntelInbox.jsx'
 import DailyBrief from './DailyBrief.jsx'
 import MeetingPrep from './MeetingPrep.jsx'
-import EndOfDayJournal from './EndOfDayJournal.jsx'
 import MarketIntelligence from './MarketIntelligence.jsx'
-import AIUsageDashboard from './AIUsageDashboard.jsx'
 import HotLeadsPage from './HotLeadsPage.jsx'
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoHotLeads, showHotLeadsPage, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoHotLeads, showHotLeadsPage, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoMarketIntel, showMarketIntelPage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
   const todayBrief = (data.dailyBriefs||[]).find(b=>b.date===today)
   const briefIncompleteCount = todayBrief ? (todayBrief.sections?.actToday||[]).filter(a=>!a.completedToday).length : 0
-  const nowHour = new Date().getHours()
-  const nowDay = new Date().getDay()
-  const afterFourPm = nowHour >= 16 && nowDay >= 1 && nowDay <= 5
-  const todayJournal = (data.dailyJournals||[]).find(j=>j.date===today)
-  const journalBadge = afterFourPm && (!todayJournal || todayJournal.status!=='complete') ? '!' : null
 
   const activeHotLeadsCount = (data.hotLeads||[]).filter(l=>!l.dismissed).length
 
@@ -36,23 +29,20 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'whitespace',  label:'Whitespace',  icon:<Map size={18}/>,        action:()=>onGoWhitespace&&onGoWhitespace()},
     {id:'vendors',     label:'Vendors',     icon:<Package size={18}/>,    action:()=>onGoVendors&&onGoVendors()},
     {id:'cyberbible',  label:'Cyber Bible', icon:<Database size={18}/>,   action:()=>onGoCyberBible&&onGoCyberBible()},
-    {id:'mothership',  label:'Mothership',  icon:<Brain size={18}/>,         action:()=>onGoMothership&&onGoMothership()},
     {id:'maggie',      label:'Maggie',      icon:<MessageSquare size={18}/>, action:()=>onGoMaggie&&onGoMaggie()},
     {id:'files',       label:'Files',       icon:<FolderOpen size={18}/>,    action:()=>onGoFiles&&onGoFiles()},
     {id:'intelboard',   label:'Intel Board', icon:<LayoutDashboard size={18}/>, action:()=>onGoIntelBoard&&onGoIntelBoard()},
     {id:'wavereview',   label:'Wave Review', icon:<Radio size={18}/>,       action:()=>onGoWaveReview&&onGoWaveReview()},
     {id:'dailybrief',  label:'Daily Brief',       icon:<Sparkles size={18}/>, action:()=>onGoDailyBrief&&onGoDailyBrief(),     badge: briefIncompleteCount>0?briefIncompleteCount:null},
     {id:'meetingprep', label:'Meeting Prep',      icon:<FileText size={18}/>, action:()=>onGoMeetingPrep&&onGoMeetingPrep()},
-    {id:'endofday',    label:'Journal',           icon:<BookOpen size={18}/>, action:()=>onGoEndOfDay&&onGoEndOfDay(),          badge: journalBadge},
     {id:'marketintel', label:'Market Intel',      icon:<Globe size={18}/>,    action:()=>onGoMarketIntel&&onGoMarketIntel()},
-    {id:'aiusage',     label:'AI Usage',          icon:<BarChart2 size={18}/>,action:()=>onGoAIUsage&&onGoAIUsage()},
   ]
   const navBottom = [
     {id:'tasks',    label:"Today's Tasks",  icon:<Calendar size={18}/>,     action:()=>setTodayModal(true)},
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showAIUsagePage ? 'aiusage' : showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showHotLeadsPage ? 'hotleads' : showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showMarketIntelPage ? 'marketintel' : showHotLeadsPage ? 'hotleads' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
@@ -713,7 +703,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects, onNavigateTo}) {
   )
 }
 
-export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, onGoDailyBrief, onGoMeetingPrep, onGoEndOfDay, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
+export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, onGoDailyBrief, onGoMeetingPrep, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -726,12 +716,10 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   const [mobNavOpen, setMobNavOpen] = useState(false)
   const [showDailyBriefPage, setShowDailyBriefPage] = useState(false)
   const [showMeetingPrepPage, setShowMeetingPrepPage] = useState(false)
-  const [showEndOfDayPage, setShowEndOfDayPage] = useState(false)
   const [showMarketIntelPage, setShowMarketIntelPage] = useState(false)
-  const [showAIUsagePage, setShowAIUsagePage] = useState(false)
   const [showHotLeadsPage, setShowHotLeadsPage] = useState(false)
   const scrollRef = useRef(null)
-  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false); setShowAIUsagePage(false); setShowHotLeadsPage(false) }
+  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowMarketIntelPage(false); setShowHotLeadsPage(false) }
   const [logoScale, setLogoScale] = useState(1)
   useEffect(()=>{
     if(!mob)return
@@ -933,7 +921,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
             : `AI spend at ${_budget.pct.toFixed(0)}% of monthly budget ($${_budget.spend.toFixed(2)} of $${_budget.budget}). Reduce usage or increase budget in Settings → AI Budget.`}
         </span>
       </div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoHotLeads={()=>{clearBriefPages();setShowHotLeadsPage(true)}} showHotLeadsPage={showHotLeadsPage} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMothership={onGoMothership} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} onGoIntelBoard={onGoIntelBoard} onGoWaveReview={onGoWaveReview} onGoChiefOfStaff={onGoChiefOfStaff} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoHotLeads={()=>{clearBriefPages();setShowHotLeadsPage(true)}} showHotLeadsPage={showHotLeadsPage} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} onGoIntelBoard={onGoIntelBoard} onGoWaveReview={onGoWaveReview} onGoChiefOfStaff={onGoChiefOfStaff} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -957,14 +945,12 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                 {label:'Whitespace',      action:()=>{onGoWhitespace&&onGoWhitespace();setMobNavOpen(false)}},
                 {label:'Vendors',         action:()=>{onGoVendors&&onGoVendors();setMobNavOpen(false)}},
                 {label:'Cyber Bible',     action:()=>{onGoCyberBible&&onGoCyberBible();setMobNavOpen(false)}},
-                {label:'Mothership',      action:()=>{onGoMothership&&onGoMothership();setMobNavOpen(false)}},
                 {label:'Maggie',          action:()=>{onGoMaggie&&onGoMaggie();setMobNavOpen(false)}},
                 {label:'Files',           action:()=>{onGoFiles&&onGoFiles();setMobNavOpen(false)}},
                 {label:'Wave Review',       action:()=>{onGoWaveReview&&onGoWaveReview();setMobNavOpen(false)}},
                 {label:'Chief of Staff',  action:()=>{onGoChiefOfStaff&&onGoChiefOfStaff();setMobNavOpen(false)}},
                 {label:'Daily Brief',     action:()=>{clearBriefPages();setShowDailyBriefPage(true);setMobNavOpen(false)}},
                 {label:'Meeting Prep',    action:()=>{clearBriefPages();setShowMeetingPrepPage(true);setMobNavOpen(false)}},
-                {label:'Journal',         action:()=>{clearBriefPages();setShowEndOfDayPage(true);setMobNavOpen(false)}},
                 {label:'Market Intel',    action:()=>{clearBriefPages();setShowMarketIntelPage(true);setMobNavOpen(false)}},
                 {label:'Settings',        action:()=>{onOpenSettings&&onOpenSettings();setMobNavOpen(false)}},
               ].map(item=>(
@@ -985,19 +971,13 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
       {showMeetingPrepPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <MeetingPrep data={data} setData={setData} onBack={()=>setShowMeetingPrepPage(false)}/>
       </div>}
-      {showEndOfDayPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
-        <EndOfDayJournal data={data} setData={setData} onBack={()=>setShowEndOfDayPage(false)}/>
-      </div>}
       {showMarketIntelPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <MarketIntelligence data={data} setData={setData} onBack={()=>setShowMarketIntelPage(false)}/>
-      </div>}
-      {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto'}}>
-        <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)} apiKey={data?.apiKey} data={data} setData={setData}/>
       </div>}
       {showHotLeadsPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
         <HotLeadsPage data={data} setData={setData} onBack={()=>setShowHotLeadsPage(false)}/>
       </div>}
-      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage||showHotLeadsPage?'none':'block'}}>
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showMarketIntelPage||showHotLeadsPage?'none':'block'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>
@@ -1399,35 +1379,6 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                 )
               })()}
 
-              {/* END OF DAY JOURNAL CARD — show after 4pm if journal incomplete */}
-              {(()=>{
-                const today=new Date().toISOString().split('T')[0]
-                const nowHour=new Date().getHours()
-                const afterFourPm=nowHour>=16&&new Date().getDay()>=1&&new Date().getDay()<=5
-                const todayJournal=(data.dailyJournals||[]).find(j=>j.date===today)
-                if(!afterFourPm)return null
-                return(
-                  <div style={{background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',padding:'14px 18px',marginBottom:16,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <BookOpen size={16} color={todayJournal?.status==='complete'?'#22c55e':'#f59e0b'}/>
-                      <div>
-                        <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Journal</div>
-                        {todayJournal?.status==='complete'
-                          ?<div style={{fontSize:12,color:'#22c55e',fontWeight:500}}>Completed today</div>
-                          :todayJournal
-                            ?<div style={{fontSize:12,color:'#64748b'}}>Draft in progress — finish closing out your day</div>
-                            :<div style={{fontSize:12,color:'#64748b'}}>Ready to wrap up today and set up tomorrow?</div>
-                        }
-                      </div>
-                    </div>
-                    {todayJournal?.status!=='complete'&&(
-                      <button onClick={()=>onGoEndOfDay&&onGoEndOfDay()} style={{fontSize:12,fontWeight:600,background:'#eff6ff',color:'#2563eb',border:'1px solid #bfdbfe',borderRadius:7,padding:'5px 14px',cursor:'pointer',flexShrink:0,whiteSpace:'nowrap'}}>
-                        {todayJournal?'Continue →':'Start →'}
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
             </div>
           )
         )}

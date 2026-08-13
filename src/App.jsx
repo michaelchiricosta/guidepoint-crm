@@ -18,7 +18,6 @@ import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
 import CyberBiblePage from './components/CyberBiblePage.jsx'
-import Mothership from './components/Mothership.jsx'
 import MaggiePage from './components/MaggiePage.jsx'
 import MaggieChatPanel from './components/MaggieChatPanel.jsx'
 import Contacts from './components/Contacts.jsx'
@@ -127,7 +126,6 @@ const SAMPLE = {
   hotLeads: [],
   dailyBriefs: [],
   meetingPreps: [],
-  dailyJournals: [],
   knowledgeBase: [],
   marketPulses: [],
   marketIntelPinned: [],
@@ -1459,7 +1457,6 @@ export default function App() {
   const [showAllProjects,setShowAllProjects] = useState(false)
   const [showVendors,setShowVendors] = useState(false)
   const [showCyberBible,setShowCyberBible] = useState(false)
-  const [showMothership,setShowMothership] = useState(false)
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [showWaveReview,setShowWaveReview] = useState(false)
@@ -1511,7 +1508,7 @@ export default function App() {
     const localAI = getRecords()
     const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
     try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[], closedDeals:loaded.closedDeals||[], hotLeads:loaded.hotLeads||[]})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[], closedDeals:loaded.closedDeals||[], hotLeads:loaded.hotLeads||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -1535,8 +1532,6 @@ export default function App() {
         setShowVendors(true); setIsLandingPage(false)
       } else if (saved.page === 'cyberbible') {
         setShowCyberBible(true); setIsLandingPage(false)
-      } else if (saved.page === 'mothership') {
-        setShowMothership(true); setIsLandingPage(false)
       } else if (saved.page === 'maggie') {
         setShowMaggie(true); setIsLandingPage(false)
       } else if (saved.page === 'files') {
@@ -1569,12 +1564,11 @@ export default function App() {
       : showAllProjects ? 'allprojects'
       : showVendors ? 'vendors'
       : showCyberBible ? 'cyberbible'
-      : showMothership ? 'mothership'
       : showMaggie ? 'maggie'
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWaveReview, showChiefOfStaff, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWaveReview, showChiefOfStaff, showWhitespace, showAllProjects, showVendors, showCyberBible, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
 
   const handleDeleteAccount = (accountId) => {
     const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
@@ -1961,12 +1955,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
     /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
-  if (showMothership) return (
-    <><ErrorBoundary><Mothership
-      onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
-    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
-  )
-
   if (showMaggie) return (
     <><ErrorBoundary><MaggiePage
       onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
@@ -2006,7 +1994,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
       onGoCyberBible={()=>{setShowCyberBible(true);setIsLandingPage(false)}}
-      onGoMothership={()=>{setShowMothership(true);setIsLandingPage(false)}}
       onGoMaggie={()=>{setShowMaggie(true);setIsLandingPage(false)}}
       onGoFiles={()=>{setShowFiles(true);setIsLandingPage(false)}}
       onGoWaveReview={()=>{setShowWaveReview(true);setIsLandingPage(false)}}
