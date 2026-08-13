@@ -14,7 +14,6 @@ import Admin from './components/Admin.jsx'
 import Files from './components/Files.jsx'
 import GlobalFilesPage from './components/GlobalFilesPage.jsx'
 import AccountDashboard from './components/AccountDashboard.jsx'
-import Actions from './components/Actions.jsx'
 import Projects from './components/Projects.jsx'
 import TechStack from './components/TechStack.jsx'
 import VendorsPage from './components/VendorsPage.jsx'
@@ -330,7 +329,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Open Items'},{id:'intel',label:'Call Feed'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'intel',label:'Call Feed'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
 
 function KanbanCard({p, col, updateProject}) {
   const [editingDate, setEditingDate] = useState(false)
@@ -2027,9 +2026,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
   const setAcct = fn => setData(prev=>({...prev,accounts:prev.accounts.map(a=>a.id===acct.id?(typeof fn==='function'?fn(a):fn):a)}))
-  const critHighCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&(f.priority==='Critical'||f.priority==='High')).length
-  const todayIso = new Date().toISOString().split('T')[0]
-  const overdueOrTodayCount = (acct.followUps||[]).filter(f=>f.status==='Open'&&f.dueDate&&f.dueDate<=todayIso).length
   const mob = typeof window!=='undefined'&&window.innerWidth<768
 
   return (
@@ -2099,7 +2095,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
             </button>
           </div>
           {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
-          <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch',position:mob?'relative':'sticky',top:mob?undefined:0,zIndex:mob?undefined:10}}>
             {TABS.map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
@@ -2107,8 +2102,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
                 onMouseLeave={e=>{if(tab!==t.id)e.currentTarget.style.color=S.muted}}
                 style={{padding:mob?'10px 12px':'7px 14px',minWidth:mob?80:undefined,background:'transparent',border:'none',cursor:'pointer',fontSize:mob?13:12,fontWeight:600,color:tab===t.id?S.blue:S.muted,borderBottom:tab===t.id?`2px solid ${S.blue}`:'2px solid transparent',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5,flexShrink:0,transition:'color 0.15s'}}>
                 {t.label}
-                {t.id==='followups'&&critHighCount>0&&<span style={{width:8,height:8,borderRadius:'50%',background:'#dc2626',display:'inline-block',flexShrink:0,animation:'fuPulse 1s ease-in-out infinite'}}/>}
-                {t.id==='followups'&&overdueOrTodayCount>0&&<span style={{width:7,height:7,borderRadius:'50%',background:'#fc413d',display:'inline-block',marginLeft:overdueOrTodayCount>0&&critHighCount>0?2:5,flexShrink:0,animation:'blink 1s infinite'}}/>}
               </button>
             ))}
           </div>
@@ -2120,7 +2113,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
             {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
             {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
             {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
-            {tab==='followups'&&<Actions acct={acct} setAcct={setAcct} apiKey={data.apiKey} whitespaceAccounts={data.whitespaceAccounts||[]}/>}
             {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
             {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
             {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}

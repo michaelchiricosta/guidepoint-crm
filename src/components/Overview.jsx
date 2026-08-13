@@ -773,7 +773,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       <div style={{marginBottom:20}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
           <span style={{fontSize:11,fontWeight:700,color:S.secondary,letterSpacing:'0.08em',textTransform:'uppercase'}}>Priority Actions</span>
-          {setTab&&<button onClick={()=>setTab('followups')} style={{background:'none',border:'none',color:S.blue,cursor:'pointer',fontSize:12,fontWeight:600,padding:0}}>View All →</button>}
         </div>
         {openFU.length===0&&<div style={{display:'flex',alignItems:'center',gap:10,padding:'16px',background:S.isLight?'#f0fdf4':S.surf,borderRadius:10,border:`1px solid ${S.isLight?'#bbf7d0':S.bdr}`}}><span style={{color:S.isLight?'#16a34a':S.green,fontSize:16}}>✓</span><span style={{fontSize:13,color:S.isLight?'#16a34a':S.green,fontWeight:600}}>All actions complete — great work!</span></div>}
         {[...openFU].sort((a,b)=>['Critical','High','Medium','Low'].indexOf(a.priority)-['Critical','High','Medium','Low'].indexOf(b.priority)).slice(0,5).map(f=>{
@@ -940,7 +939,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
                 <div style={{display:'flex',gap:8,marginTop:18,flexWrap:'wrap'}}>
                   <Btn variant='primary' onClick={()=>{setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,status:'Done'}:f)}));setAlertModal(null)}}>✓ Mark Complete</Btn>
                   <Btn onClick={()=>{const nd=new Date();nd.setDate(nd.getDate()+3);const ds=nd.toISOString().split('T')[0];setAcct(p=>({...p,followUps:p.followUps.map(f=>f.id===fu.id?{...f,dueDate:ds}:f)}));setAlertModal(null)}}>Snooze 3 Days</Btn>
-                  <Btn onClick={()=>{setTab('followups');setAlertModal(null)}}>Go to Actions</Btn>
                 </div>
               </>
             })()}

@@ -337,12 +337,8 @@ function AddClosedDealModal({data, setData, onClose}) {
       let accounts = prev.accounts
       if (shouldCreateProject) {
         const newProject = {
-          id:newProjectId, name:vendorName, category:'', vendor:vendorName, status:'Won',
-          description:'', goals:'', pains:'', primaryContact:'', budget:true, closeDate,
-          notes:'', waitingOn:'', nextAction:'',
-          estimatedRevenue:dealMoneyString(revenueNum), estimatedGrossProfit:dealMoneyString(gpNum),
-          clientTargetDate:'', nextSteps:'', projectNotes:[],
-          timeline:STAGES.map(s=>({stage:s,status:'completed',date:closeDate})),
+          id:newProjectId, name:vendorName, stage:'PO Received', status:'Won',
+          estimatedGrossProfit:dealMoneyString(gpNum), statusNote:'',
           source:'closed-deal-entry',
         }
         accounts = accounts.map(a=>a.id===matchedAccount.id?{...a,projects:[...(a.projects||[]),newProject]}:a)
@@ -611,7 +607,9 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects, onNavigateTo}) {
 
   const inProgressGP = (data.accounts||[]).reduce((sum,acct)=>
     sum+(acct.projects||[]).filter(p=>p.status==='In Flight'||p.status==='In Discussion').reduce((s,p)=>{
-      const cur=[...(p.timeline||[])].reverse().find(s2=>s2.status==='current')?.stage
+      // p.stage is the current flat-schema field; timeline is a fallback for legacy projects
+      // created before the Projects simplification that haven't been touched since.
+      const cur=p.stage||[...(p.timeline||[])].reverse().find(s2=>s2.status==='current')?.stage
       return s+parseCost(p.estimatedGrossProfit||'')*(STAGE_WEIGHTS[cur]||0.2)
     },0),0)
 
@@ -906,8 +904,8 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   ).sort((a,b)=>(a.closeDate||'9999').localeCompare(b.closeDate||'9999'))
 
   const STAT_DEFS = [
-    {label:'HIGH / CRITICAL',value:highCriticalFUs,color:'#2563eb',iconColor:S.isLight?'#000000':'#1c1c1e',type:'followups',tab:'followups',buildData:()=>buildFUData('hc'),ctx:`${hcDueTodayOrOverdue} due today or overdue`},
-    {label:'Critical Items',value:criticalItems,color:'#dc2626',type:'critical',tab:'followups',buildData:()=>buildFUData('critical3d'),ctx:'due within 3 days'},
+    {label:'HIGH / CRITICAL',value:highCriticalFUs,color:'#2563eb',iconColor:S.isLight?'#000000':'#1c1c1e',type:'followups',tab:'overview',buildData:()=>buildFUData('hc'),ctx:`${hcDueTodayOrOverdue} due today or overdue`},
+    {label:'Critical Items',value:criticalItems,color:'#dc2626',type:'critical',tab:'overview',buildData:()=>buildFUData('critical3d'),ctx:'due within 3 days'},
     {label:'Renewals (90d)',value:renewals90,color:'#ea580c',type:'renewals',tab:'stack',buildData:buildRenewalData,ctx:'need attention'},
     {label:'Active Projects',value:activeProjects,color:'#16a34a',iconColor:'rgba(22,163,74,0.5)',type:'projects',tab:'projects',buildData:buildProjectData,ctx:'in flight'},
   ]
@@ -1515,7 +1513,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                       )}
                     </div>
                   </div>
-                  <button onClick={()=>{setTodayModal(false);onNavigateTo(selectedTask.accountId,'followups')}} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>View in account →</button>
+                  <button onClick={()=>{setTodayModal(false);onNavigateTo(selectedTask.accountId,'overview')}} style={{fontSize:11,color:S.muted,background:'transparent',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>View in account →</button>
                 </div>
               ) : todayGrouped.length===0 ? (
                 /* ── Empty state ── */
