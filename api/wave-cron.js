@@ -220,10 +220,11 @@ export default async function handler(req, res) {
 
       if (summary.length < 30) {
         console.log(`[wave-cron] ${sessionId} — no usable summary, skipping`)
-        await supabase.from('wave_applied_sessions').upsert(
-          { session_id: sessionId, account_names: [], source: 'cron-no-summary' },
+        const { error: upsertErr } = await supabase.from('wave_applied_sessions').upsert(
+          { session_id: sessionId, account_name: null, source: 'cron-no-summary' },
           { onConflict: 'session_id', ignoreDuplicates: true }
         )
+        if (upsertErr) console.error('[wave-cron] FAILED to mark session applied:', upsertErr.message)
         continue
       }
 
@@ -352,7 +353,8 @@ ${summary.slice(0, 8000)}`
             contact:  ai.contact || '',
             priority: (match.urgency_signals || []).length > 0 ? 'High' : 'Medium',
             status:   'Open',
-            source:   'Wave AI (auto)'
+            source:   'Wave AI (auto)',
+            sessionId: sessionId
           }))
 
         updatedAccounts = updatedAccounts.map(a =>
@@ -472,10 +474,11 @@ Summary: ${summary.slice(0, 8000)}`
     }
 
     // Record session as processed (even if no match) so it isn't retried
-    await supabase.from('wave_applied_sessions').upsert(
-      { session_id: sessionId, account_names: matchedNames, source: 'cron' },
+    const { error: upsertErr } = await supabase.from('wave_applied_sessions').upsert(
+      { session_id: sessionId, account_name: matchedNames.join(', ') || null, source: 'cron' },
       { onConflict: 'session_id', ignoreDuplicates: true }
     )
+    if (upsertErr) console.error('[wave-cron] FAILED to mark session applied:', upsertErr.message)
 
     // Pace Claude calls to avoid rate limiting
     await sleep(2000)
