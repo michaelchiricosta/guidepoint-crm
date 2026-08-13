@@ -88,9 +88,9 @@ async function loadAccounts() {
   return row  // { data: { accounts: [...], ... }, version: N }
 }
 
-// Write the updated accounts blob back, incrementing version
-async function saveAccounts(row, updatedAccounts) {
-  const newData = { ...row.data, accounts: updatedAccounts }
+// Write a partial update to the profiles blob back, incrementing version
+async function saveBlobPatch(row, patch) {
+  const newData = { ...row.data, ...patch }
   const currentVersion = row.version ?? null
 
   if (currentVersion !== null) {
@@ -100,15 +100,23 @@ async function saveAccounts(row, updatedAccounts) {
       .eq('id', 'user-data')
       .eq('version', currentVersion)
       .select('version')
-    if (error) throw new Error(`save accounts: ${error.message}`)
-    if (!updated?.length) throw new Error('save accounts: version conflict')
+    if (error) throw new Error(`save: ${error.message}`)
+    if (!updated?.length) throw new Error('save: version conflict')
   } else {
     const { error } = await supabase
       .from('accounts')
       .update({ data: newData, updated_at: new Date().toISOString() })
       .eq('id', 'user-data')
-    if (error) throw new Error(`save accounts: ${error.message}`)
+    if (error) throw new Error(`save: ${error.message}`)
   }
+}
+
+async function saveAccounts(row, updatedAccounts) {
+  return saveBlobPatch(row, { accounts: updatedAccounts })
+}
+
+async function saveHotLeads(row, updatedHotLeads) {
+  return saveBlobPatch(row, { hotLeads: updatedHotLeads })
 }
 
 // Match an account name from Claude's response to actual accounts.
@@ -371,6 +379,93 @@ ${summary.slice(0, 8000)}`
           // Don't record as applied so it retries next run
           continue
         }
+      }
+
+      // ── Pass 2: vendor-sourced pipeline signal detection ("Hot Leads") ────────
+      // Independent of the account-matching pass above — a vendor/partner call
+      // may not discuss an existing Ledgr account at all, so this always runs.
+      try {
+        await sleep(500)
+        const hotLeadRes = await fetch(ANTHROPIC_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: CLAUDE_MODEL,
+            max_tokens: 500,
+            messages: [{
+              role: 'user',
+              content: `Analyze this call transcript/summary. This call appears to be with a vendor rep or partner (not a client).
+
+Look for any mentions of:
+- A company/account the vendor rep wants GuidePoint involved with
+- Early stage deals, opportunities, or introductions being offered
+- Requests to partner on a specific account
+- Any named company + buying signal combination
+
+If found, return JSON:
+{
+  "hot_lead_detected": true,
+  "account_name": "company name mentioned",
+  "source_rep": "rep's first name",
+  "source_company": "vendor company",
+  "contact": "contact name and title if mentioned or null",
+  "intel": "1-2 sentence summary of the opportunity",
+  "security_area": "what security area or product category is being discussed"
+}
+
+If no hot lead signal found, return: { "hot_lead_detected": false }
+
+Call title: ${sessionTitle}
+Summary: ${summary.slice(0, 8000)}`
+            }]
+          })
+        })
+
+        if (hotLeadRes.status === 429 || hotLeadRes.status === 529) {
+          console.warn(`[wave-cron] Hot-lead pass rate-limited for ${sessionId}, skipping`)
+        } else if (!hotLeadRes.ok) {
+          console.error(`[wave-cron] Hot-lead pass error for ${sessionId}: ${hotLeadRes.status}`)
+        } else {
+          const hotLeadData = await hotLeadRes.json()
+          const hlText = hotLeadData.content?.[0]?.text || ''
+          let hlResult = null
+          try {
+            const jsonMatch = hlText.match(/\{[\s\S]*\}/)
+            if (jsonMatch) hlResult = JSON.parse(jsonMatch[0])
+          } catch (e) {
+            console.warn(`[wave-cron] hot-lead JSON parse failed for ${sessionId}:`, e.message)
+          }
+
+          if (hlResult?.hot_lead_detected && hlResult.account_name) {
+            const hlRow = await loadAccounts()
+            const existingHotLeads = hlRow.data.hotLeads || []
+            const alreadyExists = existingHotLeads.some(h => h.waveSessionId === sessionId)
+
+            if (!alreadyExists) {
+              const newHotLead = {
+                id:             uid(),
+                accountName:    hlResult.account_name,
+                sourceRep:      hlResult.source_rep || '',
+                sourceCompany:  hlResult.source_company || '',
+                contact:        hlResult.contact && hlResult.contact !== 'null' ? hlResult.contact : '',
+                intel:          hlResult.intel || '',
+                stage:          'Intel Received',
+                createdAt:      sessionDate,
+                dismissed:      false,
+                waveSessionId:  sessionId,
+                generatedEmail: null,
+              }
+              await saveHotLeads(hlRow, [newHotLead, ...existingHotLeads])
+              console.log(`[wave-cron] Hot lead detected: ${newHotLead.accountName} via ${newHotLead.sourceRep} at ${newHotLead.sourceCompany} (${sessionId})`)
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[wave-cron] Hot-lead pass error for session ${sessionId}:`, err.message)
       }
     } catch (err) {
       console.error(`[wave-cron] Error processing session ${sessionId}:`, err.message)

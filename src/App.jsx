@@ -28,6 +28,7 @@ import IntelLog from './components/IntelLog.jsx'
 import Overview from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WaveReviewPage from './components/WaveReviewPage.jsx'
+import HotLeadsPage from './components/HotLeadsPage.jsx'
 import IntelBoardPage from './components/IntelBoardPage.jsx'
 import ChiefOfStaff from './components/ChiefOfStaff.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
@@ -107,6 +108,7 @@ const SAMPLE = {
   whitespaceAccounts:[],
   quotaTarget: 0,
   closedDeals: [],
+  hotLeads: [],
   dailyBriefs: [],
   meetingPreps: [],
   dailyJournals: [],
@@ -1445,6 +1447,7 @@ export default function App() {
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [showWaveReview,setShowWaveReview] = useState(false)
+  const [showHotLeads,setShowHotLeads] = useState(false)
   const [showIntelBoard,setShowIntelBoard] = useState(false)
   const [showChiefOfStaff,setShowChiefOfStaff] = useState(false)
   const [maggieOpen,setMaggieOpen] = useState(false)
@@ -1492,7 +1495,7 @@ export default function App() {
     const localAI = getRecords()
     const mergedAI = mergeAIRecords(localAI, loaded.aiUsageLog || [])
     try { localStorage.setItem('ledgr_ai_usage_v1', JSON.stringify(mergedAI)) } catch {}
-    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[], closedDeals:loaded.closedDeals||[]})
+    setData({...loaded, accounts, whitespaceAccounts:loaded.whitespaceAccounts||[], knowledgeBase:loaded.knowledgeBase||[], marketPulses:loaded.marketPulses||[], marketIntelPinned:loaded.marketIntelPinned||[], marketIntelDeleted:loaded.marketIntelDeleted||[], blogSources:loaded.blogSources||SAMPLE.blogSources, dailyJournals:loaded.dailyJournals||[], dailyBriefItemChats:loaded.dailyBriefItemChats||[], aiCache:loaded.aiCache||{}, aiSettings:{...DEFAULT_AI_SETTINGS,...(loaded.aiSettings||{})}, aiUsageLog:mergedAI, apiKey: localApiKey || 'server-managed', globalFiles:loaded.globalFiles||[], closedDeals:loaded.closedDeals||[], hotLeads:loaded.hotLeads||[]})
     setStorageReady(true)
     setInitialLoadDone(true)
   }
@@ -1526,6 +1529,8 @@ export default function App() {
         setShowWaveReview(true); setIsLandingPage(false)
       } else if (saved.page === 'chiefofstaff') {
         setShowChiefOfStaff(true); setIsLandingPage(false)
+      } else if (saved.page === 'hotleads') {
+        setShowHotLeads(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
         const exists = data.accounts.find(a => a.id === saved.activeId)
         if (exists) {
@@ -1545,6 +1550,7 @@ export default function App() {
     if (!initialLoadDone) return
     const page = showWaveReview ? 'wavereview'
       : showChiefOfStaff ? 'chiefofstaff'
+      : showHotLeads ? 'hotleads'
       : showFiles ? 'files'
       : showWhitespace ? 'whitespace'
       : showAllProjects ? 'allprojects'
@@ -1555,7 +1561,7 @@ export default function App() {
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWaveReview, showChiefOfStaff, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWaveReview, showChiefOfStaff, showHotLeads, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
 
   const handleDeleteAccount = (accountId) => {
     const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
@@ -1907,6 +1913,14 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
+  if (showHotLeads) return (
+    <><HotLeadsPage
+      data={data}
+      setData={setData}
+      onBack={()=>{setShowHotLeads(false);setIsLandingPage(true)}}
+    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+  )
+
   if (showWhitespace) return (
     <><WhitespacePage
       data={data}
@@ -1983,6 +1997,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
       onNavigateTo={(id,t)=>{setActiveId(id);setTab(t);setIsLandingPage(false)}}
       onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
+      onGoHotLeads={()=>{setShowHotLeads(true);setIsLandingPage(false)}}
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}

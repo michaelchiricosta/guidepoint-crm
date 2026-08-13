@@ -28,6 +28,7 @@ export const FEATURES = {
   ACCOUNT_HEALTH:    'Account Health',
   WHITESPACE_TOOLS:  'Whitespace Tools',
   AI_CISO:           'AI CISO',
+  HOT_LEADS:         'Hot Leads',
   TEST:              'Test',
 }
 
