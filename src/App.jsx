@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, memo } from 'react'
+import { useState, useEffect, useRef, memo, Component } from 'react'
 import { ArrowLeft, Eye, X, Settings2 } from 'lucide-react'
 import { loadData, saveData, uploadFile, getFileUrl, deleteFile, supabase } from './supabase.js'
 import { isBlockedAccount, getAccountOwner, isOpenNamedAccount } from './namedAccounts.js'
@@ -32,6 +32,25 @@ import ChiefOfStaff from './components/ChiefOfStaff.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
 import { trackAI, FEATURES, mergeAIRecords, getRecords } from './utils/aiTracker.js'
 import { AI_MODELS, DEFAULT_AI_SETTINGS, hashStr, getAICache, setAICache, checkBudget, friendlyApiError, withLock, isLocked, callClaudeWithRetry } from './utils/aiHelper.js'
+// Catches render-time errors in whatever it wraps so one broken page can't
+// take down the entire app. Does not catch errors from event handlers or
+// async callbacks (e.g. promise rejections) — those need their own try/catch.
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info) }
+  render() {
+    if (this.state.hasError) return (
+      <div style={{ padding: 40 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 8 }}>Something went wrong</div>
+        <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>{this.state.error?.message}</div>
+        <button onClick={() => this.setState({ hasError: false, error: null })} style={{ padding: '8px 16px', background: '#007AFF', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Go back</button>
+      </div>
+    )
+    return this.props.children
+  }
+}
+
 const WHEEL_DOMAINS = SECURITY_FRAMEWORK.domains.map(d => ({name: d.name, color: d.color, subs: d.subs}))
 
 const SK = 'gp-crm-v4'
@@ -1909,76 +1928,76 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
   if (showWhitespace) return (
-    <><WhitespacePage
+    <><ErrorBoundary><WhitespacePage
       data={data}
       setData={setData}
       theme={theme}
       setTheme={handleSetTheme}
       onBack={()=>{setShowWhitespace(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showAllProjects) return (
-    <><AllProjectsPage
+    <><ErrorBoundary><AllProjectsPage
       data={data}
       setData={setData}
       onBack={()=>{setShowAllProjects(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showVendors) return (
-    <><VendorsPage
+    <><ErrorBoundary><VendorsPage
       data={data}
       setData={setData}
       apiKey={data.apiKey}
       onBack={()=>{setShowVendors(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showCyberBible) return (
-    <><CyberBiblePage
+    <><ErrorBoundary><CyberBiblePage
       data={data}
       setData={setData}
       onBack={()=>{setShowCyberBible(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMothership) return (
-    <><Mothership
+    <><ErrorBoundary><Mothership
       onBack={()=>{setShowMothership(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showMaggie) return (
-    <><MaggiePage
+    <><ErrorBoundary><MaggiePage
       onBack={()=>{setShowMaggie(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showFiles) return (
-    <><GlobalFilesPage
+    <><ErrorBoundary><GlobalFilesPage
       data={data}
       setData={setData}
       onBack={()=>{setShowFiles(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showWaveReview) return (
-    <><WaveReviewPage
+    <><ErrorBoundary><WaveReviewPage
       data={data}
       setData={setData}
       onBack={()=>{setShowWaveReview(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (showChiefOfStaff) return (
-    <><ChiefOfStaff
+    <><ErrorBoundary><ChiefOfStaff
       onBack={()=>{setShowChiefOfStaff(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   if (isLandingPage) return (
-    <><LandingPage
+    <><ErrorBoundary><LandingPage
       data={data}
       setData={setData}
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
@@ -2003,7 +2022,7 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       setShowAccounts={setShowAccounts}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
+    /></ErrorBoundary><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
   )
 
   const acct = data.accounts.find(a=>a.id===activeId)||data.accounts[0]
@@ -2095,16 +2114,18 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
           </div>
         </div>
         <div style={{flex:mob?'none':1,overflowY:mob?'visible':'auto',WebkitOverflowScrolling:'touch',padding:mob?'14px 14px 60px':'18px 20px 60px',background:S.bg}}>
-          {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
-          {tab==='dashboard'&&<AccountDashboard acct={acct} setTab={setTab}/>}
-          {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
-          {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
-          {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
-          {tab==='followups'&&<Actions acct={acct} setAcct={setAcct} apiKey={data.apiKey} whitespaceAccounts={data.whitespaceAccounts||[]}/>}
-          {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
-          {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
-          {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
-          {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)} onDeleteAccount={handleDeleteAccount}/>}
+          <ErrorBoundary key={tab}>
+            {tab==='overview'&&<Overview acct={acct} setAcct={setAcct} setTab={setTab} apiKey={data.apiKey}/>}
+            {tab==='dashboard'&&<AccountDashboard acct={acct} setTab={setTab}/>}
+            {tab==='contacts'&&<Contacts acct={acct} setAcct={setAcct} data={data} setData={setData} onContactPhotoSave={()=>{ contactPhotoSaveTime = Date.now() }}/>}
+            {tab==='stack'&&<TechStack acct={acct} setAcct={setAcct} apiKey={data.apiKey}/>}
+            {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
+            {tab==='followups'&&<Actions acct={acct} setAcct={setAcct} apiKey={data.apiKey} whitespaceAccounts={data.whitespaceAccounts||[]}/>}
+            {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
+            {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
+            {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
+            {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)} onDeleteAccount={handleDeleteAccount}/>}
+          </ErrorBoundary>
         </div>
       </div>
       {showClientView&&acct&&<ClientView acct={acct} setAcct={setAcct} onClose={()=>setShowClientView(false)}/>}

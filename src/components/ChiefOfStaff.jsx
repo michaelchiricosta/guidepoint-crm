@@ -81,6 +81,7 @@ export default function ChiefOfStaff({ onBack }) {
     const cutoff = fixedCutoff()
     const notSnoozed = q => q.or(`snoozed_until.is.null,snoozed_until.lt.${new Date().toISOString()}`)
 
+    try {
     const [{ data: waiting }, { data: drafts }, { data: signals }, { data: actions }] = await Promise.all([
       notSnoozed(supabase.from('reminders').select('*').eq('list_name', 'AI Waiting-On').eq('completed', false)).order('synced_at', { ascending: true }),
       notSnoozed(supabase.from('draft_emails').select('*').eq('status', 'draft')).order('created_at', { ascending: false }),
@@ -123,7 +124,7 @@ export default function ChiefOfStaff({ onBack }) {
       const acct = s.account_name || names[s.account_id] || ''
       built.push({
         id: 's-' + s.id, rank: 5, mark: '💡',
-        headline: `${acct}: ${s.headline || s.what.slice(0, 50)}`,
+        headline: `${acct}: ${s.headline || (s.what || '').slice(0, 50)}`,
         when: s.session_date ? s.session_date.split('T')[0].slice(5) : '',
         context: `${s.what} ${s.gp_angle}`,
         onDone: () => supabase.from('call_signals').update({ status: 'actioned' }).eq('id', s.id).then(() => buildFeed()),
@@ -138,12 +139,13 @@ export default function ChiefOfStaff({ onBack }) {
     const visibleActions = showAll ? [...highActions, ...restActions] : highActions
 
     for (const a of visibleActions) {
-      const short = a.description.length > 50 ? a.description.slice(0, 50).trim() + '…' : a.description
+      const desc = a.description || ''
+      const short = desc.length > 50 ? desc.slice(0, 50).trim() + '…' : desc
       built.push({
         id: 'a-' + a.id, rank: (a.priority || '').toLowerCase() === 'high' ? 2 : 4, mark: '☐',
         headline: short,
         when: names[a.account_id] || '',
-        context: a.description,
+        context: desc,
         onDone: () => supabase.from('open_items').update({ status: 'done', resolved_at: new Date().toISOString() }).eq('id', a.id).then(() => buildFeed()),
         onSnooze: days => supabase.from('open_items').update({ snoozed_until: snoozeUntil(days) }).eq('id', a.id).then(() => buildFeed()),
         doneLabel: 'Done',
@@ -154,6 +156,10 @@ export default function ChiefOfStaff({ onBack }) {
     setItems(built)
     setHiddenCount(restActions.length && !showAll ? restActions.length : 0)
     setLoaded(true)
+    } catch (err) {
+      console.error('[ChiefOfStaff] buildFeed failed:', err)
+      setLoaded(true)
+    }
   }
 
   useEffect(() => {
