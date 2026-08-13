@@ -243,6 +243,39 @@ export default function TechStack({acct,setAcct,apiKey}) {
 
       {view==='list'&&<>
         {(()=>{
+          // Current vs Evaluating split — bucketed from the real TECH_STATS enum
+          // (Current, Evaluating, Replacing, Watch, Dropping, Selected, Current Gap).
+          // Replacing/Dropping are still the deployed vendor until cut over, so they
+          // count as Current. Current Gap has nothing deployed, so it lands in Evaluating.
+          const CURRENT_STATUSES = ['Current', 'Watch', 'Replacing', 'Dropping']
+          const EVALUATING_STATUSES = ['Evaluating', 'Selected', 'Current Gap']
+          const currentVendors = (acct.techStack||[]).filter(t=>CURRENT_STATUSES.includes(t.status))
+          const evaluatingVendors = (acct.techStack||[]).filter(t=>!CURRENT_STATUSES.includes(t.status))
+          const sectionLabelStyle = {fontSize:11,fontWeight:600,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}
+          const VendorRow = ({t}) => (
+            <div onClick={()=>openVendorEdit({...blank,...t})}
+              style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:S.surf,border:`1px solid ${S.bdr}`,borderRadius:8,marginBottom:6,cursor:'pointer'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
+                <span style={{fontSize:13,fontWeight:600,color:S.txt,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.vendor||'(unnamed)'}</span>
+                <span style={{fontSize:12,color:S.muted,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.category||resolveItemSub(t)}</span>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,color:capStatusFill(t),background:capStatusFill(t)+'20',borderRadius:999,padding:'2px 8px',flexShrink:0}}>{t.status||'—'}</span>
+            </div>
+          )
+          return (
+            <div style={{marginBottom:24}}>
+              <div style={sectionLabelStyle}>Current Stack ({currentVendors.length})</div>
+              {currentVendors.length===0
+                ? <div style={{fontSize:13,color:S.muted,padding:'4px 0 4px',marginBottom:16}}>No current vendors yet.</div>
+                : <div style={{marginBottom:16}}>{currentVendors.map(t=><VendorRow key={t.id} t={t}/>)}</div>}
+              <div style={sectionLabelStyle}>Evaluating ({evaluatingVendors.length})</div>
+              {evaluatingVendors.length===0
+                ? <div style={{fontSize:13,color:S.muted,padding:'4px 0'}}>Nothing being evaluated right now.</div>
+                : <div>{evaluatingVendors.map(t=><VendorRow key={t.id} t={t}/>)}</div>}
+            </div>
+          )
+        })()}
+        {(()=>{
           const subVendorMap = {}
           ;(acct.techStack||[]).forEach(item=>{
             const sub=resolveItemSub(item)

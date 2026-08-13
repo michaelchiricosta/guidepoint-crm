@@ -11,8 +11,9 @@ import MeetingPrep from './MeetingPrep.jsx'
 import EndOfDayJournal from './EndOfDayJournal.jsx'
 import MarketIntelligence from './MarketIntelligence.jsx'
 import AIUsageDashboard from './AIUsageDashboard.jsx'
+import HotLeadsPage from './HotLeadsPage.jsx'
 
-function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoHotLeads, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
+function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, setStatModal, onGoHotLeads, showHotLeadsPage, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, showAccounts, setShowAccounts, onOpenSettings, collapsed, setCollapsed, onGoDailyBrief, showDailyBriefPage, onGoMeetingPrep, showMeetingPrepPage, onGoEndOfDay, showEndOfDayPage, onGoMarketIntel, showMarketIntelPage, onGoAIUsage, showAIUsagePage}) {
   const toggleCollapsed = () => { const n=!collapsed; setCollapsed(n); localStorage.setItem('sidebar-collapsed',n.toString()) }
 
   const today = new Date().toISOString().split('T')[0]
@@ -51,7 +52,7 @@ function LandingPageSidebar({data, theme, setTheme, setTodayModal, statDefs, set
     {id:'critical', label:'Critical Items', icon:<AlertTriangle size={18}/>, action:()=>statDefs[1]&&setStatModal({...statDefs[1],items:statDefs[1].buildData()})},
     {id:'renewals', label:'Renewals',       icon:<RefreshCw size={18}/>,    action:()=>statDefs[2]&&setStatModal({...statDefs[2],items:statDefs[2].buildData()})},
   ]
-  const activeId = showAIUsagePage ? 'aiusage' : showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showAccounts ? 'accounts' : 'dashboard'
+  const activeId = showAIUsagePage ? 'aiusage' : showDailyBriefPage ? 'dailybrief' : showMeetingPrepPage ? 'meetingprep' : showEndOfDayPage ? 'endofday' : showMarketIntelPage ? 'marketintel' : showHotLeadsPage ? 'hotleads' : showAccounts ? 'accounts' : 'dashboard'
 
   const navItem = (item, isActive) => collapsed ? (
     <div key={item.id} onClick={item.action} title={item.label}
@@ -714,7 +715,7 @@ function PerformanceGaugeCard({data, setData, onGoAllProjects, onNavigateTo}) {
   )
 }
 
-export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoHotLeads, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, onGoDailyBrief, onGoMeetingPrep, onGoEndOfDay, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
+export default function LandingPage({data, setData, onEnterAccount, onNavigateTo, onOpenSettings, onGoWhitespace, onGoAllProjects, onGoVendors, onGoCyberBible, onGoMothership, onGoMaggie, onGoFiles, onGoIntelBoard, onGoWaveReview, onGoChiefOfStaff, onGoDailyBrief, onGoMeetingPrep, onGoEndOfDay, briefGenerating, briefError, onGenerateBrief, theme, setTheme, showAccounts, setShowAccounts, sidebarCollapsed, setSidebarCollapsed}) {
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [hoveredId, setHoveredId] = useState(null)
@@ -730,8 +731,9 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
   const [showEndOfDayPage, setShowEndOfDayPage] = useState(false)
   const [showMarketIntelPage, setShowMarketIntelPage] = useState(false)
   const [showAIUsagePage, setShowAIUsagePage] = useState(false)
+  const [showHotLeadsPage, setShowHotLeadsPage] = useState(false)
   const scrollRef = useRef(null)
-  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false); setShowAIUsagePage(false) }
+  const clearBriefPages = () => { setShowDailyBriefPage(false); setShowMeetingPrepPage(false); setShowEndOfDayPage(false); setShowMarketIntelPage(false); setShowAIUsagePage(false); setShowHotLeadsPage(false) }
   const [logoScale, setLogoScale] = useState(1)
   useEffect(()=>{
     if(!mob)return
@@ -933,7 +935,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
             : `AI spend at ${_budget.pct.toFixed(0)}% of monthly budget ($${_budget.spend.toFixed(2)} of $${_budget.budget}). Reduce usage or increase budget in Settings → AI Budget.`}
         </span>
       </div>}
-      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoHotLeads={onGoHotLeads} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMothership={onGoMothership} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} onGoIntelBoard={onGoIntelBoard} onGoWaveReview={onGoWaveReview} onGoChiefOfStaff={onGoChiefOfStaff} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
+      {!mob&&<LandingPageSidebar data={data} theme={theme} setTheme={setTheme} setTodayModal={setTodayModal} statDefs={STAT_DEFS} setStatModal={setStatModal} onGoHotLeads={()=>{clearBriefPages();setShowHotLeadsPage(true)}} showHotLeadsPage={showHotLeadsPage} onGoWhitespace={onGoWhitespace} onGoAllProjects={onGoAllProjects} onGoVendors={onGoVendors} onGoCyberBible={onGoCyberBible} onGoMothership={onGoMothership} onGoMaggie={onGoMaggie} onGoFiles={onGoFiles} onGoIntelBoard={onGoIntelBoard} onGoWaveReview={onGoWaveReview} onGoChiefOfStaff={onGoChiefOfStaff} showAccounts={showAccounts} setShowAccounts={v=>{setShowAccounts(v);clearBriefPages()}} onOpenSettings={onOpenSettings} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} onGoDailyBrief={()=>{clearBriefPages();setShowDailyBriefPage(true)}} showDailyBriefPage={showDailyBriefPage} onGoMeetingPrep={()=>{clearBriefPages();setShowMeetingPrepPage(true)}} showMeetingPrepPage={showMeetingPrepPage} onGoEndOfDay={()=>{clearBriefPages();setShowEndOfDayPage(true)}} showEndOfDayPage={showEndOfDayPage} onGoMarketIntel={()=>{clearBriefPages();setShowMarketIntelPage(true)}} showMarketIntelPage={showMarketIntelPage} onGoAIUsage={()=>{clearBriefPages();setShowAIUsagePage(true)}} showAIUsagePage={showAIUsagePage}/>}
       {mob&&<>
         <button onClick={()=>setMobNavOpen(true)} aria-label="Open menu"
           style={{position:'fixed',top:12,right:12,zIndex:200,background:'#FFFFFF',border:'1px solid #E5E7EB',borderRadius:8,padding:'10px 11px',cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.10)',display:'flex',flexDirection:'column',gap:4}}>
@@ -953,7 +955,7 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
                 {label:'Dashboard',       action:()=>{setShowAccounts(false);clearBriefPages();setMobNavOpen(false)}},
                 {label:'Accounts',        action:()=>{setShowAccounts(true);clearBriefPages();setMobNavOpen(false)}},
                 {label:'All Projects',    action:()=>{onGoAllProjects&&onGoAllProjects();setMobNavOpen(false)}},
-                {label:'Hot Leads',       action:()=>{onGoHotLeads&&onGoHotLeads();setMobNavOpen(false)}},
+                {label:'Hot Leads',       action:()=>{clearBriefPages();setShowHotLeadsPage(true);setMobNavOpen(false)}},
                 {label:'Whitespace',      action:()=>{onGoWhitespace&&onGoWhitespace();setMobNavOpen(false)}},
                 {label:'Vendors',         action:()=>{onGoVendors&&onGoVendors();setMobNavOpen(false)}},
                 {label:'Cyber Bible',     action:()=>{onGoCyberBible&&onGoCyberBible();setMobNavOpen(false)}},
@@ -994,7 +996,10 @@ export default function LandingPage({data, setData, onEnterAccount, onNavigateTo
       {showAIUsagePage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto'}}>
         <AIUsageDashboard onBack={()=>setShowAIUsagePage(false)} apiKey={data?.apiKey} data={data} setData={setData}/>
       </div>}
-      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage?'none':'block'}}>
+      {showHotLeadsPage&&<div style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflow:'hidden'}}>
+        <HotLeadsPage data={data} setData={setData} onBack={()=>setShowHotLeadsPage(false)}/>
+      </div>}
+      <div ref={scrollRef} style={{marginLeft:mob?0:(sidebarCollapsed?64:221),transition:'margin-left 0.2s ease',height:'100vh',overflowY:'auto',WebkitOverflowScrolling:'touch',display:showDailyBriefPage||showMeetingPrepPage||showEndOfDayPage||showMarketIntelPage||showAIUsagePage||showHotLeadsPage?'none':'block'}}>
       {/* HERO SECTION */}
       {mob ? (
         <div style={{background:'#ffffff',padding:'14px 24px 10px',display:'flex',justifyContent:'center',alignItems:'center',borderBottom:'1px solid #f1f5f9',position:'sticky',top:0,zIndex:100}}>

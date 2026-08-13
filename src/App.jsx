@@ -9,7 +9,6 @@ import { uid, extractJSON, fmtDate, daysUntil, daysSince, parseCost, fmtSpend, f
 import { SC, PSC, INTERACTION_COLORS, INTERACTION_TYPES, STAGES, INFLUENCES, TECH_STATS, PROJ_STATS } from './constants.js'
 import { Badge, Btn, Field, Modal, SH, Card } from './components/UI.jsx'
 import Settings from './components/Settings.jsx'
-import AIHistory from './components/AIHistory.jsx'
 import AIChatModal from './components/AIChatModal.jsx'
 import Admin from './components/Admin.jsx'
 import Files from './components/Files.jsx'
@@ -25,10 +24,9 @@ import MaggiePage from './components/MaggiePage.jsx'
 import MaggieChatPanel from './components/MaggieChatPanel.jsx'
 import Contacts from './components/Contacts.jsx'
 import IntelLog from './components/IntelLog.jsx'
-import Overview from './components/Overview.jsx'
+import Overview, { HealthScoreModal } from './components/Overview.jsx'
 import LandingPage from './components/LandingPage.jsx'
 import WaveReviewPage from './components/WaveReviewPage.jsx'
-import HotLeadsPage from './components/HotLeadsPage.jsx'
 import IntelBoardPage from './components/IntelBoardPage.jsx'
 import ChiefOfStaff from './components/ChiefOfStaff.jsx'
 import WhitespacePage from './components/WhitespacePage.jsx'
@@ -313,7 +311,7 @@ function Sidebar({data,activeId,setActiveId,setData,onNavigate,searchRef,lastSav
   )
 }
 
-const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Actions'},{id:'intel',label:'Intel Log'},{id:'aihistory',label:'History'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
+const TABS = [{id:'overview',label:'Overview'},{id:'dashboard',label:'Dashboard'},{id:'contacts',label:'Contacts'},{id:'stack',label:'Tech Stack'},{id:'projects',label:'Projects'},{id:'followups',label:'Open Items'},{id:'intel',label:'Call Feed'},{id:'files',label:'Files'},{id:'admin',label:'Admin'},{id:'settings',label:'Settings'}]
 
 function KanbanCard({p, col, updateProject}) {
   const [editingDate, setEditingDate] = useState(false)
@@ -1447,13 +1445,13 @@ export default function App() {
   const [showMaggie,setShowMaggie] = useState(false)
   const [showFiles,setShowFiles] = useState(false)
   const [showWaveReview,setShowWaveReview] = useState(false)
-  const [showHotLeads,setShowHotLeads] = useState(false)
   const [showIntelBoard,setShowIntelBoard] = useState(false)
   const [showChiefOfStaff,setShowChiefOfStaff] = useState(false)
   const [maggieOpen,setMaggieOpen] = useState(false)
   const [briefGenerating,setBriefGenerating] = useState(false)
   const [briefError,setBriefError] = useState(null)
   const [showClientView,setShowClientView] = useState(false)
+  const [showHealthModal,setShowHealthModal] = useState(false)
   const [deleteToast,setDeleteToast] = useState(null)
   const [mobileMenuOpen,setMobileMenuOpen] = useState(false)
   const [sidebarCollapsed,setSidebarCollapsed] = useState(()=>localStorage.getItem('sidebar-collapsed')==='true')
@@ -1529,8 +1527,6 @@ export default function App() {
         setShowWaveReview(true); setIsLandingPage(false)
       } else if (saved.page === 'chiefofstaff') {
         setShowChiefOfStaff(true); setIsLandingPage(false)
-      } else if (saved.page === 'hotleads') {
-        setShowHotLeads(true); setIsLandingPage(false)
       } else if (saved.page === 'account' && saved.activeId) {
         const exists = data.accounts.find(a => a.id === saved.activeId)
         if (exists) {
@@ -1550,7 +1546,6 @@ export default function App() {
     if (!initialLoadDone) return
     const page = showWaveReview ? 'wavereview'
       : showChiefOfStaff ? 'chiefofstaff'
-      : showHotLeads ? 'hotleads'
       : showFiles ? 'files'
       : showWhitespace ? 'whitespace'
       : showAllProjects ? 'allprojects'
@@ -1561,7 +1556,7 @@ export default function App() {
       : !isLandingPage ? 'account'
       : 'landing'
     try { localStorage.setItem('ledgr-nav', JSON.stringify({ page, activeId, tab })) } catch(e) {}
-  }, [showFiles, showWaveReview, showChiefOfStaff, showHotLeads, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
+  }, [showFiles, showWaveReview, showChiefOfStaff, showWhitespace, showAllProjects, showVendors, showCyberBible, showMothership, showMaggie, isLandingPage, activeId, tab, initialLoadDone])
 
   const handleDeleteAccount = (accountId) => {
     const updated = {...data, accounts: (data.accounts||[]).filter(a => a.id !== accountId)}
@@ -1913,14 +1908,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
 
   if (!data) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:S.bg,color:S.muted,fontSize:14}}>Loading...</div>
 
-  if (showHotLeads) return (
-    <><HotLeadsPage
-      data={data}
-      setData={setData}
-      onBack={()=>{setShowHotLeads(false);setIsLandingPage(true)}}
-    /><MaggieChatPanel data={data} setData={setData} open={maggieOpen} onToggle={()=>setMaggieOpen(v=>!v)} onClose={()=>setMaggieOpen(false)}/></>
-  )
-
   if (showWhitespace) return (
     <><WhitespacePage
       data={data}
@@ -1997,7 +1984,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
       onEnterAccount={id=>{setActiveId(id);setTab('overview');setIsLandingPage(false)}}
       onNavigateTo={(id,t)=>{setActiveId(id);setTab(t);setIsLandingPage(false)}}
       onOpenSettings={()=>{const first=data.accounts[0];if(first){setActiveId(first.id);setTab('settings');setIsLandingPage(false)}}}
-      onGoHotLeads={()=>{setShowHotLeads(true);setIsLandingPage(false)}}
       onGoWhitespace={()=>{setShowWhitespace(true);setIsLandingPage(false)}}
       onGoAllProjects={()=>{setShowAllProjects(true);setIsLandingPage(false)}}
       onGoVendors={()=>{setShowVendors(true);setIsLandingPage(false)}}
@@ -2076,23 +2062,24 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
         <div style={{background:S.isLight?'#ffffff':S.headerBg,padding:mob?'10px 14px 0 50px':'12px 24px 0',flexShrink:0,position:mob?'sticky':'relative',top:0,zIndex:mob?100:'auto'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:S.isLight?10:10}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <button onClick={()=>{setShowAccounts(true);setIsLandingPage(true)}} style={{display:'inline-flex',alignItems:'center',gap:4,background:'transparent',border:'1px solid #EEEFF2',borderRadius:6,color:'#9CA3AF',cursor:'pointer',fontSize:12,fontWeight:500,padding:'5px 10px',flexShrink:0,whiteSpace:'nowrap'}}>‹ All Accounts</button>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                {acct.logoImage&&<div style={{width:28,height:28,borderRadius:'50%',overflow:'hidden',flexShrink:0,border:`1px solid ${S.bdr}`}}><img src={acct.logoImage} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/></div>}
-                <div>
-                  <div style={{fontSize:20,fontWeight:700,color:'#111827',lineHeight:1.2}}>{acct.name}</div>
-                </div>
-              </div>
+              <div style={{fontSize:20,fontWeight:700,color:'#111827',lineHeight:1.2}}>{acct.name}</div>
+              {acct.lastContact&&<span style={{fontSize:12,color:'#9CA3AF'}}>Last contact: {fmtDate(acct.lastContact)}</span>}
+              {(()=>{
+                const hs=calcHealthScore(acct)
+                if(hs==null||isNaN(hs)) return null
+                const hc=getHealthColor(hs)
+                return (
+                  <button onClick={()=>setShowHealthModal(true)} title="Health score" style={{display:'inline-flex',alignItems:'center',background:hc+'20',border:'none',borderRadius:999,color:hc,cursor:'pointer',fontSize:11,fontWeight:700,padding:'2px 9px',flexShrink:0}}>{hs}</button>
+                )
+              })()}
             </div>
-            {!mob&&<div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',alignItems:'center'}}>
-              {acct.lastContact&&<span style={{fontSize:11,color:S.muted}}>Last contact: {fmtDate(acct.lastContact)}</span>}
-            </div>}
             <button onClick={()=>setShowClientView(true)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:8,color:'#374151',cursor:'pointer',fontSize:12,fontWeight:600,padding:'6px 14px',flexShrink:0,boxShadow:'0 1px 2px rgba(0,0,0,0.06)',whiteSpace:'nowrap'}}
               onMouseEnter={e=>{e.currentTarget.style.borderColor='#007AFF';e.currentTarget.style.color='#007AFF'}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='#EEEFF2';e.currentTarget.style.color='#374151'}}>
               <Eye size={14}/> Client View
             </button>
           </div>
+          {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
           <style>{`@keyframes fuPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.75)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
           <div style={{display:'flex',overflowX:'auto',WebkitOverflowScrolling:'touch',position:mob?'relative':'sticky',top:mob?undefined:0,zIndex:mob?undefined:10}}>
             {TABS.map(t=>(
@@ -2115,7 +2102,6 @@ The five highest-impact things Mike should accomplish today, numbered 1–5, in 
           {tab==='projects'&&<Projects acct={acct} setAcct={setAcct}/>}
           {tab==='followups'&&<Actions acct={acct} setAcct={setAcct} apiKey={data.apiKey} whitespaceAccounts={data.whitespaceAccounts||[]}/>}
           {tab==='intel'&&<IntelLog acct={acct} setAcct={setAcct} apiKey={data.apiKey} appData={data} setAppData={setData}/>}
-          {tab==='aihistory'&&<AIHistory acct={acct} setAcct={setAcct} setData={setData} apiKey={data.apiKey}/>}
           {tab==='files'&&<Files acct={acct} setAcct={setAcct}/>}
           {tab==='admin'&&<Admin acct={acct} setAcct={setAcct}/>}
           {tab==='settings'&&<Settings data={data} setData={setData} acct={acct} setAcct={setAcct} theme={theme} setTheme={handleSetTheme} saveInProgress={saveInProgress} lastSaveTime={lastSaveTime} onReset={()=>setData(SAMPLE)} onDeleteAccount={handleDeleteAccount}/>}

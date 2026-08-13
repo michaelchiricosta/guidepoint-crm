@@ -5,7 +5,6 @@ import { S, PC } from '../theme.js'
 import { uid, fmtDate, daysUntil, daysSince, parseCost, fmtSpend, formatCompactCurrency, initials, calcDetailedHealthScore, calcHealthScore, getHealthColor, getQuickWin, sendToAppleReminders } from '../utils.js'
 import { SC, PSC } from '../constants.js'
 import { Badge, Btn, Field, Modal, SH, Card } from './UI.jsx'
-import AIChatModal from './AIChatModal.jsx'
 import { callClaudeWithRetry } from '../utils/aiHelper.js'
 
 // Prevent auto-regenerating summary multiple times per session
@@ -19,7 +18,7 @@ const HS_TOOLTIPS = {
   opportunity: "Points for vendors being actively evaluated and recently Won projects.",
 }
 
-function HealthScoreModal({acct, setAcct, onClose}) {
+export function HealthScoreModal({acct, setAcct, onClose}) {
   const [editingComp, setEditingComp] = useState(null)
   const [compInput, setCompInput] = useState('')
   const [compReason, setCompReason] = useState('')
@@ -182,8 +181,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   const [alertModal,setAlertModal] = useState(null)
   const [hoveredAlert,setHoveredAlert] = useState(null)
   const [showAddFU,setShowAddFU] = useState(false)
-  const [showAIChat,setShowAIChat] = useState(false)
-  const [showHealthModal,setShowHealthModal] = useState(false)
   const [completingFU,setCompletingFU] = useState(null)
   const [showAddDate,setShowAddDate] = useState(false)
   const [dateForm,setDateForm] = useState({title:'',date:'',type:'Meeting',notes:''})
@@ -203,8 +200,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
   const [fuForm,setFuForm] = useState({task:'',contact:'',priority:'High',dueDate:'',context:''})
   const [summaryLoading,setSummaryLoading] = useState(false)
   const [summaryError,setSummaryError] = useState(null)
-  const [showSpendModal,setShowSpendModal] = useState(false)
-  const [showPipelineModal,setShowPipelineModal] = useState(false)
 
   useEffect(()=>{
     const now=new Date()
@@ -341,12 +336,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
     setAlertModal({type:'generic',text:a.text,level:a.level})
   }
 
-  const inFlight = acct.projects.filter(p=>p.status==='In Flight').length
-  const lastC = acct.lastContact ? Math.abs(daysUntil(acct.lastContact)||0) : '?'
-  const totalAnnualSpend = (acct.techStack||[]).reduce((s,t)=>s+parseCost(t.cost),0)
-  const stageWeights = {'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
-  const totalWeightedPipeline = (acct.projects||[]).filter(p=>p.status!=='Lost'&&p.estimatedRevenue).reduce((s,p)=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage;return s+rev*(stageWeights[cs]??0.10)},0)
-
   const InfoRow = ({label,val}) => (
     <div style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:`1px solid ${S.bdr}`,fontSize:13,gap:12}}>
       <span style={{color:S.muted,flexShrink:0}}>{label}</span><span style={{color:S.txt,textAlign:'right'}}>{val||'—'}</span>
@@ -452,158 +441,6 @@ export default function Overview({acct,setAcct,setTab,apiKey}) {
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.85}50%{opacity:1;text-shadow:0 0 12px rgba(14,165,233,0.8)}} @keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}} @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       {snoozeToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Clock size={14}/> {snoozeMsg}</div>}
       {remindersToast&&<div style={{position:'fixed',bottom:28,left:'50%',transform:'translateX(-50%)',background:'rgba(34,197,94,0.92)',color:'#fff',padding:'9px 22px',borderRadius:8,fontSize:13,fontWeight:700,zIndex:9999,boxShadow:'0 4px 16px rgba(0,0,0,0.35)',pointerEvents:'none',display:'flex',alignItems:'center',gap:7}}><Share2 size={14}/> Sending to Apple Reminders...</div>}
-      <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':typeof window!=='undefined'&&window.innerWidth<1200?'repeat(4,1fr)':'repeat(8,1fr)',gap:8,marginBottom:16}}>
-        {/* AI Intelligence — first / leftmost */}
-        <div onClick={()=>setShowAIChat(true)}
-          style={{background:'#F0F7FF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
-          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,122,255,0.12)'}
-          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-          <div style={{fontSize:18,color:'#007AFF',lineHeight:1,marginBottom:4}}>✦</div>
-          <div style={{fontSize:11,fontWeight:600,color:'#007AFF'}}>AI Intelligence</div>
-        </div>
-        {/* Health Score card — second */}
-        {(()=>{
-          const hs=calcHealthScore(acct)
-          const hc=getHealthColor(hs)
-          const hg=`linear-gradient(135deg,#0a1628 0%,${hc} 100%)`
-          return (
-            <div onClick={()=>setShowHealthModal(true)}
-              style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
-              onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
-              onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-              <div style={{fontSize:22,fontWeight:700,color:hc}}>{hs}</div>
-              <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Health Score</div>
-            </div>
-          )
-        })()}
-        {/* Metric cards */}
-        {[
-          {label:'Open Actions',val:openFU.length,tab:'followups'},
-          {label:'Active Projects',val:inFlight,tab:'projects'},
-          {label:'Contacts Mapped',val:acct.contacts.length,tab:'contacts'},
-          {label:'Days Since Contact',val:lastC,tab:'intel'}
-        ].map(m=>(
-          <div key={m.label}
-            onClick={()=>setTab(m.tab)}
-            style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
-            onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
-            onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-            <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{m.val}</div>
-            <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>{m.label}</div>
-          </div>
-        ))}
-        {/* Annual Spend card */}
-        <div
-          onClick={()=>setShowSpendModal(true)}
-          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
-          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
-          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-          <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{totalAnnualSpend>0?formatCompactCurrency(totalAnnualSpend):'—'}</div>
-          <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Annual Spend</div>
-        </div>
-        {/* Pipeline card */}
-        <div
-          onClick={()=>setShowPipelineModal(true)}
-          style={{background:'#FFFFFF',border:'1px solid #EEEFF2',borderRadius:10,padding:'12px 20px',cursor:'pointer',textAlign:'center',transition:'box-shadow 0.15s'}}
-          onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,0.10)'}
-          onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
-          <div style={{fontSize:22,fontWeight:700,color:'#111827'}}>{totalWeightedPipeline>0?formatCompactCurrency(totalWeightedPipeline):'—'}</div>
-          <div style={{fontSize:11,color:'#9CA3AF',marginTop:2}}>Pipeline</div>
-        </div>
-      </div>
-      {showAIChat&&<AIChatModal acct={acct} setAcct={setAcct} effectiveKey={effectiveKey} onClose={()=>setShowAIChat(false)}/>}
-      {showHealthModal&&<HealthScoreModal acct={acct} setAcct={setAcct} onClose={()=>setShowHealthModal(false)}/>}
-      {showPipelineModal&&(()=>{
-        const sw={'Awareness':0.10,'NDA':0.10,'Intro Call':0.15,'Demo':0.20,'POC':0.30,'Scoping':0.40,'Pricing':0.60,'Legal':0.90,'Procurement':0.90,'PO Received':1.00,'Deployed':1.00}
-        const wBadge=w=>{if(w>=1.0)return{c:'#7c3aed',bg:'rgba(124,58,237,0.12)'};if(w>=0.9)return{c:'#16a34a',bg:'rgba(22,163,74,0.12)'};if(w>=0.6)return{c:'#ea580c',bg:'rgba(234,88,12,0.12)'};if(w>=0.3)return{c:'#ca8a04',bg:'rgba(202,138,4,0.12)'};if(w>=0.15)return{c:'#007AFF',bg:'rgba(0,122,255,0.12)'};return{c:'#64748b',bg:'rgba(100,116,139,0.12)'}}
-        const rows=(acct.projects||[]).filter(p=>p.status!=='Lost').map(p=>{const rev=parseCost(p.estimatedRevenue);const cs=p.timeline?.find(t=>t.status==='current')?.stage||p.timeline?.filter(t=>t.status==='completed').slice(-1)[0]?.stage||null;const w=sw[cs]??0.10;return{...p,_rev:rev,_cs:cs,_w:w,_wv:rev*w}}).sort((a,b)=>b._wv-a._wv)
-        const active=rows.filter(r=>r._rev>0)
-        const totW=active.reduce((s,r)=>s+r._wv,0)
-        const totU=active.reduce((s,r)=>s+r._rev,0)
-        return(
-          <Modal title={`Weighted Pipeline — ${acct.name}`} onClose={()=>setShowPipelineModal(false)} width='min(900px,65vw)'>
-            {active.length===0
-              ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No pipeline revenue entered. Add estimated revenue to your projects to track weighted pipeline.</div>
-              :<>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
-                  {[{label:'Total Weighted Pipeline',val:formatCompactCurrency(totW),c:'#0891b2'},{label:'Total Unweighted',val:formatCompactCurrency(totU),c:'#007AFF'},{label:'Active Projects w/ Revenue',val:String(active.length),c:'#16a34a'}].map(card=>(
-                    <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
-                      <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
-                      <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'7px 14px',fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',background:S.surf2,borderBottom:`1px solid ${S.bdr}`}}>
-                    <div>Project</div><div>Stage</div><div style={{textAlign:'right'}}>Est. Revenue</div><div style={{textAlign:'right'}}>Weight</div><div style={{textAlign:'right'}}>Weighted Value</div><div>Status</div>
-                  </div>
-                  {rows.map((p,i)=>{
-                    const wb=wBadge(p._w);const hasRev=p._rev>0
-                    return(
-                      <div key={p.id||i} style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'8px 14px',borderBottom:i<rows.length-1?`1px solid ${S.bdr}`:'none',fontSize:12,color:hasRev?S.txt:S.muted,alignItems:'center',opacity:hasRev?1:0.6}}>
-                        <div style={{fontWeight:hasRev?600:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name}</div>
-                        <div style={{fontSize:11,color:S.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p._cs||'—'}</div>
-                        <div style={{textAlign:'right'}}>{hasRev?formatCompactCurrency(p._rev):'—'}</div>
-                        <div style={{textAlign:'right'}}><span style={{fontSize:10,fontWeight:700,color:wb.c,background:wb.bg,borderRadius:999,padding:'2px 6px'}}>{Math.round(p._w*100)}%</span></div>
-                        <div style={{textAlign:'right',fontWeight:600,color:hasRev?'#0891b2':S.muted}}>{hasRev?formatCompactCurrency(p._wv):'—'}</div>
-                        <div><span style={{fontSize:10,fontWeight:600,color:PSC[p.status]||S.muted}}>{p.status}</span></div>
-                      </div>
-                    )
-                  })}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 90px 100px 70px 110px 90px',gap:'4px 12px',padding:'8px 14px',fontSize:12,fontWeight:700,color:S.txt,background:S.surf2,borderTop:`1px solid ${S.bdr}`}}>
-                    <div>Total</div><div/><div style={{textAlign:'right'}}>{formatCompactCurrency(totU)}</div><div/><div style={{textAlign:'right',color:'#0891b2'}}>{formatCompactCurrency(totW)}</div><div/>
-                  </div>
-                </div>
-              </>
-            }
-          </Modal>
-        )
-      })()}
-      {showSpendModal&&(()=>{
-        const rows=(acct.techStack||[]).map(t=>({...t,_cost:parseCost(t.cost),_rev:parseCost(t.totalRevenue),_gp:parseCost(t.grossProfit)})).filter(t=>t._cost||t._rev||t._gp).sort((a,b)=>b._cost-a._cost)
-        const totCost=rows.reduce((s,t)=>s+t._cost,0)
-        const totRev=rows.reduce((s,t)=>s+t._rev,0)
-        const totGP=rows.reduce((s,t)=>s+t._gp,0)
-        const gpPct=totRev>0?(totGP/totRev*100).toFixed(1)+'%':'—'
-        return(
-          <Modal title={`Technology Spend — ${acct.name}`} onClose={()=>setShowSpendModal(false)} width='min(900px,65vw)'>
-            {rows.length===0
-              ?<div style={{textAlign:'center',padding:'32px 0',color:S.muted,fontSize:13}}>No costs entered yet. Add annual costs in the Tech Stack tab.</div>
-              :<>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20}}>
-                  {[{label:'Total Annual Spend',val:fmtSpend(totCost),c:'#7c3aed'},{label:'Total Revenue',val:totRev>0?fmtSpend(totRev):'—',c:'#007AFF'},{label:'Total Gross Profit',val:totGP>0?fmtSpend(totGP):'—',c:'#16a34a'},{label:'GP%',val:gpPct,c:totRev>0&&totGP/totRev>=0.3?'#16a34a':'#ea580c'}].map(card=>(
-                    <div key={card.label} style={{background:S.surf2,border:`1px solid ${S.bdr}`,borderRadius:8,padding:'12px 14px'}}>
-                      <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>{card.label}</div>
-                      <div style={{fontSize:20,fontWeight:800,color:card.c}}>{card.val}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{border:`1px solid ${S.bdr}`,borderRadius:8,overflow:'hidden'}}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'7px 14px',fontSize:10,fontWeight:700,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',background:S.surf2,borderBottom:`1px solid ${S.bdr}`}}>
-                    <div>Vendor</div><div>Category</div><div style={{textAlign:'right'}}>Annual Cost</div><div style={{textAlign:'right'}}>Revenue</div><div style={{textAlign:'right'}}>Gross Profit</div><div style={{textAlign:'right'}}>GP%</div>
-                  </div>
-                  {rows.map((t,i)=>{
-                    const gp=t._rev>0?(t._gp/t._rev*100).toFixed(1)+'%':'—'
-                    return(
-                      <div key={t.id||i} style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'8px 14px',borderBottom:i<rows.length-1?`1px solid ${S.bdr}`:'none',fontSize:12,color:S.txt,alignItems:'center'}}>
-                        <div style={{fontWeight:600}}>{t.vendor}</div>
-                        <div style={{color:S.muted,fontSize:11}}>{t.category}</div>
-                        <div style={{textAlign:'right'}}>{t._cost>0?fmtSpend(t._cost):'—'}</div>
-                        <div style={{textAlign:'right',color:S.muted}}>{t._rev>0?fmtSpend(t._rev):'—'}</div>
-                        <div style={{textAlign:'right',color:S.muted}}>{t._gp>0?fmtSpend(t._gp):'—'}</div>
-                        <div style={{textAlign:'right',color:S.muted}}>{gp}</div>
-                      </div>
-                    )
-                  })}
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 100px 110px 110px 110px 70px',gap:'4px 12px',padding:'8px 14px',fontSize:12,fontWeight:700,color:S.txt,background:S.surf2,borderTop:`1px solid ${S.bdr}`}}>
-                    <div>Total</div><div/><div style={{textAlign:'right'}}>{fmtSpend(totCost)}</div><div style={{textAlign:'right'}}>{totRev>0?fmtSpend(totRev):'—'}</div><div style={{textAlign:'right'}}>{totGP>0?fmtSpend(totGP):'—'}</div><div style={{textAlign:'right'}}>{gpPct}</div>
-                  </div>
-                </div>
-              </>
-            }
-          </Modal>
-        )
-      })()}
       {alerts.length>0&&(
         <div style={{marginBottom:20}}>
           <div style={{background:'#FFFFFF',borderRadius:12,border:'1px solid #EEEFF2',overflow:'hidden'}}>
